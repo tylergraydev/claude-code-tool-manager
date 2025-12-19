@@ -19,7 +19,7 @@
     "@tauri-apps/plugin-fs": "^2",
     "@tauri-apps/plugin-notification": "^2",
     "@tauri-apps/plugin-sql": "^2",
-    "lucide-svelte": "^0.460.0"
+    "lucide-svelte": "^0.562.0"
   },
   "devDependencies": {
     "@sveltejs/adapter-static": "^3.0.6",
