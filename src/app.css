@@ -1,0 +1,73 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+	:root {
+		--background: 249 250 251;
+		--foreground: 17 24 39;
+	}
+
+	.dark {
+		--background: 17 24 39;
+		--foreground: 249 250 251;
+	}
+
+	body {
+		@apply antialiased;
+		font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+	}
+}
+
+@layer components {
+	.btn {
+		@apply inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none;
+	}
+
+	.btn-primary {
+		@apply bg-primary-600 text-white hover:bg-primary-700 focus:ring-primary-500;
+	}
+
+	.btn-secondary {
+		@apply bg-gray-100 text-gray-900 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700;
+	}
+
+	.btn-ghost {
+		@apply text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800;
+	}
+
+	.input {
+		@apply block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm placeholder-gray-400 shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500;
+	}
+
+	.card {
+		@apply rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800;
+	}
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+	width: 8px;
+	height: 8px;
+}
+
+::-webkit-scrollbar-track {
+	@apply bg-transparent;
+}
+
+::-webkit-scrollbar-thumb {
+	@apply bg-gray-300 dark:bg-gray-600 rounded-full;
+}
+
+::-webkit-scrollbar-thumb:hover {
+	@apply bg-gray-400 dark:bg-gray-500;
+}
+
+/* Drag and drop styles */
+.dragging {
+	@apply opacity-50;
+}
+
+.drop-target {
+	@apply ring-2 ring-primary-500 ring-offset-2;
+}

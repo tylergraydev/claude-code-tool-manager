@@ -1,0 +1,46 @@
+[package]
+name = "claude-mcp-manager"
+version = "1.0.0"
+description = "GUI app to manage MCP servers for Claude Code"
+authors = ["you"]
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+# Tauri core
+tauri = { version = "2", features = ["devtools"] }
+tauri-plugin-shell = "2"
+tauri-plugin-fs = "2"
+tauri-plugin-dialog = "2"
+tauri-plugin-notification = "2"
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+
+# Error handling
+thiserror = "1"
+anyhow = "1"
+
+# Logging
+log = "0.4"
+env_logger = "0.11"
+
+# Path handling
+directories = "5"
+walkdir = "2"
+
+# SQLite
+rusqlite = { version = "0.31", features = ["bundled"] }
+
+# Time
+chrono = { version = "0.4", features = ["serde"] }
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]
