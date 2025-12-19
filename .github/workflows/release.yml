@@ -60,7 +60,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tagName: ${{ github.ref_name }}
-          releaseName: 'Claude MCP Manager ${{ github.ref_name }}'
+          releaseName: 'Claude Code Tool Manager ${{ github.ref_name }}'
           releaseBody: |
             ## Download
 

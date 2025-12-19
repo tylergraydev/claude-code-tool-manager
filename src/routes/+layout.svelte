@@ -3,7 +3,7 @@
 	import { onMount } from 'svelte';
 	import { Sidebar } from '$lib/components/layout';
 	import { Toast } from '$lib/components/shared';
-	import { mcpLibrary, projectsStore } from '$lib/stores';
+	import { mcpLibrary, projectsStore, skillLibrary, subagentLibrary } from '$lib/stores';
 
 	let { children } = $props();
 
@@ -12,7 +12,11 @@
 		await Promise.all([
 			mcpLibrary.load(),
 			projectsStore.loadProjects(),
-			projectsStore.loadGlobalMcps()
+			projectsStore.loadGlobalMcps(),
+			skillLibrary.load(),
+			skillLibrary.loadGlobalSkills(),
+			subagentLibrary.load(),
+			subagentLibrary.loadGlobalSubAgents()
 		]);
 	});
 </script>
