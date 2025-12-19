@@ -89,3 +89,95 @@ pub struct ClaudePaths {
     pub global_settings: String,
     pub plugins_dir: String,
 }
+
+// Skills (Slash Commands and Agent Skills)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Skill {
+    pub id: i64,
+    pub name: String,
+    pub description: Option<String>,
+    pub content: String,
+    pub skill_type: String,  // "command" or "skill"
+    pub allowed_tools: Option<Vec<String>>,
+    pub argument_hint: Option<String>,
+    pub tags: Option<Vec<String>>,
+    pub source: String,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CreateSkillRequest {
+    pub name: String,
+    pub description: Option<String>,
+    pub content: String,
+    pub skill_type: String,
+    pub allowed_tools: Option<Vec<String>>,
+    pub argument_hint: Option<String>,
+    pub tags: Option<Vec<String>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProjectSkill {
+    pub id: i64,
+    pub skill_id: i64,
+    pub skill: Skill,
+    pub is_enabled: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GlobalSkill {
+    pub id: i64,
+    pub skill_id: i64,
+    pub skill: Skill,
+    pub is_enabled: bool,
+}
+
+// Sub-Agents
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SubAgent {
+    pub id: i64,
+    pub name: String,
+    pub description: String,
+    pub content: String,
+    pub tools: Option<Vec<String>>,
+    pub model: Option<String>,
+    pub tags: Option<Vec<String>>,
+    pub source: String,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CreateSubAgentRequest {
+    pub name: String,
+    pub description: String,
+    pub content: String,
+    pub tools: Option<Vec<String>>,
+    pub model: Option<String>,
+    pub tags: Option<Vec<String>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProjectSubAgent {
+    pub id: i64,
+    pub subagent_id: i64,
+    pub subagent: SubAgent,
+    pub is_enabled: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GlobalSubAgent {
+    pub id: i64,
+    pub subagent_id: i64,
+    pub subagent: SubAgent,
+    pub is_enabled: bool,
+}

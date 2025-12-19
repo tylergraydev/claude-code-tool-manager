@@ -5,6 +5,7 @@ use std::path::PathBuf;
 pub struct ClaudePathsInternal {
     pub home: PathBuf,
     pub claude_dir: PathBuf,
+    pub claude_json: PathBuf,  // Main Claude Code config file (~/.claude.json)
     pub global_settings: PathBuf,
     pub plugins_dir: PathBuf,
     pub marketplaces_dir: PathBuf,
@@ -17,12 +18,18 @@ pub fn get_claude_paths() -> Result<ClaudePathsInternal> {
     let claude_dir = home.join(".claude");
 
     Ok(ClaudePathsInternal {
+        claude_json: home.join(".claude.json"),  // ~/.claude.json
         global_settings: claude_dir.join("settings.json"),
         plugins_dir: claude_dir.join("plugins"),
         marketplaces_dir: claude_dir.join("plugins").join("marketplaces"),
         home,
         claude_dir,
     })
+}
+
+/// Normalize a path to use forward slashes for consistent comparison
+pub fn normalize_path(path: &str) -> String {
+    path.replace('\\', "/")
 }
 
 pub fn project_mcp_file(project_path: &PathBuf) -> PathBuf {

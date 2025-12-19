@@ -2,6 +2,7 @@
 	import type { Project } from '$lib/types';
 	import { projectsStore } from '$lib/stores';
 	import ProjectCard from './ProjectCard.svelte';
+	import ProjectDetail from './ProjectDetail.svelte';
 	import { FolderOpen, Plus } from 'lucide-svelte';
 
 	type Props = {
@@ -10,6 +11,18 @@
 	};
 
 	let { onAddProject, onRemoveProject }: Props = $props();
+
+	let selectedProject = $state<Project | null>(null);
+
+	function handleProjectClick(project: Project) {
+		selectedProject = project;
+	}
+
+	function handleCloseDetail() {
+		selectedProject = null;
+		// Reload projects to get updated assignments
+		projectsStore.loadProjects();
+	}
 </script>
 
 <div class="space-y-4">
@@ -18,7 +31,7 @@
 		<div>
 			<h3 class="text-lg font-semibold text-gray-900 dark:text-white">Projects</h3>
 			<p class="text-sm text-gray-500 dark:text-gray-400">
-				Drag MCPs from the library onto projects to assign them
+				Click a project to manage its MCPs
 			</p>
 		</div>
 		{#if onAddProject}
@@ -51,8 +64,17 @@
 	{:else}
 		<div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
 			{#each projectsStore.projects as project (project.id)}
-				<ProjectCard {project} onRemove={onRemoveProject} />
+				<ProjectCard
+					{project}
+					onRemove={onRemoveProject}
+					onClick={() => handleProjectClick(project)}
+				/>
 			{/each}
 		</div>
 	{/if}
 </div>
+
+<!-- Project Detail Modal -->
+{#if selectedProject}
+	<ProjectDetail project={selectedProject} onClose={handleCloseDetail} />
+{/if}
