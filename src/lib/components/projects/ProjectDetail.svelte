@@ -69,7 +69,17 @@
 	}
 </script>
 
-<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onclick={onClose}>
+<!-- svelte-ignore a11y_no_static_element_interactions -->
+<!-- svelte-ignore a11y_click_events_have_key_events -->
+<div
+	class="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+	onclick={onClose}
+	role="dialog"
+	aria-modal="true"
+	aria-labelledby="project-detail-title"
+>
+	<!-- svelte-ignore a11y_no_static_element_interactions -->
+	<!-- svelte-ignore a11y_click_events_have_key_events -->
 	<div
 		class="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-2xl w-full mx-4 max-h-[85vh] flex flex-col"
 		onclick={(e) => e.stopPropagation()}
@@ -81,7 +91,7 @@
 					<FolderOpen class="w-5 h-5 text-amber-600 dark:text-amber-400" />
 				</div>
 				<div>
-					<h2 class="text-xl font-semibold text-gray-900 dark:text-white">{project.name}</h2>
+					<h2 id="project-detail-title" class="text-xl font-semibold text-gray-900 dark:text-white">{project.name}</h2>
 					<p class="text-sm text-gray-500 dark:text-gray-400 font-mono">{project.path}</p>
 				</div>
 			</div>

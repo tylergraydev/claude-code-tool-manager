@@ -64,9 +64,12 @@
 			</button>
 
 			{#if showMenu}
+				<!-- svelte-ignore a11y_no_static_element_interactions -->
+				<!-- svelte-ignore a11y_click_events_have_key_events -->
 				<div
 					class="absolute right-0 top-full mt-1 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-10"
 					onclick={(e) => e.stopPropagation()}
+					role="menu"
 				>
 					<button
 						onclick={() => {

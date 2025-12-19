@@ -3,6 +3,7 @@ use directories::BaseDirs;
 use std::path::PathBuf;
 
 pub struct ClaudePathsInternal {
+    #[allow(dead_code)]
     pub home: PathBuf,
     pub claude_dir: PathBuf,
     pub claude_json: PathBuf,  // Main Claude Code config file (~/.claude.json)
@@ -32,10 +33,12 @@ pub fn normalize_path(path: &str) -> String {
     path.replace('\\', "/")
 }
 
+#[allow(dead_code)]
 pub fn project_mcp_file(project_path: &PathBuf) -> PathBuf {
     project_path.join(".claude").join(".mcp.json")
 }
 
+#[allow(dead_code)]
 pub fn project_settings_file(project_path: &PathBuf) -> PathBuf {
     project_path.join(".claude").join("settings.local.json")
 }

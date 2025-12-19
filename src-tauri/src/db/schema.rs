@@ -1,5 +1,5 @@
 use anyhow::Result;
-use rusqlite::{Connection, params};
+use rusqlite::Connection;
 use std::path::Path;
 
 pub struct Database {
@@ -220,13 +220,3 @@ impl Database {
     }
 }
 
-// Helper trait for JSON serialization in SQLite
-pub trait JsonValue {
-    fn to_json_string(&self) -> Option<String>;
-}
-
-impl<T: serde::Serialize> JsonValue for Option<T> {
-    fn to_json_string(&self) -> Option<String> {
-        self.as_ref().map(|v| serde_json::to_string(v).ok()).flatten()
-    }
-}
