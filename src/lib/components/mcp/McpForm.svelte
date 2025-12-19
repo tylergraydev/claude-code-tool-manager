@@ -2,6 +2,8 @@
 	import type { CreateMcpRequest, McpType, Mcp } from '$lib/types';
 	import McpTypeSelector from './McpTypeSelector.svelte';
 	import { EnvEditor } from '$lib/components/shared';
+	import { parseMcpFromClipboard, type ParsedMcp } from '$lib/utils/mcpPasteParser';
+	import { Clipboard, Check, AlertCircle } from 'lucide-svelte';
 
 	type Props = {
 		initialValues?: Partial<Mcp>;
@@ -33,6 +35,81 @@
 
 	let isSubmitting = $state(false);
 	let errors = $state<Record<string, string>>({});
+
+	// Paste detection state
+	let pasteStatus = $state<'idle' | 'success' | 'error'>('idle');
+	let pasteMessage = $state('');
+
+	function applyParsedMcp(mcp: ParsedMcp) {
+		name = mcp.name;
+		mcpType = mcp.type;
+
+		if (mcp.type === 'stdio') {
+			command = mcp.command ?? '';
+			args = mcp.args?.join(' ') ?? '';
+		} else {
+			url = mcp.url ?? '';
+			if (mcp.headers) {
+				headers = mcp.headers;
+			}
+		}
+
+		if (mcp.env) {
+			env = mcp.env;
+		}
+
+		pasteStatus = 'success';
+		pasteMessage = `Imported "${mcp.name}" (${mcp.type})`;
+
+		// Reset status after 3 seconds
+		setTimeout(() => {
+			pasteStatus = 'idle';
+			pasteMessage = '';
+		}, 3000);
+	}
+
+	async function handlePaste(e: ClipboardEvent) {
+		const text = e.clipboardData?.getData('text');
+		if (!text) return;
+
+		const result = parseMcpFromClipboard(text);
+
+		if (result.success && result.mcps.length > 0) {
+			e.preventDefault(); // Prevent default paste into focused field
+			applyParsedMcp(result.mcps[0]);
+
+			// If multiple MCPs were found, notify user
+			if (result.mcps.length > 1) {
+				pasteMessage += ` (+${result.mcps.length - 1} more available)`;
+			}
+		}
+		// If parsing fails, let the default paste behavior happen
+	}
+
+	async function handlePasteFromClipboard() {
+		try {
+			const text = await navigator.clipboard.readText();
+			const result = parseMcpFromClipboard(text);
+
+			if (result.success && result.mcps.length > 0) {
+				applyParsedMcp(result.mcps[0]);
+			} else {
+				pasteStatus = 'error';
+				pasteMessage = result.error ?? 'Could not parse clipboard content';
+				setTimeout(() => {
+					pasteStatus = 'idle';
+					pasteMessage = '';
+				}, 3000);
+			}
+		} catch {
+			pasteStatus = 'error';
+			pasteMessage = 'Could not access clipboard';
+			setTimeout(() => {
+				pasteStatus = 'idle';
+				pasteMessage = '';
+			}, 3000);
+		}
+	}
 
 	function validate(): boolean {
 		errors = {};
@@ -84,7 +161,50 @@
 	}
 </script>
 
-<form onsubmit={handleSubmit} class="space-y-6">
+<form onsubmit={handleSubmit} class="space-y-6" onpaste={handlePaste}>
+	<!-- Paste Import Section -->
+	<div class="p-4 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-800/50">
+		<div class="flex items-center justify-between">
+			<div class="flex items-center gap-3">
+				{#if pasteStatus === 'success'}
+					<div class="w-8 h-8 rounded-lg bg-green-100 dark:bg-green-900/50 flex items-center justify-center">
+						<Check class="w-4 h-4 text-green-600 dark:text-green-400" />
+					</div>
+				{:else if pasteStatus === 'error'}
+					<div class="w-8 h-8 rounded-lg bg-red-100 dark:bg-red-900/50 flex items-center justify-center">
+						<AlertCircle class="w-4 h-4 text-red-600 dark:text-red-400" />
+					</div>
+				{:else}
+					<div class="w-8 h-8 rounded-lg bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
+						<Clipboard class="w-4 h-4 text-gray-500 dark:text-gray-400" />
+					</div>
+				{/if}
+				<div>
+					{#if pasteStatus !== 'idle'}
+						<p class="text-sm font-medium {pasteStatus === 'success' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}">
+							{pasteMessage}
+						</p>
+					{:else}
+						<p class="text-sm font-medium text-gray-700 dark:text-gray-300">
+							Quick Import
+						</p>
+						<p class="text-xs text-gray-500 dark:text-gray-400">
+							Paste a <code class="px-1 bg-gray-200 dark:bg-gray-700 rounded">claude mcp add</code> command or JSON config
+						</p>
+					{/if}
+				</div>
+			</div>
+			<button
+				type="button"
+				onclick={handlePasteFromClipboard}
+				class="btn btn-secondary text-sm"
+			>
+				<Clipboard class="w-4 h-4 mr-1.5" />
+				Paste
+			</button>
+		</div>
+	</div>
+
 	<!-- Name -->
 	<div>
 		<label for="name" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -183,7 +303,7 @@
 					<EnvEditor
 						bind:values={headers}
 						keyPlaceholder="Header name"
-						valuePlaceholder="Header value (use ${VAR} for env vars)"
+						valuePlaceholder={'Header value (use ${VAR} for env vars)'}
 					/>
 				</div>
 			{/if}

@@ -69,6 +69,43 @@ pub fn run() {
 
             // Scanner Commands
             commands::scanner::scan_claude_directory,
+
+            // Claude.json Commands
+            commands::claude_json::get_claude_json_mcps,
+            commands::claude_json::get_claude_json_projects,
+            commands::claude_json::add_mcp_to_claude_json,
+            commands::claude_json::remove_mcp_from_claude_json,
+            commands::claude_json::toggle_mcp_in_claude_json,
+            commands::claude_json::add_global_mcp_to_claude_json,
+            commands::claude_json::remove_global_mcp_from_claude_json,
+
+            // Skill Commands
+            commands::skills::get_all_skills,
+            commands::skills::create_skill,
+            commands::skills::update_skill,
+            commands::skills::delete_skill,
+            commands::skills::get_global_skills,
+            commands::skills::add_global_skill,
+            commands::skills::remove_global_skill,
+            commands::skills::toggle_global_skill,
+            commands::skills::assign_skill_to_project,
+            commands::skills::remove_skill_from_project,
+            commands::skills::toggle_project_skill,
+            commands::skills::get_project_skills,
+
+            // Sub-Agent Commands
+            commands::subagents::get_all_subagents,
+            commands::subagents::create_subagent,
+            commands::subagents::update_subagent,
+            commands::subagents::delete_subagent,
+            commands::subagents::get_global_subagents,
+            commands::subagents::add_global_subagent,
+            commands::subagents::remove_global_subagent,
+            commands::subagents::toggle_global_subagent,
+            commands::subagents::assign_subagent_to_project,
+            commands::subagents::remove_subagent_from_project,
+            commands::subagents::toggle_project_subagent,
+            commands::subagents::get_project_subagents,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

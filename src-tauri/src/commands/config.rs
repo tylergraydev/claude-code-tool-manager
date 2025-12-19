@@ -1,10 +1,9 @@
 use crate::db::{ClaudePaths, Database, GlobalMcp, Mcp};
 use crate::services::config_writer;
-use crate::utils::paths::get_claude_paths;
+use crate::utils::paths;
 use rusqlite::params;
 use std::sync::Mutex;
 use tauri::State;
-use tauri_plugin_shell::ShellExt;
 
 fn parse_json_array(s: Option<String>) -> Option<Vec<String>> {
     s.and_then(|v| serde_json::from_str(&v).ok())
@@ -148,35 +147,53 @@ pub fn sync_global_config(db: State<'_, Mutex<Database>>) -> Result<(), String> 
         .filter_map(|r| r.ok())
         .collect();
 
-    let paths = get_claude_paths().map_err(|e| e.to_string())?;
-    config_writer::write_global_config(&paths, &mcps).map_err(|e| e.to_string())?;
+    let claude_paths = paths::get_claude_paths().map_err(|e| e.to_string())?;
+    config_writer::write_global_config(&claude_paths, &mcps).map_err(|e| e.to_string())?;
 
     Ok(())
 }
 
 #[tauri::command]
 pub fn get_claude_paths() -> Result<ClaudePaths, String> {
-    let paths = crate::utils::paths::get_claude_paths().map_err(|e| e.to_string())?;
+    let claude_paths = paths::get_claude_paths().map_err(|e| e.to_string())?;
     Ok(ClaudePaths {
-        claude_dir: paths.claude_dir.to_string_lossy().to_string(),
-        global_settings: paths.global_settings.to_string_lossy().to_string(),
-        plugins_dir: paths.plugins_dir.to_string_lossy().to_string(),
+        claude_dir: claude_paths.claude_dir.to_string_lossy().to_string(),
+        global_settings: claude_paths.global_settings.to_string_lossy().to_string(),
+        plugins_dir: claude_paths.plugins_dir.to_string_lossy().to_string(),
     })
 }
 
 #[tauri::command]
-pub async fn open_config_file(app: tauri::AppHandle, path: String) -> Result<(), String> {
-    app.shell()
-        .open(&path, None)
-        .map_err(|e| e.to_string())?;
+pub fn open_config_file(path: String) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("explorer")
+            .arg(&path)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg(&path)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+    #[cfg(target_os = "linux")]
+    {
+        std::process::Command::new("xdg-open")
+            .arg(&path)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
     Ok(())
 }
 
 #[tauri::command]
 pub fn backup_configs() -> Result<(), String> {
-    let paths = crate::utils::paths::get_claude_paths().map_err(|e| e.to_string())?;
+    let claude_paths = paths::get_claude_paths().map_err(|e| e.to_string())?;
 
-    let backup_dir = paths.claude_dir.join("backups");
+    let backup_dir = claude_paths.claude_dir.join("backups");
     std::fs::create_dir_all(&backup_dir).map_err(|e| e.to_string())?;
 
     let timestamp = chrono::Utc::now().format("%Y%m%d_%H%M%S");
@@ -185,9 +202,9 @@ pub fn backup_configs() -> Result<(), String> {
     std::fs::create_dir_all(&backup_path).map_err(|e| e.to_string())?;
 
     // Copy settings.json if exists
-    if paths.global_settings.exists() {
+    if claude_paths.global_settings.exists() {
         let dest = backup_path.join("settings.json");
-        std::fs::copy(&paths.global_settings, dest).map_err(|e| e.to_string())?;
+        std::fs::copy(&claude_paths.global_settings, dest).map_err(|e| e.to_string())?;
     }
 
     Ok(())

@@ -78,7 +78,6 @@
 					{onEdit}
 					{onDelete}
 					{onDuplicate}
-					onToggle={(m, enabled) => mcpLibrary.toggleGlobal(m.id, enabled)}
 				/>
 			{/each}
 		</div>
