@@ -71,14 +71,14 @@ pub fn get_mcp(db: State<'_, Mutex<Database>>, id: i64) -> Result<Mcp, String> {
 
 #[tauri::command]
 pub fn create_mcp(db: State<'_, Mutex<Database>>, mcp: CreateMcpRequest) -> Result<Mcp, String> {
-    let db = db.lock().map_err(|e| e.to_string())?;
+    let db_guard = db.lock().map_err(|e| e.to_string())?;
 
     let args_json = mcp.args.as_ref().map(|a| serde_json::to_string(a).unwrap());
     let headers_json = mcp.headers.as_ref().map(|h| serde_json::to_string(h).unwrap());
     let env_json = mcp.env.as_ref().map(|e| serde_json::to_string(e).unwrap());
     let tags_json = mcp.tags.as_ref().map(|t| serde_json::to_string(t).unwrap());
 
-    db.conn()
+    db_guard.conn()
         .execute(
             "INSERT INTO mcps (name, description, type, command, args, url, headers, env, icon, tags, source)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'manual')",
@@ -97,10 +97,20 @@ pub fn create_mcp(db: State<'_, Mutex<Database>>, mcp: CreateMcpRequest) -> Resu
         )
         .map_err(|e| e.to_string())?;
 
-    let id = db.conn().last_insert_rowid();
-    drop(db);
+    let id = db_guard.conn().last_insert_rowid();
 
-    get_mcp(State::from(&*State::clone(&db.into_inner())), id)
+    // Fetch the newly created MCP
+    let mut stmt = db_guard
+        .conn()
+        .prepare(
+            "SELECT id, name, description, type, command, args, url, headers, env,
+                    icon, tags, source, source_path, is_enabled_global, created_at, updated_at
+             FROM mcps WHERE id = ?",
+        )
+        .map_err(|e| e.to_string())?;
+
+    stmt.query_row([id], row_to_mcp)
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
