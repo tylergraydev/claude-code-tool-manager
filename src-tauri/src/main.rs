@@ -2,5 +2,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    claude_mcp_manager::run()
+    claude_code_tool_manager::run()
 }
