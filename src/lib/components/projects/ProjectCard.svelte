@@ -1,96 +1,35 @@
 <script lang="ts">
 	import type { Project } from '$lib/types';
-	import type { Mcp } from '$lib/types';
-	import { dragDrop, projectsStore, notifications } from '$lib/stores';
-	import { FolderOpen, MoreVertical, Trash2, RefreshCw, ExternalLink, X } from 'lucide-svelte';
+	import { projectsStore, notifications } from '$lib/stores';
+	import { FolderOpen, MoreVertical, Trash2, RefreshCw, ExternalLink, Plug } from 'lucide-svelte';
 
 	type Props = {
 		project: Project;
 		onRemove?: (project: Project) => void;
+		onClick?: () => void;
 	};
 
-	let { project, onRemove }: Props = $props();
+	let { project, onRemove, onClick }: Props = $props();
 
-	let isOver = $state(false);
 	let showMenu = $state(false);
-
-	function handleDragOver(e: DragEvent) {
-		e.preventDefault();
-		if (dragDrop.isDragging) {
-			isOver = true;
-			dragDrop.setDropTarget({ type: 'project', projectId: project.id });
-		}
-	}
-
-	function handleDragLeave() {
-		isOver = false;
-		dragDrop.setDropTarget(null);
-	}
-
-	async function handleDrop(e: DragEvent) {
-		e.preventDefault();
-		isOver = false;
-
-		const data = e.dataTransfer?.getData('application/json');
-		if (data) {
-			try {
-				const mcp = JSON.parse(data) as Mcp;
-				// Check if already assigned
-				const alreadyAssigned = project.assignedMcps.some((a) => a.mcpId === mcp.id);
-				if (alreadyAssigned) {
-					notifications.warning(`${mcp.name} is already assigned to this project`);
-				} else {
-					await projectsStore.assignMcpToProject(project.id, mcp.id);
-					await projectsStore.syncProjectConfig(project.id);
-					notifications.success(`Added ${mcp.name} to ${project.name}`);
-				}
-			} catch (err) {
-				notifications.error('Failed to assign MCP');
-				console.error(err);
-			}
-		}
-
-		dragDrop.endDrag();
-	}
-
-	async function handleRemoveMcp(mcpId: number) {
-		try {
-			await projectsStore.removeMcpFromProject(project.id, mcpId);
-			await projectsStore.syncProjectConfig(project.id);
-			notifications.success('MCP removed from project');
-		} catch (err) {
-			notifications.error('Failed to remove MCP');
-		}
-	}
-
-	async function handleToggleMcp(assignmentId: number, enabled: boolean) {
-		try {
-			await projectsStore.toggleProjectMcp(assignmentId, enabled);
-			await projectsStore.syncProjectConfig(project.id);
-		} catch (err) {
-			notifications.error('Failed to toggle MCP');
-		}
-	}
 
 	function closeMenu() {
 		showMenu = false;
 	}
+
+	// Count enabled vs total MCPs
+	let enabledCount = $derived(project.assignedMcps.filter((a) => a.isEnabled).length);
+	let totalCount = $derived(project.assignedMcps.length);
 </script>
 
 <svelte:window onclick={closeMenu} />
 
 <div
-	class="card transition-all duration-200"
-	class:ring-2={isOver}
-	class:ring-primary-500={isOver}
-	class:ring-offset-2={isOver}
-	class:bg-primary-50={isOver}
-	class:dark:bg-primary-900/20={isOver}
-	ondragover={handleDragOver}
-	ondragleave={handleDragLeave}
-	ondrop={handleDrop}
-	role="region"
-	aria-label="Project drop zone"
+	class="card transition-all duration-200 hover:shadow-md cursor-pointer hover:border-primary-300 dark:hover:border-primary-700"
+	onclick={onClick}
+	role="button"
+	tabindex="0"
+	onkeypress={(e) => e.key === 'Enter' && onClick?.()}
 >
 	<div class="flex items-start gap-3">
 		<div class="flex-shrink-0 w-10 h-10 rounded-xl bg-amber-100 dark:bg-amber-900/50 flex items-center justify-center">
@@ -167,46 +106,22 @@
 		</div>
 	</div>
 
-	<!-- Assigned MCPs -->
-	<div class="mt-4">
-		{#if project.assignedMcps.length > 0}
-			<div class="flex flex-wrap gap-2">
-				{#each project.assignedMcps as assignment (assignment.id)}
-					<div
-						class="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-medium
-							{assignment.isEnabled
-								? 'bg-primary-100 text-primary-700 dark:bg-primary-900/50 dark:text-primary-300'
-								: 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'}"
-					>
-						<button
-							onclick={() => handleToggleMcp(assignment.id, !assignment.isEnabled)}
-							class="w-3 h-3 rounded-full border transition-colors
-								{assignment.isEnabled
-									? 'bg-primary-500 border-primary-500'
-									: 'bg-transparent border-gray-400'}"
-							title={assignment.isEnabled ? 'Disable' : 'Enable'}
-						>
-							{#if assignment.isEnabled}
-								<span class="sr-only">Enabled</span>
-							{/if}
-						</button>
-						<span class:line-through={!assignment.isEnabled}>
-							{assignment.mcp.name}
-						</span>
-						<button
-							onclick={() => handleRemoveMcp(assignment.mcpId)}
-							class="p-0.5 hover:bg-primary-200 dark:hover:bg-primary-800 rounded"
-							title="Remove from project"
-						>
-							<X class="w-3 h-3" />
-						</button>
-					</div>
-				{/each}
-			</div>
-		{:else}
-			<p class="text-sm text-gray-400 dark:text-gray-500 italic">
-				{dragDrop.isDragging ? 'Drop MCP here to assign' : 'No MCPs assigned - drag from library'}
-			</p>
-		{/if}
+	<!-- MCP Count Badge -->
+	<div class="mt-3 flex items-center gap-2">
+		<div class="flex items-center gap-1.5 text-sm">
+			<Plug class="w-4 h-4 text-gray-400" />
+			{#if totalCount > 0}
+				<span class="text-gray-600 dark:text-gray-300">
+					{enabledCount}/{totalCount} MCPs
+				</span>
+				{#if enabledCount < totalCount}
+					<span class="text-xs text-gray-400">
+						({totalCount - enabledCount} disabled)
+					</span>
+				{/if}
+			{:else}
+				<span class="text-gray-400 dark:text-gray-500 italic">No MCPs - click to add</span>
+			{/if}
+		</div>
 	</div>
 </div>

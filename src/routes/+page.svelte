@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { Header } from '$lib/components/layout';
-	import { McpLibrary } from '$lib/components/mcp';
+	import { McpLibrary, McpForm } from '$lib/components/mcp';
 	import { ProjectList } from '$lib/components/projects';
 	import { GlobalSettings } from '$lib/components/global';
 	import { ConfirmDialog } from '$lib/components/shared';
@@ -14,9 +14,6 @@
 	let editingMcp = $state<Mcp | null>(null);
 	let deletingMcp = $state<Mcp | null>(null);
 	let deletingProject = $state<Project | null>(null);
-
-	// Import component dynamically to avoid SSR issues
-	import { McpForm } from '$lib/components/mcp';
 
 	async function handleCreateMcp(values: any) {
 		try {
