@@ -28,3 +28,8 @@ npm-debug.log*
 # Database
 *.db
 *.db-journal
+
+# Local/temporary files
+.claude/
+RENAME_REPO.md
+nul
