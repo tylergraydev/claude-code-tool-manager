@@ -77,14 +77,144 @@ impl Database {
                 FOREIGN KEY (mcp_id) REFERENCES mcps(id) ON DELETE CASCADE
             );
 
+            -- Skills (Slash Commands and Agent Skills)
+            CREATE TABLE IF NOT EXISTS skills (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE,
+                description TEXT,
+                content TEXT NOT NULL,
+                skill_type TEXT NOT NULL DEFAULT 'command' CHECK (skill_type IN ('command', 'skill')),
+                allowed_tools TEXT,
+                argument_hint TEXT,
+                tags TEXT,
+                source TEXT DEFAULT 'manual',
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+            );
+
+            -- Sub-Agents
+            CREATE TABLE IF NOT EXISTS subagents (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE,
+                description TEXT NOT NULL,
+                content TEXT NOT NULL,
+                tools TEXT,
+                model TEXT,
+                tags TEXT,
+                source TEXT DEFAULT 'manual',
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+            );
+
+            -- Project Skill Assignments
+            CREATE TABLE IF NOT EXISTS project_skills (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                project_id INTEGER NOT NULL,
+                skill_id INTEGER NOT NULL,
+                is_enabled INTEGER DEFAULT 1,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+                FOREIGN KEY (skill_id) REFERENCES skills(id) ON DELETE CASCADE,
+                UNIQUE (project_id, skill_id)
+            );
+
+            -- Project Sub-Agent Assignments
+            CREATE TABLE IF NOT EXISTS project_subagents (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                project_id INTEGER NOT NULL,
+                subagent_id INTEGER NOT NULL,
+                is_enabled INTEGER DEFAULT 1,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+                FOREIGN KEY (subagent_id) REFERENCES subagents(id) ON DELETE CASCADE,
+                UNIQUE (project_id, subagent_id)
+            );
+
+            -- Global Skill Settings
+            CREATE TABLE IF NOT EXISTS global_skills (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                skill_id INTEGER NOT NULL UNIQUE,
+                is_enabled INTEGER DEFAULT 1,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (skill_id) REFERENCES skills(id) ON DELETE CASCADE
+            );
+
+            -- Global Sub-Agent Settings
+            CREATE TABLE IF NOT EXISTS global_subagents (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                subagent_id INTEGER NOT NULL UNIQUE,
+                is_enabled INTEGER DEFAULT 1,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (subagent_id) REFERENCES subagents(id) ON DELETE CASCADE
+            );
+
             -- Indexes
             CREATE INDEX IF NOT EXISTS idx_mcps_type ON mcps(type);
             CREATE INDEX IF NOT EXISTS idx_mcps_source ON mcps(source);
             CREATE INDEX IF NOT EXISTS idx_project_mcps_project ON project_mcps(project_id);
             CREATE INDEX IF NOT EXISTS idx_project_mcps_mcp ON project_mcps(mcp_id);
             CREATE INDEX IF NOT EXISTS idx_projects_path ON projects(path);
+            CREATE INDEX IF NOT EXISTS idx_project_skills_project ON project_skills(project_id);
+            CREATE INDEX IF NOT EXISTS idx_project_subagents_project ON project_subagents(project_id);
             "#,
         )?;
+
+        // Run migrations for existing databases
+        self.run_schema_migrations()?;
+
+        Ok(())
+    }
+
+    fn run_schema_migrations(&self) -> Result<()> {
+        // Migration 1: Add new columns to skills table
+        let has_skill_type: bool = self.conn.query_row(
+            "SELECT COUNT(*) > 0 FROM pragma_table_info('skills') WHERE name = 'skill_type'",
+            [],
+            |row| row.get(0),
+        ).unwrap_or(false);
+
+        if !has_skill_type {
+            self.conn.execute_batch(
+                r#"
+                ALTER TABLE skills ADD COLUMN skill_type TEXT NOT NULL DEFAULT 'command';
+                ALTER TABLE skills ADD COLUMN allowed_tools TEXT;
+                ALTER TABLE skills ADD COLUMN argument_hint TEXT;
+                "#,
+            )?;
+        }
+
+        // Migration 2: Rename agents tables to subagents
+        let has_agents_table: bool = self.conn.query_row(
+            "SELECT COUNT(*) > 0 FROM sqlite_master WHERE type='table' AND name='agents'",
+            [],
+            |row| row.get(0),
+        ).unwrap_or(false);
+
+        if has_agents_table {
+            self.conn.execute_batch(
+                r#"
+                -- Migrate agents to subagents
+                INSERT OR IGNORE INTO subagents (id, name, description, content, tools, model, tags, source, created_at, updated_at)
+                SELECT id, name, description, content, tools, model, tags, source, created_at, updated_at FROM agents;
+
+                -- Migrate global_agents to global_subagents
+                INSERT OR IGNORE INTO global_subagents (id, subagent_id, is_enabled, created_at)
+                SELECT id, agent_id, is_enabled, created_at FROM global_agents;
+
+                -- Migrate project_agents to project_subagents
+                INSERT OR IGNORE INTO project_subagents (id, project_id, subagent_id, is_enabled, created_at)
+                SELECT id, project_id, agent_id, is_enabled, created_at FROM project_agents;
+
+                -- Drop old tables
+                DROP TABLE IF EXISTS project_agents;
+                DROP TABLE IF EXISTS global_agents;
+                DROP TABLE IF EXISTS agents;
+
+                -- Drop old indexes
+                DROP INDEX IF EXISTS idx_project_agents_project;
+                "#,
+            )?;
+        }
 
         Ok(())
     }
