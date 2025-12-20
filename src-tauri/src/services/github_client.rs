@@ -13,6 +13,7 @@ pub struct GitHubClient {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(dead_code)]
 pub struct RepoInfo {
     pub name: String,
     pub full_name: String,
@@ -36,6 +37,7 @@ pub struct ContentEntry {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(dead_code)]
 pub struct FileContent {
     pub name: String,
     pub path: String,
@@ -89,6 +91,7 @@ impl GitHubClient {
     }
 
     /// Get repository information
+    #[allow(dead_code)]
     pub async fn get_repo(&self, owner: &str, repo: &str) -> Result<RepoInfo> {
         let url = format!("{}/repos/{}/{}", GITHUB_API_BASE, owner, repo);
 
@@ -198,6 +201,7 @@ impl GitHubClient {
     }
 
     /// Decode base64 content from GitHub API response
+    #[allow(dead_code)]
     fn decode_content(&self, file_content: &FileContent) -> Result<String> {
         match (&file_content.content, &file_content.encoding) {
             (Some(content), Some(encoding)) if encoding == "base64" => {

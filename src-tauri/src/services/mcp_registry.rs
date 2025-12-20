@@ -11,12 +11,14 @@ const USER_AGENT: &str = "claude-code-tool-manager/1.2";
 // ============================================================================
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 pub struct RegistryResponse {
     pub servers: Vec<ServerWrapper>,
     pub metadata: Option<RegistryMetadata>,
 }
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 pub struct ServerWrapper {
     pub server: RegistryServer,
     #[serde(rename = "_meta")]
@@ -25,6 +27,7 @@ pub struct ServerWrapper {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[allow(dead_code)]
 pub struct RegistryMetadata {
     pub count: Option<u32>,
     pub next_cursor: Option<String>,
@@ -40,14 +43,17 @@ pub struct RegistryServer {
     pub remotes: Option<Vec<Remote>>,
     // Catch-all for unknown fields (like $schema, icons, title, etc.)
     #[serde(flatten)]
+    #[allow(dead_code)]
     pub extra: Option<HashMap<String, serde_json::Value>>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct RepositoryInfo {
     pub url: Option<String>,
+    #[allow(dead_code)]
     pub source: Option<String>,
     #[serde(flatten)]
+    #[allow(dead_code)]
     pub extra: Option<HashMap<String, serde_json::Value>>,
 }
 
@@ -57,16 +63,20 @@ pub struct Package {
     pub registry_type: String, // "npm", "pypi", "nuget", "oci", "mcpb"
     pub identifier: Option<String>, // Package identifier (e.g., "npm:@org/package")
     pub name: Option<String>,
+    #[allow(dead_code)]
     pub version: Option<String>,
     pub arguments: Option<Vec<PackageArgument>>,
     pub environment_variables: Option<Vec<EnvironmentVariable>>,
+    #[allow(dead_code)]
     pub transport: Option<Transport>,
     // Catch-all for unknown fields
     #[serde(flatten)]
+    #[allow(dead_code)]
     pub extra: Option<HashMap<String, serde_json::Value>>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
+#[allow(dead_code)]
 pub struct Transport {
     #[serde(rename = "type")]
     pub transport_type: Option<String>,
@@ -79,7 +89,9 @@ pub struct PackageArgument {
     pub arg_type: Option<String>, // "positional" or "named"
     pub name: Option<String>,
     pub value: Option<String>,
+    #[allow(dead_code)]
     pub description: Option<String>,
+    #[allow(dead_code)]
     pub is_required: Option<bool>,
     pub default: Option<String>,
 }
@@ -90,10 +102,13 @@ pub struct EnvironmentVariable {
     pub name: String,
     pub description: Option<String>,
     pub is_required: Option<bool>,
+    #[allow(dead_code)]
     pub is_secret: Option<bool>,
     pub default: Option<String>,
+    #[allow(dead_code)]
     pub format: Option<String>,
     #[serde(flatten)]
+    #[allow(dead_code)]
     pub extra: Option<HashMap<String, serde_json::Value>>,
 }
 
@@ -104,6 +119,7 @@ pub struct Remote {
     pub url: String,
     pub headers: Option<HashMap<String, String>>,
     #[serde(flatten)]
+    #[allow(dead_code)]
     pub extra: Option<HashMap<String, serde_json::Value>>,
 }
 
