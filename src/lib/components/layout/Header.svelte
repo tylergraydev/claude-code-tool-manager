@@ -1,13 +1,15 @@
 <script lang="ts">
 	import { RefreshCw, Moon, Sun } from 'lucide-svelte';
 	import { mcpLibrary, projectsStore } from '$lib/stores';
+	import type { Snippet } from 'svelte';
 
 	type Props = {
 		title: string;
 		subtitle?: string;
+		children?: Snippet;
 	};
 
-	let { title, subtitle }: Props = $props();
+	let { title, subtitle, children }: Props = $props();
 	let isDark = $state(true);
 
 	async function handleRefresh() {
@@ -33,6 +35,10 @@
 	</div>
 
 	<div class="flex items-center gap-2">
+		{#if children}
+			{@render children()}
+		{/if}
+
 		<button
 			onclick={handleRefresh}
 			class="btn btn-ghost"

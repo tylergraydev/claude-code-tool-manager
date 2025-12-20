@@ -182,3 +182,80 @@ pub struct GlobalSubAgent {
     pub subagent: SubAgent,
     pub is_enabled: bool,
 }
+
+// Repository sources (Marketplace)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Repo {
+    pub id: i64,
+    pub name: String,
+    pub owner: String,
+    pub repo: String,
+    pub repo_type: String,    // "file_based" or "readme_based"
+    pub content_type: String, // "mcp", "skill", "subagent", or "mixed"
+    pub github_url: String,
+    pub description: Option<String>,
+    pub is_default: bool,
+    pub is_enabled: bool,
+    pub last_fetched_at: Option<String>,
+    pub etag: Option<String>,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CreateRepoRequest {
+    pub github_url: String,
+    pub repo_type: String,
+    pub content_type: String,
+}
+
+// Cached items from repositories
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RepoItem {
+    pub id: i64,
+    pub repo_id: i64,
+    pub item_type: String, // "mcp", "skill", or "subagent"
+    pub name: String,
+    pub description: Option<String>,
+    pub source_url: Option<String>,
+    pub raw_content: Option<String>,
+    pub file_path: Option<String>,
+    pub metadata: Option<String>,
+    pub stars: Option<i32>,
+    pub is_imported: bool,
+    pub imported_item_id: Option<i64>,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+// Sync result
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SyncResult {
+    pub added: i32,
+    pub updated: i32,
+    pub removed: i32,
+    pub errors: Vec<String>,
+}
+
+// GitHub rate limit info
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RateLimitInfo {
+    pub limit: i32,
+    pub remaining: i32,
+    pub reset_at: String,
+}
+
+// Import result
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImportResult {
+    pub success: bool,
+    pub item_type: String,
+    pub item_id: i64,
+    pub message: Option<String>,
+}

@@ -43,6 +43,13 @@ Claude Code stores its configuration across multiple JSON files and markdown fil
 - **Project details**: View and manage MCPs, Skills, and Sub-Agents per project
 - **Configuration sync**: Changes are automatically written to Claude config files
 
+### Marketplace
+- **Browse community repos**: Discover Skills and Sub-Agents from curated GitHub repositories
+- **One-click import**: Import skills and agents directly into your library
+- **Auto-sync on startup**: Repositories are synced automatically when the app launches
+- **Add custom repos**: Add your own GitHub repositories to browse
+- **File & README parsing**: Supports both file-based repos (actual .md files) and README-based repos (awesome lists)
+
 ### Additional Features
 - **Dark mode**: Toggle between light and dark themes
 - **Search & filter**: Quickly find MCPs, Skills, and Sub-Agents

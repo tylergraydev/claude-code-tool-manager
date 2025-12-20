@@ -25,6 +25,11 @@ pub fn run() {
             let database = Database::new(&db_path)?;
             database.run_migrations()?;
 
+            // Seed default repos
+            if let Err(e) = services::repo_sync::seed_default_repos(&database) {
+                log::error!("Failed to seed default repos: {}", e);
+            }
+
             app.manage(Mutex::new(database));
 
             // Run startup scan
@@ -106,6 +111,20 @@ pub fn run() {
             commands::subagents::remove_subagent_from_project,
             commands::subagents::toggle_project_subagent,
             commands::subagents::get_project_subagents,
+
+            // Repos (Marketplace) Commands
+            commands::repos::get_all_repos,
+            commands::repos::add_repo,
+            commands::repos::remove_repo,
+            commands::repos::toggle_repo,
+            commands::repos::get_repo_items,
+            commands::repos::get_all_repo_items,
+            commands::repos::sync_repo,
+            commands::repos::sync_all_repos,
+            commands::repos::import_repo_item,
+            commands::repos::get_github_rate_limit,
+            commands::repos::seed_default_repos,
+            commands::repos::reset_repos_to_defaults,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -125,6 +125,15 @@ pub fn update_skill(
 #[tauri::command]
 pub fn delete_skill(db: State<'_, Mutex<Database>>, id: i64) -> Result<(), String> {
     let db = db.lock().map_err(|e| e.to_string())?;
+
+    // Reset is_imported flag in repo_items for this skill
+    db.conn()
+        .execute(
+            "UPDATE repo_items SET is_imported = 0, imported_item_id = NULL WHERE imported_item_id = ? AND item_type = 'skill'",
+            [id],
+        )
+        .map_err(|e| e.to_string())?;
+
     db.conn()
         .execute("DELETE FROM skills WHERE id = ?", [id])
         .map_err(|e| e.to_string())?;

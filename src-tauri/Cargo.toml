@@ -41,6 +41,18 @@ rusqlite = { version = "0.37", features = ["bundled"] }
 # Time
 chrono = { version = "0.4", features = ["serde"] }
 
+# HTTP client for GitHub API
+reqwest = { version = "0.12", features = ["json", "rustls-tls"] }
+
+# Markdown parsing for README-based repos
+pulldown-cmark = "0.12"
+
+# Base64 decoding for GitHub API responses
+base64 = "0.22"
+
+# Regex for parsing
+regex = "1"
+
 [features]
 default = ["custom-protocol"]
 custom-protocol = ["tauri/custom-protocol"]

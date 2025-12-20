@@ -123,6 +123,15 @@ pub fn update_subagent(
 #[tauri::command]
 pub fn delete_subagent(db: State<'_, Mutex<Database>>, id: i64) -> Result<(), String> {
     let db = db.lock().map_err(|e| e.to_string())?;
+
+    // Reset is_imported flag in repo_items for this subagent
+    db.conn()
+        .execute(
+            "UPDATE repo_items SET is_imported = 0, imported_item_id = NULL WHERE imported_item_id = ? AND item_type = 'subagent'",
+            [id],
+        )
+        .map_err(|e| e.to_string())?;
+
     db.conn()
         .execute("DELETE FROM subagents WHERE id = ?", [id])
         .map_err(|e| e.to_string())?;

@@ -1,6 +1,9 @@
 pub mod claude_json;
 pub mod config_parser;
 pub mod config_writer;
+pub mod github_client;
+pub mod repo_parser;
+pub mod repo_sync;
 pub mod scanner;
 pub mod skill_writer;
 pub mod subagent_writer;

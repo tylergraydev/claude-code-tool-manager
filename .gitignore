@@ -28,3 +28,6 @@ npm-debug.log*
 # Database
 *.db
 *.db-journal
+
+# Claude Code local settings (may contain tokens)
+.claude/

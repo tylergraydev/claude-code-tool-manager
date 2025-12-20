@@ -1,12 +1,13 @@
 <script lang="ts">
 	import { page } from '$app/stores';
-	import { Library, FolderOpen, Settings, Plug, FileCode, Bot } from 'lucide-svelte';
+	import { Library, FolderOpen, Settings, Plug, FileCode, Bot, Store } from 'lucide-svelte';
 
 	const navItems = [
 		{ href: '/', label: 'Dashboard', icon: Plug },
 		{ href: '/library', label: 'MCP Library', icon: Library },
 		{ href: '/skills', label: 'Skills Library', icon: FileCode },
 		{ href: '/subagents', label: 'Sub-Agents Library', icon: Bot },
+		{ href: '/marketplace', label: 'Marketplace', icon: Store },
 		{ href: '/projects', label: 'Projects', icon: FolderOpen },
 		{ href: '/settings', label: 'Global Settings', icon: Settings }
 	];

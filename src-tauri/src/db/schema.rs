@@ -148,6 +148,44 @@ impl Database {
                 FOREIGN KEY (subagent_id) REFERENCES subagents(id) ON DELETE CASCADE
             );
 
+            -- Repository sources (awesome lists, skill repos, etc.)
+            CREATE TABLE IF NOT EXISTS repos (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                owner TEXT NOT NULL,
+                repo TEXT NOT NULL,
+                repo_type TEXT NOT NULL CHECK (repo_type IN ('file_based', 'readme_based')),
+                content_type TEXT NOT NULL CHECK (content_type IN ('mcp', 'skill', 'subagent', 'mixed')),
+                github_url TEXT NOT NULL UNIQUE,
+                description TEXT,
+                is_default INTEGER DEFAULT 0,
+                is_enabled INTEGER DEFAULT 1,
+                last_fetched_at TEXT,
+                etag TEXT,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+            );
+
+            -- Cached items from repositories
+            CREATE TABLE IF NOT EXISTS repo_items (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                repo_id INTEGER NOT NULL,
+                item_type TEXT NOT NULL CHECK (item_type IN ('mcp', 'skill', 'subagent')),
+                name TEXT NOT NULL,
+                description TEXT,
+                source_url TEXT,
+                raw_content TEXT,
+                file_path TEXT,
+                metadata TEXT,
+                stars INTEGER,
+                is_imported INTEGER DEFAULT 0,
+                imported_item_id INTEGER,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (repo_id) REFERENCES repos(id) ON DELETE CASCADE,
+                UNIQUE (repo_id, name, item_type)
+            );
+
             -- Indexes
             CREATE INDEX IF NOT EXISTS idx_mcps_type ON mcps(type);
             CREATE INDEX IF NOT EXISTS idx_mcps_source ON mcps(source);
@@ -156,6 +194,11 @@ impl Database {
             CREATE INDEX IF NOT EXISTS idx_projects_path ON projects(path);
             CREATE INDEX IF NOT EXISTS idx_project_skills_project ON project_skills(project_id);
             CREATE INDEX IF NOT EXISTS idx_project_subagents_project ON project_subagents(project_id);
+            CREATE INDEX IF NOT EXISTS idx_repos_content_type ON repos(content_type);
+            CREATE INDEX IF NOT EXISTS idx_repos_enabled ON repos(is_enabled);
+            CREATE INDEX IF NOT EXISTS idx_repo_items_repo ON repo_items(repo_id);
+            CREATE INDEX IF NOT EXISTS idx_repo_items_type ON repo_items(item_type);
+            CREATE INDEX IF NOT EXISTS idx_repo_items_imported ON repo_items(is_imported);
             "#,
         )?;
 
