@@ -1,6 +1,6 @@
 [package]
 name = "claude-code-tool-manager"
-version = "1.1.0"
+version = "1.2.0"
 description = "Desktop app to manage MCP servers, Skills, and Sub-Agents for Claude Code"
 authors = ["you"]
 edition = "2021"
@@ -56,3 +56,7 @@ regex = "1"
 [features]
 default = ["custom-protocol"]
 custom-protocol = ["tauri/custom-protocol"]
+
+[target.'cfg(any(target_os = "macos", windows, target_os = "linux"))'.dependencies]
+tauri-plugin-process = "2.3.1"
+tauri-plugin-updater = "2.9.0"

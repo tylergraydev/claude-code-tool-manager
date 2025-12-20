@@ -3,6 +3,7 @@
 	import { onMount } from 'svelte';
 	import { Sidebar } from '$lib/components/layout';
 	import { Toast } from '$lib/components/shared';
+	import UpdateNotification from '$lib/components/shared/UpdateNotification.svelte';
 	import { mcpLibrary, projectsStore, skillLibrary, subagentLibrary } from '$lib/stores';
 
 	let { children } = $props();
@@ -30,3 +31,4 @@
 </div>
 
 <Toast />
+<UpdateNotification />

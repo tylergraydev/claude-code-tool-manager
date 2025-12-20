@@ -1,6 +1,6 @@
 {
   "name": "claude-code-tool-manager",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -18,7 +18,9 @@
     "@tauri-apps/plugin-dialog": "^2",
     "@tauri-apps/plugin-fs": "^2",
     "@tauri-apps/plugin-notification": "^2",
+    "@tauri-apps/plugin-process": "^2.3.1",
     "@tauri-apps/plugin-sql": "^2",
+    "@tauri-apps/plugin-updater": "^2.9.0",
     "lucide-svelte": "^0.562.0"
   },
   "devDependencies": {

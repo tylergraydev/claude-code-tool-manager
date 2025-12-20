@@ -6,3 +6,4 @@ export { repoLibrary } from './repoLibrary.svelte';
 export { dragDrop, type DropTarget } from './dragDrop.svelte';
 export { notifications, type Notification, type NotificationType } from './notifications.svelte';
 export { claudeJson, type ClaudeJsonMcp, type ClaudeJsonProject } from './claudeJson.svelte';
+export { updater, type UpdateStatus } from './updater.svelte';

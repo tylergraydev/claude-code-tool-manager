@@ -10,6 +10,8 @@
     "dialog:allow-save",
     "notification:default",
     "fs:default",
+    "updater:default",
+    "process:allow-restart",
     {
       "identifier": "fs:allow-read-text-file",
       "allow": [
