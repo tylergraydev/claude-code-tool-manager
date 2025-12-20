@@ -9,8 +9,8 @@ describe('Skill Library Store', () => {
 	describe('load', () => {
 		it('should load skills', async () => {
 			const mockSkills = [
-				{ id: 1, name: 'commit', description: 'Create commits', skill_type: 'command' },
-				{ id: 2, name: 'review', description: 'Review code', skill_type: 'skill' }
+				{ id: 1, name: 'commit', description: 'Create commits', skillType: 'command' },
+				{ id: 2, name: 'review', description: 'Review code', skillType: 'skill' }
 			];
 
 			vi.mocked(invoke).mockResolvedValueOnce(mockSkills);
@@ -24,8 +24,8 @@ describe('Skill Library Store', () => {
 
 		it('should not create duplicates on multiple loads', async () => {
 			const mockSkills = [
-				{ id: 1, name: 'skill-1', skill_type: 'command' },
-				{ id: 2, name: 'skill-2', skill_type: 'skill' }
+				{ id: 1, name: 'skill-1', skillType: 'command' },
+				{ id: 2, name: 'skill-2', skillType: 'skill' }
 			];
 
 			vi.mocked(invoke).mockResolvedValue(mockSkills);
@@ -49,7 +49,7 @@ describe('Skill Library Store', () => {
 		});
 
 		it('should set isLoading during load', async () => {
-			const mockSkills = [{ id: 1, name: 'test', skill_type: 'command' }];
+			const mockSkills = [{ id: 1, name: 'test', skillType: 'command' }];
 
 			let resolveInvoke: (value: unknown) => void;
 			const invokePromise = new Promise((resolve) => {
@@ -82,8 +82,8 @@ describe('Skill Library Store', () => {
 	describe('getSkillById', () => {
 		it('should return correct skill by ID', async () => {
 			const mockSkills = [
-				{ id: 1, name: 'skill-1', skill_type: 'command' },
-				{ id: 2, name: 'skill-2', skill_type: 'skill' }
+				{ id: 1, name: 'skill-1', skillType: 'command' },
+				{ id: 2, name: 'skill-2', skillType: 'skill' }
 			];
 
 			vi.mocked(invoke).mockResolvedValueOnce(mockSkills);
@@ -109,9 +109,9 @@ describe('Skill Library Store', () => {
 	describe('filtering', () => {
 		it('should filter skills by search query on name', async () => {
 			const mockSkills = [
-				{ id: 1, name: 'commit-helper', description: 'Git commits', skill_type: 'command' },
-				{ id: 2, name: 'review-code', description: 'Code review', skill_type: 'skill' },
-				{ id: 3, name: 'format-file', description: 'Format files', skill_type: 'command' }
+				{ id: 1, name: 'commit-helper', description: 'Git commits', skillType: 'command' },
+				{ id: 2, name: 'review-code', description: 'Code review', skillType: 'skill' },
+				{ id: 3, name: 'format-file', description: 'Format files', skillType: 'command' }
 			];
 
 			vi.mocked(invoke).mockResolvedValueOnce(mockSkills);
@@ -127,8 +127,8 @@ describe('Skill Library Store', () => {
 
 		it('should filter skills by description', async () => {
 			const mockSkills = [
-				{ id: 1, name: 'skill-1', description: 'Git helper', skill_type: 'command' },
-				{ id: 2, name: 'skill-2', description: 'Code review', skill_type: 'skill' }
+				{ id: 1, name: 'skill-1', description: 'Git helper', skillType: 'command' },
+				{ id: 2, name: 'skill-2', description: 'Code review', skillType: 'skill' }
 			];
 
 			vi.mocked(invoke).mockResolvedValueOnce(mockSkills);
@@ -144,9 +144,9 @@ describe('Skill Library Store', () => {
 
 		it('should filter skills by tags', async () => {
 			const mockSkills = [
-				{ id: 1, name: 'skill-1', tags: ['git', 'version-control'], skill_type: 'command' },
-				{ id: 2, name: 'skill-2', tags: ['formatting'], skill_type: 'skill' },
-				{ id: 3, name: 'skill-3', tags: ['git', 'automation'], skill_type: 'command' }
+				{ id: 1, name: 'skill-1', tags: ['git', 'version-control'], skillType: 'command' },
+				{ id: 2, name: 'skill-2', tags: ['formatting'], skillType: 'skill' },
+				{ id: 3, name: 'skill-3', tags: ['git', 'automation'], skillType: 'command' }
 			];
 
 			vi.mocked(invoke).mockResolvedValueOnce(mockSkills);
@@ -161,7 +161,7 @@ describe('Skill Library Store', () => {
 
 		it('should be case-insensitive', async () => {
 			const mockSkills = [
-				{ id: 1, name: 'GitHelper', description: 'Git helper', skill_type: 'command' }
+				{ id: 1, name: 'GitHelper', description: 'Git helper', skillType: 'command' }
 			];
 
 			vi.mocked(invoke).mockResolvedValueOnce(mockSkills);
@@ -176,8 +176,8 @@ describe('Skill Library Store', () => {
 
 		it('should return all skills when search is empty', async () => {
 			const mockSkills = [
-				{ id: 1, name: 'skill-1', skill_type: 'command' },
-				{ id: 2, name: 'skill-2', skill_type: 'skill' }
+				{ id: 1, name: 'skill-1', skillType: 'command' },
+				{ id: 2, name: 'skill-2', skillType: 'skill' }
 			];
 
 			vi.mocked(invoke).mockResolvedValueOnce(mockSkills);
@@ -193,7 +193,7 @@ describe('Skill Library Store', () => {
 
 	describe('CRUD operations', () => {
 		it('should create a skill and add to list', async () => {
-			const newSkill = { id: 3, name: 'new-skill', description: 'New', skill_type: 'command' as const };
+			const newSkill = { id: 3, name: 'new-skill', description: 'New', skillType: 'command' as const };
 
 			vi.mocked(invoke)
 				.mockResolvedValueOnce([]) // initial load
@@ -206,7 +206,7 @@ describe('Skill Library Store', () => {
 				name: 'new-skill',
 				description: 'New',
 				content: 'Content',
-				skill_type: 'command'
+				skillType: 'command'
 			});
 
 			expect(result.id).toBe(3);
@@ -215,8 +215,8 @@ describe('Skill Library Store', () => {
 		});
 
 		it('should update a skill in the list', async () => {
-			const mockSkills = [{ id: 1, name: 'old-name', skill_type: 'command' }];
-			const updatedSkill = { id: 1, name: 'new-name', skill_type: 'command' };
+			const mockSkills = [{ id: 1, name: 'old-name', skillType: 'command' }];
+			const updatedSkill = { id: 1, name: 'new-name', skillType: 'command' };
 
 			vi.mocked(invoke)
 				.mockResolvedValueOnce(mockSkills)
@@ -229,7 +229,7 @@ describe('Skill Library Store', () => {
 				name: 'new-name',
 				description: '',
 				content: '',
-				skill_type: 'command'
+				skillType: 'command'
 			});
 
 			expect(skillLibrary.skills[0].name).toBe('new-name');
@@ -237,8 +237,8 @@ describe('Skill Library Store', () => {
 
 		it('should delete a skill from the list', async () => {
 			const mockSkills = [
-				{ id: 1, name: 'skill-1', skill_type: 'command' },
-				{ id: 2, name: 'skill-2', skill_type: 'skill' }
+				{ id: 1, name: 'skill-1', skillType: 'command' },
+				{ id: 2, name: 'skill-2', skillType: 'skill' }
 			];
 
 			vi.mocked(invoke)
@@ -258,7 +258,7 @@ describe('Skill Library Store', () => {
 	describe('global skills', () => {
 		it('should load global skills', async () => {
 			const mockGlobalSkills = [
-				{ id: 1, skill_id: 1, is_enabled: true, skill: { id: 1, name: 'global-skill', skill_type: 'command' } }
+				{ id: 1, skill_id: 1, is_enabled: true, skill: { id: 1, name: 'global-skill', skillType: 'command' } }
 			];
 
 			vi.mocked(invoke).mockResolvedValueOnce(mockGlobalSkills);
@@ -271,7 +271,7 @@ describe('Skill Library Store', () => {
 
 		it('should add global skill', async () => {
 			const mockGlobalSkills = [
-				{ id: 1, skill_id: 1, is_enabled: true, skill: { id: 1, name: 'test', skill_type: 'command' } }
+				{ id: 1, skill_id: 1, is_enabled: true, skill: { id: 1, name: 'test', skillType: 'command' } }
 			];
 
 			vi.mocked(invoke)
@@ -337,7 +337,7 @@ describe('Skill Library Store', () => {
 
 		it('should get project skills', async () => {
 			const mockProjectSkills = [
-				{ id: 1, skill_id: 1, is_enabled: true, skill: { id: 1, name: 'test', skill_type: 'command' } }
+				{ id: 1, skill_id: 1, is_enabled: true, skill: { id: 1, name: 'test', skillType: 'command' } }
 			];
 
 			vi.mocked(invoke).mockResolvedValueOnce(mockProjectSkills);

@@ -21,6 +21,14 @@ pub async fn run_startup_scan(app: &tauri::AppHandle) -> Result<()> {
     let plugin_count = scan_plugins(&db)?;
     log::info!("Found {} MCPs from plugins", plugin_count);
 
+    // Scan global skills from ~/.claude/commands/
+    let skill_count = scan_global_skills(&db)?;
+    log::info!("Found {} skills from ~/.claude/commands/", skill_count);
+
+    // Scan global agents from ~/.claude/agents/
+    let agent_count = scan_global_agents(&db)?;
+    log::info!("Found {} agents from ~/.claude/agents/", agent_count);
+
     Ok(())
 }
 
@@ -86,6 +94,18 @@ pub fn scan_claude_json(db: &Database) -> Result<usize> {
             assign_mcp_to_project(db, project_id, mcp_id, !is_disabled)?;
 
             mcp_count += 1;
+        }
+
+        // Scan project-level skills from .claude/commands/
+        let project_commands_dir = Path::new(&path_to_check).join(".claude").join("commands");
+        if project_commands_dir.exists() {
+            scan_project_skills(db, project_id, &project_commands_dir)?;
+        }
+
+        // Scan project-level agents from .claude/agents/
+        let project_agents_dir = Path::new(&path_to_check).join(".claude").join("agents");
+        if project_agents_dir.exists() {
+            scan_project_agents(db, project_id, &project_agents_dir)?;
         }
     }
 
@@ -268,4 +288,401 @@ pub fn scan_plugins(db: &Database) -> Result<usize> {
     }
 
     Ok(count)
+}
+
+/// Scan global skills from ~/.claude/commands/
+pub fn scan_global_skills(db: &Database) -> Result<usize> {
+    let paths = get_claude_paths()?;
+    let mut count = 0;
+
+    if paths.commands_dir.exists() {
+        for entry in std::fs::read_dir(&paths.commands_dir)? {
+            let entry = entry?;
+            let path = entry.path();
+
+            // Only process .md files
+            if path.extension().map(|e| e == "md").unwrap_or(false) {
+                if let Some(skill) = parse_skill_file(&path) {
+                    // Check if already exists
+                    let exists: bool = db
+                        .conn()
+                        .query_row(
+                            "SELECT 1 FROM skills WHERE name = ?",
+                            [&skill.name],
+                            |_| Ok(true),
+                        )
+                        .unwrap_or(false);
+
+                    if !exists {
+                        let tags_json = if skill.tags.is_empty() {
+                            None
+                        } else {
+                            Some(serde_json::to_string(&skill.tags).unwrap())
+                        };
+
+                        let result = db.conn().execute(
+                            "INSERT INTO skills (name, description, content, skill_type, allowed_tools, argument_hint, tags, source)
+                             VALUES (?, ?, ?, ?, ?, ?, ?, 'auto-detected')",
+                            params![
+                                skill.name,
+                                skill.description,
+                                skill.content,
+                                skill.skill_type,
+                                skill.allowed_tools,
+                                skill.argument_hint,
+                                tags_json
+                            ],
+                        );
+
+                        if result.is_ok() {
+                            count += 1;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(count)
+}
+
+/// Scan global agents from ~/.claude/agents/
+pub fn scan_global_agents(db: &Database) -> Result<usize> {
+    let paths = get_claude_paths()?;
+    let mut count = 0;
+
+    if paths.agents_dir.exists() {
+        for entry in std::fs::read_dir(&paths.agents_dir)? {
+            let entry = entry?;
+            let path = entry.path();
+
+            // Only process .md files
+            if path.extension().map(|e| e == "md").unwrap_or(false) {
+                if let Some(agent) = parse_agent_file(&path) {
+                    // Check if already exists
+                    let exists: bool = db
+                        .conn()
+                        .query_row(
+                            "SELECT 1 FROM subagents WHERE name = ?",
+                            [&agent.name],
+                            |_| Ok(true),
+                        )
+                        .unwrap_or(false);
+
+                    if !exists {
+                        let tools_json = if agent.tools.is_empty() {
+                            None
+                        } else {
+                            Some(serde_json::to_string(&agent.tools).unwrap())
+                        };
+                        let tags_json = if agent.tags.is_empty() {
+                            None
+                        } else {
+                            Some(serde_json::to_string(&agent.tags).unwrap())
+                        };
+
+                        let result = db.conn().execute(
+                            "INSERT INTO subagents (name, description, content, tools, model, tags, source)
+                             VALUES (?, ?, ?, ?, ?, ?, 'auto-detected')",
+                            params![
+                                agent.name,
+                                agent.description,
+                                agent.content,
+                                tools_json,
+                                agent.model,
+                                tags_json
+                            ],
+                        );
+
+                        if result.is_ok() {
+                            count += 1;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(count)
+}
+
+/// Parsed skill data from markdown file
+struct ParsedSkill {
+    name: String,
+    description: Option<String>,
+    content: String,
+    skill_type: String,
+    allowed_tools: Option<String>,
+    argument_hint: Option<String>,
+    tags: Vec<String>,
+}
+
+/// Parsed agent data from markdown file
+struct ParsedAgent {
+    name: String,
+    description: String,
+    content: String,
+    tools: Vec<String>,
+    model: Option<String>,
+    tags: Vec<String>,
+}
+
+/// Parse a skill markdown file
+fn parse_skill_file(path: &Path) -> Option<ParsedSkill> {
+    let content = std::fs::read_to_string(path).ok()?;
+    let file_name = path.file_stem()?.to_string_lossy().to_string();
+
+    // Parse frontmatter if present (between --- markers)
+    let (frontmatter, body) = parse_frontmatter(&content);
+
+    // Extract metadata from frontmatter
+    let description = frontmatter.get("description").cloned();
+    let skill_type = frontmatter.get("type").cloned().unwrap_or_else(|| "command".to_string());
+    let allowed_tools = frontmatter.get("allowed_tools").or_else(|| frontmatter.get("allowedTools")).cloned();
+    let argument_hint = frontmatter.get("argument_hint").or_else(|| frontmatter.get("argumentHint")).cloned();
+    let tags = frontmatter.get("tags")
+        .map(|t| t.split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect())
+        .unwrap_or_default();
+
+    Some(ParsedSkill {
+        name: file_name,
+        description,
+        content: body,
+        skill_type,
+        allowed_tools,
+        argument_hint,
+        tags,
+    })
+}
+
+/// Parse an agent markdown file
+fn parse_agent_file(path: &Path) -> Option<ParsedAgent> {
+    let content = std::fs::read_to_string(path).ok()?;
+    let file_name = path.file_stem()?.to_string_lossy().to_string();
+
+    // Parse frontmatter if present
+    let (frontmatter, body) = parse_frontmatter(&content);
+
+    // Extract metadata from frontmatter
+    let description = frontmatter.get("description").cloned().unwrap_or_else(|| file_name.clone());
+    let model = frontmatter.get("model").cloned();
+    let tools = frontmatter.get("tools")
+        .map(|t| t.split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect())
+        .unwrap_or_default();
+    let tags = frontmatter.get("tags")
+        .map(|t| t.split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect())
+        .unwrap_or_default();
+
+    Some(ParsedAgent {
+        name: file_name,
+        description,
+        content: body,
+        tools,
+        model,
+        tags,
+    })
+}
+
+/// Parse YAML-like frontmatter from markdown content
+fn parse_frontmatter(content: &str) -> (std::collections::HashMap<String, String>, String) {
+    let mut frontmatter = std::collections::HashMap::new();
+
+    if content.starts_with("---") {
+        // Find the closing ---
+        if let Some(end_pos) = content[3..].find("\n---") {
+            let fm_content = &content[3..end_pos + 3];
+            let body = content[end_pos + 7..].trim_start().to_string();
+
+            // Parse simple key: value pairs
+            for line in fm_content.lines() {
+                let line = line.trim();
+                if let Some(colon_pos) = line.find(':') {
+                    let key = line[..colon_pos].trim().to_string();
+                    let value = line[colon_pos + 1..].trim().to_string();
+                    if !key.is_empty() && !value.is_empty() {
+                        frontmatter.insert(key, value);
+                    }
+                }
+            }
+
+            return (frontmatter, body);
+        }
+    }
+
+    // No frontmatter, return content as-is
+    (frontmatter, content.to_string())
+}
+
+/// Scan project-level skills and assign to project
+fn scan_project_skills(db: &Database, project_id: i64, commands_dir: &Path) -> Result<usize> {
+    let mut count = 0;
+
+    for entry in std::fs::read_dir(commands_dir)? {
+        let entry = entry?;
+        let path = entry.path();
+
+        // Only process .md files
+        if path.extension().map(|e| e == "md").unwrap_or(false) {
+            if let Some(skill) = parse_skill_file(&path) {
+                // Get or create the skill in the library
+                let skill_id = get_or_create_skill(db, &skill)?;
+
+                // Assign skill to project if not already assigned
+                assign_skill_to_project(db, project_id, skill_id)?;
+
+                count += 1;
+            }
+        }
+    }
+
+    Ok(count)
+}
+
+/// Scan project-level agents and assign to project
+fn scan_project_agents(db: &Database, project_id: i64, agents_dir: &Path) -> Result<usize> {
+    let mut count = 0;
+
+    for entry in std::fs::read_dir(agents_dir)? {
+        let entry = entry?;
+        let path = entry.path();
+
+        // Only process .md files
+        if path.extension().map(|e| e == "md").unwrap_or(false) {
+            if let Some(agent) = parse_agent_file(&path) {
+                // Get or create the agent in the library
+                let agent_id = get_or_create_agent(db, &agent)?;
+
+                // Assign agent to project if not already assigned
+                assign_agent_to_project(db, project_id, agent_id)?;
+
+                count += 1;
+            }
+        }
+    }
+
+    Ok(count)
+}
+
+/// Get or create a skill in the database
+fn get_or_create_skill(db: &Database, skill: &ParsedSkill) -> Result<i64> {
+    // Try to find existing skill by name
+    let existing_id: Option<i64> = db
+        .conn()
+        .query_row("SELECT id FROM skills WHERE name = ?", [&skill.name], |row| {
+            row.get(0)
+        })
+        .ok();
+
+    if let Some(id) = existing_id {
+        return Ok(id);
+    }
+
+    // Create new skill
+    let tags_json = if skill.tags.is_empty() {
+        None
+    } else {
+        Some(serde_json::to_string(&skill.tags).unwrap())
+    };
+
+    db.conn().execute(
+        "INSERT INTO skills (name, description, content, skill_type, allowed_tools, argument_hint, tags, source)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 'auto-detected')",
+        params![
+            skill.name,
+            skill.description,
+            skill.content,
+            skill.skill_type,
+            skill.allowed_tools,
+            skill.argument_hint,
+            tags_json
+        ],
+    )?;
+
+    Ok(db.conn().last_insert_rowid())
+}
+
+/// Get or create an agent in the database
+fn get_or_create_agent(db: &Database, agent: &ParsedAgent) -> Result<i64> {
+    // Try to find existing agent by name
+    let existing_id: Option<i64> = db
+        .conn()
+        .query_row("SELECT id FROM subagents WHERE name = ?", [&agent.name], |row| {
+            row.get(0)
+        })
+        .ok();
+
+    if let Some(id) = existing_id {
+        return Ok(id);
+    }
+
+    // Create new agent
+    let tools_json = if agent.tools.is_empty() {
+        None
+    } else {
+        Some(serde_json::to_string(&agent.tools).unwrap())
+    };
+    let tags_json = if agent.tags.is_empty() {
+        None
+    } else {
+        Some(serde_json::to_string(&agent.tags).unwrap())
+    };
+
+    db.conn().execute(
+        "INSERT INTO subagents (name, description, content, tools, model, tags, source)
+         VALUES (?, ?, ?, ?, ?, ?, 'auto-detected')",
+        params![
+            agent.name,
+            agent.description,
+            agent.content,
+            tools_json,
+            agent.model,
+            tags_json
+        ],
+    )?;
+
+    Ok(db.conn().last_insert_rowid())
+}
+
+/// Assign a skill to a project
+fn assign_skill_to_project(db: &Database, project_id: i64, skill_id: i64) -> Result<()> {
+    // Check if already assigned
+    let exists: bool = db
+        .conn()
+        .query_row(
+            "SELECT 1 FROM project_skills WHERE project_id = ? AND skill_id = ?",
+            params![project_id, skill_id],
+            |_| Ok(true),
+        )
+        .unwrap_or(false);
+
+    if !exists {
+        db.conn().execute(
+            "INSERT INTO project_skills (project_id, skill_id, is_enabled) VALUES (?, ?, 1)",
+            params![project_id, skill_id],
+        )?;
+    }
+
+    Ok(())
+}
+
+/// Assign an agent to a project
+fn assign_agent_to_project(db: &Database, project_id: i64, agent_id: i64) -> Result<()> {
+    // Check if already assigned
+    let exists: bool = db
+        .conn()
+        .query_row(
+            "SELECT 1 FROM project_subagents WHERE project_id = ? AND subagent_id = ?",
+            params![project_id, agent_id],
+            |_| Ok(true),
+        )
+        .unwrap_or(false);
+
+    if !exists {
+        db.conn().execute(
+            "INSERT INTO project_subagents (project_id, subagent_id, is_enabled) VALUES (?, ?, 1)",
+            params![project_id, agent_id],
+        )?;
+    }
+
+    Ok(())
 }

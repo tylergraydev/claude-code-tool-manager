@@ -94,7 +94,7 @@
 	}
 </script>
 
-<Header title="Dashboard" subtitle="Manage your Claude Code MCP servers" />
+<Header title="Dashboard" subtitle="Manage your Claude Code MCPs, Agents, and Skills" />
 
 <div class="flex-1 overflow-auto p-6 space-y-8">
 	<!-- Quick Actions -->

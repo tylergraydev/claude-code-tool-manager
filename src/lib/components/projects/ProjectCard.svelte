@@ -1,7 +1,7 @@
 <script lang="ts">
-	import type { Project } from '$lib/types';
-	import { projectsStore, notifications } from '$lib/stores';
-	import { FolderOpen, MoreVertical, Trash2, RefreshCw, ExternalLink, Plug } from 'lucide-svelte';
+	import type { Project, ProjectSkill, ProjectSubAgent } from '$lib/types';
+	import { projectsStore, notifications, skillLibrary, subagentLibrary } from '$lib/stores';
+	import { FolderOpen, MoreVertical, Trash2, RefreshCw, ExternalLink, Plug, Sparkles, Bot } from 'lucide-svelte';
 
 	type Props = {
 		project: Project;
@@ -13,13 +13,39 @@
 
 	let showMenu = $state(false);
 
+	// Skills and agents for this project
+	let projectSkills = $state<ProjectSkill[]>([]);
+	let projectAgents = $state<ProjectSubAgent[]>([]);
+
+	// Load skills and agents on mount
+	$effect(() => {
+		loadProjectData();
+	});
+
+	async function loadProjectData() {
+		try {
+			projectSkills = await skillLibrary.getProjectSkills(project.id);
+			projectAgents = await subagentLibrary.getProjectSubAgents(project.id);
+		} catch (err) {
+			console.error('Failed to load project skills/agents:', err);
+		}
+	}
+
 	function closeMenu() {
 		showMenu = false;
 	}
 
 	// Count enabled vs total MCPs
-	let enabledCount = $derived(project.assignedMcps.filter((a) => a.isEnabled).length);
-	let totalCount = $derived(project.assignedMcps.length);
+	let enabledMcpCount = $derived(project.assignedMcps.filter((a) => a.isEnabled).length);
+	let totalMcpCount = $derived(project.assignedMcps.length);
+
+	// Count enabled vs total Skills
+	let enabledSkillCount = $derived(projectSkills.filter((s) => s.isEnabled).length);
+	let totalSkillCount = $derived(projectSkills.length);
+
+	// Count enabled vs total Agents
+	let enabledAgentCount = $derived(projectAgents.filter((a) => a.isEnabled).length);
+	let totalAgentCount = $derived(projectAgents.length);
 </script>
 
 <svelte:window onclick={closeMenu} />
@@ -109,21 +135,41 @@
 		</div>
 	</div>
 
-	<!-- MCP Count Badge -->
-	<div class="mt-3 flex items-center gap-2">
+	<!-- Counts -->
+	<div class="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1">
+		<!-- MCP Count -->
 		<div class="flex items-center gap-1.5 text-sm">
-			<Plug class="w-4 h-4 text-gray-400" />
-			{#if totalCount > 0}
+			<Plug class="w-4 h-4 text-purple-400" />
+			{#if totalMcpCount > 0}
 				<span class="text-gray-600 dark:text-gray-300">
-					{enabledCount}/{totalCount} MCPs
+					{enabledMcpCount}/{totalMcpCount}
 				</span>
-				{#if enabledCount < totalCount}
-					<span class="text-xs text-gray-400">
-						({totalCount - enabledCount} disabled)
-					</span>
-				{/if}
 			{:else}
-				<span class="text-gray-400 dark:text-gray-500 italic">No MCPs - click to add</span>
+				<span class="text-gray-400 dark:text-gray-500">0</span>
+			{/if}
+		</div>
+
+		<!-- Skills Count -->
+		<div class="flex items-center gap-1.5 text-sm">
+			<Sparkles class="w-4 h-4 text-yellow-400" />
+			{#if totalSkillCount > 0}
+				<span class="text-gray-600 dark:text-gray-300">
+					{enabledSkillCount}/{totalSkillCount}
+				</span>
+			{:else}
+				<span class="text-gray-400 dark:text-gray-500">0</span>
+			{/if}
+		</div>
+
+		<!-- Agents Count -->
+		<div class="flex items-center gap-1.5 text-sm">
+			<Bot class="w-4 h-4 text-cyan-400" />
+			{#if totalAgentCount > 0}
+				<span class="text-gray-600 dark:text-gray-300">
+					{enabledAgentCount}/{totalAgentCount}
+				</span>
+			{:else}
+				<span class="text-gray-400 dark:text-gray-500">0</span>
 			{/if}
 		</div>
 	</div>

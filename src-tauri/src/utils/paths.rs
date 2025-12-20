@@ -10,6 +10,8 @@ pub struct ClaudePathsInternal {
     pub global_settings: PathBuf,
     pub plugins_dir: PathBuf,
     pub marketplaces_dir: PathBuf,
+    pub commands_dir: PathBuf,  // ~/.claude/commands/ for skills/slash commands
+    pub agents_dir: PathBuf,    // ~/.claude/agents/ for sub-agents
 }
 
 pub fn get_claude_paths() -> Result<ClaudePathsInternal> {
@@ -23,6 +25,8 @@ pub fn get_claude_paths() -> Result<ClaudePathsInternal> {
         global_settings: claude_dir.join("settings.json"),
         plugins_dir: claude_dir.join("plugins"),
         marketplaces_dir: claude_dir.join("plugins").join("marketplaces"),
+        commands_dir: claude_dir.join("commands"),
+        agents_dir: claude_dir.join("agents"),
         home,
         claude_dir,
     })
