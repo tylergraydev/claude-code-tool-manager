@@ -240,13 +240,23 @@ class RepoLibraryState {
 				limit: 50,
 				cursor: loadMore ? this.registryNextCursor : null
 			});
+
+			const prevCount = this.registryMcps.length;
 			if (loadMore) {
 				// Deduplicate when adding more entries
 				this.registryMcps = deduplicateMcps([...this.registryMcps, ...result.entries]);
 			} else {
 				this.registryMcps = deduplicateMcps(result.entries);
 			}
-			this.registryNextCursor = result.nextCursor ?? null;
+			const newCount = this.registryMcps.length;
+
+			// If loading more but no new unique items were added, clear the cursor
+			// to hide the "Load More" button (API returned only duplicates)
+			if (loadMore && newCount === prevCount) {
+				this.registryNextCursor = null;
+			} else {
+				this.registryNextCursor = result.nextCursor ?? null;
+			}
 		} catch (e) {
 			this.registryError = String(e);
 			console.error('Failed to load registry MCPs:', e);
