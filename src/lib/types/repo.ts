@@ -61,3 +61,32 @@ export interface ImportResult {
 	itemId: number;
 	message?: string;
 }
+
+// MCP Registry types
+export interface RegistryMcpEntry {
+	registryId: string;
+	name: string;
+	description?: string;
+	mcpType: 'stdio' | 'sse' | 'http';
+	command?: string;
+	args?: string[];
+	url?: string;
+	headers?: Record<string, string>;
+	env?: Record<string, string>;
+	envPlaceholders?: EnvPlaceholder[];
+	sourceUrl?: string;
+	version?: string;
+	registryType?: string; // "npm", "pypi", etc.
+}
+
+export interface EnvPlaceholder {
+	name: string;
+	description?: string;
+	isRequired: boolean;
+	default?: string;
+}
+
+export interface RegistrySearchResult {
+	entries: RegistryMcpEntry[];
+	nextCursor?: string;
+}

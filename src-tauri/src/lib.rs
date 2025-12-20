@@ -127,6 +127,12 @@ pub fn run() {
             commands::repos::get_github_rate_limit,
             commands::repos::seed_default_repos,
             commands::repos::reset_repos_to_defaults,
+
+            // MCP Registry Commands
+            commands::mcp_registry::search_mcp_registry,
+            commands::mcp_registry::list_mcp_registry,
+            commands::mcp_registry::get_mcp_from_registry,
+            commands::mcp_registry::import_mcp_from_registry,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
