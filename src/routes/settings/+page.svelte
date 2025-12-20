@@ -7,6 +7,7 @@
 
 	interface ClaudePaths {
 		claudeDir: string;
+		claudeJson: string;
 		globalSettings: string;
 		pluginsDir: string;
 	}
@@ -72,12 +73,12 @@
 					<div class="flex items-center gap-3">
 						<FileText class="w-5 h-5 text-gray-400" />
 						<div>
-							<p class="text-sm font-medium text-gray-900 dark:text-white">Global Settings</p>
-							<p class="text-xs text-gray-500 dark:text-gray-400 font-mono">{claudePaths.globalSettings}</p>
+							<p class="text-sm font-medium text-gray-900 dark:text-white">Global MCP Config</p>
+							<p class="text-xs text-gray-500 dark:text-gray-400 font-mono">{claudePaths.claudeJson}</p>
 						</div>
 					</div>
 					<button
-						onclick={() => openConfigFile(claudePaths!.globalSettings)}
+						onclick={() => openConfigFile(claudePaths!.claudeJson)}
 						class="btn btn-ghost text-xs"
 					>
 						Open

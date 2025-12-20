@@ -158,6 +158,7 @@ pub fn get_claude_paths() -> Result<ClaudePaths, String> {
     let claude_paths = paths::get_claude_paths().map_err(|e| e.to_string())?;
     Ok(ClaudePaths {
         claude_dir: claude_paths.claude_dir.to_string_lossy().to_string(),
+        claude_json: claude_paths.claude_json.to_string_lossy().to_string(),
         global_settings: claude_paths.global_settings.to_string_lossy().to_string(),
         plugins_dir: claude_paths.plugins_dir.to_string_lossy().to_string(),
     })
@@ -200,6 +201,12 @@ pub fn backup_configs() -> Result<(), String> {
     let backup_name = format!("backup_{}", timestamp);
     let backup_path = backup_dir.join(&backup_name);
     std::fs::create_dir_all(&backup_path).map_err(|e| e.to_string())?;
+
+    // Copy claude.json if exists (main config with global MCPs)
+    if claude_paths.claude_json.exists() {
+        let dest = backup_path.join("claude.json");
+        std::fs::copy(&claude_paths.claude_json, dest).map_err(|e| e.to_string())?;
+    }
 
     // Copy settings.json if exists
     if claude_paths.global_settings.exists() {

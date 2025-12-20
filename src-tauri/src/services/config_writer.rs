@@ -80,9 +80,9 @@ pub fn write_project_config(project_path: &Path, mcps: &[McpTuple]) -> Result<()
 }
 
 pub fn write_global_config(paths: &ClaudePathsInternal, mcps: &[McpTuple]) -> Result<()> {
-    // Read existing settings.json or create new
-    let mut settings: Value = if paths.global_settings.exists() {
-        let content = std::fs::read_to_string(&paths.global_settings)?;
+    // Read existing ~/.claude.json or create new
+    let mut claude_json: Value = if paths.claude_json.exists() {
+        let content = std::fs::read_to_string(&paths.claude_json)?;
         serde_json::from_str(&content).unwrap_or(json!({}))
     } else {
         json!({})
@@ -91,12 +91,12 @@ pub fn write_global_config(paths: &ClaudePathsInternal, mcps: &[McpTuple]) -> Re
     // Build mcpServers object
     let mcp_config = generate_mcp_config(mcps);
     if let Some(servers) = mcp_config.get("mcpServers") {
-        settings["mcpServers"] = servers.clone();
+        claude_json["mcpServers"] = servers.clone();
     }
 
-    // Write back
-    let content = serde_json::to_string_pretty(&settings)?;
-    std::fs::write(&paths.global_settings, content)?;
+    // Write back to ~/.claude.json
+    let content = serde_json::to_string_pretty(&claude_json)?;
+    std::fs::write(&paths.claude_json, content)?;
 
     Ok(())
 }

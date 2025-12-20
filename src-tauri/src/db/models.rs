@@ -86,6 +86,7 @@ pub struct CreateProjectRequest {
 #[serde(rename_all = "camelCase")]
 pub struct ClaudePaths {
     pub claude_dir: String,
+    pub claude_json: String,  // ~/.claude.json - main config with global MCPs
     pub global_settings: String,
     pub plugins_dir: String,
 }
