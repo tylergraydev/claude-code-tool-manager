@@ -14,21 +14,37 @@
 		Github,
 		X,
 		Eye,
-		RotateCcw
+		RotateCcw,
+		Search,
+		Server,
+		Package,
+		Loader2
 	} from 'lucide-svelte';
-	import type { Repo, RepoItem, CreateRepoRequest, ItemType } from '$lib/types';
+	import type { Repo, RepoItem, CreateRepoRequest, ItemType, RegistryMcpEntry } from '$lib/types';
 
 	// State
-	let activeTab = $state<'repos' | 'skills' | 'agents'>('repos');
+	let activeTab = $state<'mcps' | 'repos' | 'skills' | 'agents'>('mcps');
 	let showAddRepoModal = $state(false);
 	let newRepoUrl = $state('');
 	let newRepoType = $state<'file_based' | 'readme_based'>('readme_based');
 	let newRepoContentType = $state<'skill' | 'subagent' | 'mixed'>('mixed');
 	let selectedItem = $state<RepoItem | null>(null);
 
+	// MCP Registry state
+	let mcpSearchQuery = $state('');
+	let selectedRegistryMcp = $state<RegistryMcpEntry | null>(null);
+	let isImportingMcp = $state(false);
+
 	// Load data on mount and auto-sync if no items
 	$effect(() => {
 		loadData();
+	});
+
+	// Load MCP Registry when switching to MCPs tab
+	$effect(() => {
+		if (activeTab === 'mcps' && repoLibrary.registryMcps.length === 0 && !repoLibrary.isSearchingRegistry) {
+			repoLibrary.loadRegistryMcps();
+		}
 	});
 
 	async function loadData() {
@@ -133,6 +149,52 @@
 		return repoLibrary.items.filter((i) => i.itemType === type);
 	}
 
+	// MCP Registry handlers
+	async function handleMcpSearch() {
+		if (!mcpSearchQuery.trim()) {
+			await repoLibrary.loadRegistryMcps();
+			return;
+		}
+		await repoLibrary.searchRegistry(mcpSearchQuery);
+	}
+
+	async function handleMcpSearchKeydown(event: KeyboardEvent) {
+		if (event.key === 'Enter') {
+			await handleMcpSearch();
+		}
+	}
+
+	async function handleImportRegistryMcp(entry: RegistryMcpEntry) {
+		isImportingMcp = true;
+		try {
+			await repoLibrary.importFromRegistry(entry);
+			notifications.success(`Imported ${entry.name} to your MCP Library`);
+			selectedRegistryMcp = null;
+		} catch (e) {
+			notifications.error(`Failed to import: ${e}`);
+		} finally {
+			isImportingMcp = false;
+		}
+	}
+
+	async function handleLoadMoreMcps() {
+		await repoLibrary.loadRegistryMcps(true);
+	}
+
+	function getMcpTypeColor(type: string): string {
+		switch (type) {
+			case 'npm':
+				return 'bg-red-100 text-red-600 dark:bg-red-900/50 dark:text-red-400';
+			case 'pypi':
+				return 'bg-blue-100 text-blue-600 dark:bg-blue-900/50 dark:text-blue-400';
+			case 'docker':
+			case 'oci':
+				return 'bg-cyan-100 text-cyan-600 dark:bg-cyan-900/50 dark:text-cyan-400';
+			default:
+				return 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400';
+		}
+	}
+
 	const typeIcons: Record<ItemType, typeof FileCode> = {
 		mcp: FileCode, // Not used but kept for type safety
 		skill: FileCode,
@@ -171,14 +233,14 @@
 	<!-- Tabs -->
 	<div class="flex border-b border-gray-200 dark:border-gray-700 mb-6">
 		<button
-			onclick={() => (activeTab = 'repos')}
+			onclick={() => (activeTab = 'mcps')}
 			class="flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors {activeTab ===
-			'repos'
+			'mcps'
 				? 'border-primary-500 text-primary-600 dark:text-primary-400'
 				: 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'}"
 		>
-			<Store class="w-4 h-4" />
-			Repositories ({repoLibrary.repos.length})
+			<Server class="w-4 h-4" />
+			MCPs ({repoLibrary.registryMcps.length})
 		</button>
 		<button
 			onclick={() => (activeTab = 'skills')}
@@ -200,10 +262,129 @@
 			<Bot class="w-4 h-4" />
 			Agents ({getFilteredItems('subagent').length})
 		</button>
+		<button
+			onclick={() => (activeTab = 'repos')}
+			class="flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors {activeTab ===
+			'repos'
+				? 'border-primary-500 text-primary-600 dark:text-primary-400'
+				: 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'}"
+		>
+			<Github class="w-4 h-4" />
+			Repos ({repoLibrary.repos.length})
+		</button>
 	</div>
 
 	<!-- Content -->
-	{#if activeTab === 'repos'}
+	{#if activeTab === 'mcps'}
+		<!-- MCP Registry -->
+		<div class="space-y-4">
+			<!-- Search Bar -->
+			<div class="flex gap-4">
+				<div class="flex-1 relative">
+					<Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+					<input
+						type="text"
+						bind:value={mcpSearchQuery}
+						onkeydown={handleMcpSearchKeydown}
+						placeholder="Search MCP servers (e.g., filesystem, github, slack...)"
+						class="input w-full pl-10"
+					/>
+				</div>
+				<button
+					onclick={handleMcpSearch}
+					disabled={repoLibrary.isSearchingRegistry}
+					class="btn btn-primary"
+				>
+					{#if repoLibrary.isSearchingRegistry}
+						<Loader2 class="w-4 h-4 mr-2 animate-spin" />
+						Searching...
+					{:else}
+						<Search class="w-4 h-4 mr-2" />
+						Search
+					{/if}
+				</button>
+			</div>
+
+			<!-- Registry Error -->
+			{#if repoLibrary.registryError}
+				<div class="bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 p-4 rounded-lg text-sm">
+					{repoLibrary.registryError}
+				</div>
+			{/if}
+
+			<!-- Loading State -->
+			{#if repoLibrary.isSearchingRegistry && repoLibrary.registryMcps.length === 0}
+				<div class="text-center py-12">
+					<Loader2 class="w-8 h-8 mx-auto text-primary-500 animate-spin mb-4" />
+					<p class="text-gray-500 dark:text-gray-400">Loading MCPs from registry...</p>
+				</div>
+			{:else if repoLibrary.registryMcps.length === 0}
+				<div class="text-center py-12 bg-gray-50 dark:bg-gray-800/50 rounded-xl">
+					<Server class="w-12 h-12 mx-auto text-gray-400 mb-4" />
+					<p class="text-gray-500 dark:text-gray-400">No MCPs found</p>
+					<p class="text-sm text-gray-400 dark:text-gray-500 mt-1">
+						Try searching for an MCP server or wait for the registry to load
+					</p>
+				</div>
+			{:else}
+				<!-- MCP Grid -->
+				<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+					{#each repoLibrary.registryMcps as mcp (mcp.registryId)}
+						<button
+							onclick={() => (selectedRegistryMcp = mcp)}
+							class="card p-4 flex flex-col text-left hover:ring-2 hover:ring-primary-500/50 transition-all cursor-pointer"
+						>
+							<div class="flex items-start gap-3 mb-3">
+								<div class="w-10 h-10 rounded-lg bg-purple-100 dark:bg-purple-900/50 flex items-center justify-center flex-shrink-0">
+									<Server class="w-5 h-5 text-purple-600 dark:text-purple-400" />
+								</div>
+								<div class="flex-1 min-w-0">
+									<h3 class="font-medium text-gray-900 dark:text-white truncate">{mcp.name}</h3>
+									{#if mcp.description}
+										<p class="text-sm text-gray-500 dark:text-gray-400 line-clamp-2">{mcp.description}</p>
+									{/if}
+								</div>
+							</div>
+							<div class="mt-auto flex items-center justify-between pt-3 border-t border-gray-100 dark:border-gray-700">
+								<div class="flex items-center gap-2">
+									{#if mcp.registryType}
+										<span class="px-2 py-0.5 text-xs rounded {getMcpTypeColor(mcp.registryType)}">
+											{mcp.registryType}
+										</span>
+									{/if}
+									<span class="px-2 py-0.5 text-xs bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400 rounded">
+										{mcp.mcpType}
+									</span>
+								</div>
+								<span class="text-xs text-gray-400 flex items-center gap-1">
+									<Eye class="w-3 h-3" />
+									Click to preview
+								</span>
+							</div>
+						</button>
+					{/each}
+				</div>
+
+				<!-- Load More -->
+				{#if repoLibrary.registryNextCursor}
+					<div class="text-center pt-4">
+						<button
+							onclick={handleLoadMoreMcps}
+							disabled={repoLibrary.isSearchingRegistry}
+							class="btn btn-secondary"
+						>
+							{#if repoLibrary.isSearchingRegistry}
+								<Loader2 class="w-4 h-4 mr-2 animate-spin" />
+								Loading...
+							{:else}
+								Load More
+							{/if}
+						</button>
+					</div>
+				{/if}
+			{/if}
+		</div>
+	{:else if activeTab === 'repos'}
 		<!-- Repositories List -->
 		<div class="space-y-4">
 			<div class="flex justify-end gap-2">
@@ -553,6 +734,151 @@
 				>
 					<Download class="w-4 h-4 mr-2" />
 					{selectedItem.isImported ? 'Already Imported' : 'Import'}
+				</button>
+			</div>
+		</div>
+	</div>
+{/if}
+
+<!-- MCP Registry Preview Modal -->
+{#if selectedRegistryMcp}
+	<!-- svelte-ignore a11y_click_events_have_key_events -->
+	<!-- svelte-ignore a11y_no_static_element_interactions -->
+	<div
+		class="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+		onclick={() => (selectedRegistryMcp = null)}
+	>
+		<!-- svelte-ignore a11y_click_events_have_key_events -->
+		<!-- svelte-ignore a11y_no_static_element_interactions -->
+		<div
+			class="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-2xl w-full mx-4 max-h-[85vh] flex flex-col"
+			onclick={(e) => e.stopPropagation()}
+		>
+			<!-- Header -->
+			<div class="flex items-start justify-between p-6 border-b border-gray-200 dark:border-gray-700">
+				<div class="flex items-start gap-4">
+					<div class="w-12 h-12 rounded-lg bg-purple-100 dark:bg-purple-900/50 flex items-center justify-center flex-shrink-0">
+						<Server class="w-6 h-6 text-purple-600 dark:text-purple-400" />
+					</div>
+					<div>
+						<div class="flex items-center gap-2 flex-wrap">
+							<h2 class="text-xl font-semibold text-gray-900 dark:text-white">{selectedRegistryMcp.name}</h2>
+							{#if selectedRegistryMcp.registryType}
+								<span class="px-2 py-0.5 text-xs rounded {getMcpTypeColor(selectedRegistryMcp.registryType)}">
+									{selectedRegistryMcp.registryType}
+								</span>
+							{/if}
+							<span class="px-2 py-0.5 text-xs bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400 rounded">
+								{selectedRegistryMcp.mcpType}
+							</span>
+							{#if selectedRegistryMcp.version}
+								<span class="px-2 py-0.5 text-xs bg-blue-100 text-blue-600 dark:bg-blue-900/50 dark:text-blue-400 rounded">
+									v{selectedRegistryMcp.version}
+								</span>
+							{/if}
+						</div>
+						{#if selectedRegistryMcp.description}
+							<p class="text-sm text-gray-500 dark:text-gray-400 mt-1">{selectedRegistryMcp.description}</p>
+						{/if}
+					</div>
+				</div>
+				<button
+					onclick={() => (selectedRegistryMcp = null)}
+					class="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-lg transition-colors"
+				>
+					<X class="w-5 h-5" />
+				</button>
+			</div>
+
+			<!-- Content -->
+			<div class="flex-1 overflow-auto p-6">
+				<!-- Command/URL Configuration -->
+				<div class="mb-4">
+					<h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Configuration</h3>
+					<div class="bg-gray-50 dark:bg-gray-900 rounded-lg p-4">
+						{#if selectedRegistryMcp.mcpType === 'stdio'}
+							<div class="space-y-2">
+								<div>
+									<span class="text-xs text-gray-500 dark:text-gray-400">Command:</span>
+									<code class="ml-2 text-sm text-gray-800 dark:text-gray-200 font-mono">{selectedRegistryMcp.command}</code>
+								</div>
+								{#if selectedRegistryMcp.args && selectedRegistryMcp.args.length > 0}
+									<div>
+										<span class="text-xs text-gray-500 dark:text-gray-400">Arguments:</span>
+										<code class="ml-2 text-sm text-gray-800 dark:text-gray-200 font-mono">{selectedRegistryMcp.args.join(' ')}</code>
+									</div>
+								{/if}
+							</div>
+						{:else}
+							<div>
+								<span class="text-xs text-gray-500 dark:text-gray-400">URL:</span>
+								<code class="ml-2 text-sm text-gray-800 dark:text-gray-200 font-mono break-all">{selectedRegistryMcp.url}</code>
+							</div>
+						{/if}
+					</div>
+				</div>
+
+				<!-- Environment Variables -->
+				{#if selectedRegistryMcp.envPlaceholders && selectedRegistryMcp.envPlaceholders.length > 0}
+					<div class="mb-4">
+						<h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+							Environment Variables
+							<span class="text-xs text-gray-400 font-normal ml-2">(You'll need to configure these after import)</span>
+						</h3>
+						<div class="bg-gray-50 dark:bg-gray-900 rounded-lg p-4 space-y-3">
+							{#each selectedRegistryMcp.envPlaceholders as envVar}
+								<div class="flex items-start gap-2">
+									<code class="text-sm font-mono text-gray-800 dark:text-gray-200 bg-gray-200 dark:bg-gray-700 px-2 py-0.5 rounded">
+										{envVar.name}
+									</code>
+									{#if envVar.isRequired}
+										<span class="px-1.5 py-0.5 text-xs bg-red-100 text-red-600 dark:bg-red-900/50 dark:text-red-400 rounded">
+											Required
+										</span>
+									{/if}
+									{#if envVar.description}
+										<span class="text-sm text-gray-500 dark:text-gray-400">{envVar.description}</span>
+									{/if}
+								</div>
+							{/each}
+						</div>
+					</div>
+				{/if}
+
+				<!-- Source URL -->
+				{#if selectedRegistryMcp.sourceUrl}
+					<div class="mb-4">
+						<h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Source Repository</h3>
+						<a
+							href={selectedRegistryMcp.sourceUrl}
+							target="_blank"
+							rel="noopener noreferrer"
+							class="text-sm text-primary-600 hover:text-primary-700 dark:text-primary-400 flex items-center gap-1"
+						>
+							<ExternalLink class="w-4 h-4" />
+							{selectedRegistryMcp.sourceUrl}
+						</a>
+					</div>
+				{/if}
+			</div>
+
+			<!-- Footer -->
+			<div class="flex items-center justify-end gap-3 p-6 border-t border-gray-200 dark:border-gray-700">
+				<button onclick={() => (selectedRegistryMcp = null)} class="btn btn-secondary">
+					Close
+				</button>
+				<button
+					onclick={() => handleImportRegistryMcp(selectedRegistryMcp!)}
+					disabled={isImportingMcp}
+					class="btn btn-primary"
+				>
+					{#if isImportingMcp}
+						<Loader2 class="w-4 h-4 mr-2 animate-spin" />
+						Importing...
+					{:else}
+						<Download class="w-4 h-4 mr-2" />
+						Import to Library
+					{/if}
 				</button>
 			</div>
 		</div>

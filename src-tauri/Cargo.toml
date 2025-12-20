@@ -53,6 +53,9 @@ base64 = "0.22"
 # Regex for parsing
 regex = "1"
 
+# URL encoding for API queries
+urlencoding = "2"
+
 [features]
 default = ["custom-protocol"]
 custom-protocol = ["tauri/custom-protocol"]

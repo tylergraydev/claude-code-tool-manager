@@ -6,7 +6,9 @@ import type {
 	SyncResult,
 	RateLimitInfo,
 	ImportResult,
-	ItemType
+	ItemType,
+	RegistryMcpEntry,
+	RegistrySearchResult
 } from '$lib/types';
 import { mcpLibrary } from './mcpLibrary.svelte';
 import { skillLibrary } from './skillLibrary.svelte';
@@ -21,6 +23,13 @@ class RepoLibraryState {
 	searchQuery = $state('');
 	selectedType = $state<'all' | ItemType>('all');
 	rateLimitInfo = $state<RateLimitInfo | null>(null);
+
+	// MCP Registry state
+	registryMcps = $state<RegistryMcpEntry[]>([]);
+	registrySearchQuery = $state('');
+	registryNextCursor = $state<string | null>(null);
+	isSearchingRegistry = $state(false);
+	registryError = $state<string | null>(null);
 
 	filteredItems = $derived.by(() => {
 		let result = this.items;
@@ -188,6 +197,74 @@ class RepoLibraryState {
 
 	setTypeFilter(type: 'all' | ItemType) {
 		this.selectedType = type;
+	}
+
+	// ===== MCP Registry Methods =====
+
+	async searchRegistry(query: string): Promise<void> {
+		this.isSearchingRegistry = true;
+		this.registryError = null;
+		this.registrySearchQuery = query;
+		try {
+			this.registryMcps = await invoke<RegistryMcpEntry[]>('search_mcp_registry', {
+				query,
+				limit: 50
+			});
+			this.registryNextCursor = null;
+		} catch (e) {
+			this.registryError = String(e);
+			console.error('Failed to search registry:', e);
+		} finally {
+			this.isSearchingRegistry = false;
+		}
+	}
+
+	async loadRegistryMcps(loadMore = false): Promise<void> {
+		this.isSearchingRegistry = true;
+		this.registryError = null;
+		try {
+			const result = await invoke<RegistrySearchResult>('list_mcp_registry', {
+				limit: 50,
+				cursor: loadMore ? this.registryNextCursor : null
+			});
+			if (loadMore) {
+				this.registryMcps = [...this.registryMcps, ...result.entries];
+			} else {
+				this.registryMcps = result.entries;
+			}
+			this.registryNextCursor = result.nextCursor ?? null;
+		} catch (e) {
+			this.registryError = String(e);
+			console.error('Failed to load registry MCPs:', e);
+		} finally {
+			this.isSearchingRegistry = false;
+		}
+	}
+
+	async importFromRegistry(entry: RegistryMcpEntry): Promise<number> {
+		const id = await invoke<number>('import_mcp_from_registry', { entry });
+		// Reload MCP library so the imported MCP shows up
+		await mcpLibrary.load();
+		return id;
+	}
+
+	clearRegistrySearch(): void {
+		this.registrySearchQuery = '';
+		this.registryMcps = [];
+		this.registryNextCursor = null;
+		this.registryError = null;
+	}
+
+	get filteredRegistryMcps(): RegistryMcpEntry[] {
+		if (!this.registrySearchQuery) {
+			return this.registryMcps;
+		}
+		const query = this.registrySearchQuery.toLowerCase();
+		return this.registryMcps.filter(
+			(m) =>
+				m.name.toLowerCase().includes(query) ||
+				m.description?.toLowerCase().includes(query)
+		);
 	}
 }
 
