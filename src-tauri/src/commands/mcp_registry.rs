@@ -56,6 +56,15 @@ pub async fn list_mcp_registry(
 
     log::info!("[Registry] Got {} servers from API", servers.len());
 
+    // Log details about what each server has
+    for s in &servers {
+        log::info!("[Registry] Server '{}': packages={}, remotes={}",
+            s.name,
+            s.packages.as_ref().map(|p| p.len()).unwrap_or(0),
+            s.remotes.as_ref().map(|r| r.len()).unwrap_or(0)
+        );
+    }
+
     let mut success_count = 0;
     let mut fail_count = 0;
     let entries: Vec<RegistryMcpEntry> = servers
@@ -68,7 +77,7 @@ pub async fn list_mcp_registry(
                 },
                 Err(e) => {
                     fail_count += 1;
-                    log::info!("[Registry] Skipped '{}': {} (packages: {:?}, remotes: {:?})",
+                    log::warn!("[Registry] SKIPPED '{}': {} (packages: {:?}, remotes: {:?})",
                         s.name, e,
                         s.packages.as_ref().map(|p| p.iter().map(|pkg| &pkg.registry_type).collect::<Vec<_>>()),
                         s.remotes.as_ref().map(|r| r.iter().map(|rem| &rem.transport_type).collect::<Vec<_>>())
@@ -79,7 +88,7 @@ pub async fn list_mcp_registry(
         })
         .collect();
 
-    log::info!("[Registry] Converted {}/{} servers ({} skipped)", success_count, servers.len(), fail_count);
+    log::warn!("[Registry] RESULT: Converted {}/{} servers ({} skipped)", success_count, servers.len(), fail_count);
 
     Ok(RegistrySearchResult {
         entries,
