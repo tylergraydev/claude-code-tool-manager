@@ -1,5 +1,10 @@
 # Claude Code Tool Manager
 
+[![Build Status](https://github.com/tylergraydev/claude-code-tool-manager/actions/workflows/build.yml/badge.svg)](https://github.com/tylergraydev/claude-code-tool-manager/actions/workflows/build.yml)
+[![Release](https://img.shields.io/github/v/release/tylergraydev/claude-code-tool-manager)](https://github.com/tylergraydev/claude-code-tool-manager/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/tylergraydev/claude-code-tool-manager/total)](https://github.com/tylergraydev/claude-code-tool-manager/releases)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 A desktop application for managing MCP servers, Skills, and Sub-Agents for [Claude Code](https://docs.anthropic.com/en/docs/claude-code).
 
 ![Claude Code Tool Manager Screenshot](imgs/Screenshot%202025-12-19%20132108.png)
