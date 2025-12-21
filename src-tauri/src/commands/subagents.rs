@@ -18,10 +18,12 @@ fn row_to_subagent(row: &rusqlite::Row) -> rusqlite::Result<SubAgent> {
         content: row.get(3)?,
         tools: parse_json_array(row.get(4)?),
         model: row.get(5)?,
-        tags: parse_json_array(row.get(6)?),
-        source: row.get(7)?,
-        created_at: row.get(8)?,
-        updated_at: row.get(9)?,
+        permission_mode: row.get(6)?,
+        skills: parse_json_array(row.get(7)?),
+        tags: parse_json_array(row.get(8)?),
+        source: row.get(9)?,
+        created_at: row.get(10)?,
+        updated_at: row.get(11)?,
     })
 }
 
@@ -33,10 +35,12 @@ fn row_to_subagent_with_offset(row: &rusqlite::Row, offset: usize) -> rusqlite::
         content: row.get(offset + 3)?,
         tools: parse_json_array(row.get(offset + 4)?),
         model: row.get(offset + 5)?,
-        tags: parse_json_array(row.get(offset + 6)?),
-        source: row.get(offset + 7)?,
-        created_at: row.get(offset + 8)?,
-        updated_at: row.get(offset + 9)?,
+        permission_mode: row.get(offset + 6)?,
+        skills: parse_json_array(row.get(offset + 7)?),
+        tags: parse_json_array(row.get(offset + 8)?),
+        source: row.get(offset + 9)?,
+        created_at: row.get(offset + 10)?,
+        updated_at: row.get(offset + 11)?,
     })
 }
 
@@ -46,7 +50,7 @@ pub fn get_all_subagents(db: State<'_, Mutex<Database>>) -> Result<Vec<SubAgent>
     let mut stmt = db
         .conn()
         .prepare(
-            "SELECT id, name, description, content, tools, model, tags, source, created_at, updated_at
+            "SELECT id, name, description, content, tools, model, permission_mode, skills, tags, source, created_at, updated_at
              FROM subagents ORDER BY name",
         )
         .map_err(|e| e.to_string())?;
@@ -65,13 +69,14 @@ pub fn create_subagent(db: State<'_, Mutex<Database>>, subagent: CreateSubAgentR
     let db_guard = db.lock().map_err(|e| e.to_string())?;
 
     let tools_json = subagent.tools.as_ref().map(|t| serde_json::to_string(t).unwrap());
+    let skills_json = subagent.skills.as_ref().map(|t| serde_json::to_string(t).unwrap());
     let tags_json = subagent.tags.as_ref().map(|t| serde_json::to_string(t).unwrap());
 
     db_guard.conn()
         .execute(
-            "INSERT INTO subagents (name, description, content, tools, model, tags, source)
-             VALUES (?, ?, ?, ?, ?, ?, 'manual')",
-            params![subagent.name, subagent.description, subagent.content, tools_json, subagent.model, tags_json],
+            "INSERT INTO subagents (name, description, content, tools, model, permission_mode, skills, tags, source)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'manual')",
+            params![subagent.name, subagent.description, subagent.content, tools_json, subagent.model, subagent.permission_mode, skills_json, tags_json],
         )
         .map_err(|e| e.to_string())?;
 
@@ -80,7 +85,7 @@ pub fn create_subagent(db: State<'_, Mutex<Database>>, subagent: CreateSubAgentR
     let mut stmt = db_guard
         .conn()
         .prepare(
-            "SELECT id, name, description, content, tools, model, tags, source, created_at, updated_at
+            "SELECT id, name, description, content, tools, model, permission_mode, skills, tags, source, created_at, updated_at
              FROM subagents WHERE id = ?",
         )
         .map_err(|e| e.to_string())?;
@@ -98,20 +103,21 @@ pub fn update_subagent(
     let db = db.lock().map_err(|e| e.to_string())?;
 
     let tools_json = subagent.tools.as_ref().map(|t| serde_json::to_string(t).unwrap());
+    let skills_json = subagent.skills.as_ref().map(|t| serde_json::to_string(t).unwrap());
     let tags_json = subagent.tags.as_ref().map(|t| serde_json::to_string(t).unwrap());
 
     db.conn()
         .execute(
-            "UPDATE subagents SET name = ?, description = ?, content = ?, tools = ?, model = ?, tags = ?, updated_at = CURRENT_TIMESTAMP
+            "UPDATE subagents SET name = ?, description = ?, content = ?, tools = ?, model = ?, permission_mode = ?, skills = ?, tags = ?, updated_at = CURRENT_TIMESTAMP
              WHERE id = ?",
-            params![subagent.name, subagent.description, subagent.content, tools_json, subagent.model, tags_json, id],
+            params![subagent.name, subagent.description, subagent.content, tools_json, subagent.model, subagent.permission_mode, skills_json, tags_json, id],
         )
         .map_err(|e| e.to_string())?;
 
     let mut stmt = db
         .conn()
         .prepare(
-            "SELECT id, name, description, content, tools, model, tags, source, created_at, updated_at
+            "SELECT id, name, description, content, tools, model, permission_mode, skills, tags, source, created_at, updated_at
              FROM subagents WHERE id = ?",
         )
         .map_err(|e| e.to_string())?;
@@ -146,7 +152,7 @@ pub fn get_global_subagents(db: State<'_, Mutex<Database>>) -> Result<Vec<Global
         .conn()
         .prepare(
             "SELECT gs.id, gs.subagent_id, gs.is_enabled,
-                    s.id, s.name, s.description, s.content, s.tools, s.model, s.tags, s.source, s.created_at, s.updated_at
+                    s.id, s.name, s.description, s.content, s.tools, s.model, s.permission_mode, s.skills, s.tags, s.source, s.created_at, s.updated_at
              FROM global_subagents gs
              JOIN subagents s ON gs.subagent_id = s.id
              ORDER BY s.name",
@@ -175,7 +181,7 @@ pub fn add_global_subagent(db: State<'_, Mutex<Database>>, subagent_id: i64) -> 
 
     // Get the subagent details for file writing
     let mut stmt = db_guard.conn()
-        .prepare("SELECT id, name, description, content, tools, model, tags, source, created_at, updated_at FROM subagents WHERE id = ?")
+        .prepare("SELECT id, name, description, content, tools, model, permission_mode, skills, tags, source, created_at, updated_at FROM subagents WHERE id = ?")
         .map_err(|e| e.to_string())?;
 
     let subagent: SubAgent = stmt.query_row([subagent_id], row_to_subagent)
@@ -229,7 +235,7 @@ pub fn toggle_global_subagent(db: State<'_, Mutex<Database>>, id: i64, enabled: 
     // Get the subagent details
     let mut stmt = db_guard.conn()
         .prepare(
-            "SELECT s.id, s.name, s.description, s.content, s.tools, s.model, s.tags, s.source, s.created_at, s.updated_at
+            "SELECT s.id, s.name, s.description, s.content, s.tools, s.model, s.permission_mode, s.skills, s.tags, s.source, s.created_at, s.updated_at
              FROM global_subagents gs
              JOIN subagents s ON gs.subagent_id = s.id
              WHERE gs.id = ?"
@@ -266,7 +272,7 @@ pub fn assign_subagent_to_project(
         .map_err(|e| e.to_string())?;
 
     let mut stmt = db_guard.conn()
-        .prepare("SELECT id, name, description, content, tools, model, tags, source, created_at, updated_at FROM subagents WHERE id = ?")
+        .prepare("SELECT id, name, description, content, tools, model, permission_mode, skills, tags, source, created_at, updated_at FROM subagents WHERE id = ?")
         .map_err(|e| e.to_string())?;
 
     let subagent: SubAgent = stmt.query_row([subagent_id], row_to_subagent)
@@ -335,7 +341,7 @@ pub fn toggle_project_subagent(
     // Get project path and subagent details
     let mut stmt = db_guard.conn()
         .prepare(
-            "SELECT p.path, s.id, s.name, s.description, s.content, s.tools, s.model, s.tags, s.source, s.created_at, s.updated_at
+            "SELECT p.path, s.id, s.name, s.description, s.content, s.tools, s.model, s.permission_mode, s.skills, s.tags, s.source, s.created_at, s.updated_at
              FROM project_subagents ps
              JOIN projects p ON ps.project_id = p.id
              JOIN subagents s ON ps.subagent_id = s.id
@@ -369,7 +375,7 @@ pub fn get_project_subagents(
         .conn()
         .prepare(
             "SELECT ps.id, ps.subagent_id, ps.is_enabled,
-                    s.id, s.name, s.description, s.content, s.tools, s.model, s.tags, s.source, s.created_at, s.updated_at
+                    s.id, s.name, s.description, s.content, s.tools, s.model, s.permission_mode, s.skills, s.tags, s.source, s.created_at, s.updated_at
              FROM project_subagents ps
              JOIN subagents s ON ps.subagent_id = s.id
              WHERE ps.project_id = ?

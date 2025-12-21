@@ -1,5 +1,6 @@
 pub mod claude_json;
 pub mod config;
+pub mod hooks;
 pub mod mcp;
 pub mod mcp_registry;
 pub mod projects;

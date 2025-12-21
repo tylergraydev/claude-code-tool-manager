@@ -1,3 +1,4 @@
+export * from './hook';
 export * from './mcp';
 export * from './project';
 export * from './repo';

@@ -2,6 +2,7 @@
 	import type { Project, ProjectSkill, ProjectSubAgent } from '$lib/types';
 	import { projectsStore, notifications, skillLibrary, subagentLibrary } from '$lib/stores';
 	import { FolderOpen, MoreVertical, Trash2, RefreshCw, ExternalLink, Plug, Sparkles, Bot } from 'lucide-svelte';
+	import { open } from '@tauri-apps/plugin-shell';
 
 	type Props = {
 		project: Project;
@@ -109,8 +110,12 @@
 						Sync Config
 					</button>
 					<button
-						onclick={() => {
-							// Would open in file explorer
+						onclick={async () => {
+							try {
+								await open(project.path);
+							} catch (e) {
+								notifications.error('Failed to open folder');
+							}
 							closeMenu();
 						}}
 						class="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"

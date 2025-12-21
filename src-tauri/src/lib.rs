@@ -99,6 +99,10 @@ pub fn run() {
             commands::skills::remove_skill_from_project,
             commands::skills::toggle_project_skill,
             commands::skills::get_project_skills,
+            commands::skills::get_skill_files,
+            commands::skills::create_skill_file,
+            commands::skills::update_skill_file,
+            commands::skills::delete_skill_file,
 
             // Sub-Agent Commands
             commands::subagents::get_all_subagents,
@@ -113,6 +117,23 @@ pub fn run() {
             commands::subagents::remove_subagent_from_project,
             commands::subagents::toggle_project_subagent,
             commands::subagents::get_project_subagents,
+
+            // Hook Commands
+            commands::hooks::get_all_hooks,
+            commands::hooks::get_hook_templates,
+            commands::hooks::create_hook,
+            commands::hooks::create_hook_from_template,
+            commands::hooks::update_hook,
+            commands::hooks::delete_hook,
+            commands::hooks::get_global_hooks,
+            commands::hooks::add_global_hook,
+            commands::hooks::remove_global_hook,
+            commands::hooks::toggle_global_hook,
+            commands::hooks::get_project_hooks,
+            commands::hooks::assign_hook_to_project,
+            commands::hooks::remove_hook_from_project,
+            commands::hooks::toggle_project_hook,
+            commands::hooks::seed_hook_templates,
 
             // Repos (Marketplace) Commands
             commands::repos::get_all_repos,

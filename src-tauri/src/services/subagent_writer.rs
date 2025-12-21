@@ -22,6 +22,18 @@ fn generate_subagent_markdown(subagent: &SubAgent) -> String {
         }
     }
 
+    if let Some(ref permission_mode) = subagent.permission_mode {
+        if !permission_mode.is_empty() {
+            frontmatter.push_str(&format!("permissionMode: {}\n", permission_mode));
+        }
+    }
+
+    if let Some(ref skills) = subagent.skills {
+        if !skills.is_empty() {
+            frontmatter.push_str(&format!("skills: {}\n", skills.join(", ")));
+        }
+    }
+
     frontmatter.push_str("---\n\n");
     format!("{}{}", frontmatter, subagent.content)
 }

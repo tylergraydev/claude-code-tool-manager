@@ -21,13 +21,21 @@ pub async fn run_startup_scan(app: &tauri::AppHandle) -> Result<()> {
     let plugin_count = scan_plugins(&db)?;
     log::info!("Found {} MCPs from plugins", plugin_count);
 
-    // Scan global skills from ~/.claude/commands/
+    // Scan global command skills from ~/.claude/commands/
     let skill_count = scan_global_skills(&db)?;
-    log::info!("Found {} skills from ~/.claude/commands/", skill_count);
+    log::info!("Found {} command skills from ~/.claude/commands/", skill_count);
+
+    // Scan global agent skills from ~/.claude/skills/
+    let agent_skill_count = scan_global_agent_skills(&db)?;
+    log::info!("Found {} agent skills from ~/.claude/skills/", agent_skill_count);
 
     // Scan global agents from ~/.claude/agents/
     let agent_count = scan_global_agents(&db)?;
     log::info!("Found {} agents from ~/.claude/agents/", agent_count);
+
+    // Scan global hooks from ~/.claude/settings.json
+    let hook_count = scan_global_hooks(&db)?;
+    log::info!("Found {} hooks from ~/.claude/settings.json", hook_count);
 
     Ok(())
 }
@@ -96,16 +104,32 @@ pub fn scan_claude_json(db: &Database) -> Result<usize> {
             mcp_count += 1;
         }
 
-        // Scan project-level skills from .claude/commands/
+        // Scan project-level command skills from .claude/commands/
         let project_commands_dir = Path::new(&path_to_check).join(".claude").join("commands");
         if project_commands_dir.exists() {
             scan_project_skills(db, project_id, &project_commands_dir)?;
+        }
+
+        // Scan project-level agent skills from .claude/skills/
+        let project_skills_dir = Path::new(&path_to_check).join(".claude").join("skills");
+        if project_skills_dir.exists() {
+            scan_project_agent_skills(db, project_id, &project_skills_dir)?;
         }
 
         // Scan project-level agents from .claude/agents/
         let project_agents_dir = Path::new(&path_to_check).join(".claude").join("agents");
         if project_agents_dir.exists() {
             scan_project_agents(db, project_id, &project_agents_dir)?;
+        }
+
+        // Scan project-level hooks from .claude/settings.json and .claude/settings.local.json
+        let project_settings_file = Path::new(&path_to_check).join(".claude").join("settings.json");
+        if project_settings_file.exists() {
+            scan_project_hooks(db, project_id, &project_settings_file)?;
+        }
+        let project_settings_local_file = Path::new(&path_to_check).join(".claude").join("settings.local.json");
+        if project_settings_local_file.exists() {
+            scan_project_hooks(db, project_id, &project_settings_local_file)?;
         }
     }
 
@@ -321,8 +345,8 @@ pub fn scan_global_skills(db: &Database) -> Result<usize> {
                         };
 
                         let result = db.conn().execute(
-                            "INSERT INTO skills (name, description, content, skill_type, allowed_tools, argument_hint, tags, source)
-                             VALUES (?, ?, ?, ?, ?, ?, ?, 'auto-detected')",
+                            "INSERT INTO skills (name, description, content, skill_type, allowed_tools, argument_hint, model, disable_model_invocation, tags, source)
+                             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'auto-detected')",
                             params![
                                 skill.name,
                                 skill.description,
@@ -330,11 +354,76 @@ pub fn scan_global_skills(db: &Database) -> Result<usize> {
                                 skill.skill_type,
                                 skill.allowed_tools,
                                 skill.argument_hint,
+                                skill.model,
+                                skill.disable_model_invocation,
                                 tags_json
                             ],
                         );
 
                         if result.is_ok() {
+                            count += 1;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(count)
+}
+
+/// Scan global agent skills from ~/.claude/skills/ directories
+pub fn scan_global_agent_skills(db: &Database) -> Result<usize> {
+    let paths = get_claude_paths()?;
+    let mut count = 0;
+
+    if paths.skills_dir.exists() {
+        for entry in std::fs::read_dir(&paths.skills_dir)? {
+            let entry = entry?;
+            let path = entry.path();
+
+            // Only process directories (each skill is a directory with SKILL.md)
+            if path.is_dir() {
+                if let Some((skill, files)) = parse_agent_skill_dir(&path) {
+                    // Check if already exists
+                    let exists: bool = db
+                        .conn()
+                        .query_row(
+                            "SELECT 1 FROM skills WHERE name = ?",
+                            [&skill.name],
+                            |_| Ok(true),
+                        )
+                        .unwrap_or(false);
+
+                    if !exists {
+                        let tags_json = if skill.tags.is_empty() {
+                            None
+                        } else {
+                            Some(serde_json::to_string(&skill.tags).unwrap())
+                        };
+
+                        let result = db.conn().execute(
+                            "INSERT INTO skills (name, description, content, skill_type, allowed_tools, argument_hint, model, disable_model_invocation, tags, source)
+                             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'auto-detected')",
+                            params![
+                                skill.name,
+                                skill.description,
+                                skill.content,
+                                skill.skill_type,
+                                skill.allowed_tools,
+                                skill.argument_hint,
+                                skill.model,
+                                skill.disable_model_invocation,
+                                tags_json
+                            ],
+                        );
+
+                        if result.is_ok() {
+                            let skill_id = db.conn().last_insert_rowid();
+                            // Insert associated skill files
+                            if !files.is_empty() {
+                                let _ = insert_skill_files(db, skill_id, &files);
+                            }
                             count += 1;
                         }
                     }
@@ -375,6 +464,11 @@ pub fn scan_global_agents(db: &Database) -> Result<usize> {
                         } else {
                             Some(serde_json::to_string(&agent.tools).unwrap())
                         };
+                        let skills_json = if agent.skills.is_empty() {
+                            None
+                        } else {
+                            Some(serde_json::to_string(&agent.skills).unwrap())
+                        };
                         let tags_json = if agent.tags.is_empty() {
                             None
                         } else {
@@ -382,14 +476,16 @@ pub fn scan_global_agents(db: &Database) -> Result<usize> {
                         };
 
                         let result = db.conn().execute(
-                            "INSERT INTO subagents (name, description, content, tools, model, tags, source)
-                             VALUES (?, ?, ?, ?, ?, ?, 'auto-detected')",
+                            "INSERT INTO subagents (name, description, content, tools, model, permission_mode, skills, tags, source)
+                             VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'auto-detected')",
                             params![
                                 agent.name,
                                 agent.description,
                                 agent.content,
                                 tools_json,
                                 agent.model,
+                                agent.permission_mode,
+                                skills_json,
                                 tags_json
                             ],
                         );
@@ -414,7 +510,16 @@ struct ParsedSkill {
     skill_type: String,
     allowed_tools: Option<String>,
     argument_hint: Option<String>,
+    model: Option<String>,
+    disable_model_invocation: bool,
     tags: Vec<String>,
+}
+
+/// Parsed skill file data (references, assets, scripts)
+struct ParsedSkillFile {
+    file_type: String,  // "reference", "asset", "script"
+    name: String,
+    content: String,
 }
 
 /// Parsed agent data from markdown file
@@ -424,6 +529,8 @@ struct ParsedAgent {
     content: String,
     tools: Vec<String>,
     model: Option<String>,
+    permission_mode: Option<String>,
+    skills: Vec<String>,
     tags: Vec<String>,
 }
 
@@ -438,8 +545,23 @@ fn parse_skill_file(path: &Path) -> Option<ParsedSkill> {
     // Extract metadata from frontmatter
     let description = frontmatter.get("description").cloned();
     let skill_type = frontmatter.get("type").cloned().unwrap_or_else(|| "command".to_string());
-    let allowed_tools = frontmatter.get("allowed_tools").or_else(|| frontmatter.get("allowedTools")).cloned();
-    let argument_hint = frontmatter.get("argument_hint").or_else(|| frontmatter.get("argumentHint")).cloned();
+    // Support multiple formats: allowed-tools (official), allowed_tools, allowedTools
+    let allowed_tools = frontmatter.get("allowed-tools")
+        .or_else(|| frontmatter.get("allowed_tools"))
+        .or_else(|| frontmatter.get("allowedTools"))
+        .cloned();
+    // Support multiple formats: argument-hint (official), argument_hint, argumentHint
+    let argument_hint = frontmatter.get("argument-hint")
+        .or_else(|| frontmatter.get("argument_hint"))
+        .or_else(|| frontmatter.get("argumentHint"))
+        .cloned();
+    // Model (optional)
+    let model = frontmatter.get("model").cloned();
+    // disable-model-invocation / disableModelInvocation
+    let disable_model_invocation = frontmatter.get("disable-model-invocation")
+        .or_else(|| frontmatter.get("disableModelInvocation"))
+        .map(|v| v == "true" || v == "1")
+        .unwrap_or(false);
     let tags = frontmatter.get("tags")
         .map(|t| t.split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect())
         .unwrap_or_default();
@@ -451,8 +573,91 @@ fn parse_skill_file(path: &Path) -> Option<ParsedSkill> {
         skill_type,
         allowed_tools,
         argument_hint,
+        model,
+        disable_model_invocation,
         tags,
     })
+}
+
+/// Parse an agent skill directory (e.g., .claude/skills/my-skill/)
+/// Returns the skill from SKILL.md and any files from references/assets/scripts subdirs
+fn parse_agent_skill_dir(skill_dir: &Path) -> Option<(ParsedSkill, Vec<ParsedSkillFile>)> {
+    let skill_md_path = skill_dir.join("SKILL.md");
+    if !skill_md_path.exists() {
+        return None;
+    }
+
+    let content = std::fs::read_to_string(&skill_md_path).ok()?;
+    let skill_name = skill_dir.file_name()?.to_string_lossy().to_string();
+
+    // Parse frontmatter if present
+    let (frontmatter, body) = parse_frontmatter(&content);
+
+    // Extract metadata - agent skills are always type "skill"
+    let description = frontmatter.get("description").cloned();
+    let allowed_tools = frontmatter.get("allowed-tools")
+        .or_else(|| frontmatter.get("allowed_tools"))
+        .or_else(|| frontmatter.get("allowedTools"))
+        .cloned();
+    let argument_hint = frontmatter.get("argument-hint")
+        .or_else(|| frontmatter.get("argument_hint"))
+        .or_else(|| frontmatter.get("argumentHint"))
+        .cloned();
+    let model = frontmatter.get("model").cloned();
+    let disable_model_invocation = frontmatter.get("disable-model-invocation")
+        .or_else(|| frontmatter.get("disableModelInvocation"))
+        .map(|v| v == "true" || v == "1")
+        .unwrap_or(false);
+    let tags = frontmatter.get("tags")
+        .map(|t| t.split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect())
+        .unwrap_or_default();
+
+    let skill = ParsedSkill {
+        name: skill_name,
+        description,
+        content: body,
+        skill_type: "skill".to_string(),  // Agent skills are always type "skill"
+        allowed_tools,
+        argument_hint,
+        model,
+        disable_model_invocation,
+        tags,
+    };
+
+    // Scan subdirectories for files
+    let mut files = Vec::new();
+
+    // Map directory names to file types
+    let subdir_mappings = [
+        ("references", "reference"),
+        ("assets", "asset"),
+        ("scripts", "script"),
+    ];
+
+    for (dir_name, file_type) in subdir_mappings {
+        let subdir = skill_dir.join(dir_name);
+        if subdir.exists() && subdir.is_dir() {
+            if let Ok(entries) = std::fs::read_dir(&subdir) {
+                for entry in entries.flatten() {
+                    let path = entry.path();
+                    if path.is_file() {
+                        if let Some(file_name) = path.file_name() {
+                            let name = file_name.to_string_lossy().to_string();
+                            if let Ok(file_content) = std::fs::read_to_string(&path) {
+                                files.push(ParsedSkillFile {
+                                    file_type: file_type.to_string(),
+                                    name,
+                                    content: file_content,
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    Some((skill, files))
 }
 
 /// Parse an agent markdown file
@@ -466,7 +671,13 @@ fn parse_agent_file(path: &Path) -> Option<ParsedAgent> {
     // Extract metadata from frontmatter
     let description = frontmatter.get("description").cloned().unwrap_or_else(|| file_name.clone());
     let model = frontmatter.get("model").cloned();
+    let permission_mode = frontmatter.get("permissionMode")
+        .or_else(|| frontmatter.get("permission_mode"))
+        .cloned();
     let tools = frontmatter.get("tools")
+        .map(|t| t.split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect())
+        .unwrap_or_default();
+    let skills = frontmatter.get("skills")
         .map(|t| t.split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect())
         .unwrap_or_default();
     let tags = frontmatter.get("tags")
@@ -479,6 +690,8 @@ fn parse_agent_file(path: &Path) -> Option<ParsedAgent> {
         content: body,
         tools,
         model,
+        permission_mode,
+        skills,
         tags,
     })
 }
@@ -513,7 +726,7 @@ fn parse_frontmatter(content: &str) -> (std::collections::HashMap<String, String
     (frontmatter, content.to_string())
 }
 
-/// Scan project-level skills and assign to project
+/// Scan project-level command skills and assign to project
 fn scan_project_skills(db: &Database, project_id: i64, commands_dir: &Path) -> Result<usize> {
     let mut count = 0;
 
@@ -525,7 +738,37 @@ fn scan_project_skills(db: &Database, project_id: i64, commands_dir: &Path) -> R
         if path.extension().map(|e| e == "md").unwrap_or(false) {
             if let Some(skill) = parse_skill_file(&path) {
                 // Get or create the skill in the library
-                let skill_id = get_or_create_skill(db, &skill)?;
+                let (skill_id, _) = get_or_create_skill(db, &skill)?;
+
+                // Assign skill to project if not already assigned
+                assign_skill_to_project(db, project_id, skill_id)?;
+
+                count += 1;
+            }
+        }
+    }
+
+    Ok(count)
+}
+
+/// Scan project-level agent skills from .claude/skills/ directories
+fn scan_project_agent_skills(db: &Database, project_id: i64, skills_dir: &Path) -> Result<usize> {
+    let mut count = 0;
+
+    for entry in std::fs::read_dir(skills_dir)? {
+        let entry = entry?;
+        let path = entry.path();
+
+        // Only process directories (each skill is a directory with SKILL.md)
+        if path.is_dir() {
+            if let Some((skill, files)) = parse_agent_skill_dir(&path) {
+                // Get or create the skill in the library
+                let (skill_id, was_created) = get_or_create_skill(db, &skill)?;
+
+                // Insert skill files if this is a new skill
+                if was_created && !files.is_empty() {
+                    let _ = insert_skill_files(db, skill_id, &files);
+                }
 
                 // Assign skill to project if not already assigned
                 assign_skill_to_project(db, project_id, skill_id)?;
@@ -563,8 +806,8 @@ fn scan_project_agents(db: &Database, project_id: i64, agents_dir: &Path) -> Res
     Ok(count)
 }
 
-/// Get or create a skill in the database
-fn get_or_create_skill(db: &Database, skill: &ParsedSkill) -> Result<i64> {
+/// Get or create a skill in the database, returning (skill_id, was_created)
+fn get_or_create_skill(db: &Database, skill: &ParsedSkill) -> Result<(i64, bool)> {
     // Try to find existing skill by name
     let existing_id: Option<i64> = db
         .conn()
@@ -574,7 +817,7 @@ fn get_or_create_skill(db: &Database, skill: &ParsedSkill) -> Result<i64> {
         .ok();
 
     if let Some(id) = existing_id {
-        return Ok(id);
+        return Ok((id, false));
     }
 
     // Create new skill
@@ -585,8 +828,8 @@ fn get_or_create_skill(db: &Database, skill: &ParsedSkill) -> Result<i64> {
     };
 
     db.conn().execute(
-        "INSERT INTO skills (name, description, content, skill_type, allowed_tools, argument_hint, tags, source)
-         VALUES (?, ?, ?, ?, ?, ?, ?, 'auto-detected')",
+        "INSERT INTO skills (name, description, content, skill_type, allowed_tools, argument_hint, model, disable_model_invocation, tags, source)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'auto-detected')",
         params![
             skill.name,
             skill.description,
@@ -594,11 +837,38 @@ fn get_or_create_skill(db: &Database, skill: &ParsedSkill) -> Result<i64> {
             skill.skill_type,
             skill.allowed_tools,
             skill.argument_hint,
+            skill.model,
+            skill.disable_model_invocation,
             tags_json
         ],
     )?;
 
-    Ok(db.conn().last_insert_rowid())
+    Ok((db.conn().last_insert_rowid(), true))
+}
+
+/// Insert skill files into the database
+fn insert_skill_files(db: &Database, skill_id: i64, files: &[ParsedSkillFile]) -> Result<usize> {
+    let mut count = 0;
+    for file in files {
+        // Check if file already exists
+        let exists: bool = db
+            .conn()
+            .query_row(
+                "SELECT 1 FROM skill_files WHERE skill_id = ? AND file_type = ? AND name = ?",
+                params![skill_id, file.file_type, file.name],
+                |_| Ok(true),
+            )
+            .unwrap_or(false);
+
+        if !exists {
+            db.conn().execute(
+                "INSERT INTO skill_files (skill_id, file_type, name, content) VALUES (?, ?, ?, ?)",
+                params![skill_id, file.file_type, file.name, file.content],
+            )?;
+            count += 1;
+        }
+    }
+    Ok(count)
 }
 
 /// Get or create an agent in the database
@@ -621,6 +891,11 @@ fn get_or_create_agent(db: &Database, agent: &ParsedAgent) -> Result<i64> {
     } else {
         Some(serde_json::to_string(&agent.tools).unwrap())
     };
+    let skills_json = if agent.skills.is_empty() {
+        None
+    } else {
+        Some(serde_json::to_string(&agent.skills).unwrap())
+    };
     let tags_json = if agent.tags.is_empty() {
         None
     } else {
@@ -628,14 +903,16 @@ fn get_or_create_agent(db: &Database, agent: &ParsedAgent) -> Result<i64> {
     };
 
     db.conn().execute(
-        "INSERT INTO subagents (name, description, content, tools, model, tags, source)
-         VALUES (?, ?, ?, ?, ?, ?, 'auto-detected')",
+        "INSERT INTO subagents (name, description, content, tools, model, permission_mode, skills, tags, source)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'auto-detected')",
         params![
             agent.name,
             agent.description,
             agent.content,
             tools_json,
             agent.model,
+            agent.permission_mode,
+            skills_json,
             tags_json
         ],
     )?;
@@ -681,6 +958,212 @@ fn assign_agent_to_project(db: &Database, project_id: i64, agent_id: i64) -> Res
         db.conn().execute(
             "INSERT INTO project_subagents (project_id, subagent_id, is_enabled) VALUES (?, ?, 1)",
             params![project_id, agent_id],
+        )?;
+    }
+
+    Ok(())
+}
+
+/// Parsed hook data from settings.json
+struct ParsedHook {
+    name: String,
+    description: Option<String>,
+    event_type: String,
+    matcher: Option<String>,
+    hook_type: String,
+    command: Option<String>,
+    prompt: Option<String>,
+    timeout: Option<i32>,
+}
+
+/// Parse hooks from a settings.json file
+fn parse_hooks_from_settings(path: &Path) -> Vec<ParsedHook> {
+    let mut hooks = Vec::new();
+
+    let content = match std::fs::read_to_string(path) {
+        Ok(c) => c,
+        Err(_) => return hooks,
+    };
+
+    let json: serde_json::Value = match serde_json::from_str(&content) {
+        Ok(v) => v,
+        Err(_) => return hooks,
+    };
+
+    // Parse the "hooks" object
+    if let Some(hooks_obj) = json.get("hooks").and_then(|h| h.as_object()) {
+        for (event_type, event_hooks) in hooks_obj {
+            if let Some(hook_array) = event_hooks.as_array() {
+                for (idx, hook_entry) in hook_array.iter().enumerate() {
+                    let matcher = hook_entry.get("matcher").and_then(|m| m.as_str()).map(|s| s.to_string());
+
+                    if let Some(inner_hooks) = hook_entry.get("hooks").and_then(|h| h.as_array()) {
+                        for (inner_idx, inner_hook) in inner_hooks.iter().enumerate() {
+                            let hook_type = inner_hook.get("type")
+                                .and_then(|t| t.as_str())
+                                .unwrap_or("command")
+                                .to_string();
+
+                            let command = inner_hook.get("command").and_then(|c| c.as_str()).map(|s| s.to_string());
+                            let prompt = inner_hook.get("prompt").and_then(|p| p.as_str()).map(|s| s.to_string());
+                            let timeout = inner_hook.get("timeout").and_then(|t| t.as_i64()).map(|t| t as i32);
+
+                            // Generate a name from the event type and index
+                            let name = if let Some(ref m) = matcher {
+                                format!("{}-{}-{}", event_type.to_lowercase(), m.replace('|', "-"), inner_idx)
+                            } else {
+                                format!("{}-{}-{}", event_type.to_lowercase(), idx, inner_idx)
+                            };
+
+                            // Generate description
+                            let description = Some(format!(
+                                "{} hook{}",
+                                event_type,
+                                matcher.as_ref().map(|m| format!(" for {}", m)).unwrap_or_default()
+                            ));
+
+                            hooks.push(ParsedHook {
+                                name,
+                                description,
+                                event_type: event_type.clone(),
+                                matcher: matcher.clone(),
+                                hook_type,
+                                command,
+                                prompt,
+                                timeout,
+                            });
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    hooks
+}
+
+/// Scan global hooks from ~/.claude/settings.json
+pub fn scan_global_hooks(db: &Database) -> Result<usize> {
+    let paths = get_claude_paths()?;
+    let settings_path = paths.global_settings;
+
+    if !settings_path.exists() {
+        return Ok(0);
+    }
+
+    let hooks = parse_hooks_from_settings(&settings_path);
+    let mut count = 0;
+
+    for hook in hooks {
+        // Check if already exists by name
+        let existing_id: Option<i64> = db
+            .conn()
+            .query_row(
+                "SELECT id FROM hooks WHERE name = ?",
+                [&hook.name],
+                |row| row.get(0),
+            )
+            .ok();
+
+        let hook_id = if let Some(id) = existing_id {
+            id
+        } else {
+            // Create new hook
+            db.conn().execute(
+                "INSERT INTO hooks (name, description, event_type, matcher, hook_type, command, prompt, timeout, source)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'auto-detected')",
+                params![
+                    hook.name,
+                    hook.description,
+                    hook.event_type,
+                    hook.matcher,
+                    hook.hook_type,
+                    hook.command,
+                    hook.prompt,
+                    hook.timeout
+                ],
+            )?;
+            db.conn().last_insert_rowid()
+        };
+
+        // Always ensure it's in global_hooks
+        let _ = db.conn().execute(
+            "INSERT OR IGNORE INTO global_hooks (hook_id, is_enabled) VALUES (?, 1)",
+            [hook_id],
+        );
+        count += 1;
+    }
+
+    Ok(count)
+}
+
+/// Scan project hooks from a settings file (.claude/settings.json or .claude/settings.local.json)
+fn scan_project_hooks(db: &Database, project_id: i64, settings_path: &Path) -> Result<usize> {
+    let hooks = parse_hooks_from_settings(settings_path);
+    let mut count = 0;
+
+    for hook in hooks {
+        // Get or create the hook in the library
+        let hook_id = get_or_create_hook(db, &hook)?;
+
+        // Assign hook to project if not already assigned
+        assign_hook_to_project(db, project_id, hook_id)?;
+
+        count += 1;
+    }
+
+    Ok(count)
+}
+
+/// Get or create a hook in the database
+fn get_or_create_hook(db: &Database, hook: &ParsedHook) -> Result<i64> {
+    // Try to find existing hook by name
+    let existing_id: Option<i64> = db
+        .conn()
+        .query_row("SELECT id FROM hooks WHERE name = ?", [&hook.name], |row| {
+            row.get(0)
+        })
+        .ok();
+
+    if let Some(id) = existing_id {
+        return Ok(id);
+    }
+
+    // Create new hook
+    db.conn().execute(
+        "INSERT INTO hooks (name, description, event_type, matcher, hook_type, command, prompt, timeout, source)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'auto-detected')",
+        params![
+            hook.name,
+            hook.description,
+            hook.event_type,
+            hook.matcher,
+            hook.hook_type,
+            hook.command,
+            hook.prompt,
+            hook.timeout
+        ],
+    )?;
+
+    Ok(db.conn().last_insert_rowid())
+}
+
+/// Assign a hook to a project
+fn assign_hook_to_project(db: &Database, project_id: i64, hook_id: i64) -> Result<()> {
+    // Check if already assigned
+    let exists: bool = db
+        .conn()
+        .query_row(
+            "SELECT 1 FROM project_hooks WHERE project_id = ? AND hook_id = ?",
+            params![project_id, hook_id],
+            |_| Ok(true),
+        )
+        .unwrap_or(false);
+
+    if !exists {
+        db.conn().execute(
+            "INSERT INTO project_hooks (project_id, hook_id, is_enabled) VALUES (?, ?, 1)",
+            params![project_id, hook_id],
         )?;
     }
 

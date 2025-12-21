@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { Skill, CreateSkillRequest, GlobalSkill, ProjectSkill } from '$lib/types';
+import type { Skill, CreateSkillRequest, GlobalSkill, ProjectSkill, SkillFile, CreateSkillFileRequest } from '$lib/types';
 
 class SkillLibraryState {
 	skills = $state<Skill[]>([]);
@@ -99,6 +99,23 @@ class SkillLibraryState {
 
 	setSearch(query: string) {
 		this.searchQuery = query;
+	}
+
+	// Skill Files (references, assets, scripts)
+	async getSkillFiles(skillId: number): Promise<SkillFile[]> {
+		return await invoke<SkillFile[]>('get_skill_files', { skillId });
+	}
+
+	async createSkillFile(request: CreateSkillFileRequest): Promise<SkillFile> {
+		return await invoke<SkillFile>('create_skill_file', { file: request });
+	}
+
+	async updateSkillFile(id: number, name: string, content: string): Promise<SkillFile> {
+		return await invoke<SkillFile>('update_skill_file', { id, name, content });
+	}
+
+	async deleteSkillFile(id: number): Promise<void> {
+		await invoke('delete_skill_file', { id });
 	}
 }
 

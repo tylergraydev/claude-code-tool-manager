@@ -16,7 +16,9 @@
 	let description = $state(initialValues.description ?? '');
 	let content = $state(initialValues.content ?? '');
 	let model = $state(initialValues.model ?? '');
+	let permissionMode = $state(initialValues.permissionMode ?? '');
 	let toolsInput = $state(initialValues.tools?.join(', ') ?? '');
+	let skillsInput = $state(initialValues.skills?.join(', ') ?? '');
 	let tagsInput = $state(initialValues.tags?.join(', ') ?? '');
 
 	let isSubmitting = $state(false);
@@ -32,6 +34,8 @@
 		content = subagent.content;
 		if (subagent.tools) toolsInput = subagent.tools.join(', ');
 		if (subagent.model) model = subagent.model;
+		if (subagent.permissionMode) permissionMode = subagent.permissionMode;
+		if (subagent.skills) skillsInput = subagent.skills.join(', ');
 		if (subagent.tags) tagsInput = subagent.tags.join(', ');
 
 		importStatus = 'success';
@@ -121,7 +125,16 @@
 		{ value: '', label: 'Default (inherit from parent)' },
 		{ value: 'sonnet', label: 'Sonnet' },
 		{ value: 'opus', label: 'Opus' },
-		{ value: 'haiku', label: 'Haiku' }
+		{ value: 'haiku', label: 'Haiku' },
+		{ value: 'inherit', label: 'Inherit (use main conversation model)' }
+	];
+
+	const permissionModeOptions = [
+		{ value: '', label: 'Default (standard permission prompting)' },
+		{ value: 'default', label: 'Default' },
+		{ value: 'acceptEdits', label: 'Accept Edits (auto-accepts file edits)' },
+		{ value: 'bypassPermissions', label: 'Bypass Permissions (use with caution)' },
+		{ value: 'plan', label: 'Plan (read-only exploration)' }
 	];
 
 	function validate(): boolean {
@@ -156,6 +169,11 @@
 			.map((t) => t.trim())
 			.filter((t) => t.length > 0);
 
+		const skills = skillsInput
+			.split(',')
+			.map((t) => t.trim())
+			.filter((t) => t.length > 0);
+
 		const tags = tagsInput
 			.split(',')
 			.map((t) => t.trim())
@@ -166,7 +184,9 @@
 			description: description.trim(),
 			content: content.trim(),
 			model: model || undefined,
+			permissionMode: permissionMode || undefined,
 			tools: tools.length > 0 ? tools : undefined,
+			skills: skills.length > 0 ? skills : undefined,
 			tags: tags.length > 0 ? tags : undefined
 		};
 
@@ -291,6 +311,25 @@
 		</p>
 	</div>
 
+	<!-- Permission Mode -->
+	<div>
+		<label for="permissionMode" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+			Permission Mode
+		</label>
+		<select
+			id="permissionMode"
+			bind:value={permissionMode}
+			class="input mt-1"
+		>
+			{#each permissionModeOptions as option}
+				<option value={option.value}>{option.label}</option>
+			{/each}
+		</select>
+		<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+			Controls how the sub-agent handles permission requests
+		</p>
+	</div>
+
 	<!-- Tools -->
 	<div>
 		<label for="tools" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -304,7 +343,24 @@
 			placeholder="Read, Edit, Bash, Glob, Grep"
 		/>
 		<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-			Comma-separated list of tools. Use <code class="px-1 bg-gray-100 dark:bg-gray-700 rounded">*</code> for all tools.
+			Comma-separated list of tools. Leave empty to inherit all tools from parent.
+		</p>
+	</div>
+
+	<!-- Skills -->
+	<div>
+		<label for="skills" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+			Auto-load Skills
+		</label>
+		<input
+			type="text"
+			id="skills"
+			bind:value={skillsInput}
+			class="input mt-1"
+			placeholder="commit, review-pr, deploy"
+		/>
+		<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+			Comma-separated list of skills to automatically load when sub-agent starts
 		</p>
 	</div>
 

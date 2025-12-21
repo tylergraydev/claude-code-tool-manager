@@ -333,15 +333,25 @@ pub async fn import_repo_item(db: State<'_, Mutex<Database>>, item_id: i64) -> R
             let (frontmatter, body) = parse_frontmatter(&raw_content);
             let content = body.trim().to_string();
 
-            // Try to get model from frontmatter
+            // Extract all fields from frontmatter
             let model = frontmatter.get("model").cloned();
+            let permission_mode = frontmatter.get("permissionmode")
+                .or_else(|| frontmatter.get("permission-mode"))
+                .cloned();
+            let tools = frontmatter.get("tools")
+                .map(|t| t.split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect::<Vec<_>>());
+            let skills = frontmatter.get("skills")
+                .map(|t| t.split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect::<Vec<_>>());
+
+            let tools_json = tools.as_ref().map(|t| serde_json::to_string(t).unwrap());
+            let skills_json = skills.as_ref().map(|t| serde_json::to_string(t).unwrap());
 
             let description = item.description.unwrap_or_else(|| "Imported from marketplace".to_string());
             db.conn()
                 .execute(
-                    r#"INSERT INTO subagents (name, description, content, model, source)
-                       VALUES (?, ?, ?, ?, 'imported')"#,
-                    params![item.name, description, content, model],
+                    r#"INSERT INTO subagents (name, description, content, tools, model, permission_mode, skills, source)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, 'imported')"#,
+                    params![item.name, description, content, tools_json, model, permission_mode, skills_json],
                 )
                 .map_err(|e| e.to_string())?;
             db.conn().last_insert_rowid()
