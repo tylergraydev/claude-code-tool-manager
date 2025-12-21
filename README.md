@@ -5,59 +5,137 @@
 [![Downloads](https://img.shields.io/github/downloads/tylergraydev/claude-code-tool-manager/total)](https://github.com/tylergraydev/claude-code-tool-manager/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-A desktop application for managing MCP servers, Skills, and Sub-Agents for [Claude Code](https://docs.anthropic.com/en/docs/claude-code).
+A desktop application for managing MCP servers, Skills, Hooks, and Sub-Agents for [Claude Code](https://docs.anthropic.com/en/docs/claude-code).
 
-![Claude Code Tool Manager Screenshot](imgs/Screenshot%202025-12-19%20132108.png)
+![Claude Code Tool Manager - MCP Library](docs/screenshots/mcp-library.png)
 
 ## Why?
 
-Claude Code stores its configuration across multiple JSON files and markdown files scattered throughout your filesystem. Managing MCPs, Skills, and Sub-Agents manually means editing `~/.claude.json`, creating files in `~/.claude/commands/`, and keeping track of what's enabled where.
+Claude Code stores its configuration across multiple JSON files and markdown files scattered throughout your filesystem. Managing MCPs, Skills, Hooks, and Sub-Agents manually means editing `~/.claude.json`, `~/.claude/settings.json`, creating files in `~/.claude/commands/`, `~/.claude/skills/`, and keeping track of what's enabled where.
 
 **Claude Code Tool Manager** gives you a visual interface to:
-- See all your MCPs, Skills, and Sub-Agents in one place
+- See all your MCPs, Skills, Hooks, and Sub-Agents in one place
 - Quickly enable/disable tools per project or globally
 - Import MCP configs by pasting JSON or CLI commands
 - Auto-detect existing configurations from your filesystem
+- Manage hook event handlers for tool calls
 
 ## Features
 
 ### MCP Server Management
+
+Create, organize, and assign MCP servers to projects or global settings.
+
+![MCP Library](docs/screenshots/mcp-library.png)
+
 - **MCP Library**: Create, edit, and organize MCP server configurations
 - **Project-based assignments**: Assign specific MCPs to individual projects
 - **Global settings**: Enable MCPs globally across all projects
 - **Paste-to-import**: Quickly import MCP configs from JSON or `claude mcp add` commands
 - **Multiple transport types**: Support for stdio, HTTP, and SSE MCP servers
 
-### Skills (Slash Commands)
+### Skills (Slash Commands & Agent Skills)
+
+Define custom slash commands and agent skills with full control over tool access and model behavior.
+
+![Skills Library](docs/screenshots/skills-library.png)
+
 - **Command Skills**: Create slash commands (`/name`) that users can invoke
-- **Agent Skills**: Define skills that the model can invoke automatically
-- **Tool restrictions**: Limit which tools a skill can use
+- **Agent Skills**: Define skills that the model can invoke automatically (stored in `.claude/skills/`)
+- **Tool restrictions**: Limit which tools a skill can use with `allowed-tools`
+- **Model override**: Run skills with a specific model (opus, sonnet, haiku)
+- **Disable model invocation**: Prevent the model from automatically invoking agent skills
+- **Skill files**: Attach reference files, assets, and scripts to agent skills
+  - `references/` - Documentation and context files
+  - `assets/` - Images, JSON data, templates
+  - `scripts/` - Shell scripts for automation
 - **Argument hints**: Provide usage hints for command arguments
 - **Global/project assignment**: Enable skills globally or per-project
-- **Auto-detection**: Automatically discovers skills from `~/.claude/commands/` and project `.claude/commands/` directories
+- **Auto-detection**: Discovers skills from `~/.claude/commands/`, `~/.claude/skills/`, and project directories
+
+### Hooks (Event Handlers)
+
+Configure hooks that run before/after tool calls, on permission requests, and more.
+
+![Hooks Library](docs/screenshots/hooks-library.png)
+
+- **All event types supported**:
+  - `PreToolUse` / `PostToolUse` - Before/after tool execution
+  - `PermissionRequest` - When tool needs permission
+  - `Notification` - On notifications
+  - `UserPromptSubmit` - When user submits prompt
+  - `SessionStart` / `SessionEnd` - Session lifecycle
+  - `Stop` / `SubagentStop` - On stop events
+  - `PreCompact` - Before context compaction
+- **Matcher patterns**: Target specific tools with regex patterns (e.g., `Bash`, `Write|Edit`)
+- **Command hooks**: Run shell commands on events
+- **Prompt hooks**: Inject prompts on events
+- **Templates**: Quick-start templates for common hooks (auto-format, protect files, logging)
+- **Global/project assignment**: Enable hooks globally or per-project
+- **Auto-detection**: Discovers hooks from `~/.claude/settings.json` and project settings
 
 ### Sub-Agents
+
+Define specialized agents with custom instructions, tool access, and model selection.
+
+![Sub-Agents Library](docs/screenshots/subagents-library.png)
+
 - **Custom sub-agents**: Define specialized agents for specific tasks
 - **Model selection**: Choose which Claude model the sub-agent uses
 - **Tool access control**: Specify which tools the sub-agent can access
-- **Auto-detection**: Automatically discovers agents from `~/.claude/agents/` and project `.claude/agents/` directories
+- **Permission modes**: Configure permission handling (default, acceptEdits, bypassPermissions)
+- **Skills integration**: Assign skills to sub-agents
+- **Auto-detection**: Discovers agents from `~/.claude/agents/` and project directories
 - **Project scoping**: Assign sub-agents globally or to specific projects
 
 ### Project Management
+
+Manage MCPs, Skills, Hooks, and Sub-Agents on a per-project basis.
+
+![Projects](docs/screenshots/projects.png)
+
 - **Project scanning**: Automatically detect projects from existing Claude configs
-- **Project details**: View and manage MCPs, Skills, and Sub-Agents per project
+- **Project details**: View and manage all tools per project
 - **Configuration sync**: Changes are automatically written to Claude config files
+- **Open folder**: Quick access to open project folders in your file manager
+
+### Global Settings
+
+Configure tools that apply across all Claude Code sessions.
+
+![Global Settings](docs/screenshots/global-settings.png)
+
+- **Global MCPs**: Enable MCP servers for all projects
+- **Global Skills**: Make skills available everywhere
+- **Global Hooks**: Apply hooks to all sessions
+- **Global Sub-Agents**: Use agents in any project
 
 ### Marketplace
+
+Browse and import community-created skills and sub-agents.
+
+![Marketplace](docs/screenshots/marketplace.png)
+
 - **Browse community repos**: Discover Skills and Sub-Agents from curated GitHub repositories
 - **One-click import**: Import skills and agents directly into your library
 - **Auto-sync on startup**: Repositories are synced automatically when the app launches
 - **Add custom repos**: Add your own GitHub repositories to browse
-- **File & README parsing**: Supports both file-based repos (actual .md files) and README-based repos (awesome lists)
+- **File & README parsing**: Supports both file-based repos and README-based awesome lists
+
+### Claude.json Viewer
+
+View and manage the raw Claude Code configuration.
+
+![Claude.json View](docs/screenshots/claude-json.png)
+
+- **Raw config view**: See the actual `~/.claude.json` configuration
+- **Per-project configs**: View project-specific MCP configurations
+- **Toggle MCPs**: Enable/disable MCPs directly from the viewer
 
 ### Additional Features
+
 - **Dark mode**: Toggle between light and dark themes
-- **Search & filter**: Quickly find MCPs, Skills, and Sub-Agents
+- **Search & filter**: Quickly find MCPs, Skills, Hooks, and Sub-Agents
 - **Auto-sync**: Changes are automatically written to Claude config files
 
 ## Installation
@@ -103,8 +181,10 @@ The built application will be in `src-tauri/target/release/bundle/`.
 1. Launch Claude Code Tool Manager
 2. **Scan**: Click "Scan for MCPs" to auto-detect existing MCP configurations
 3. **Add MCPs**: Go to "MCP Library" and click "Add MCP" to create new configurations
-4. **Create Projects**: Go to "Projects" and add your project directories
-5. **Assign Tools**: Open a project and assign MCPs, Skills, or Sub-Agents
+4. **Create Skills**: Go to "Skills" to create slash commands or agent skills
+5. **Configure Hooks**: Go to "Hooks" to set up event handlers
+6. **Create Projects**: Go to "Projects" and add your project directories
+7. **Assign Tools**: Open a project and assign MCPs, Skills, Hooks, or Sub-Agents
 
 ### Importing MCP Configurations
 
@@ -127,36 +207,43 @@ You can paste MCP configurations directly:
 claude mcp add filesystem -- npx -y @modelcontextprotocol/server-filesystem ~/Documents
 ```
 
-### MCP Types
+### Creating Skills
 
-#### stdio (Standard I/O)
-Local command-line tools like npm packages:
-```json
-{
-  "command": "npx",
-  "args": ["-y", "@package/mcp-server"],
-  "env": { "API_KEY": "xxx" }
-}
+#### Command Skills (Slash Commands)
+Create a slash command that users invoke with `/name`:
+
+```yaml
+---
+description: Format code with Prettier
+allowed-tools: Bash, Read, Write
+argument-hint: [file path]
+---
+
+Format the specified file using Prettier. If no file is specified, format the current file.
 ```
 
-#### SSE (Server-Sent Events)
-Cloud services with SSE endpoints:
-```json
-{
-  "type": "sse",
-  "url": "https://mcp.service.com/sse"
-}
+#### Agent Skills
+Create skills the model can invoke automatically (stored in `.claude/skills/name/SKILL.md`):
+
+```yaml
+---
+name: code-reviewer
+description: Review code for best practices
+allowed-tools: Read, Grep, Glob
+model: haiku
+disable-model-invocation: false
+---
+
+Review the code for:
+- Security vulnerabilities
+- Performance issues
+- Best practices
 ```
 
-#### HTTP (REST API)
-REST APIs with token authentication:
-```json
-{
-  "type": "http",
-  "url": "https://api.service.com/mcp",
-  "headers": { "Authorization": "Bearer ${TOKEN}" }
-}
-```
+Agent skills can include additional files in subdirectories:
+- `references/` - Context documents the skill can reference
+- `assets/` - Data files, templates, images
+- `scripts/` - Helper shell scripts
 
 ### Configuration Files
 
@@ -165,11 +252,15 @@ Claude Code Tool Manager reads from and writes to the standard Claude configurat
 | Type | Location |
 |------|----------|
 | Global MCPs | `~/.claude.json` |
-| Global Skills | `~/.claude/commands/` |
-| Global Sub-Agents | `~/.claude/agents/` |
+| Global Settings/Hooks | `~/.claude/settings.json` |
+| Global Command Skills | `~/.claude/commands/*.md` |
+| Global Agent Skills | `~/.claude/skills/*/SKILL.md` |
+| Global Sub-Agents | `~/.claude/agents/*.md` |
 | Project MCPs | `{project}/.claude/.mcp.json` |
-| Project Skills | `{project}/.claude/commands/` |
-| Project Sub-Agents | `{project}/.claude/agents/` |
+| Project Settings/Hooks | `{project}/.claude/settings.local.json` |
+| Project Command Skills | `{project}/.claude/commands/*.md` |
+| Project Agent Skills | `{project}/.claude/skills/*/SKILL.md` |
+| Project Sub-Agents | `{project}/.claude/agents/*.md` |
 
 ## Tech Stack
 
@@ -208,6 +299,10 @@ claude-code-tool-manager/
 ├── src/                    # SvelteKit frontend
 │   ├── lib/
 │   │   ├── components/     # Svelte components
+│   │   │   ├── hooks/      # Hook management UI
+│   │   │   ├── mcp/        # MCP management UI
+│   │   │   ├── skills/     # Skills management UI
+│   │   │   └── subagents/  # Sub-agents management UI
 │   │   ├── stores/         # Svelte 5 reactive stores
 │   │   ├── types/          # TypeScript types
 │   │   └── utils/          # Utility functions
@@ -227,7 +322,7 @@ MIT
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 1. Fork the repository
 2. Create your feature branch (`git checkout -b feature/amazing-feature`)
