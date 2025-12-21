@@ -36,6 +36,8 @@ export interface ParsedSkill {
 	skillType?: SkillType;
 	allowedTools?: string[];
 	argumentHint?: string;
+	model?: string;
+	disableModelInvocation?: boolean;
 	tags?: string[];
 }
 
@@ -45,6 +47,8 @@ export interface ParsedSubAgent {
 	content: string;
 	tools?: string[];
 	model?: string;
+	permissionMode?: string;
+	skills?: string[];
 	tags?: string[];
 }
 
@@ -127,6 +131,10 @@ export function parseSkillMarkdown(text: string): ParseResult<ParsedSkill> {
 			skillType = typeValue === 'skill' ? 'skill' : 'command';
 		}
 
+		// Parse disable-model-invocation (can be true/false string)
+		const disableModelInvocationRaw = frontmatter['disable-model-invocation'] || frontmatter['disableModelInvocation'];
+		const disableModelInvocation = disableModelInvocationRaw?.toLowerCase() === 'true';
+
 		const skill: ParsedSkill = {
 			name: frontmatter.name,
 			description: frontmatter.description,
@@ -134,6 +142,8 @@ export function parseSkillMarkdown(text: string): ParseResult<ParsedSkill> {
 			skillType,
 			allowedTools,
 			argumentHint: frontmatter['argument-hint'] || frontmatter['argumentHint'],
+			model: frontmatter.model,
+			disableModelInvocation,
 			tags: frontmatter.tags?.split(',').map(t => t.trim()).filter(t => t.length > 0)
 		};
 
@@ -184,6 +194,8 @@ export function parseSubAgentMarkdown(text: string): ParseResult<ParsedSubAgent>
 			content,
 			tools: frontmatter.tools?.split(',').map(t => t.trim()).filter(t => t.length > 0),
 			model: frontmatter.model,
+			permissionMode: frontmatter.permissionMode || frontmatter['permission-mode'],
+			skills: frontmatter.skills?.split(',').map(t => t.trim()).filter(t => t.length > 0),
 			tags: frontmatter.tags?.split(',').map(t => t.trim()).filter(t => t.length > 0)
 		};
 

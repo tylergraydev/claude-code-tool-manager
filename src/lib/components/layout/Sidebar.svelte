@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/stores';
-	import { Library, FolderOpen, Settings, Plug, FileCode, Bot, Store } from 'lucide-svelte';
+	import { Library, FolderOpen, Settings, Plug, FileCode, Bot, Store, Zap } from 'lucide-svelte';
 	import { onMount } from 'svelte';
 	import { getVersion } from '@tauri-apps/api/app';
 
@@ -19,6 +19,7 @@
 		{ href: '/library', label: 'MCP Library', icon: Library },
 		{ href: '/skills', label: 'Skills Library', icon: FileCode },
 		{ href: '/subagents', label: 'Sub-Agents Library', icon: Bot },
+		{ href: '/hooks', label: 'Hooks Library', icon: Zap },
 		{ href: '/marketplace', label: 'Marketplace', icon: Store },
 		{ href: '/projects', label: 'Projects', icon: FolderOpen },
 		{ href: '/settings', label: 'Global Settings', icon: Settings }

@@ -100,6 +100,8 @@ impl Database {
                 content TEXT NOT NULL,
                 tools TEXT,
                 model TEXT,
+                permission_mode TEXT,
+                skills TEXT,
                 tags TEXT,
                 source TEXT DEFAULT 'manual',
                 created_at TEXT DEFAULT CURRENT_TIMESTAMP,
@@ -148,6 +150,45 @@ impl Database {
                 FOREIGN KEY (subagent_id) REFERENCES subagents(id) ON DELETE CASCADE
             );
 
+            -- Hooks (Event-triggered actions)
+            CREATE TABLE IF NOT EXISTS hooks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE,
+                description TEXT,
+                event_type TEXT NOT NULL,
+                matcher TEXT,
+                hook_type TEXT NOT NULL CHECK (hook_type IN ('command', 'prompt')),
+                command TEXT,
+                prompt TEXT,
+                timeout INTEGER,
+                tags TEXT,
+                source TEXT DEFAULT 'manual',
+                is_template INTEGER DEFAULT 0,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+            );
+
+            -- Project Hook Assignments
+            CREATE TABLE IF NOT EXISTS project_hooks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                project_id INTEGER NOT NULL,
+                hook_id INTEGER NOT NULL,
+                is_enabled INTEGER DEFAULT 1,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+                FOREIGN KEY (hook_id) REFERENCES hooks(id) ON DELETE CASCADE,
+                UNIQUE (project_id, hook_id)
+            );
+
+            -- Global Hook Settings
+            CREATE TABLE IF NOT EXISTS global_hooks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                hook_id INTEGER NOT NULL UNIQUE,
+                is_enabled INTEGER DEFAULT 1,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (hook_id) REFERENCES hooks(id) ON DELETE CASCADE
+            );
+
             -- Repository sources (awesome lists, skill repos, etc.)
             CREATE TABLE IF NOT EXISTS repos (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -186,7 +227,22 @@ impl Database {
                 UNIQUE (repo_id, name, item_type)
             );
 
+            -- Skill Files (references, assets, scripts)
+            CREATE TABLE IF NOT EXISTS skill_files (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                skill_id INTEGER NOT NULL,
+                file_type TEXT NOT NULL CHECK (file_type IN ('reference', 'asset', 'script')),
+                name TEXT NOT NULL,
+                content TEXT NOT NULL,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (skill_id) REFERENCES skills(id) ON DELETE CASCADE,
+                UNIQUE (skill_id, file_type, name)
+            );
+
             -- Indexes
+            CREATE INDEX IF NOT EXISTS idx_skill_files_skill ON skill_files(skill_id);
+            CREATE INDEX IF NOT EXISTS idx_skill_files_type ON skill_files(file_type);
             CREATE INDEX IF NOT EXISTS idx_mcps_type ON mcps(type);
             CREATE INDEX IF NOT EXISTS idx_mcps_source ON mcps(source);
             CREATE INDEX IF NOT EXISTS idx_project_mcps_project ON project_mcps(project_id);
@@ -226,7 +282,23 @@ impl Database {
             )?;
         }
 
-        // Migration 2: Rename agents tables to subagents
+        // Migration 2: Add permission_mode and skills columns to subagents
+        let has_permission_mode: bool = self.conn.query_row(
+            "SELECT COUNT(*) > 0 FROM pragma_table_info('subagents') WHERE name = 'permission_mode'",
+            [],
+            |row| row.get(0),
+        ).unwrap_or(false);
+
+        if !has_permission_mode {
+            self.conn.execute_batch(
+                r#"
+                ALTER TABLE subagents ADD COLUMN permission_mode TEXT;
+                ALTER TABLE subagents ADD COLUMN skills TEXT;
+                "#,
+            )?;
+        }
+
+        // Migration 3: Rename agents tables to subagents
         let has_agents_table: bool = self.conn.query_row(
             "SELECT COUNT(*) > 0 FROM sqlite_master WHERE type='table' AND name='agents'",
             [],
@@ -255,6 +327,22 @@ impl Database {
 
                 -- Drop old indexes
                 DROP INDEX IF EXISTS idx_project_agents_project;
+                "#,
+            )?;
+        }
+
+        // Migration 4: Add model and disable_model_invocation columns to skills
+        let has_skill_model: bool = self.conn.query_row(
+            "SELECT COUNT(*) > 0 FROM pragma_table_info('skills') WHERE name = 'model'",
+            [],
+            |row| row.get(0),
+        ).unwrap_or(false);
+
+        if !has_skill_model {
+            self.conn.execute_batch(
+                r#"
+                ALTER TABLE skills ADD COLUMN model TEXT;
+                ALTER TABLE skills ADD COLUMN disable_model_invocation INTEGER DEFAULT 0;
                 "#,
             )?;
         }

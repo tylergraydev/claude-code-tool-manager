@@ -18,6 +18,8 @@
 	let skillType = $state<SkillType>(initialValues.skillType ?? 'command');
 	let allowedToolsInput = $state(initialValues.allowedTools?.join(', ') ?? '');
 	let argumentHint = $state(initialValues.argumentHint ?? '');
+	let model = $state(initialValues.model ?? '');
+	let disableModelInvocation = $state(initialValues.disableModelInvocation ?? false);
 	let tagsInput = $state(initialValues.tags?.join(', ') ?? '');
 
 	let isSubmitting = $state(false);
@@ -34,6 +36,8 @@
 		if (skill.skillType) skillType = skill.skillType;
 		if (skill.allowedTools) allowedToolsInput = skill.allowedTools.join(', ');
 		if (skill.argumentHint) argumentHint = skill.argumentHint;
+		if (skill.model) model = skill.model;
+		if (skill.disableModelInvocation !== undefined) disableModelInvocation = skill.disableModelInvocation;
 		if (skill.tags) tagsInput = skill.tags.join(', ');
 
 		importStatus = 'success';
@@ -159,6 +163,8 @@
 			skillType,
 			allowedTools: allowedTools.length > 0 ? allowedTools : undefined,
 			argumentHint: skillType === 'command' && argumentHint.trim() ? argumentHint.trim() : undefined,
+			model: model.trim() || undefined,
+			disableModelInvocation: disableModelInvocation || undefined,
 			tags: tags.length > 0 ? tags : undefined
 		};
 
@@ -338,6 +344,46 @@
 			<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
 				Shows user expected arguments format. Use <code class="px-1 bg-gray-100 dark:bg-gray-700 rounded">$ARGUMENTS</code> in content to receive them.
 			</p>
+		</div>
+	{/if}
+
+	<!-- Model Selection -->
+	<div>
+		<label for="model" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+			Model Override
+		</label>
+		<select
+			id="model"
+			bind:value={model}
+			class="input mt-1"
+		>
+			<option value="">Default (inherit from session)</option>
+			<option value="opus">Opus (Most capable)</option>
+			<option value="sonnet">Sonnet (Balanced)</option>
+			<option value="haiku">Haiku (Fast & efficient)</option>
+		</select>
+		<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+			Optionally force a specific model when executing this {skillType === 'command' ? 'command' : 'skill'}
+		</p>
+	</div>
+
+	<!-- Disable Model Invocation (Skill only) -->
+	{#if skillType === 'skill'}
+		<div class="flex items-start gap-3">
+			<input
+				type="checkbox"
+				id="disableModelInvocation"
+				bind:checked={disableModelInvocation}
+				class="mt-1 w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-purple-600 focus:ring-purple-500"
+			/>
+			<div>
+				<label for="disableModelInvocation" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+					Disable Model Invocation
+				</label>
+				<p class="text-xs text-gray-500 dark:text-gray-400">
+					Prevent Claude from automatically invoking this skill. Useful for skills that should only be called by other skills.
+				</p>
+			</div>
 		</div>
 	{/if}
 

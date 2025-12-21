@@ -1,4 +1,4 @@
-use crate::db::models::{CreateSkillRequest, Skill, GlobalSkill, ProjectSkill};
+use crate::db::models::{CreateSkillRequest, CreateSkillFileRequest, Skill, SkillFile, GlobalSkill, ProjectSkill};
 use crate::db::schema::Database;
 use crate::services::skill_writer;
 use rusqlite::params;
@@ -10,6 +10,8 @@ fn parse_json_array(s: Option<String>) -> Option<Vec<String>> {
     s.and_then(|v| serde_json::from_str(&v).ok())
 }
 
+const SKILL_SELECT_FIELDS: &str = "id, name, description, content, skill_type, allowed_tools, argument_hint, model, disable_model_invocation, tags, source, created_at, updated_at";
+
 fn row_to_skill(row: &rusqlite::Row) -> rusqlite::Result<Skill> {
     Ok(Skill {
         id: row.get(0)?,
@@ -19,10 +21,12 @@ fn row_to_skill(row: &rusqlite::Row) -> rusqlite::Result<Skill> {
         skill_type: row.get(4)?,
         allowed_tools: parse_json_array(row.get(5)?),
         argument_hint: row.get(6)?,
-        tags: parse_json_array(row.get(7)?),
-        source: row.get(8)?,
-        created_at: row.get(9)?,
-        updated_at: row.get(10)?,
+        model: row.get(7)?,
+        disable_model_invocation: row.get::<_, i32>(8).unwrap_or(0) != 0,
+        tags: parse_json_array(row.get(9)?),
+        source: row.get(10)?,
+        created_at: row.get(11)?,
+        updated_at: row.get(12)?,
     })
 }
 
@@ -35,22 +39,22 @@ fn row_to_skill_with_offset(row: &rusqlite::Row, offset: usize) -> rusqlite::Res
         skill_type: row.get(offset + 4)?,
         allowed_tools: parse_json_array(row.get(offset + 5)?),
         argument_hint: row.get(offset + 6)?,
-        tags: parse_json_array(row.get(offset + 7)?),
-        source: row.get(offset + 8)?,
-        created_at: row.get(offset + 9)?,
-        updated_at: row.get(offset + 10)?,
+        model: row.get(offset + 7)?,
+        disable_model_invocation: row.get::<_, i32>(offset + 8).unwrap_or(0) != 0,
+        tags: parse_json_array(row.get(offset + 9)?),
+        source: row.get(offset + 10)?,
+        created_at: row.get(offset + 11)?,
+        updated_at: row.get(offset + 12)?,
     })
 }
 
 #[tauri::command]
 pub fn get_all_skills(db: State<'_, Mutex<Database>>) -> Result<Vec<Skill>, String> {
     let db = db.lock().map_err(|e| e.to_string())?;
+    let query = format!("SELECT {} FROM skills ORDER BY name", SKILL_SELECT_FIELDS);
     let mut stmt = db
         .conn()
-        .prepare(
-            "SELECT id, name, description, content, skill_type, allowed_tools, argument_hint, tags, source, created_at, updated_at
-             FROM skills ORDER BY name",
-        )
+        .prepare(&query)
         .map_err(|e| e.to_string())?;
 
     let skills = stmt
@@ -68,23 +72,22 @@ pub fn create_skill(db: State<'_, Mutex<Database>>, skill: CreateSkillRequest) -
 
     let allowed_tools_json = skill.allowed_tools.as_ref().map(|t| serde_json::to_string(t).unwrap());
     let tags_json = skill.tags.as_ref().map(|t| serde_json::to_string(t).unwrap());
+    let disable_model_invocation = skill.disable_model_invocation.unwrap_or(false) as i32;
 
     db_guard.conn()
         .execute(
-            "INSERT INTO skills (name, description, content, skill_type, allowed_tools, argument_hint, tags, source)
-             VALUES (?, ?, ?, ?, ?, ?, ?, 'manual')",
-            params![skill.name, skill.description, skill.content, skill.skill_type, allowed_tools_json, skill.argument_hint, tags_json],
+            "INSERT INTO skills (name, description, content, skill_type, allowed_tools, argument_hint, model, disable_model_invocation, tags, source)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'manual')",
+            params![skill.name, skill.description, skill.content, skill.skill_type, allowed_tools_json, skill.argument_hint, skill.model, disable_model_invocation, tags_json],
         )
         .map_err(|e| e.to_string())?;
 
     let id = db_guard.conn().last_insert_rowid();
 
+    let query = format!("SELECT {} FROM skills WHERE id = ?", SKILL_SELECT_FIELDS);
     let mut stmt = db_guard
         .conn()
-        .prepare(
-            "SELECT id, name, description, content, skill_type, allowed_tools, argument_hint, tags, source, created_at, updated_at
-             FROM skills WHERE id = ?",
-        )
+        .prepare(&query)
         .map_err(|e| e.to_string())?;
 
     stmt.query_row([id], row_to_skill)
@@ -101,21 +104,20 @@ pub fn update_skill(
 
     let allowed_tools_json = skill.allowed_tools.as_ref().map(|t| serde_json::to_string(t).unwrap());
     let tags_json = skill.tags.as_ref().map(|t| serde_json::to_string(t).unwrap());
+    let disable_model_invocation = skill.disable_model_invocation.unwrap_or(false) as i32;
 
     db.conn()
         .execute(
-            "UPDATE skills SET name = ?, description = ?, content = ?, skill_type = ?, allowed_tools = ?, argument_hint = ?, tags = ?, updated_at = CURRENT_TIMESTAMP
+            "UPDATE skills SET name = ?, description = ?, content = ?, skill_type = ?, allowed_tools = ?, argument_hint = ?, model = ?, disable_model_invocation = ?, tags = ?, updated_at = CURRENT_TIMESTAMP
              WHERE id = ?",
-            params![skill.name, skill.description, skill.content, skill.skill_type, allowed_tools_json, skill.argument_hint, tags_json, id],
+            params![skill.name, skill.description, skill.content, skill.skill_type, allowed_tools_json, skill.argument_hint, skill.model, disable_model_invocation, tags_json, id],
         )
         .map_err(|e| e.to_string())?;
 
+    let query = format!("SELECT {} FROM skills WHERE id = ?", SKILL_SELECT_FIELDS);
     let mut stmt = db
         .conn()
-        .prepare(
-            "SELECT id, name, description, content, skill_type, allowed_tools, argument_hint, tags, source, created_at, updated_at
-             FROM skills WHERE id = ?",
-        )
+        .prepare(&query)
         .map_err(|e| e.to_string())?;
 
     stmt.query_row([id], row_to_skill)
@@ -144,15 +146,16 @@ pub fn delete_skill(db: State<'_, Mutex<Database>>, id: i64) -> Result<(), Strin
 #[tauri::command]
 pub fn get_global_skills(db: State<'_, Mutex<Database>>) -> Result<Vec<GlobalSkill>, String> {
     let db = db.lock().map_err(|e| e.to_string())?;
+    let query = format!(
+        "SELECT gs.id, gs.skill_id, gs.is_enabled,
+                s.id, s.name, s.description, s.content, s.skill_type, s.allowed_tools, s.argument_hint, s.model, s.disable_model_invocation, s.tags, s.source, s.created_at, s.updated_at
+         FROM global_skills gs
+         JOIN skills s ON gs.skill_id = s.id
+         ORDER BY s.name"
+    );
     let mut stmt = db
         .conn()
-        .prepare(
-            "SELECT gs.id, gs.skill_id, gs.is_enabled,
-                    s.id, s.name, s.description, s.content, s.skill_type, s.allowed_tools, s.argument_hint, s.tags, s.source, s.created_at, s.updated_at
-             FROM global_skills gs
-             JOIN skills s ON gs.skill_id = s.id
-             ORDER BY s.name",
-        )
+        .prepare(&query)
         .map_err(|e| e.to_string())?;
 
     let skills = stmt
@@ -176,8 +179,9 @@ pub fn add_global_skill(db: State<'_, Mutex<Database>>, skill_id: i64) -> Result
     let db_guard = db.lock().map_err(|e| e.to_string())?;
 
     // Get the skill details for file writing
+    let query = format!("SELECT {} FROM skills WHERE id = ?", SKILL_SELECT_FIELDS);
     let mut stmt = db_guard.conn()
-        .prepare("SELECT id, name, description, content, skill_type, allowed_tools, argument_hint, tags, source, created_at, updated_at FROM skills WHERE id = ?")
+        .prepare(&query)
         .map_err(|e| e.to_string())?;
 
     let skill: Skill = stmt.query_row([skill_id], row_to_skill)
@@ -202,8 +206,9 @@ pub fn remove_global_skill(db: State<'_, Mutex<Database>>, skill_id: i64) -> Res
     let db_guard = db.lock().map_err(|e| e.to_string())?;
 
     // Get the skill for file deletion
+    let query = format!("SELECT {} FROM skills WHERE id = ?", SKILL_SELECT_FIELDS);
     let mut stmt = db_guard.conn()
-        .prepare("SELECT id, name, description, content, skill_type, allowed_tools, argument_hint, tags, source, created_at, updated_at FROM skills WHERE id = ?")
+        .prepare(&query)
         .map_err(|e| e.to_string())?;
 
     let skill: Skill = stmt.query_row([skill_id], row_to_skill)
@@ -232,13 +237,14 @@ pub fn toggle_global_skill(db: State<'_, Mutex<Database>>, id: i64, enabled: boo
         .map_err(|e| e.to_string())?;
 
     // Get the skill details
+    let query = format!(
+        "SELECT s.id, s.name, s.description, s.content, s.skill_type, s.allowed_tools, s.argument_hint, s.model, s.disable_model_invocation, s.tags, s.source, s.created_at, s.updated_at
+         FROM global_skills gs
+         JOIN skills s ON gs.skill_id = s.id
+         WHERE gs.id = ?"
+    );
     let mut stmt = db_guard.conn()
-        .prepare(
-            "SELECT s.id, s.name, s.description, s.content, s.skill_type, s.allowed_tools, s.argument_hint, s.tags, s.source, s.created_at, s.updated_at
-             FROM global_skills gs
-             JOIN skills s ON gs.skill_id = s.id
-             WHERE gs.id = ?"
-        )
+        .prepare(&query)
         .map_err(|e| e.to_string())?;
 
     let skill: Skill = stmt.query_row([id], row_to_skill)
@@ -270,8 +276,9 @@ pub fn assign_skill_to_project(
         .query_row("SELECT path FROM projects WHERE id = ?", [project_id], |row| row.get(0))
         .map_err(|e| e.to_string())?;
 
+    let query = format!("SELECT {} FROM skills WHERE id = ?", SKILL_SELECT_FIELDS);
     let mut stmt = db_guard.conn()
-        .prepare("SELECT id, name, description, content, skill_type, allowed_tools, argument_hint, tags, source, created_at, updated_at FROM skills WHERE id = ?")
+        .prepare(&query)
         .map_err(|e| e.to_string())?;
 
     let skill: Skill = stmt.query_row([skill_id], row_to_skill)
@@ -304,8 +311,9 @@ pub fn remove_skill_from_project(
         .query_row("SELECT path FROM projects WHERE id = ?", [project_id], |row| row.get(0))
         .map_err(|e| e.to_string())?;
 
+    let query = format!("SELECT {} FROM skills WHERE id = ?", SKILL_SELECT_FIELDS);
     let mut stmt = db_guard.conn()
-        .prepare("SELECT id, name, description, content, skill_type, allowed_tools, argument_hint, tags, source, created_at, updated_at FROM skills WHERE id = ?")
+        .prepare(&query)
         .map_err(|e| e.to_string())?;
 
     let skill: Skill = stmt.query_row([skill_id], row_to_skill)
@@ -341,14 +349,15 @@ pub fn toggle_project_skill(
         .map_err(|e| e.to_string())?;
 
     // Get project path and skill details
+    let query = format!(
+        "SELECT p.path, s.id, s.name, s.description, s.content, s.skill_type, s.allowed_tools, s.argument_hint, s.model, s.disable_model_invocation, s.tags, s.source, s.created_at, s.updated_at
+         FROM project_skills ps
+         JOIN projects p ON ps.project_id = p.id
+         JOIN skills s ON ps.skill_id = s.id
+         WHERE ps.id = ?"
+    );
     let mut stmt = db_guard.conn()
-        .prepare(
-            "SELECT p.path, s.id, s.name, s.description, s.content, s.skill_type, s.allowed_tools, s.argument_hint, s.tags, s.source, s.created_at, s.updated_at
-             FROM project_skills ps
-             JOIN projects p ON ps.project_id = p.id
-             JOIN skills s ON ps.skill_id = s.id
-             WHERE ps.id = ?"
-        )
+        .prepare(&query)
         .map_err(|e| e.to_string())?;
 
     let (project_path, skill): (String, Skill) = stmt.query_row([assignment_id], |row| {
@@ -373,16 +382,17 @@ pub fn get_project_skills(
     project_id: i64,
 ) -> Result<Vec<ProjectSkill>, String> {
     let db = db.lock().map_err(|e| e.to_string())?;
+    let query = format!(
+        "SELECT ps.id, ps.skill_id, ps.is_enabled,
+                s.id, s.name, s.description, s.content, s.skill_type, s.allowed_tools, s.argument_hint, s.model, s.disable_model_invocation, s.tags, s.source, s.created_at, s.updated_at
+         FROM project_skills ps
+         JOIN skills s ON ps.skill_id = s.id
+         WHERE ps.project_id = ?
+         ORDER BY s.name"
+    );
     let mut stmt = db
         .conn()
-        .prepare(
-            "SELECT ps.id, ps.skill_id, ps.is_enabled,
-                    s.id, s.name, s.description, s.content, s.skill_type, s.allowed_tools, s.argument_hint, s.tags, s.source, s.created_at, s.updated_at
-             FROM project_skills ps
-             JOIN skills s ON ps.skill_id = s.id
-             WHERE ps.project_id = ?
-             ORDER BY s.name",
-        )
+        .prepare(&query)
         .map_err(|e| e.to_string())?;
 
     let skills = stmt
@@ -399,4 +409,103 @@ pub fn get_project_skills(
         .collect();
 
     Ok(skills)
+}
+
+// Skill Files (references, assets, scripts)
+
+fn row_to_skill_file(row: &rusqlite::Row) -> rusqlite::Result<SkillFile> {
+    Ok(SkillFile {
+        id: row.get(0)?,
+        skill_id: row.get(1)?,
+        file_type: row.get(2)?,
+        name: row.get(3)?,
+        content: row.get(4)?,
+        created_at: row.get(5)?,
+        updated_at: row.get(6)?,
+    })
+}
+
+#[tauri::command]
+pub fn get_skill_files(db: State<'_, Mutex<Database>>, skill_id: i64) -> Result<Vec<SkillFile>, String> {
+    let db = db.lock().map_err(|e| e.to_string())?;
+    let mut stmt = db
+        .conn()
+        .prepare(
+            "SELECT id, skill_id, file_type, name, content, created_at, updated_at
+             FROM skill_files WHERE skill_id = ? ORDER BY file_type, name"
+        )
+        .map_err(|e| e.to_string())?;
+
+    let files = stmt
+        .query_map([skill_id], row_to_skill_file)
+        .map_err(|e| e.to_string())?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    Ok(files)
+}
+
+#[tauri::command]
+pub fn create_skill_file(db: State<'_, Mutex<Database>>, file: CreateSkillFileRequest) -> Result<SkillFile, String> {
+    let db_guard = db.lock().map_err(|e| e.to_string())?;
+
+    db_guard.conn()
+        .execute(
+            "INSERT INTO skill_files (skill_id, file_type, name, content)
+             VALUES (?, ?, ?, ?)",
+            params![file.skill_id, file.file_type, file.name, file.content],
+        )
+        .map_err(|e| e.to_string())?;
+
+    let id = db_guard.conn().last_insert_rowid();
+
+    let mut stmt = db_guard
+        .conn()
+        .prepare(
+            "SELECT id, skill_id, file_type, name, content, created_at, updated_at
+             FROM skill_files WHERE id = ?"
+        )
+        .map_err(|e| e.to_string())?;
+
+    stmt.query_row([id], row_to_skill_file)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn update_skill_file(
+    db: State<'_, Mutex<Database>>,
+    id: i64,
+    name: String,
+    content: String,
+) -> Result<SkillFile, String> {
+    let db = db.lock().map_err(|e| e.to_string())?;
+
+    db.conn()
+        .execute(
+            "UPDATE skill_files SET name = ?, content = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+            params![name, content, id],
+        )
+        .map_err(|e| e.to_string())?;
+
+    let mut stmt = db
+        .conn()
+        .prepare(
+            "SELECT id, skill_id, file_type, name, content, created_at, updated_at
+             FROM skill_files WHERE id = ?"
+        )
+        .map_err(|e| e.to_string())?;
+
+    stmt.query_row([id], row_to_skill_file)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn delete_skill_file(db: State<'_, Mutex<Database>>, id: i64) -> Result<(), String> {
+    let db = db.lock().map_err(|e| e.to_string())?;
+
+    db.conn()
+        .execute("DELETE FROM skill_files WHERE id = ?", [id])
+        .map_err(|e| e.to_string())?;
+
+    Ok(())
 }

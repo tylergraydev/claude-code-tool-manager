@@ -1,3 +1,4 @@
+export { hookLibrary } from './hookLibrary.svelte';
 export { mcpLibrary } from './mcpLibrary.svelte';
 export { projectsStore } from './projects.svelte';
 export { skillLibrary } from './skillLibrary.svelte';

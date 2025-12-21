@@ -5,7 +5,12 @@
   "windows": ["main"],
   "permissions": [
     "core:default",
-    "shell:allow-open",
+    {
+      "identifier": "shell:allow-open",
+      "allow": [
+        { "path": "**" }
+      ]
+    },
     "dialog:allow-open",
     "dialog:allow-save",
     "notification:default",

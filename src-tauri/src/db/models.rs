@@ -102,6 +102,8 @@ pub struct Skill {
     pub skill_type: String,  // "command" or "skill"
     pub allowed_tools: Option<Vec<String>>,
     pub argument_hint: Option<String>,
+    pub model: Option<String>,
+    pub disable_model_invocation: bool,
     pub tags: Option<Vec<String>>,
     pub source: String,
     pub created_at: String,
@@ -117,6 +119,8 @@ pub struct CreateSkillRequest {
     pub skill_type: String,
     pub allowed_tools: Option<Vec<String>>,
     pub argument_hint: Option<String>,
+    pub model: Option<String>,
+    pub disable_model_invocation: Option<bool>,
     pub tags: Option<Vec<String>>,
 }
 
@@ -138,6 +142,28 @@ pub struct GlobalSkill {
     pub is_enabled: bool,
 }
 
+// Skill Files (references, assets, scripts)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillFile {
+    pub id: i64,
+    pub skill_id: i64,
+    pub file_type: String,  // "reference", "asset", "script"
+    pub name: String,
+    pub content: String,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CreateSkillFileRequest {
+    pub skill_id: i64,
+    pub file_type: String,
+    pub name: String,
+    pub content: String,
+}
+
 // Sub-Agents
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -148,6 +174,8 @@ pub struct SubAgent {
     pub content: String,
     pub tools: Option<Vec<String>>,
     pub model: Option<String>,
+    pub permission_mode: Option<String>,
+    pub skills: Option<Vec<String>>,
     pub tags: Option<Vec<String>>,
     pub source: String,
     pub created_at: String,
@@ -162,6 +190,8 @@ pub struct CreateSubAgentRequest {
     pub content: String,
     pub tools: Option<Vec<String>>,
     pub model: Option<String>,
+    pub permission_mode: Option<String>,
+    pub skills: Option<Vec<String>>,
     pub tags: Option<Vec<String>>,
 }
 
@@ -258,4 +288,56 @@ pub struct ImportResult {
     pub item_type: String,
     pub item_id: i64,
     pub message: Option<String>,
+}
+
+// Hooks (Event-triggered actions)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Hook {
+    pub id: i64,
+    pub name: String,
+    pub description: Option<String>,
+    pub event_type: String, // PreToolUse, PostToolUse, Notification, etc.
+    pub matcher: Option<String>,
+    pub hook_type: String, // "command" or "prompt"
+    pub command: Option<String>,
+    pub prompt: Option<String>,
+    pub timeout: Option<i32>,
+    pub tags: Option<Vec<String>>,
+    pub source: String,
+    pub is_template: bool,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CreateHookRequest {
+    pub name: String,
+    pub description: Option<String>,
+    pub event_type: String,
+    pub matcher: Option<String>,
+    pub hook_type: String,
+    pub command: Option<String>,
+    pub prompt: Option<String>,
+    pub timeout: Option<i32>,
+    pub tags: Option<Vec<String>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProjectHook {
+    pub id: i64,
+    pub hook_id: i64,
+    pub hook: Hook,
+    pub is_enabled: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GlobalHook {
+    pub id: i64,
+    pub hook_id: i64,
+    pub hook: Hook,
+    pub is_enabled: bool,
 }

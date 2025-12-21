@@ -5,6 +5,8 @@ export interface SubAgent {
 	content: string;
 	tools?: string[];
 	model?: string;
+	permissionMode?: string;
+	skills?: string[];
 	tags?: string[];
 	source: string;
 	createdAt: string;
@@ -17,6 +19,8 @@ export interface CreateSubAgentRequest {
 	content: string;
 	tools?: string[];
 	model?: string;
+	permissionMode?: string;
+	skills?: string[];
 	tags?: string[];
 }
 
