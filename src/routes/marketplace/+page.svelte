@@ -19,7 +19,8 @@
 		Search,
 		Server,
 		Package,
-		Loader2
+		Loader2,
+		ArrowUpDown
 	} from 'lucide-svelte';
 	import type { Repo, RepoItem, CreateRepoRequest, ItemType, RegistryMcpEntry } from '$lib/types';
 
@@ -35,6 +36,21 @@
 	let mcpSearchQuery = $state('');
 	let selectedRegistryMcp = $state<RegistryMcpEntry | null>(null);
 	let isImportingMcp = $state(false);
+	let mcpSortBy = $state<'name' | 'updated'>('updated');
+
+	// Sorted MCPs
+	const sortedRegistryMcps = $derived.by(() => {
+		const mcps = [...repoLibrary.registryMcps];
+		if (mcpSortBy === 'updated') {
+			return mcps.sort((a, b) => {
+				const dateA = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
+				const dateB = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+				return dateB - dateA; // Descending (most recent first)
+			});
+		} else {
+			return mcps.sort((a, b) => a.name.localeCompare(b.name));
+		}
+	});
 
 	// Load data on mount
 	onMount(() => {
@@ -276,6 +292,17 @@
 						class="input w-full pl-10"
 					/>
 				</div>
+				<!-- Sort Dropdown -->
+				<div class="relative">
+					<select
+						bind:value={mcpSortBy}
+						class="input pr-8 appearance-none cursor-pointer"
+					>
+						<option value="updated">Recently Updated</option>
+						<option value="name">Name (A-Z)</option>
+					</select>
+					<ArrowUpDown class="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+				</div>
 				<button
 					onclick={handleMcpSearch}
 					disabled={repoLibrary.isSearchingRegistry}
@@ -315,7 +342,7 @@
 			{:else}
 				<!-- MCP Grid -->
 				<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-					{#each repoLibrary.registryMcps as mcp, i (`${mcp.registryId}-${i}`)}
+					{#each sortedRegistryMcps as mcp, i (`${mcp.registryId}-${i}`)}
 						<button
 							onclick={() => (selectedRegistryMcp = mcp)}
 							class="card p-4 flex flex-col text-left hover:ring-2 hover:ring-primary-500/50 transition-all cursor-pointer"

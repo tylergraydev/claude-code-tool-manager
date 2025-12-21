@@ -41,6 +41,9 @@ pub struct RegistryServer {
     pub version: Option<String>,
     pub packages: Option<Vec<Package>>,
     pub remotes: Option<Vec<Remote>>,
+    // Populated from _meta after parsing
+    #[serde(skip)]
+    pub updated_at: Option<String>,
     // Catch-all for unknown fields (like $schema, icons, title, etc.)
     #[serde(flatten)]
     #[allow(dead_code)]
@@ -156,6 +159,7 @@ pub struct RegistryMcpEntry {
     pub source_url: Option<String>,
     pub version: Option<String>,
     pub registry_type: Option<String>, // "npm", "pypi", etc.
+    pub updated_at: Option<String>,    // ISO timestamp from registry
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -278,7 +282,16 @@ impl RegistryClient {
             // Each item has { server: {...}, _meta: {...} }
             if let Some(server_obj) = item.get("server") {
                 match serde_json::from_value::<RegistryServer>(server_obj.clone()) {
-                    Ok(server) => servers.push(server),
+                    Ok(mut server) => {
+                        // Extract updatedAt from _meta
+                        server.updated_at = item
+                            .get("_meta")
+                            .and_then(|m| m.get("io.modelcontextprotocol.registry/official"))
+                            .and_then(|o| o.get("updatedAt"))
+                            .and_then(|u| u.as_str())
+                            .map(String::from);
+                        servers.push(server);
+                    }
                     Err(e) => {
                         parse_failures += 1;
                         let name = server_obj.get("name").and_then(|n| n.as_str()).unwrap_or("unknown");
@@ -459,6 +472,7 @@ fn package_to_mcp_entry(server: &RegistryServer, package: &Package) -> Result<Re
         source_url: server.repository.as_ref().and_then(|r| r.url.clone()),
         version: server.version.clone(),
         registry_type: Some(package.registry_type.clone()),
+        updated_at: server.updated_at.clone(),
     })
 }
 
@@ -510,6 +524,7 @@ fn remote_to_mcp_entry(server: &RegistryServer, remote: &Remote) -> RegistryMcpE
         source_url: server.repository.as_ref().and_then(|r| r.url.clone()),
         version: server.version.clone(),
         registry_type: None,
+        updated_at: server.updated_at.clone(),
     }
 }
 

@@ -39,60 +39,18 @@ pub async fn list_mcp_registry(
     limit: Option<u32>,
     cursor: Option<String>,
 ) -> Result<RegistrySearchResult, String> {
-    // Request more items since we filter for only latest versions
-    // (many entries are old versions that get skipped)
     let effective_limit = limit.unwrap_or(100);
-
-    // Use eprintln for guaranteed console output
-    eprintln!("=== [Registry] list_mcp_registry called ===");
-    eprintln!("[Registry] limit: {}, cursor: {:?}", effective_limit, cursor);
-
     let client = RegistryClient::new();
 
     let (servers, next_cursor) = client
         .list(effective_limit, cursor.as_deref())
         .await
-        .map_err(|e| {
-            log::error!("[Registry] Failed to fetch from registry: {}", e);
-            e.to_string()
-        })?;
+        .map_err(|e| e.to_string())?;
 
-    log::info!("[Registry] Got {} servers from API", servers.len());
-
-    // Log details about what each server has
-    for s in &servers {
-        log::info!("[Registry] Server '{}': packages={}, remotes={}",
-            s.name,
-            s.packages.as_ref().map(|p| p.len()).unwrap_or(0),
-            s.remotes.as_ref().map(|r| r.len()).unwrap_or(0)
-        );
-    }
-
-    let mut success_count = 0;
-    let mut fail_count = 0;
     let entries: Vec<RegistryMcpEntry> = servers
         .iter()
-        .filter_map(|s| {
-            match s.to_mcp_entry() {
-                Ok(entry) => {
-                    success_count += 1;
-                    Some(entry)
-                },
-                Err(e) => {
-                    fail_count += 1;
-                    log::warn!("[Registry] SKIPPED '{}': {} (packages: {:?}, remotes: {:?})",
-                        s.name, e,
-                        s.packages.as_ref().map(|p| p.iter().map(|pkg| &pkg.registry_type).collect::<Vec<_>>()),
-                        s.remotes.as_ref().map(|r| r.iter().map(|rem| &rem.transport_type).collect::<Vec<_>>())
-                    );
-                    None
-                }
-            }
-        })
+        .filter_map(|s| s.to_mcp_entry().ok())
         .collect();
-
-    eprintln!("=== [Registry] RESULT: Converted {}/{} servers ({} skipped) ===", success_count, servers.len(), fail_count);
-    eprintln!("[Registry] Returning {} entries, next_cursor: {:?}", entries.len(), next_cursor);
 
     Ok(RegistrySearchResult {
         entries,

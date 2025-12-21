@@ -77,6 +77,7 @@ export interface RegistryMcpEntry {
 	sourceUrl?: string;
 	version?: string;
 	registryType?: string; // "npm", "pypi", etc.
+	updatedAt?: string; // ISO timestamp from registry
 }
 
 export interface EnvPlaceholder {
