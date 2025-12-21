@@ -319,20 +319,18 @@ impl Default for RegistryClient {
 impl RegistryServer {
     /// Convert a registry server to an MCP entry for the app
     pub fn to_mcp_entry(&self) -> Result<RegistryMcpEntry> {
-        log::debug!(
-            "[Registry] Converting '{}': packages={:?}, remotes={:?}",
-            self.name,
-            self.packages.as_ref().map(|p| p.len()),
-            self.remotes.as_ref().map(|r| r.len())
-        );
-
-        // Try packages first (local/stdio MCPs), then remotes (SSE/HTTP)
+        // Try packages first (local/stdio MCPs)
         if let Some(packages) = &self.packages {
             if let Some(package) = packages.first() {
-                return package_to_mcp_entry(self, package);
+                // If package conversion succeeds, return it
+                // If it fails (unsupported registry type), fall through to try remotes
+                if let Ok(entry) = package_to_mcp_entry(self, package) {
+                    return Ok(entry);
+                }
             }
         }
 
+        // Try remotes (SSE/HTTP MCPs)
         if let Some(remotes) = &self.remotes {
             if let Some(remote) = remotes.first() {
                 return Ok(remote_to_mcp_entry(self, remote));
