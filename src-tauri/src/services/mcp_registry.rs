@@ -117,10 +117,23 @@ pub struct Remote {
     #[serde(rename = "type")]
     pub transport_type: String, // "sse", "http", "streamable-http"
     pub url: String,
-    pub headers: Option<HashMap<String, String>>,
+    pub headers: Option<Vec<RemoteHeader>>,
     #[serde(flatten)]
     #[allow(dead_code)]
     pub extra: Option<HashMap<String, serde_json::Value>>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RemoteHeader {
+    pub name: String,
+    pub value: Option<String>,
+    #[allow(dead_code)]
+    pub description: Option<String>,
+    #[allow(dead_code)]
+    pub is_required: Option<bool>,
+    #[allow(dead_code)]
+    pub is_secret: Option<bool>,
 }
 
 // ============================================================================
@@ -260,18 +273,26 @@ impl RegistryClient {
 
         // Parse each server dynamically (API already filters for latest versions via version=latest param)
         let mut servers = Vec::new();
+        let mut parse_failures = 0;
         for item in servers_array {
             // Each item has { server: {...}, _meta: {...} }
             if let Some(server_obj) = item.get("server") {
                 match serde_json::from_value::<RegistryServer>(server_obj.clone()) {
                     Ok(server) => servers.push(server),
                     Err(e) => {
+                        parse_failures += 1;
                         let name = server_obj.get("name").and_then(|n| n.as_str()).unwrap_or("unknown");
-                        log::warn!("[Registry] Failed to parse server '{}': {}", name, e);
-                        // Continue with other servers instead of failing completely
+                        // Log first few failures in detail
+                        if parse_failures <= 3 {
+                            eprintln!("[Registry] PARSE FAILED '{}': {}", name, e);
+                            eprintln!("[Registry] Server JSON: {}", serde_json::to_string_pretty(server_obj).unwrap_or_default());
+                        }
                     }
                 }
             }
+        }
+        if parse_failures > 0 {
+            eprintln!("[Registry] Total parse failures: {}", parse_failures);
         }
 
         eprintln!("[Registry] Successfully parsed {} servers", servers.len());
@@ -464,6 +485,17 @@ fn remote_to_mcp_entry(server: &RegistryServer, remote: &Remote) -> RegistryMcpE
         _ => "http",
     };
 
+    // Convert Vec<RemoteHeader> to HashMap<String, String>
+    let headers = remote.headers.as_ref().map(|hdrs| {
+        hdrs.iter()
+            .filter_map(|h| {
+                // Use the value if present, otherwise use a placeholder
+                let value = h.value.clone().unwrap_or_else(|| format!("${{{}}}", h.name));
+                Some((h.name.clone(), value))
+            })
+            .collect::<HashMap<String, String>>()
+    });
+
     RegistryMcpEntry {
         registry_id: server.name.clone(),
         name: extract_short_name(&server.name),
@@ -472,7 +504,7 @@ fn remote_to_mcp_entry(server: &RegistryServer, remote: &Remote) -> RegistryMcpE
         command: None,
         args: None,
         url: Some(remote.url.clone()),
-        headers: remote.headers.clone(),
+        headers,
         env: None,
         env_placeholders: None,
         source_url: server.repository.as_ref().and_then(|r| r.url.clone()),
