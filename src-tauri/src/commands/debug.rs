@@ -12,14 +12,29 @@ pub fn enable_debug_mode(app: tauri::AppHandle) -> Result<String, String> {
     let log_path = debug_logger::enable_debug_logging(&app_data_dir)
         .map_err(|e| format!("Failed to enable debug logging: {}", e))?;
 
+    // Persist the debug state so it survives restarts
+    debug_logger::persist_debug_enabled(&app_data_dir, true)
+        .map_err(|e| format!("Failed to persist debug state: {}", e))?;
+
     Ok(log_path.to_string_lossy().to_string())
 }
 
 /// Disable debug mode
 #[tauri::command]
-pub fn disable_debug_mode() -> Result<(), String> {
+pub fn disable_debug_mode(app: tauri::AppHandle) -> Result<(), String> {
+    let app_data_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("Failed to get app data dir: {}", e))?;
+
     debug_logger::disable_debug_logging()
-        .map_err(|e| format!("Failed to disable debug logging: {}", e))
+        .map_err(|e| format!("Failed to disable debug logging: {}", e))?;
+
+    // Remove the persistence flag so debug mode doesn't restart on next launch
+    debug_logger::persist_debug_enabled(&app_data_dir, false)
+        .map_err(|e| format!("Failed to persist debug state: {}", e))?;
+
+    Ok(())
 }
 
 /// Check if debug mode is enabled

@@ -23,6 +23,12 @@ pub fn run() {
             let app_data_dir = app.path().app_data_dir()?;
             std::fs::create_dir_all(&app_data_dir)?;
 
+            // Restore debug mode early if it was persisted (before any other initialization)
+            // This ensures we capture startup logs
+            if let Err(e) = services::debug_logger::init_from_persisted(&app_data_dir) {
+                log::warn!("Failed to restore debug mode: {}", e);
+            }
+
             let db_path = app_data_dir.join("mcp_library.db");
             let database = Database::new(&db_path)?;
             database.run_migrations()?;

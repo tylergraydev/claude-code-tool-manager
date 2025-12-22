@@ -126,6 +126,42 @@ pub fn get_logs_dir(app_data_dir: &PathBuf) -> PathBuf {
     app_data_dir.join("logs")
 }
 
+/// Get the path to the debug persistence flag file
+fn get_debug_flag_path(app_data_dir: &PathBuf) -> PathBuf {
+    app_data_dir.join("debug_enabled")
+}
+
+/// Persist debug mode setting to disk
+pub fn persist_debug_enabled(app_data_dir: &PathBuf, enabled: bool) -> Result<()> {
+    let flag_path = get_debug_flag_path(app_data_dir);
+    if enabled {
+        // Create the flag file
+        File::create(&flag_path)?;
+    } else {
+        // Remove the flag file if it exists
+        if flag_path.exists() {
+            fs::remove_file(&flag_path)?;
+        }
+    }
+    Ok(())
+}
+
+/// Check if debug mode was persisted (for startup)
+pub fn is_debug_persisted(app_data_dir: &PathBuf) -> bool {
+    get_debug_flag_path(app_data_dir).exists()
+}
+
+/// Initialize debug mode from persisted state (call early in startup)
+pub fn init_from_persisted(app_data_dir: &PathBuf) -> Result<Option<PathBuf>> {
+    if is_debug_persisted(app_data_dir) {
+        let log_path = enable_debug_logging(app_data_dir)?;
+        write_log("INFO", "debug", "Debug mode restored from persisted state")?;
+        Ok(Some(log_path))
+    } else {
+        Ok(None)
+    }
+}
+
 /// Convenience function to log from Rust code when debug is enabled
 #[allow(dead_code)]
 pub fn debug_log(message: &str) {
