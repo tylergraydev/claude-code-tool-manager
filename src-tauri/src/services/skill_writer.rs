@@ -1,7 +1,14 @@
 use crate::db::models::{Skill, SkillFile};
+use crate::utils::opencode_paths::get_opencode_paths;
 use anyhow::Result;
 use directories::BaseDirs;
 use std::path::Path;
+
+/// Editor type for routing skill writes
+pub enum EditorType {
+    ClaudeCode,
+    OpenCode,
+}
 
 /// Generate markdown content for a slash command (.claude/commands/name.md)
 fn generate_command_markdown(skill: &Skill) -> String {
@@ -250,4 +257,121 @@ pub fn write_project_skill_file(project_path: &Path, skill: &Skill, file: &Skill
 /// Delete a skill file from project config
 pub fn delete_project_skill_file(project_path: &Path, skill: &Skill, file: &SkillFile) -> Result<()> {
     delete_skill_subfile(project_path, skill, file)
+}
+
+// ============================================================================
+// OpenCode Support
+// ============================================================================
+
+/// Write a skill to OpenCode's format
+/// - Commands go to {base_path}/command/{name}.md (note: singular "command")
+/// - Agent skills go to {base_path}/agent/{name}.md (OpenCode uses agent/ not skills/)
+pub fn write_skill_file_opencode(base_path: &Path, skill: &Skill) -> Result<()> {
+    match skill.skill_type.as_str() {
+        "command" => {
+            let commands_dir = base_path.join("command"); // OpenCode uses singular
+            std::fs::create_dir_all(&commands_dir)?;
+
+            let file_path = commands_dir.join(format!("{}.md", skill.name));
+            let content = generate_command_markdown(skill);
+            std::fs::write(file_path, content)?;
+        }
+        "skill" => {
+            // OpenCode doesn't have the same skills directory structure
+            // It uses agent/ for agent definitions
+            let agent_dir = base_path.join("agent");
+            std::fs::create_dir_all(&agent_dir)?;
+
+            let file_path = agent_dir.join(format!("{}.md", skill.name));
+            let content = generate_skill_markdown(skill);
+            std::fs::write(file_path, content)?;
+        }
+        _ => {
+            let commands_dir = base_path.join("command");
+            std::fs::create_dir_all(&commands_dir)?;
+
+            let file_path = commands_dir.join(format!("{}.md", skill.name));
+            let content = generate_command_markdown(skill);
+            std::fs::write(file_path, content)?;
+        }
+    }
+
+    Ok(())
+}
+
+/// Delete a skill from OpenCode's format
+pub fn delete_skill_file_opencode(base_path: &Path, skill: &Skill) -> Result<()> {
+    match skill.skill_type.as_str() {
+        "command" => {
+            let file_path = base_path.join("command").join(format!("{}.md", skill.name));
+            if file_path.exists() {
+                std::fs::remove_file(file_path)?;
+            }
+        }
+        "skill" => {
+            let file_path = base_path.join("agent").join(format!("{}.md", skill.name));
+            if file_path.exists() {
+                std::fs::remove_file(file_path)?;
+            }
+        }
+        _ => {
+            // Try both locations
+            let cmd_path = base_path.join("command").join(format!("{}.md", skill.name));
+            if cmd_path.exists() {
+                std::fs::remove_file(cmd_path)?;
+            }
+            let agent_path = base_path.join("agent").join(format!("{}.md", skill.name));
+            if agent_path.exists() {
+                std::fs::remove_file(agent_path)?;
+            }
+        }
+    }
+
+    Ok(())
+}
+
+/// Write a skill to the global OpenCode config (~/.config/opencode/)
+pub fn write_global_skill_opencode(skill: &Skill) -> Result<()> {
+    let paths = get_opencode_paths()?;
+    write_skill_file_opencode(&paths.config_dir, skill)
+}
+
+/// Delete a skill from the global OpenCode config
+pub fn delete_global_skill_opencode(skill: &Skill) -> Result<()> {
+    let paths = get_opencode_paths()?;
+    delete_skill_file_opencode(&paths.config_dir, skill)
+}
+
+/// Write a skill to a project's OpenCode config ({project}/.opencode/)
+pub fn write_project_skill_opencode(project_path: &Path, skill: &Skill) -> Result<()> {
+    let opencode_dir = project_path.join(".opencode");
+    write_skill_file_opencode(&opencode_dir, skill)
+}
+
+/// Delete a skill from a project's OpenCode config
+pub fn delete_project_skill_opencode(project_path: &Path, skill: &Skill) -> Result<()> {
+    let opencode_dir = project_path.join(".opencode");
+    delete_skill_file_opencode(&opencode_dir, skill)
+}
+
+/// Write a skill based on editor type
+pub fn write_skill_for_editor(base_path: &Path, skill: &Skill, editor: EditorType) -> Result<()> {
+    match editor {
+        EditorType::ClaudeCode => write_skill_file(base_path, skill),
+        EditorType::OpenCode => {
+            let opencode_dir = base_path.join(".opencode");
+            write_skill_file_opencode(&opencode_dir, skill)
+        }
+    }
+}
+
+/// Delete a skill based on editor type
+pub fn delete_skill_for_editor(base_path: &Path, skill: &Skill, editor: EditorType) -> Result<()> {
+    match editor {
+        EditorType::ClaudeCode => delete_skill_file(base_path, skill),
+        EditorType::OpenCode => {
+            let opencode_dir = base_path.join(".opencode");
+            delete_skill_file_opencode(&opencode_dir, skill)
+        }
+    }
 }

@@ -48,10 +48,16 @@ pub struct Project {
     pub has_mcp_file: bool,
     pub has_settings_file: bool,
     pub last_scanned_at: Option<String>,
+    #[serde(default = "default_editor_type")]
+    pub editor_type: String,  // "claude_code" or "opencode"
     pub created_at: String,
     pub updated_at: String,
     #[serde(default)]
     pub assigned_mcps: Vec<ProjectMcp>,
+}
+
+fn default_editor_type() -> String {
+    "claude_code".to_string()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -340,4 +346,42 @@ pub struct GlobalHook {
     pub hook_id: i64,
     pub hook: Hook,
     pub is_enabled: bool,
+}
+
+// App Settings
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AppSettings {
+    pub default_editor: String,  // "claude_code" or "opencode"
+}
+
+impl Default for AppSettings {
+    fn default() -> Self {
+        Self {
+            default_editor: "claude_code".to_string(),
+        }
+    }
+}
+
+// OpenCode paths (for OpenCode support)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OpenCodePaths {
+    pub config_dir: String,      // ~/.config/opencode/
+    pub config_file: String,     // ~/.config/opencode/opencode.json
+    pub command_dir: String,     // ~/.config/opencode/command/
+    pub agent_dir: String,       // ~/.config/opencode/agent/
+    pub plugin_dir: String,      // ~/.config/opencode/plugin/
+    pub tool_dir: String,        // ~/.config/opencode/tool/
+    pub knowledge_dir: String,   // ~/.config/opencode/knowledge/
+}
+
+// Editor info for frontend
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EditorInfo {
+    pub id: String,              // "claude_code" or "opencode"
+    pub name: String,            // "Claude Code" or "OpenCode"
+    pub is_installed: bool,      // Whether config directory exists
+    pub config_path: String,     // Path to main config file
 }

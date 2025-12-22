@@ -1,6 +1,8 @@
 use crate::db::Database;
 use crate::services::claude_json;
 use crate::services::config_parser;
+use crate::services::opencode_config;
+use crate::utils::opencode_paths::get_opencode_paths;
 use crate::utils::paths::{get_claude_paths, normalize_path};
 use anyhow::Result;
 use rusqlite::params;
@@ -36,6 +38,22 @@ pub async fn run_startup_scan(app: &tauri::AppHandle) -> Result<()> {
     // Scan global hooks from ~/.claude/settings.json
     let hook_count = scan_global_hooks(&db)?;
     log::info!("Found {} hooks from ~/.claude/settings.json", hook_count);
+
+    // ============================================================================
+    // OpenCode Scanning
+    // ============================================================================
+
+    // Scan OpenCode global config for MCPs
+    let opencode_mcp_count = scan_opencode_config(&db)?;
+    log::info!("Found {} MCPs from OpenCode config", opencode_mcp_count);
+
+    // Scan OpenCode global commands from ~/.config/opencode/command/
+    let opencode_command_count = scan_opencode_global_commands(&db)?;
+    log::info!("Found {} commands from OpenCode", opencode_command_count);
+
+    // Scan OpenCode global agents from ~/.config/opencode/agent/
+    let opencode_agent_count = scan_opencode_global_agents(&db)?;
+    log::info!("Found {} agents from OpenCode", opencode_agent_count);
 
     Ok(())
 }
@@ -1168,4 +1186,364 @@ fn assign_hook_to_project(db: &Database, project_id: i64, hook_id: i64) -> Resul
     }
 
     Ok(())
+}
+
+// ============================================================================
+// OpenCode Scanning Functions
+// ============================================================================
+
+/// Scan OpenCode global config for MCPs
+pub fn scan_opencode_config(db: &Database) -> Result<usize> {
+    let paths = match get_opencode_paths() {
+        Ok(p) => p,
+        Err(e) => {
+            log::debug!("OpenCode paths not available: {}", e);
+            return Ok(0);
+        }
+    };
+
+    if !paths.config_file.exists() {
+        log::debug!("OpenCode config not found at {:?}", paths.config_file);
+        return Ok(0);
+    }
+
+    // Parse MCPs from opencode.json
+    let mcps = match opencode_config::parse_opencode_mcps(&paths.config_file) {
+        Ok(m) => m,
+        Err(e) => {
+            log::warn!("Failed to parse OpenCode config: {}", e);
+            return Ok(0);
+        }
+    };
+
+    let mut count = 0;
+
+    for mcp in mcps {
+        // Map OpenCode types to our internal types
+        // OpenCode "local" -> our "stdio", OpenCode "remote" -> our "http"
+        let mcp_type = match mcp.mcp_type.as_str() {
+            "local" => "stdio",
+            "remote" => "http",
+            other => other,
+        };
+
+        // Check if already exists
+        let exists: bool = db
+            .conn()
+            .query_row(
+                "SELECT 1 FROM mcps WHERE name = ?",
+                [&mcp.name],
+                |_| Ok(true),
+            )
+            .unwrap_or(false);
+
+        if !exists {
+            let args_json = match &mcp.args {
+                Some(args) if !args.is_empty() => Some(serde_json::to_string(args).unwrap()),
+                _ => None,
+            };
+            let env_json = match &mcp.env {
+                Some(env) if !env.is_empty() => Some(serde_json::to_string(env).unwrap()),
+                _ => None,
+            };
+            let headers_json = match &mcp.headers {
+                Some(headers) if !headers.is_empty() => Some(serde_json::to_string(headers).unwrap()),
+                _ => None,
+            };
+
+            let result = db.conn().execute(
+                "INSERT INTO mcps (name, type, command, args, url, headers, env, source, source_path)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, 'opencode', ?)",
+                params![
+                    mcp.name,
+                    mcp_type,
+                    mcp.command,
+                    args_json,
+                    mcp.url,
+                    headers_json,
+                    env_json,
+                    paths.config_file.to_string_lossy().to_string()
+                ],
+            );
+
+            if result.is_ok() {
+                count += 1;
+            }
+        }
+    }
+
+    Ok(count)
+}
+
+/// Scan OpenCode global commands from ~/.config/opencode/command/
+pub fn scan_opencode_global_commands(db: &Database) -> Result<usize> {
+    let paths = match get_opencode_paths() {
+        Ok(p) => p,
+        Err(_) => return Ok(0),
+    };
+
+    if !paths.command_dir.exists() {
+        return Ok(0);
+    }
+
+    let mut count = 0;
+
+    for entry in std::fs::read_dir(&paths.command_dir)? {
+        let entry = entry?;
+        let path = entry.path();
+
+        // Only process .md files
+        if path.extension().map(|e| e == "md").unwrap_or(false) {
+            if let Some(skill) = parse_skill_file(&path) {
+                // Check if already exists
+                let exists: bool = db
+                    .conn()
+                    .query_row(
+                        "SELECT 1 FROM skills WHERE name = ?",
+                        [&skill.name],
+                        |_| Ok(true),
+                    )
+                    .unwrap_or(false);
+
+                if !exists {
+                    let tags_json = if skill.tags.is_empty() {
+                        None
+                    } else {
+                        Some(serde_json::to_string(&skill.tags).unwrap())
+                    };
+
+                    let result = db.conn().execute(
+                        "INSERT INTO skills (name, description, content, skill_type, allowed_tools, argument_hint, model, disable_model_invocation, tags, source)
+                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'opencode')",
+                        params![
+                            skill.name,
+                            skill.description,
+                            skill.content,
+                            skill.skill_type,
+                            skill.allowed_tools,
+                            skill.argument_hint,
+                            skill.model,
+                            skill.disable_model_invocation,
+                            tags_json
+                        ],
+                    );
+
+                    if result.is_ok() {
+                        count += 1;
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(count)
+}
+
+/// Scan OpenCode global agents from ~/.config/opencode/agent/
+pub fn scan_opencode_global_agents(db: &Database) -> Result<usize> {
+    let paths = match get_opencode_paths() {
+        Ok(p) => p,
+        Err(_) => return Ok(0),
+    };
+
+    if !paths.agent_dir.exists() {
+        return Ok(0);
+    }
+
+    let mut count = 0;
+
+    for entry in std::fs::read_dir(&paths.agent_dir)? {
+        let entry = entry?;
+        let path = entry.path();
+
+        // Only process .md files
+        if path.extension().map(|e| e == "md").unwrap_or(false) {
+            if let Some(agent) = parse_agent_file(&path) {
+                // Check if already exists
+                let exists: bool = db
+                    .conn()
+                    .query_row(
+                        "SELECT 1 FROM subagents WHERE name = ?",
+                        [&agent.name],
+                        |_| Ok(true),
+                    )
+                    .unwrap_or(false);
+
+                if !exists {
+                    let tools_json = if agent.tools.is_empty() {
+                        None
+                    } else {
+                        Some(serde_json::to_string(&agent.tools).unwrap())
+                    };
+                    let skills_json = if agent.skills.is_empty() {
+                        None
+                    } else {
+                        Some(serde_json::to_string(&agent.skills).unwrap())
+                    };
+                    let tags_json = if agent.tags.is_empty() {
+                        None
+                    } else {
+                        Some(serde_json::to_string(&agent.tags).unwrap())
+                    };
+
+                    let result = db.conn().execute(
+                        "INSERT INTO subagents (name, description, content, tools, model, permission_mode, skills, tags, source)
+                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'opencode')",
+                        params![
+                            agent.name,
+                            agent.description,
+                            agent.content,
+                            tools_json,
+                            agent.model,
+                            agent.permission_mode,
+                            skills_json,
+                            tags_json
+                        ],
+                    );
+
+                    if result.is_ok() {
+                        count += 1;
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(count)
+}
+
+/// Scan OpenCode project configs and import their MCPs, commands, and agents
+/// Called for each project detected with .opencode/ directory
+pub fn scan_opencode_project(db: &Database, project_path: &Path) -> Result<(usize, usize, usize)> {
+    let opencode_dir = project_path.join(".opencode");
+    if !opencode_dir.exists() {
+        return Ok((0, 0, 0));
+    }
+
+    let mut mcp_count = 0;
+    let mut command_count = 0;
+    let mut agent_count = 0;
+
+    // Get or create project
+    let project_name = project_path
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_else(|| project_path.to_string_lossy().to_string());
+
+    let project_id = get_or_create_opencode_project(db, &project_name, &project_path.to_string_lossy())?;
+
+    // Scan opencode.json in project root for MCPs
+    let opencode_json = project_path.join("opencode.json");
+    if opencode_json.exists() {
+        if let Ok(mcps) = opencode_config::parse_opencode_mcps(&opencode_json) {
+            for mcp in mcps {
+                let mcp_type = match mcp.mcp_type.as_str() {
+                    "local" => "stdio",
+                    "remote" => "http",
+                    other => other,
+                };
+
+                let mcp_id = get_or_create_mcp(
+                    db,
+                    &mcp.name,
+                    mcp_type,
+                    mcp.command.as_deref(),
+                    mcp.args.as_ref(),
+                    mcp.url.as_deref(),
+                    mcp.headers.as_ref(),
+                    mcp.env.as_ref(),
+                    &project_path.to_string_lossy(),
+                )?;
+
+                assign_mcp_to_project(db, project_id, mcp_id, true)?;
+                mcp_count += 1;
+            }
+        }
+    }
+
+    // Scan .opencode/command/ for commands
+    let command_dir = opencode_dir.join("command");
+    if command_dir.exists() {
+        command_count = scan_opencode_project_commands(db, project_id, &command_dir)?;
+    }
+
+    // Scan .opencode/agent/ for agents
+    let agent_dir = opencode_dir.join("agent");
+    if agent_dir.exists() {
+        agent_count = scan_opencode_project_agents(db, project_id, &agent_dir)?;
+    }
+
+    Ok((mcp_count, command_count, agent_count))
+}
+
+/// Get or create an OpenCode project in the database
+fn get_or_create_opencode_project(db: &Database, name: &str, path: &str) -> Result<i64> {
+    let normalized = normalize_path(path);
+
+    // Try to find existing project by path
+    let existing_id: Option<i64> = db
+        .conn()
+        .query_row(
+            "SELECT id FROM projects WHERE path = ? OR path = ?",
+            params![path, normalized],
+            |row| row.get(0),
+        )
+        .ok();
+
+    if let Some(id) = existing_id {
+        // Update editor_type to opencode if it exists
+        let _ = db.conn().execute(
+            "UPDATE projects SET editor_type = 'opencode' WHERE id = ?",
+            [id],
+        );
+        return Ok(id);
+    }
+
+    // Create new project with editor_type = 'opencode'
+    db.conn().execute(
+        "INSERT INTO projects (name, path, has_mcp_file, has_settings_file, editor_type) VALUES (?, ?, 0, 0, 'opencode')",
+        params![name, normalized],
+    )?;
+
+    Ok(db.conn().last_insert_rowid())
+}
+
+/// Scan OpenCode project commands and assign to project
+fn scan_opencode_project_commands(db: &Database, project_id: i64, command_dir: &Path) -> Result<usize> {
+    let mut count = 0;
+
+    for entry in std::fs::read_dir(command_dir)? {
+        let entry = entry?;
+        let path = entry.path();
+
+        if path.extension().map(|e| e == "md").unwrap_or(false) {
+            if let Some(skill) = parse_skill_file(&path) {
+                let (skill_id, _) = get_or_create_skill(db, &skill)?;
+                assign_skill_to_project(db, project_id, skill_id)?;
+                count += 1;
+            }
+        }
+    }
+
+    Ok(count)
+}
+
+/// Scan OpenCode project agents and assign to project
+fn scan_opencode_project_agents(db: &Database, project_id: i64, agent_dir: &Path) -> Result<usize> {
+    let mut count = 0;
+
+    for entry in std::fs::read_dir(agent_dir)? {
+        let entry = entry?;
+        let path = entry.path();
+
+        if path.extension().map(|e| e == "md").unwrap_or(false) {
+            if let Some(agent) = parse_agent_file(&path) {
+                let agent_id = get_or_create_agent(db, &agent)?;
+                assign_agent_to_project(db, project_id, agent_id)?;
+                count += 1;
+            }
+        }
+    }
+
+    Ok(count)
 }

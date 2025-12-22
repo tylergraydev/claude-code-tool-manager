@@ -43,3 +43,25 @@ export interface CreateMcpRequest {
 export interface UpdateMcpRequest extends CreateMcpRequest {
 	id: number;
 }
+
+// MCP Testing types
+export interface McpTool {
+	name: string;
+	description: string | null;
+	inputSchema: Record<string, unknown> | null;
+}
+
+export interface McpServerInfo {
+	name: string;
+	version: string | null;
+}
+
+export interface McpTestResult {
+	success: boolean;
+	serverInfo: McpServerInfo | null;
+	tools: McpTool[];
+	resourcesSupported: boolean;
+	promptsSupported: boolean;
+	error: string | null;
+	responseTimeMs: number;
+}

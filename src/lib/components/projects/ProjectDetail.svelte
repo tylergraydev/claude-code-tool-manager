@@ -1,7 +1,8 @@
 <script lang="ts">
 	import type { Project, Mcp, Skill, SubAgent, ProjectSkill, ProjectSubAgent } from '$lib/types';
 	import { mcpLibrary, projectsStore, notifications, skillLibrary, subagentLibrary } from '$lib/stores';
-	import { X, Plus, Minus, FolderOpen, Plug, Globe, Server, Sparkles, Bot } from 'lucide-svelte';
+	import { X, Plus, Minus, FolderOpen, Plug, Globe, Server, Sparkles, Bot, ChevronDown } from 'lucide-svelte';
+	import { invoke } from '@tauri-apps/api/core';
 
 	type Props = {
 		project: Project;
@@ -9,6 +10,9 @@
 	};
 
 	let { project: initialProject, onClose }: Props = $props();
+
+	let showEditorDropdown = $state(false);
+	let updatingEditor = $state(false);
 
 	// Tab state
 	type Tab = 'mcps' | 'skills' | 'agents';
@@ -174,6 +178,30 @@
 			console.error(err);
 		}
 	}
+
+	// Editor type handler
+	async function handleChangeEditorType(editorType: 'claude_code' | 'opencode') {
+		if (editorType === project.editorType) {
+			showEditorDropdown = false;
+			return;
+		}
+		updatingEditor = true;
+		try {
+			await invoke('update_project_editor_type', { projectId: project.id, editorType });
+			await projectsStore.loadProjects();
+			notifications.success(`Switched to ${editorType === 'claude_code' ? 'Claude Code' : 'OpenCode'}`);
+		} catch (err) {
+			notifications.error('Failed to change editor');
+			console.error(err);
+		} finally {
+			updatingEditor = false;
+			showEditorDropdown = false;
+		}
+	}
+
+	function getEditorDisplayName(editorType: string): string {
+		return editorType === 'claude_code' ? 'Claude Code' : 'OpenCode';
+	}
 </script>
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -198,7 +226,43 @@
 					<FolderOpen class="w-5 h-5 text-amber-600 dark:text-amber-400" />
 				</div>
 				<div>
-					<h2 id="project-detail-title" class="text-xl font-semibold text-gray-900 dark:text-white">{project.name}</h2>
+					<div class="flex items-center gap-2">
+						<h2 id="project-detail-title" class="text-xl font-semibold text-gray-900 dark:text-white">{project.name}</h2>
+						<!-- Editor Type Dropdown -->
+						<div class="relative">
+							<button
+								onclick={(e) => { e.stopPropagation(); showEditorDropdown = !showEditorDropdown; }}
+								disabled={updatingEditor}
+								class="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-colors {project.editorType === 'opencode'
+									? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300 hover:bg-emerald-200 dark:hover:bg-emerald-900/70'
+									: 'bg-primary-100 text-primary-700 dark:bg-primary-900/50 dark:text-primary-300 hover:bg-primary-200 dark:hover:bg-primary-900/70'}"
+							>
+								<span class="w-3 h-3 rounded-sm flex items-center justify-center text-[8px] font-bold text-white {project.editorType === 'opencode' ? 'bg-emerald-500' : 'bg-primary-500'}">
+									{project.editorType === 'opencode' ? 'O' : 'C'}
+								</span>
+								{getEditorDisplayName(project.editorType)}
+								<ChevronDown class="w-3 h-3" />
+							</button>
+							{#if showEditorDropdown}
+								<div class="absolute left-0 top-full mt-1 w-40 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-20">
+									<button
+										onclick={() => handleChangeEditorType('claude_code')}
+										class="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 {project.editorType === 'claude_code' ? 'text-primary-600 dark:text-primary-400' : 'text-gray-700 dark:text-gray-300'}"
+									>
+										<span class="w-4 h-4 rounded-sm bg-primary-500 text-white flex items-center justify-center text-[9px] font-bold">C</span>
+										Claude Code
+									</button>
+									<button
+										onclick={() => handleChangeEditorType('opencode')}
+										class="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 {project.editorType === 'opencode' ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-700 dark:text-gray-300'}"
+									>
+										<span class="w-4 h-4 rounded-sm bg-emerald-500 text-white flex items-center justify-center text-[9px] font-bold">O</span>
+										OpenCode
+									</button>
+								</div>
+							{/if}
+						</div>
+					</div>
 					<p class="text-sm text-gray-500 dark:text-gray-400 font-mono">{project.path}</p>
 				</div>
 			</div>

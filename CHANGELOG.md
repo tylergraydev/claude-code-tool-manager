@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.6] - 2025-12-21
+
+### Added
+- **MCP Testing**: Test stdio MCP servers directly from the app
+  - Click "Test" in the MCP card menu to verify a server works
+  - Auto-runs MCP protocol handshake and lists available tools
+  - Displays server info, tool count, and capabilities
+  - Shows tool names, descriptions, and input schemas
+  - Helpful error messages for common issues (npm auth, PATH problems)
+- **OpenCode Support**: Scan and import projects from OpenCode configurations
+  - Auto-detects OpenCode config at `~/.opencode/config.json`
+  - Imports MCP server configurations from OpenCode projects
+
+### Changed
+- HTTP and SSE MCP testing is disabled for now (coming soon)
+- Improved process spawning to properly inherit PATH environment
+
+### Fixed
+- npx commands now work correctly by running through shell
+- Better error messages for npm authentication issues
+
 ## [1.3.5] - 2025-12-21
 
 ### Added
@@ -122,7 +143,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Dark mode
   - Search and filter
 
-[Unreleased]: https://github.com/tylergraydev/claude-code-tool-manager/compare/v1.3.5...HEAD
+[Unreleased]: https://github.com/tylergraydev/claude-code-tool-manager/compare/v1.3.6...HEAD
+[1.3.6]: https://github.com/tylergraydev/claude-code-tool-manager/compare/v1.3.5...v1.3.6
 [1.3.5]: https://github.com/tylergraydev/claude-code-tool-manager/compare/v1.3.4...v1.3.5
 [1.3.4]: https://github.com/tylergraydev/claude-code-tool-manager/compare/v1.3.3...v1.3.4
 [1.3.3]: https://github.com/tylergraydev/claude-code-tool-manager/compare/v1.3.2...v1.3.3

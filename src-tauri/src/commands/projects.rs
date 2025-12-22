@@ -48,7 +48,7 @@ pub fn get_all_projects(db: State<'_, Mutex<Database>>) -> Result<Vec<Project>, 
     let mut stmt = db
         .conn()
         .prepare(
-            "SELECT id, name, path, has_mcp_file, has_settings_file, last_scanned_at, created_at, updated_at
+            "SELECT id, name, path, has_mcp_file, has_settings_file, last_scanned_at, editor_type, created_at, updated_at
              FROM projects ORDER BY name",
         )
         .map_err(|e| e.to_string())?;
@@ -62,8 +62,9 @@ pub fn get_all_projects(db: State<'_, Mutex<Database>>) -> Result<Vec<Project>, 
                 has_mcp_file: row.get::<_, i32>(3)? != 0,
                 has_settings_file: row.get::<_, i32>(4)? != 0,
                 last_scanned_at: row.get(5)?,
-                created_at: row.get(6)?,
-                updated_at: row.get(7)?,
+                editor_type: row.get::<_, Option<String>>(6)?.unwrap_or_else(|| "claude_code".to_string()),
+                created_at: row.get(7)?,
+                updated_at: row.get(8)?,
                 assigned_mcps: vec![],
             })
         })
@@ -150,6 +151,7 @@ pub fn add_project(
         has_mcp_file,
         has_settings_file,
         last_scanned_at: None,
+        editor_type: "claude_code".to_string(),
         created_at: chrono::Utc::now().to_rfc3339(),
         updated_at: chrono::Utc::now().to_rfc3339(),
         assigned_mcps: vec![],
@@ -250,20 +252,23 @@ pub fn toggle_project_mcp(
 
 #[tauri::command]
 pub fn sync_project_config(db: State<'_, Mutex<Database>>, project_id: i64) -> Result<(), String> {
+    use crate::services::opencode_config;
     use crate::utils::paths::get_claude_paths;
 
     info!("[Projects] Syncing config for project id={}", project_id);
     let db = db.lock().map_err(|e| e.to_string())?;
 
-    // Get project path
-    let path: String = db
+    // Get project path and editor_type
+    let (path, editor_type): (String, String) = db
         .conn()
-        .query_row("SELECT path FROM projects WHERE id = ?", [project_id], |row| {
-            row.get(0)
-        })
+        .query_row(
+            "SELECT path, COALESCE(editor_type, 'claude_code') FROM projects WHERE id = ?",
+            [project_id],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
         .map_err(|e| e.to_string())?;
 
-    // Get ALL MCPs for this project (including disabled ones for claude.json)
+    // Get ALL MCPs for this project (including disabled ones)
     let mut stmt = db
         .conn()
         .prepare(
@@ -292,22 +297,46 @@ pub fn sync_project_config(db: State<'_, Mutex<Database>>, project_id: i64) -> R
         .filter_map(|r| r.ok())
         .collect();
 
-    // Write to claude.json (includes disabled state)
-    let paths = get_claude_paths().map_err(|e| e.to_string())?;
-    config_writer::write_project_to_claude_json(&paths, &path, &mcps_with_enabled)
-        .map_err(|e| e.to_string())?;
-
-    // Also write .mcp.json for enabled MCPs only (legacy support)
-    let enabled_mcps: Vec<_> = mcps_with_enabled
-        .iter()
-        .filter(|(_, _, _, _, _, _, _, enabled)| *enabled)
-        .map(|(n, t, cmd, args, url, headers, env, _)| {
-            (n.clone(), t.clone(), cmd.clone(), args.clone(), url.clone(), headers.clone(), env.clone())
-        })
-        .collect();
-
     let project_path = PathBuf::from(&path);
-    config_writer::write_project_config(&project_path, &enabled_mcps).map_err(|e| e.to_string())?;
+
+    // Route to the correct config writer based on editor_type
+    match editor_type.as_str() {
+        "opencode" => {
+            // Write to OpenCode format (opencode.json in project root)
+            let enabled_mcps: Vec<_> = mcps_with_enabled
+                .iter()
+                .filter(|(_, _, _, _, _, _, _, enabled)| *enabled)
+                .map(|(n, t, cmd, args, url, headers, env, _)| {
+                    (n.clone(), t.clone(), cmd.clone(), args.clone(), url.clone(), headers.clone(), env.clone())
+                })
+                .collect();
+
+            opencode_config::write_opencode_project_config(&project_path, &enabled_mcps)
+                .map_err(|e| e.to_string())?;
+
+            info!("[Projects] Wrote OpenCode config for project {}", project_id);
+        }
+        _ => {
+            // Claude Code: Write to claude.json (includes disabled state)
+            let paths = get_claude_paths().map_err(|e| e.to_string())?;
+            config_writer::write_project_to_claude_json(&paths, &path, &mcps_with_enabled)
+                .map_err(|e| e.to_string())?;
+
+            // Also write .mcp.json for enabled MCPs only (legacy support)
+            let enabled_mcps: Vec<_> = mcps_with_enabled
+                .iter()
+                .filter(|(_, _, _, _, _, _, _, enabled)| *enabled)
+                .map(|(n, t, cmd, args, url, headers, env, _)| {
+                    (n.clone(), t.clone(), cmd.clone(), args.clone(), url.clone(), headers.clone(), env.clone())
+                })
+                .collect();
+
+            config_writer::write_project_config(&project_path, &enabled_mcps)
+                .map_err(|e| e.to_string())?;
+
+            info!("[Projects] Wrote Claude Code config for project {}", project_id);
+        }
+    }
 
     // Update has_mcp_file flag
     db.conn()

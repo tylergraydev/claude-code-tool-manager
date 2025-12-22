@@ -68,6 +68,18 @@
 				<h3 class="font-medium text-gray-900 dark:text-white truncate">
 					{project.name}
 				</h3>
+				<!-- Editor Type Badge -->
+				{#if project.editorType === 'opencode'}
+					<span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300">
+						<span class="w-3 h-3 rounded-sm bg-emerald-500 text-white flex items-center justify-center text-[8px] font-bold">O</span>
+						OpenCode
+					</span>
+				{:else}
+					<span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-primary-100 text-primary-700 dark:bg-primary-900/50 dark:text-primary-300">
+						<span class="w-3 h-3 rounded-sm bg-primary-500 text-white flex items-center justify-center text-[8px] font-bold">C</span>
+						Claude
+					</span>
+				{/if}
 				{#if project.hasMcpFile}
 					<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300">
 						.mcp.json

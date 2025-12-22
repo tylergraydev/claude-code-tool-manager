@@ -7,6 +7,7 @@ export interface Project {
 	hasMcpFile: boolean;
 	hasSettingsFile: boolean;
 	lastScannedAt: string | null;
+	editorType: 'claude_code' | 'opencode';
 	createdAt: string;
 	updatedAt: string;
 	assignedMcps: ProjectMcp[];

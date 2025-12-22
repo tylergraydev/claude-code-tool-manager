@@ -347,6 +347,52 @@ impl Database {
             )?;
         }
 
+        // Migration 5: Add editor_type column to projects for OpenCode support
+        let has_editor_type: bool = self.conn.query_row(
+            "SELECT COUNT(*) > 0 FROM pragma_table_info('projects') WHERE name = 'editor_type'",
+            [],
+            |row| row.get(0),
+        ).unwrap_or(false);
+
+        if !has_editor_type {
+            self.conn.execute_batch(
+                r#"
+                ALTER TABLE projects ADD COLUMN editor_type TEXT DEFAULT 'claude_code';
+                "#,
+            )?;
+        }
+
+        // Migration 6: Create app_settings table for application preferences
+        self.conn.execute_batch(
+            r#"
+            CREATE TABLE IF NOT EXISTS app_settings (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL,
+                updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+            );
+
+            -- Insert default editor setting if not exists
+            INSERT OR IGNORE INTO app_settings (key, value) VALUES ('default_editor', 'claude_code');
+            "#,
+        )?;
+
+        Ok(())
+    }
+
+    // App settings methods
+    pub fn get_setting(&self, key: &str) -> Option<String> {
+        self.conn.query_row(
+            "SELECT value FROM app_settings WHERE key = ?",
+            [key],
+            |row| row.get(0),
+        ).ok()
+    }
+
+    pub fn set_setting(&self, key: &str, value: &str) -> Result<()> {
+        self.conn.execute(
+            "INSERT OR REPLACE INTO app_settings (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)",
+            [key, value],
+        )?;
         Ok(())
     }
 }

@@ -9,9 +9,10 @@
 		onEdit?: (mcp: Mcp) => void;
 		onDelete?: (mcp: Mcp) => void;
 		onDuplicate?: (mcp: Mcp) => void;
+		onTest?: (mcp: Mcp) => void;
 	};
 
-	let { onEdit, onDelete, onDuplicate }: Props = $props();
+	let { onEdit, onDelete, onDuplicate, onTest }: Props = $props();
 
 	const typeFilters: { value: 'all' | 'stdio' | 'sse' | 'http'; label: string; icon: typeof Package }[] = [
 		{ value: 'all', label: 'All', icon: Package },
@@ -78,6 +79,7 @@
 					{onEdit}
 					{onDelete}
 					{onDuplicate}
+					{onTest}
 				/>
 			{/each}
 		</div>

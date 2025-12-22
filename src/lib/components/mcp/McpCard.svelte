@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { Mcp } from '$lib/types';
-	import { Plug, Globe, Server, MoreVertical, Edit, Copy, Trash2 } from 'lucide-svelte';
+	import { Plug, Globe, Server, MoreVertical, Edit, Copy, Trash2, Play } from 'lucide-svelte';
 
 	type Props = {
 		mcp: Mcp;
@@ -8,6 +8,7 @@
 		onEdit?: (mcp: Mcp) => void;
 		onDelete?: (mcp: Mcp) => void;
 		onDuplicate?: (mcp: Mcp) => void;
+		onTest?: (mcp: Mcp) => void;
 	};
 
 	let {
@@ -15,7 +16,8 @@
 		showActions = true,
 		onEdit,
 		onDelete,
-		onDuplicate
+		onDuplicate,
+		onTest
 	}: Props = $props();
 
 	let showMenu = $state(false);
@@ -97,6 +99,18 @@
 						class="absolute right-0 top-full mt-1 w-40 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-10"
 						onclick={(e) => e.stopPropagation()}
 					>
+						{#if onTest && mcp.type === 'stdio'}
+							<button
+								onclick={() => {
+									onTest(mcp);
+									closeMenu();
+								}}
+								class="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+							>
+								<Play class="w-4 h-4" />
+								Test
+							</button>
+						{/if}
 						{#if onEdit}
 							<button
 								onclick={() => {
