@@ -15,9 +15,13 @@ pub async fn run_startup_scan(app: &tauri::AppHandle) -> Result<()> {
     let db = app.state::<std::sync::Mutex<Database>>();
     let db = db.lock().map_err(|e| anyhow::anyhow!("{}", e))?;
 
-    // First scan claude.json for projects and MCPs
+    // First scan global MCPs from claude.json
+    let global_mcp_count = scan_global_mcps_from_claude_json(&db)?;
+    log::info!("Imported {} global MCPs from claude.json", global_mcp_count);
+
+    // Then scan claude.json for projects and their MCPs
     let claude_json_count = scan_claude_json(&db)?;
-    log::info!("Imported {} MCPs from claude.json", claude_json_count);
+    log::info!("Imported {} project MCPs from claude.json", claude_json_count);
 
     // Then scan plugins/marketplaces for additional MCPs
     let plugin_count = scan_plugins(&db)?;
@@ -56,6 +60,66 @@ pub async fn run_startup_scan(app: &tauri::AppHandle) -> Result<()> {
     log::info!("Found {} agents from OpenCode", opencode_agent_count);
 
     Ok(())
+}
+
+/// Scan global MCPs from claude.json (root mcpServers)
+pub fn scan_global_mcps_from_claude_json(db: &Database) -> Result<usize> {
+    let all_mcps = match claude_json::get_all_mcps_from_claude_json() {
+        Ok(m) => m,
+        Err(e) => {
+            log::warn!("Failed to read MCPs from claude.json: {}", e);
+            return Ok(0);
+        }
+    };
+
+    let mut count = 0;
+
+    // Only process global MCPs (those without a project_path)
+    for mcp in all_mcps.iter().filter(|m| m.project_path.is_none()) {
+        // Get or create the MCP in the library
+        let mcp_id = get_or_create_mcp(
+            db,
+            &mcp.name,
+            &mcp.mcp_type,
+            mcp.command.as_deref(),
+            mcp.args.as_ref(),
+            mcp.url.as_deref(),
+            mcp.headers.as_ref(),
+            mcp.env.as_ref(),
+            "~/.claude.json",
+        )?;
+
+        // Add to global_mcps table if not already there
+        let existing: Option<i64> = db
+            .conn()
+            .query_row(
+                "SELECT id FROM global_mcps WHERE mcp_id = ?",
+                params![mcp_id],
+                |row| row.get(0),
+            )
+            .ok();
+
+        if existing.is_none() {
+            // Get next display order
+            let next_order: i64 = db
+                .conn()
+                .query_row(
+                    "SELECT COALESCE(MAX(display_order), 0) + 1 FROM global_mcps",
+                    [],
+                    |row| row.get(0),
+                )
+                .unwrap_or(1);
+
+            db.conn().execute(
+                "INSERT INTO global_mcps (mcp_id, is_enabled, display_order) VALUES (?, ?, ?)",
+                params![mcp_id, mcp.is_enabled, next_order],
+            )?;
+        }
+
+        count += 1;
+    }
+
+    Ok(count)
 }
 
 /// Scan claude.json for projects and their MCPs
