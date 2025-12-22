@@ -6,10 +6,15 @@ use std::fs;
 
 use crate::utils::paths::{get_claude_paths, normalize_path};
 
+/// Default MCP type when not specified (stdio is the Claude Code default)
+fn default_mcp_type() -> String {
+    "stdio".to_string()
+}
+
 /// MCP server configuration as stored in claude.json
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ClaudeJsonMcpServer {
-    #[serde(rename = "type")]
+    #[serde(rename = "type", default = "default_mcp_type")]
     pub mcp_type: String,
 
     // stdio fields
