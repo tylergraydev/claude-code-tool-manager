@@ -1,0 +1,83 @@
+name: Version Sync
+
+on:
+  push:
+    branches:
+      - '**'
+    paths:
+      - 'package.json'
+      - 'src-tauri/tauri.conf.json'
+  pull_request:
+    branches:
+      - '**'
+    paths:
+      - 'package.json'
+      - 'src-tauri/tauri.conf.json'
+
+jobs:
+  sync-versions:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 20
+
+      - name: Check and sync versions
+        id: sync
+        run: |
+          # Extract versions
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          TAURI_VERSION=$(node -p "require('./src-tauri/tauri.conf.json').version")
+
+          echo "package.json version: $PKG_VERSION"
+          echo "tauri.conf.json version: $TAURI_VERSION"
+
+          if [ "$PKG_VERSION" != "$TAURI_VERSION" ]; then
+            echo "❌ Version mismatch detected!"
+            echo "mismatch=true" >> $GITHUB_OUTPUT
+            echo "pkg_version=$PKG_VERSION" >> $GITHUB_OUTPUT
+            echo "tauri_version=$TAURI_VERSION" >> $GITHUB_OUTPUT
+
+            # Update tauri.conf.json with package.json version
+            node -e "
+              const fs = require('fs');
+              const tauriConfig = JSON.parse(fs.readFileSync('./src-tauri/tauri.conf.json', 'utf8'));
+              tauriConfig.version = '$PKG_VERSION';
+              fs.writeFileSync('./src-tauri/tauri.conf.json', JSON.stringify(tauriConfig, null, 2) + '\n');
+            "
+
+            echo "✅ Updated tauri.conf.json to version $PKG_VERSION"
+          else
+            echo "✅ Versions are in sync"
+            echo "mismatch=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Commit version sync
+        if: steps.sync.outputs.mismatch == 'true' && github.event_name == 'push'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add src-tauri/tauri.conf.json
+          git commit -m "chore: Sync tauri.conf.json version to ${{ steps.sync.outputs.pkg_version }}
+
+          Auto-synced from package.json version
+          Previous version: ${{ steps.sync.outputs.tauri_version }}
+          New version: ${{ steps.sync.outputs.pkg_version }}"
+          git push
+
+      - name: Fail on version mismatch (PR only)
+        if: steps.sync.outputs.mismatch == 'true' && github.event_name == 'pull_request'
+        run: |
+          echo "::error::Version mismatch detected! package.json (${{ steps.sync.outputs.pkg_version }}) != tauri.conf.json (${{ steps.sync.outputs.tauri_version }})"
+          echo "Please run 'npm run sync-version' or manually update tauri.conf.json"
+          exit 1

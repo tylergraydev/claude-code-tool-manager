@@ -11,7 +11,8 @@
     "test": "vitest",
     "test:ui": "vitest --ui",
     "test:run": "vitest run",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "sync-version": "node -e \"const fs=require('fs');const pkg=require('./package.json');const tauri=require('./src-tauri/tauri.conf.json');if(pkg.version!==tauri.version){tauri.version=pkg.version;fs.writeFileSync('./src-tauri/tauri.conf.json',JSON.stringify(tauri,null,2)+'\\n');console.log('✅ Synced tauri.conf.json to version',pkg.version)}else{console.log('✅ Versions already in sync')}\""
   },
   "dependencies": {
     "@tauri-apps/api": "^2",
