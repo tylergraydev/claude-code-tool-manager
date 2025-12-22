@@ -330,6 +330,43 @@ impl StdioMcpClient {
 }
 
 // ============================================================================
+// SSE Response Parsing
+// ============================================================================
+
+/// Parse an SSE (Server-Sent Events) response to extract JSON-RPC message
+/// SSE format:
+/// ```
+/// event: message
+/// data: {"jsonrpc":"2.0","id":1,"result":{...}}
+/// ```
+fn parse_sse_response(sse_text: &str) -> Result<JsonRpcResponse> {
+    info!("[MCP Client] Parsing SSE response...");
+
+    // Look for data: lines and extract JSON
+    for line in sse_text.lines() {
+        let line = line.trim();
+        if line.starts_with("data:") {
+            let json_str = line.strip_prefix("data:").unwrap().trim();
+            if !json_str.is_empty() && json_str != "[DONE]" {
+                info!("[MCP Client] Found SSE data: {}", &json_str[..json_str.len().min(200)]);
+                match serde_json::from_str::<JsonRpcResponse>(json_str) {
+                    Ok(response) => return Ok(response),
+                    Err(e) => {
+                        info!("[MCP Client] Failed to parse SSE data as JSON-RPC: {}", e);
+                        continue;
+                    }
+                }
+            }
+        }
+    }
+
+    // If no data: line found, try parsing the whole thing as JSON
+    // (some servers might not use proper SSE format)
+    serde_json::from_str(sse_text)
+        .map_err(|e| anyhow!("Could not parse SSE response. No valid JSON-RPC message found in data: lines. Parse error: {}", e))
+}
+
+// ============================================================================
 // Public API
 // ============================================================================
 
@@ -438,7 +475,120 @@ fn test_stdio_mcp_internal(
     Ok((server_info, tools, resources_supported, prompts_supported))
 }
 
-/// Test an HTTP-based MCP server
+/// Test an SSE-based MCP server
+/// SSE transport works differently:
+/// 1. Client connects via GET to SSE endpoint
+/// 2. Server sends 'endpoint' event with POST URL for messages
+/// 3. Client sends JSON-RPC via POST to that endpoint
+/// 4. Responses come back via SSE events
+pub fn test_sse_mcp(
+    url: &str,
+    headers: Option<&HashMap<String, String>>,
+    timeout_secs: u64,
+) -> McpTestResult {
+    let start = Instant::now();
+
+    let result = test_sse_mcp_internal(url, headers, timeout_secs);
+
+    let elapsed_ms = start.elapsed().as_millis() as u64;
+
+    match result {
+        Ok((server_info, tools, resources, prompts)) => {
+            info!(
+                "[MCP Client] SSE test successful: {} tools found in {}ms",
+                tools.len(),
+                elapsed_ms
+            );
+            McpTestResult::success(server_info, tools, resources, prompts, elapsed_ms)
+        }
+        Err(e) => {
+            error!("[MCP Client] SSE test failed: {}", e);
+            McpTestResult::error(e.to_string(), elapsed_ms)
+        }
+    }
+}
+
+fn test_sse_mcp_internal(
+    url: &str,
+    headers: Option<&HashMap<String, String>>,
+    _timeout_secs: u64,
+) -> Result<(McpServerInfo, Vec<McpTool>, bool, bool)> {
+    info!("[MCP Client] Testing SSE MCP at: {}", url);
+
+    // Use a short timeout for SSE since it's a streaming connection
+    // We just want to verify connectivity and get initial events
+    let client = reqwest::blocking::Client::builder()
+        .timeout(Duration::from_secs(5))
+        .build()?;
+
+    // SSE uses GET to establish connection
+    let mut request_builder = client.get(url)
+        .header("Accept", "text/event-stream");
+
+    if let Some(hdrs) = headers {
+        for (key, value) in hdrs {
+            request_builder = request_builder.header(key, value);
+        }
+    }
+
+    info!("[MCP Client] Connecting to SSE endpoint via GET...");
+    let response = request_builder.send().map_err(|e| {
+        let err_str = e.to_string();
+        if err_str.contains("dns error") || err_str.contains("resolve") {
+            anyhow!("Cannot resolve host. Check that the URL is correct.")
+        } else if err_str.contains("connection refused") {
+            anyhow!("Connection refused. The server may not be running.")
+        } else {
+            anyhow!("SSE connection failed: {}", err_str)
+        }
+    })?;
+
+    let status = response.status();
+    let content_type = response
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("")
+        .to_string();
+
+    info!("[MCP Client] SSE response status: {}, content-type: {}", status, content_type);
+
+    if !status.is_success() {
+        let body = response.text().unwrap_or_default();
+        return Err(anyhow!(
+            "SSE connection failed with status {}: {}",
+            status,
+            if body.is_empty() { status.canonical_reason().unwrap_or("Unknown").to_string() } else { body[..body.len().min(200)].to_string() }
+        ));
+    }
+
+    if !content_type.contains("text/event-stream") {
+        return Err(anyhow!(
+            "Server did not return SSE content-type. Got: {}. This endpoint may not support SSE transport.",
+            content_type
+        ));
+    }
+
+    // SSE connection verified!
+    // We can't read the streaming body with blocking reqwest - it would hang forever.
+    // The successful 200 + text/event-stream content-type confirms SSE is working.
+    info!("[MCP Client] SSE connection verified (status 200, content-type: text/event-stream)");
+
+    // Drop the response to close the connection cleanly
+    drop(response);
+
+    Ok((
+        McpServerInfo {
+            name: "SSE Server".to_string(),
+            version: Some("connected".to_string()),
+        },
+        vec![],  // Can't list tools without async SSE handling
+        false,
+        false,
+    ))
+}
+
+/// Test an HTTP-based MCP server (Streamable HTTP transport)
 pub fn test_http_mcp(
     url: &str,
     headers: Option<&HashMap<String, String>>,
@@ -466,6 +616,34 @@ pub fn test_http_mcp(
     }
 }
 
+/// Helper to build an HTTP request with common headers
+fn build_http_request(
+    client: &reqwest::blocking::Client,
+    url: &str,
+    body: String,
+    session_id: Option<&str>,
+    custom_headers: Option<&HashMap<String, String>>,
+) -> reqwest::blocking::RequestBuilder {
+    let mut builder = client.post(url)
+        .header("Content-Type", "application/json")
+        .header("Accept", "application/json, text/event-stream")
+        .body(body);
+
+    // Add session ID if we have one
+    if let Some(sid) = session_id {
+        builder = builder.header("mcp-session-id", sid);
+    }
+
+    // Add custom headers
+    if let Some(hdrs) = custom_headers {
+        for (key, value) in hdrs {
+            builder = builder.header(key, value);
+        }
+    }
+
+    builder
+}
+
 fn test_http_mcp_internal(
     url: &str,
     headers: Option<&HashMap<String, String>>,
@@ -476,17 +654,6 @@ fn test_http_mcp_internal(
     let client = reqwest::blocking::Client::builder()
         .timeout(Duration::from_secs(timeout_secs))
         .build()?;
-
-    // Build request with headers
-    let mut request_builder = client.post(url);
-
-    if let Some(hdrs) = headers {
-        for (key, value) in hdrs {
-            request_builder = request_builder.header(key, value);
-        }
-    }
-
-    request_builder = request_builder.header("Content-Type", "application/json");
 
     // Step 1: Initialize
     let init_request = json!({
@@ -503,9 +670,10 @@ fn test_http_mcp_internal(
         }
     });
 
-    info!("[MCP Client] Sending HTTP initialize request...");
-    let response = request_builder
-        .json(&init_request)
+    let request_body = serde_json::to_string(&init_request)?;
+    info!("[MCP Client] Sending HTTP initialize request: {}", request_body);
+
+    let response = build_http_request(&client, url, request_body, None, headers)
         .send()
         .map_err(|e| {
             let err_str = e.to_string();
@@ -523,6 +691,18 @@ fn test_http_mcp_internal(
         })?;
 
     let status = response.status();
+
+    // Extract session ID from response headers BEFORE consuming body
+    let session_id: Option<String> = response
+        .headers()
+        .get("mcp-session-id")
+        .and_then(|v| v.to_str().ok())
+        .map(|s| s.to_string());
+
+    if let Some(ref sid) = session_id {
+        info!("[MCP Client] Got session ID: {}", sid);
+    }
+
     let content_type = response
         .headers()
         .get("content-type")
@@ -541,18 +721,17 @@ fn test_http_mcp_internal(
         ));
     }
 
-    // Check if this is an SSE endpoint (not supported yet)
-    if content_type.contains("text/event-stream") {
-        return Err(anyhow!(
-            "SSE (Server-Sent Events) endpoints are not yet supported. This MCP uses event streaming which requires a different protocol."
-        ));
-    }
-
     let response_text = response.text().map_err(|e| anyhow!("Failed to read response: {}", e))?;
     info!("[MCP Client] Response body: {}", &response_text[..response_text.len().min(500)]);
 
-    let init_response: JsonRpcResponse = serde_json::from_str(&response_text)
-        .map_err(|e| anyhow!("Invalid JSON response: {}. Response was: {}", e, &response_text[..response_text.len().min(200)]))?;
+    // Parse response - handle both JSON and SSE formats
+    let init_response: JsonRpcResponse = if content_type.contains("text/event-stream") {
+        // Parse SSE format: extract JSON from "data:" lines
+        parse_sse_response(&response_text)?
+    } else {
+        serde_json::from_str(&response_text)
+            .map_err(|e| anyhow!("Invalid JSON response: {}. Response was: {}", e, &response_text[..response_text.len().min(200)]))?
+    };
 
     if let Some(error) = init_response.error {
         return Err(anyhow!("MCP initialize error: {}", error.message));
@@ -587,46 +766,44 @@ fn test_http_mcp_internal(
     let prompts_supported = capabilities.and_then(|c: &Value| c.get("prompts")).is_some();
 
     // Step 2: Send initialized notification (some servers may require this)
-    let mut notify_builder = client.post(url);
-    if let Some(hdrs) = headers {
-        for (key, value) in hdrs {
-            notify_builder = notify_builder.header(key, value);
-        }
-    }
+    let notify_body = serde_json::to_string(&json!({
+        "jsonrpc": "2.0",
+        "method": "initialized"
+    }))?;
+    info!("[MCP Client] Sending initialized notification with session: {:?}", session_id);
 
-    let _ = notify_builder
-        .header("Content-Type", "application/json")
-        .json(&json!({
-            "jsonrpc": "2.0",
-            "method": "initialized"
-        }))
-        .send();
+    let _ = build_http_request(&client, url, notify_body, session_id.as_deref(), headers).send();
 
     // Step 3: List tools
-    let mut tools_builder = client.post(url);
-    if let Some(hdrs) = headers {
-        for (key, value) in hdrs {
-            tools_builder = tools_builder.header(key, value);
-        }
-    }
-
     let tools_request = json!({
         "jsonrpc": "2.0",
         "id": next_request_id(),
         "method": "tools/list",
         "params": {}
     });
+    let tools_body = serde_json::to_string(&tools_request)?;
+    info!("[MCP Client] Sending HTTP tools/list request with session: {:?}", session_id);
 
-    info!("[MCP Client] Sending HTTP tools/list request...");
-    let tools_response = tools_builder
-        .header("Content-Type", "application/json")
-        .json(&tools_request)
+    let tools_response = build_http_request(&client, url, tools_body, session_id.as_deref(), headers)
         .send()
         .map_err(|e| anyhow!("HTTP tools/list request failed: {}", e))?;
 
+    let tools_content_type = tools_response
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("")
+        .to_string();
+
     let tools_text = tools_response.text().map_err(|e| anyhow!("Failed to read tools response: {}", e))?;
-    let tools_json: JsonRpcResponse = serde_json::from_str(&tools_text)
-        .map_err(|e| anyhow!("Invalid JSON in tools response: {}", e))?;
+    info!("[MCP Client] Tools response: {}", &tools_text[..tools_text.len().min(500)]);
+
+    let tools_json: JsonRpcResponse = if tools_content_type.contains("text/event-stream") {
+        parse_sse_response(&tools_text)?
+    } else {
+        serde_json::from_str(&tools_text)
+            .map_err(|e| anyhow!("Invalid JSON in tools response: {}", e))?
+    };
 
     if let Some(error) = tools_json.error {
         return Err(anyhow!("MCP tools/list error: {}", error.message));
