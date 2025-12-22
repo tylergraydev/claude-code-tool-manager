@@ -436,9 +436,135 @@ fn extract_first_paragraph(content: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rstest::rstest;
+
+    // =========================================================================
+    // should_skip_file tests
+    // =========================================================================
+
+    #[rstest]
+    #[case("readme.md", true)]
+    #[case("README.md", true)]
+    #[case("README", true)]
+    #[case("contributing.md", true)]
+    #[case("CONTRIBUTING.md", true)]
+    #[case("license.md", true)]
+    #[case("LICENSE", true)]
+    #[case("changelog.md", true)]
+    #[case("code_of_conduct.md", true)]
+    #[case("security.md", true)]
+    #[case("claude.md", true)]
+    fn test_should_skip_junk_files(#[case] path: &str, #[case] expected: bool) {
+        assert_eq!(should_skip_file(path), expected);
+    }
+
+    #[rstest]
+    #[case(".github/workflows/ci.yml", true)]
+    #[case(".vscode/settings.json", true)]
+    #[case("node_modules/package/index.js", true)]
+    #[case("dist/bundle.js", true)]
+    #[case("build/output.js", true)]
+    #[case("__pycache__/module.pyc", true)]
+    #[case(".git/config", true)]
+    fn test_should_skip_junk_directories(#[case] path: &str, #[case] expected: bool) {
+        assert_eq!(should_skip_file(path), expected);
+    }
+
+    #[rstest]
+    #[case(".hidden-file", true)]
+    #[case(".env", true)]
+    #[case(".gitignore", true)]
+    fn test_should_skip_hidden_files(#[case] path: &str, #[case] expected: bool) {
+        assert_eq!(should_skip_file(path), expected);
+    }
+
+    #[rstest]
+    #[case("commands/review.md", false)]
+    #[case("skills/testing/SKILL.md", false)]
+    #[case("agents/code-reviewer.md", false)]
+    #[case("src/main.rs", false)]
+    #[case("tools/mcp-server.json", false)]
+    fn test_should_not_skip_valid_files(#[case] path: &str, #[case] expected: bool) {
+        assert_eq!(should_skip_file(path), expected);
+    }
+
+    // =========================================================================
+    // is_valid_mcp_url tests
+    // =========================================================================
+
+    #[rstest]
+    #[case("https://github.com/owner/repo", true)]
+    #[case("http://localhost:3000", true)]
+    #[case("https://example.com/mcp-server", true)]
+    fn test_is_valid_mcp_url_valid(#[case] url: &str, #[case] expected: bool) {
+        assert_eq!(is_valid_mcp_url(url), expected);
+    }
+
+    #[rstest]
+    #[case("https://shields.io/badge.svg", false)]
+    #[case("https://img.shields.io/badge/test.svg", false)]
+    #[case("https://example.com/image.png", false)]
+    #[case("https://example.com/icon.jpg", false)]
+    #[case("https://example.com/logo.gif", false)]
+    #[case("relative/path", false)]
+    #[case("ftp://example.com", false)]
+    #[case("not-a-url", false)]
+    fn test_is_valid_mcp_url_invalid(#[case] url: &str, #[case] expected: bool) {
+        assert_eq!(is_valid_mcp_url(url), expected);
+    }
+
+    // =========================================================================
+    // is_valid_skill_name tests
+    // =========================================================================
+
+    #[rstest]
+    #[case("review", true)]
+    #[case("code-review", true)]
+    #[case("test_skill", true)]
+    #[case("my-awesome-skill", true)]
+    fn test_is_valid_skill_name_valid(#[case] name: &str, #[case] expected: bool) {
+        assert_eq!(is_valid_skill_name(name), expected);
+    }
+
+    #[rstest]
+    #[case("a", false)]           // Too short
+    #[case("---", false)]         // Only dashes
+    #[case("123", false)]         // Only numbers
+    #[case("1-2-3", false)]       // Only numbers and dashes
+    #[case("icon.svg", false)]    // Image file
+    #[case("logo.png", false)]    // Image file
+    #[case("photo.jpg", false)]   // Image file
+    #[case("anim.gif", false)]    // Image file
+    fn test_is_valid_skill_name_invalid(#[case] name: &str, #[case] expected: bool) {
+        assert_eq!(is_valid_skill_name(name), expected);
+    }
+
+    // =========================================================================
+    // is_valid_skill_url tests
+    // =========================================================================
+
+    #[rstest]
+    #[case("commands/review.md", true)]
+    #[case("https://github.com/user/repo", true)]
+    #[case("skills/test.md", true)]
+    fn test_is_valid_skill_url_valid(#[case] url: &str, #[case] expected: bool) {
+        assert_eq!(is_valid_skill_url(url), expected);
+    }
+
+    #[rstest]
+    #[case("icon.svg", false)]
+    #[case("https://shields.io/badge.svg", false)]
+    #[case("image.png", false)]
+    fn test_is_valid_skill_url_invalid(#[case] url: &str, #[case] expected: bool) {
+        assert_eq!(is_valid_skill_url(url), expected);
+    }
+
+    // =========================================================================
+    // parse_readme_for_mcps tests
+    // =========================================================================
 
     #[test]
-    fn test_parse_readme_for_mcps() {
+    fn test_parse_readme_for_mcps_list_format() {
         let content = r#"
 # Awesome MCP Servers
 
@@ -453,7 +579,55 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_skill_file() {
+    fn test_parse_readme_for_mcps_table_format() {
+        let content = r#"
+| Name | Description |
+|------|-------------|
+| [MCP Server](https://github.com/x/y) | A great server |
+"#;
+
+        let items = parse_readme_for_mcps(content);
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].name, "MCP Server");
+    }
+
+    #[test]
+    fn test_parse_readme_for_mcps_filters_badges() {
+        let content = r#"
+- [Valid MCP](https://github.com/owner/repo) - A valid MCP
+- [Badge](https://shields.io/badge.svg) - Should be filtered
+- [Image](https://example.com/logo.png) - Should be filtered
+"#;
+
+        let items = parse_readme_for_mcps(content);
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].name, "Valid MCP");
+    }
+
+    #[test]
+    fn test_parse_readme_for_mcps_no_duplicates() {
+        let content = r#"
+- [Same MCP](https://github.com/owner/repo1) - First entry
+- [Same MCP](https://github.com/owner/repo2) - Duplicate name
+"#;
+
+        let items = parse_readme_for_mcps(content);
+        assert_eq!(items.len(), 1);
+    }
+
+    #[test]
+    fn test_parse_readme_for_mcps_empty_content() {
+        let content = "";
+        let items = parse_readme_for_mcps(content);
+        assert_eq!(items.len(), 0);
+    }
+
+    // =========================================================================
+    // parse_skill_file tests
+    // =========================================================================
+
+    #[test]
+    fn test_parse_skill_file_with_frontmatter() {
         let content = r#"---
 description: Review code for issues
 allowed-tools: Read, Grep
@@ -471,7 +645,94 @@ Review the provided code for potential issues.
     }
 
     #[test]
-    fn test_parse_frontmatter() {
+    fn test_parse_skill_file_command_type() {
+        let content = r#"---
+description: A simple command
+---
+
+Do something simple.
+"#;
+
+        let item = parse_skill_file(content, "commands/simple.md").unwrap();
+        assert_eq!(item.item_type, "command");
+    }
+
+    #[test]
+    fn test_parse_skill_file_no_frontmatter() {
+        let content = "Just plain content here.";
+
+        let item = parse_skill_file(content, "commands/plain.md").unwrap();
+        assert_eq!(item.name, "plain");
+        assert_eq!(item.description, Some("Just plain content here.".to_string()));
+    }
+
+    #[test]
+    fn test_parse_skill_file_nested_path() {
+        let content = "---\ndescription: Test\n---\nBody";
+
+        let item = parse_skill_file(content, "some/nested/path/skill-name.md").unwrap();
+        assert_eq!(item.name, "skill-name");
+    }
+
+    // =========================================================================
+    // parse_subagent_file tests
+    // =========================================================================
+
+    #[test]
+    fn test_parse_subagent_file() {
+        let content = r#"---
+description: Code review expert
+model: claude-3-opus
+tools: Read, Grep, Glob
+---
+
+You are a code review expert.
+"#;
+
+        let item = parse_subagent_file(content, "agents/code-reviewer.md").unwrap();
+        assert_eq!(item.name, "code-reviewer");
+        assert_eq!(item.item_type, "subagent");
+        assert!(item.description.unwrap().contains("Code review"));
+    }
+
+    // =========================================================================
+    // detect_item_type tests
+    // =========================================================================
+
+    #[rstest]
+    #[case("agents/helper.md", "", "subagent")]
+    #[case("subagents/reviewer.md", "", "subagent")]
+    #[case("commands/review.md", "", "skill")]
+    #[case("skills/testing.md", "", "skill")]
+    #[case("mcp/server.md", "", "mcp")]
+    #[case("servers/github.md", "", "mcp")]
+    fn test_detect_item_type_from_path(#[case] path: &str, #[case] content: &str, #[case] expected: &str) {
+        assert_eq!(detect_item_type(path, content), expected);
+    }
+
+    #[test]
+    fn test_detect_item_type_from_content_subagent() {
+        let content = "---\nmodel: claude-3-opus\ntools: Read\n---\nBody";
+        assert_eq!(detect_item_type("unknown.md", content), "subagent");
+    }
+
+    #[test]
+    fn test_detect_item_type_from_content_skill() {
+        let content = "---\nallowed-tools: Read, Grep\n---\nBody";
+        assert_eq!(detect_item_type("unknown.md", content), "skill");
+    }
+
+    #[test]
+    fn test_detect_item_type_default() {
+        assert_eq!(detect_item_type("random.md", "no hints here"), "skill");
+    }
+
+    // =========================================================================
+    // parse_frontmatter tests
+    // =========================================================================
+
+    #[test]
+    fn test_parse_frontmatter_valid() {
         let content = r#"---
 description: Test skill
 model: claude-3-opus
@@ -483,5 +744,106 @@ Body content here
         assert_eq!(fm.get("description"), Some(&"Test skill".to_string()));
         assert_eq!(fm.get("model"), Some(&"claude-3-opus".to_string()));
         assert!(body.contains("Body content"));
+    }
+
+    #[test]
+    fn test_parse_frontmatter_no_frontmatter() {
+        let content = "Just body content, no frontmatter";
+
+        let (fm, body) = parse_frontmatter(content);
+        assert!(fm.is_empty());
+        assert_eq!(body, content);
+    }
+
+    #[test]
+    fn test_parse_frontmatter_quoted_values() {
+        let content = r#"---
+description: "Quoted value"
+name: 'Single quoted'
+---
+Body"#;
+
+        let (fm, _) = parse_frontmatter(content);
+        assert_eq!(fm.get("description"), Some(&"Quoted value".to_string()));
+        assert_eq!(fm.get("name"), Some(&"Single quoted".to_string()));
+    }
+
+    #[test]
+    fn test_parse_frontmatter_normalizes_keys() {
+        let content = r#"---
+allowed_tools: Read
+allowedTools: Grep
+---
+Body"#;
+
+        let (fm, _) = parse_frontmatter(content);
+        // Underscores are converted to dashes
+        assert!(fm.contains_key("allowed-tools") || fm.contains_key("allowedtools"));
+    }
+
+    #[test]
+    fn test_parse_frontmatter_empty_values_ignored() {
+        let content = r#"---
+description: Valid
+empty:
+---
+Body"#;
+
+        let (fm, _) = parse_frontmatter(content);
+        assert_eq!(fm.len(), 1);
+        assert!(fm.contains_key("description"));
+    }
+
+    #[test]
+    fn test_parse_frontmatter_unclosed() {
+        let content = r#"---
+description: Test
+no closing delimiter"#;
+
+        let (fm, body) = parse_frontmatter(content);
+        // Should return original content when frontmatter is not properly closed
+        assert!(fm.is_empty());
+        assert_eq!(body, content);
+    }
+
+    // =========================================================================
+    // parse_readme_for_skills tests
+    // =========================================================================
+
+    #[test]
+    fn test_parse_readme_for_skills_command_pattern() {
+        let content = r#"
+## Commands
+
+- /review - Review code for issues
+- /commit - Generate commit messages
+"#;
+
+        let items = parse_readme_for_skills(content);
+        assert!(items.iter().any(|i| i.name == "review"));
+        assert!(items.iter().any(|i| i.name == "commit"));
+    }
+
+    #[test]
+    fn test_parse_readme_for_skills_md_link_pattern() {
+        let content = r#"
+- [review](commands/review.md) - Review code
+- [test](skills/test.md) - Run tests
+"#;
+
+        let items = parse_readme_for_skills(content);
+        assert!(items.len() >= 2);
+    }
+
+    #[test]
+    fn test_parse_readme_for_skills_filters_invalid() {
+        let content = r#"
+- /a - Too short name
+- /123 - Only numbers
+- [icon.svg](image.svg) - Image file
+"#;
+
+        let items = parse_readme_for_skills(content);
+        assert_eq!(items.len(), 0);
     }
 }

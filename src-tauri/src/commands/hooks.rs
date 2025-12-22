@@ -637,3 +637,575 @@ pub fn seed_hook_templates(db: State<'_, Mutex<Database>>) -> Result<(), String>
 
     Ok(())
 }
+
+// ============================================================================
+// Testable helper functions (no Tauri State dependency)
+// ============================================================================
+
+/// Create a hook directly in the database (for testing)
+pub fn create_hook_in_db(db: &Database, hook: &CreateHookRequest) -> Result<Hook, String> {
+    let tags_json = hook.tags.as_ref().map(|t| serde_json::to_string(t).unwrap());
+
+    db.conn()
+        .execute(
+            "INSERT INTO hooks (name, description, event_type, matcher, hook_type, command, prompt, timeout, tags, source)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'manual')",
+            params![
+                hook.name,
+                hook.description,
+                hook.event_type,
+                hook.matcher,
+                hook.hook_type,
+                hook.command,
+                hook.prompt,
+                hook.timeout,
+                tags_json
+            ],
+        )
+        .map_err(|e| e.to_string())?;
+
+    let id = db.conn().last_insert_rowid();
+    get_hook_by_id(db, id)
+}
+
+/// Get a hook by ID directly from the database (for testing)
+pub fn get_hook_by_id(db: &Database, id: i64) -> Result<Hook, String> {
+    let mut stmt = db
+        .conn()
+        .prepare(&format!("SELECT {} FROM hooks WHERE id = ?", HOOK_SELECT_FIELDS))
+        .map_err(|e| e.to_string())?;
+
+    stmt.query_row([id], row_to_hook).map_err(|e| e.to_string())
+}
+
+/// Get all hooks directly from the database (for testing)
+pub fn get_all_hooks_from_db(db: &Database) -> Result<Vec<Hook>, String> {
+    let mut stmt = db
+        .conn()
+        .prepare(&format!(
+            "SELECT {} FROM hooks WHERE is_template = 0 ORDER BY name",
+            HOOK_SELECT_FIELDS
+        ))
+        .map_err(|e| e.to_string())?;
+
+    let hooks: Vec<Hook> = stmt
+        .query_map([], row_to_hook)
+        .map_err(|e| e.to_string())?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    Ok(hooks)
+}
+
+/// Update a hook directly in the database (for testing)
+pub fn update_hook_in_db(db: &Database, id: i64, hook: &CreateHookRequest) -> Result<Hook, String> {
+    let tags_json = hook.tags.as_ref().map(|t| serde_json::to_string(t).unwrap());
+
+    db.conn()
+        .execute(
+            "UPDATE hooks SET name = ?, description = ?, event_type = ?, matcher = ?, hook_type = ?, command = ?, prompt = ?, timeout = ?, tags = ?, updated_at = CURRENT_TIMESTAMP
+             WHERE id = ?",
+            params![
+                hook.name,
+                hook.description,
+                hook.event_type,
+                hook.matcher,
+                hook.hook_type,
+                hook.command,
+                hook.prompt,
+                hook.timeout,
+                tags_json,
+                id
+            ],
+        )
+        .map_err(|e| e.to_string())?;
+
+    get_hook_by_id(db, id)
+}
+
+/// Delete a hook directly from the database (for testing)
+pub fn delete_hook_from_db(db: &Database, id: i64) -> Result<(), String> {
+    db.conn()
+        .execute("DELETE FROM hooks WHERE id = ?", [id])
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+/// Add a hook to global hooks directly in the database (for testing)
+pub fn add_global_hook_in_db(db: &Database, hook_id: i64) -> Result<(), String> {
+    db.conn()
+        .execute(
+            "INSERT OR IGNORE INTO global_hooks (hook_id) VALUES (?)",
+            [hook_id],
+        )
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+/// Get all global hooks directly from the database (for testing)
+pub fn get_global_hooks_from_db(db: &Database) -> Result<Vec<GlobalHook>, String> {
+    let mut stmt = db
+        .conn()
+        .prepare(&format!(
+            "SELECT gh.id, gh.hook_id, gh.is_enabled, {}
+             FROM global_hooks gh
+             JOIN hooks h ON gh.hook_id = h.id
+             ORDER BY h.name",
+            HOOK_SELECT_FIELDS_H
+        ))
+        .map_err(|e| e.to_string())?;
+
+    let hooks: Vec<GlobalHook> = stmt
+        .query_map([], |row| {
+            Ok(GlobalHook {
+                id: row.get(0)?,
+                hook_id: row.get(1)?,
+                is_enabled: row.get::<_, i32>(2)? != 0,
+                hook: row_to_hook_with_offset(row, 3)?,
+            })
+        })
+        .map_err(|e| e.to_string())?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    Ok(hooks)
+}
+
+/// Toggle a global hook directly in the database (for testing)
+pub fn toggle_global_hook_in_db(db: &Database, id: i64, enabled: bool) -> Result<(), String> {
+    db.conn()
+        .execute(
+            "UPDATE global_hooks SET is_enabled = ? WHERE id = ?",
+            params![enabled as i32, id],
+        )
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+/// Remove a global hook directly from the database (for testing)
+pub fn remove_global_hook_from_db(db: &Database, hook_id: i64) -> Result<(), String> {
+    db.conn()
+        .execute("DELETE FROM global_hooks WHERE hook_id = ?", [hook_id])
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // =========================================================================
+    // Hook CRUD tests
+    // =========================================================================
+
+    #[test]
+    fn test_create_hook_command_type() {
+        let db = Database::in_memory().unwrap();
+
+        let hook = CreateHookRequest {
+            name: "test-hook".to_string(),
+            description: Some("Test hook".to_string()),
+            event_type: "PostToolUse".to_string(),
+            matcher: Some("Write|Edit".to_string()),
+            hook_type: "command".to_string(),
+            command: Some("npm run lint".to_string()),
+            prompt: None,
+            timeout: Some(30),
+            tags: Some(vec!["lint".to_string(), "format".to_string()]),
+        };
+
+        let created = create_hook_in_db(&db, &hook).unwrap();
+
+        assert_eq!(created.name, "test-hook");
+        assert_eq!(created.description, Some("Test hook".to_string()));
+        assert_eq!(created.event_type, "PostToolUse");
+        assert_eq!(created.matcher, Some("Write|Edit".to_string()));
+        assert_eq!(created.hook_type, "command");
+        assert_eq!(created.command, Some("npm run lint".to_string()));
+        assert_eq!(created.prompt, None);
+        assert_eq!(created.timeout, Some(30));
+        assert_eq!(created.tags, Some(vec!["lint".to_string(), "format".to_string()]));
+        assert_eq!(created.source, "manual");
+        assert!(!created.is_template);
+    }
+
+    #[test]
+    fn test_create_hook_prompt_type() {
+        let db = Database::in_memory().unwrap();
+
+        let hook = CreateHookRequest {
+            name: "prompt-hook".to_string(),
+            description: None,
+            event_type: "PreToolUse".to_string(),
+            matcher: None,
+            hook_type: "prompt".to_string(),
+            command: None,
+            prompt: Some("Always verify before writing".to_string()),
+            timeout: None,
+            tags: None,
+        };
+
+        let created = create_hook_in_db(&db, &hook).unwrap();
+
+        assert_eq!(created.name, "prompt-hook");
+        assert_eq!(created.hook_type, "prompt");
+        assert_eq!(created.prompt, Some("Always verify before writing".to_string()));
+        assert_eq!(created.command, None);
+    }
+
+    #[test]
+    fn test_get_hook_by_id() {
+        let db = Database::in_memory().unwrap();
+
+        let hook = CreateHookRequest {
+            name: "findable-hook".to_string(),
+            description: Some("Can be found".to_string()),
+            event_type: "PostToolUse".to_string(),
+            matcher: None,
+            hook_type: "command".to_string(),
+            command: Some("echo hello".to_string()),
+            prompt: None,
+            timeout: None,
+            tags: None,
+        };
+
+        let created = create_hook_in_db(&db, &hook).unwrap();
+        let found = get_hook_by_id(&db, created.id).unwrap();
+
+        assert_eq!(found.id, created.id);
+        assert_eq!(found.name, "findable-hook");
+    }
+
+    #[test]
+    fn test_get_hook_by_id_not_found() {
+        let db = Database::in_memory().unwrap();
+
+        let result = get_hook_by_id(&db, 9999);
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_get_all_hooks_from_db() {
+        let db = Database::in_memory().unwrap();
+
+        // Create some hooks
+        for i in 1..=3 {
+            let hook = CreateHookRequest {
+                name: format!("hook-{}", i),
+                description: None,
+                event_type: "PostToolUse".to_string(),
+                matcher: None,
+                hook_type: "command".to_string(),
+                command: Some("cmd".to_string()),
+                prompt: None,
+                timeout: None,
+                tags: None,
+            };
+            create_hook_in_db(&db, &hook).unwrap();
+        }
+
+        let hooks = get_all_hooks_from_db(&db).unwrap();
+
+        assert_eq!(hooks.len(), 3);
+        // Should be sorted by name
+        assert_eq!(hooks[0].name, "hook-1");
+        assert_eq!(hooks[1].name, "hook-2");
+        assert_eq!(hooks[2].name, "hook-3");
+    }
+
+    #[test]
+    fn test_get_all_hooks_excludes_templates() {
+        let db = Database::in_memory().unwrap();
+
+        // Create a regular hook
+        let hook = CreateHookRequest {
+            name: "regular-hook".to_string(),
+            description: None,
+            event_type: "PostToolUse".to_string(),
+            matcher: None,
+            hook_type: "command".to_string(),
+            command: Some("cmd".to_string()),
+            prompt: None,
+            timeout: None,
+            tags: None,
+        };
+        create_hook_in_db(&db, &hook).unwrap();
+
+        // Create a template hook directly
+        db.conn()
+            .execute(
+                "INSERT INTO hooks (name, event_type, hook_type, source, is_template) VALUES (?, ?, ?, ?, 1)",
+                params!["template-hook", "PostToolUse", "command", "system"],
+            )
+            .unwrap();
+
+        let hooks = get_all_hooks_from_db(&db).unwrap();
+
+        // Should only have the regular hook
+        assert_eq!(hooks.len(), 1);
+        assert_eq!(hooks[0].name, "regular-hook");
+    }
+
+    #[test]
+    fn test_update_hook_in_db() {
+        let db = Database::in_memory().unwrap();
+
+        let hook = CreateHookRequest {
+            name: "original".to_string(),
+            description: Some("Original description".to_string()),
+            event_type: "PostToolUse".to_string(),
+            matcher: None,
+            hook_type: "command".to_string(),
+            command: Some("original-cmd".to_string()),
+            prompt: None,
+            timeout: Some(10),
+            tags: None,
+        };
+
+        let created = create_hook_in_db(&db, &hook).unwrap();
+
+        let update = CreateHookRequest {
+            name: "updated".to_string(),
+            description: Some("Updated description".to_string()),
+            event_type: "PreToolUse".to_string(),
+            matcher: Some("Bash".to_string()),
+            hook_type: "command".to_string(),
+            command: Some("updated-cmd".to_string()),
+            prompt: None,
+            timeout: Some(60),
+            tags: Some(vec!["updated".to_string()]),
+        };
+
+        let updated = update_hook_in_db(&db, created.id, &update).unwrap();
+
+        assert_eq!(updated.id, created.id);
+        assert_eq!(updated.name, "updated");
+        assert_eq!(updated.description, Some("Updated description".to_string()));
+        assert_eq!(updated.event_type, "PreToolUse");
+        assert_eq!(updated.matcher, Some("Bash".to_string()));
+        assert_eq!(updated.command, Some("updated-cmd".to_string()));
+        assert_eq!(updated.timeout, Some(60));
+        assert_eq!(updated.tags, Some(vec!["updated".to_string()]));
+        // Verify the hook was actually updated in the database
+        let refetched = get_hook_by_id(&db, created.id).unwrap();
+        assert_eq!(refetched.name, "updated");
+    }
+
+    #[test]
+    fn test_delete_hook_from_db() {
+        let db = Database::in_memory().unwrap();
+
+        let hook = CreateHookRequest {
+            name: "to-delete".to_string(),
+            description: None,
+            event_type: "PostToolUse".to_string(),
+            matcher: None,
+            hook_type: "command".to_string(),
+            command: Some("cmd".to_string()),
+            prompt: None,
+            timeout: None,
+            tags: None,
+        };
+
+        let created = create_hook_in_db(&db, &hook).unwrap();
+        delete_hook_from_db(&db, created.id).unwrap();
+
+        let result = get_hook_by_id(&db, created.id);
+        assert!(result.is_err());
+    }
+
+    // =========================================================================
+    // Global Hook tests
+    // =========================================================================
+
+    #[test]
+    fn test_add_global_hook() {
+        let db = Database::in_memory().unwrap();
+
+        let hook = CreateHookRequest {
+            name: "global-hook".to_string(),
+            description: None,
+            event_type: "PostToolUse".to_string(),
+            matcher: None,
+            hook_type: "command".to_string(),
+            command: Some("cmd".to_string()),
+            prompt: None,
+            timeout: None,
+            tags: None,
+        };
+
+        let created = create_hook_in_db(&db, &hook).unwrap();
+        add_global_hook_in_db(&db, created.id).unwrap();
+
+        let global_hooks = get_global_hooks_from_db(&db).unwrap();
+
+        assert_eq!(global_hooks.len(), 1);
+        assert_eq!(global_hooks[0].hook_id, created.id);
+        assert!(global_hooks[0].is_enabled);  // Default enabled
+    }
+
+    #[test]
+    fn test_toggle_global_hook() {
+        let db = Database::in_memory().unwrap();
+
+        let hook = CreateHookRequest {
+            name: "toggle-hook".to_string(),
+            description: None,
+            event_type: "PostToolUse".to_string(),
+            matcher: None,
+            hook_type: "command".to_string(),
+            command: Some("cmd".to_string()),
+            prompt: None,
+            timeout: None,
+            tags: None,
+        };
+
+        let created = create_hook_in_db(&db, &hook).unwrap();
+        add_global_hook_in_db(&db, created.id).unwrap();
+
+        let global_hooks = get_global_hooks_from_db(&db).unwrap();
+        let global_id = global_hooks[0].id;
+
+        // Disable
+        toggle_global_hook_in_db(&db, global_id, false).unwrap();
+        let hooks = get_global_hooks_from_db(&db).unwrap();
+        assert!(!hooks[0].is_enabled);
+
+        // Re-enable
+        toggle_global_hook_in_db(&db, global_id, true).unwrap();
+        let hooks = get_global_hooks_from_db(&db).unwrap();
+        assert!(hooks[0].is_enabled);
+    }
+
+    #[test]
+    fn test_remove_global_hook() {
+        let db = Database::in_memory().unwrap();
+
+        let hook = CreateHookRequest {
+            name: "removable-hook".to_string(),
+            description: None,
+            event_type: "PostToolUse".to_string(),
+            matcher: None,
+            hook_type: "command".to_string(),
+            command: Some("cmd".to_string()),
+            prompt: None,
+            timeout: None,
+            tags: None,
+        };
+
+        let created = create_hook_in_db(&db, &hook).unwrap();
+        add_global_hook_in_db(&db, created.id).unwrap();
+
+        // Verify it's there
+        let hooks = get_global_hooks_from_db(&db).unwrap();
+        assert_eq!(hooks.len(), 1);
+
+        // Remove
+        remove_global_hook_from_db(&db, created.id).unwrap();
+
+        // Verify it's gone
+        let hooks = get_global_hooks_from_db(&db).unwrap();
+        assert!(hooks.is_empty());
+
+        // But the hook itself should still exist
+        let found = get_hook_by_id(&db, created.id).unwrap();
+        assert_eq!(found.name, "removable-hook");
+    }
+
+    #[test]
+    fn test_add_global_hook_duplicate_ignored() {
+        let db = Database::in_memory().unwrap();
+
+        let hook = CreateHookRequest {
+            name: "dup-hook".to_string(),
+            description: None,
+            event_type: "PostToolUse".to_string(),
+            matcher: None,
+            hook_type: "command".to_string(),
+            command: Some("cmd".to_string()),
+            prompt: None,
+            timeout: None,
+            tags: None,
+        };
+
+        let created = create_hook_in_db(&db, &hook).unwrap();
+
+        // Add twice
+        add_global_hook_in_db(&db, created.id).unwrap();
+        add_global_hook_in_db(&db, created.id).unwrap();
+
+        // Should only have one
+        let hooks = get_global_hooks_from_db(&db).unwrap();
+        assert_eq!(hooks.len(), 1);
+    }
+
+    // =========================================================================
+    // Edge case tests
+    // =========================================================================
+
+    #[test]
+    fn test_hook_with_all_event_types() {
+        let db = Database::in_memory().unwrap();
+
+        let event_types = vec!["PreToolUse", "PostToolUse", "Notification", "Stop"];
+
+        for event_type in event_types {
+            let hook = CreateHookRequest {
+                name: format!("hook-{}", event_type),
+                description: None,
+                event_type: event_type.to_string(),
+                matcher: None,
+                hook_type: "command".to_string(),
+                command: Some("cmd".to_string()),
+                prompt: None,
+                timeout: None,
+                tags: None,
+            };
+
+            let created = create_hook_in_db(&db, &hook).unwrap();
+            assert_eq!(created.event_type, event_type);
+        }
+    }
+
+    #[test]
+    fn test_hook_with_complex_matcher() {
+        let db = Database::in_memory().unwrap();
+
+        let hook = CreateHookRequest {
+            name: "complex-matcher".to_string(),
+            description: None,
+            event_type: "PostToolUse".to_string(),
+            matcher: Some("Write|Edit|Bash|Task".to_string()),
+            hook_type: "command".to_string(),
+            command: Some("cmd".to_string()),
+            prompt: None,
+            timeout: None,
+            tags: None,
+        };
+
+        let created = create_hook_in_db(&db, &hook).unwrap();
+        assert_eq!(created.matcher, Some("Write|Edit|Bash|Task".to_string()));
+    }
+
+    #[test]
+    fn test_hook_with_empty_tags() {
+        let db = Database::in_memory().unwrap();
+
+        let hook = CreateHookRequest {
+            name: "empty-tags".to_string(),
+            description: None,
+            event_type: "PostToolUse".to_string(),
+            matcher: None,
+            hook_type: "command".to_string(),
+            command: Some("cmd".to_string()),
+            prompt: None,
+            timeout: None,
+            tags: Some(vec![]),
+        };
+
+        let created = create_hook_in_db(&db, &hook).unwrap();
+        // Empty vec serializes to "[]" which deserializes back to Some(vec![])
+        assert_eq!(created.tags, Some(vec![]));
+    }
+}

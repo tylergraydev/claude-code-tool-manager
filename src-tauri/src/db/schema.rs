@@ -13,6 +13,22 @@ impl Database {
         Ok(Self { conn })
     }
 
+    /// Create a Database from an existing connection (for testing with in-memory databases)
+    #[cfg(test)]
+    pub fn from_connection(conn: Connection) -> Self {
+        Self { conn }
+    }
+
+    /// Create an in-memory database for testing
+    #[cfg(test)]
+    pub fn in_memory() -> Result<Self> {
+        let conn = Connection::open_in_memory()?;
+        conn.execute_batch("PRAGMA foreign_keys = ON;")?;
+        let db = Self { conn };
+        db.run_migrations()?;
+        Ok(db)
+    }
+
     pub fn conn(&self) -> &Connection {
         &self.conn
     }

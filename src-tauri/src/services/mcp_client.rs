@@ -338,7 +338,7 @@ impl StdioMcpClient {
 
 /// Parse an SSE (Server-Sent Events) response to extract JSON-RPC message
 /// SSE format:
-/// ```
+/// ```text
 /// event: message
 /// data: {"jsonrpc":"2.0","id":1,"result":{...}}
 /// ```
@@ -1143,6 +1143,10 @@ fn test_http_mcp_internal(
 mod tests {
     use super::*;
 
+    // =========================================================================
+    // McpTestResult tests
+    // =========================================================================
+
     #[test]
     fn test_mcp_test_result_success() {
         let result = McpTestResult::success(
@@ -1157,6 +1161,42 @@ mod tests {
         );
         assert!(result.success);
         assert!(result.error.is_none());
+        assert!(result.server_info.is_some());
+        assert!(result.resources_supported);
+        assert!(!result.prompts_supported);
+        assert_eq!(result.response_time_ms, 100);
+    }
+
+    #[test]
+    fn test_mcp_test_result_success_with_tools() {
+        let tools = vec![
+            McpTool {
+                name: "read_file".to_string(),
+                description: Some("Read a file".to_string()),
+                input_schema: None,
+            },
+            McpTool {
+                name: "write_file".to_string(),
+                description: Some("Write a file".to_string()),
+                input_schema: Some(json!({"type": "object"})),
+            },
+        ];
+
+        let result = McpTestResult::success(
+            McpServerInfo {
+                name: "filesystem".to_string(),
+                version: Some("1.0.0".to_string()),
+            },
+            tools,
+            true,
+            true,
+            250,
+        );
+
+        assert_eq!(result.tools.len(), 2);
+        assert_eq!(result.tools[0].name, "read_file");
+        assert!(result.resources_supported);
+        assert!(result.prompts_supported);
     }
 
     #[test]
@@ -1164,5 +1204,462 @@ mod tests {
         let result = McpTestResult::error("Test error".to_string(), 50);
         assert!(!result.success);
         assert_eq!(result.error, Some("Test error".to_string()));
+        assert!(result.server_info.is_none());
+        assert!(result.tools.is_empty());
+        assert!(!result.resources_supported);
+        assert!(!result.prompts_supported);
+    }
+
+    #[test]
+    fn test_mcp_test_result_error_preserves_time() {
+        let result = McpTestResult::error("Timeout".to_string(), 30000);
+        assert_eq!(result.response_time_ms, 30000);
+    }
+
+    // =========================================================================
+    // McpServerInfo tests
+    // =========================================================================
+
+    #[test]
+    fn test_mcp_server_info_deserialization() {
+        let json = r#"{"name": "test-server", "version": "2.0.0"}"#;
+        let info: McpServerInfo = serde_json::from_str(json).unwrap();
+        assert_eq!(info.name, "test-server");
+        assert_eq!(info.version, Some("2.0.0".to_string()));
+    }
+
+    #[test]
+    fn test_mcp_server_info_deserialization_no_version() {
+        let json = r#"{"name": "minimal-server"}"#;
+        let info: McpServerInfo = serde_json::from_str(json).unwrap();
+        assert_eq!(info.name, "minimal-server");
+        assert!(info.version.is_none());
+    }
+
+    // =========================================================================
+    // McpTool tests
+    // =========================================================================
+
+    #[test]
+    fn test_mcp_tool_deserialization_full() {
+        let json = r#"{
+            "name": "read_file",
+            "description": "Read file contents",
+            "inputSchema": {"type": "object", "properties": {"path": {"type": "string"}}}
+        }"#;
+        let tool: McpTool = serde_json::from_str(json).unwrap();
+        assert_eq!(tool.name, "read_file");
+        assert_eq!(tool.description, Some("Read file contents".to_string()));
+        assert!(tool.input_schema.is_some());
+    }
+
+    #[test]
+    fn test_mcp_tool_deserialization_minimal() {
+        let json = r#"{"name": "simple_tool"}"#;
+        let tool: McpTool = serde_json::from_str(json).unwrap();
+        assert_eq!(tool.name, "simple_tool");
+        assert!(tool.description.is_none());
+        assert!(tool.input_schema.is_none());
+    }
+
+    #[test]
+    fn test_mcp_tool_serialization() {
+        let tool = McpTool {
+            name: "test".to_string(),
+            description: Some("A test tool".to_string()),
+            input_schema: None,
+        };
+        let json = serde_json::to_string(&tool).unwrap();
+        assert!(json.contains("\"name\":\"test\""));
+        assert!(json.contains("\"description\":\"A test tool\""));
+    }
+
+    // =========================================================================
+    // parse_sse_response tests
+    // =========================================================================
+
+    #[test]
+    fn test_parse_sse_response_valid() {
+        let sse_text = r#"event: message
+data: {"jsonrpc":"2.0","id":1,"result":{"success":true}}
+
+"#;
+        let result = parse_sse_response(sse_text);
+        assert!(result.is_ok());
+        let response = result.unwrap();
+        assert!(response.result.is_some());
+    }
+
+    #[test]
+    fn test_parse_sse_response_multiple_data_lines() {
+        let sse_text = r#"data: invalid json
+data: {"jsonrpc":"2.0","id":1,"result":{}}
+"#;
+        // Should skip invalid and find valid
+        let result = parse_sse_response(sse_text);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_parse_sse_response_data_with_whitespace() {
+        let sse_text = "data:   {\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{}}  \n";
+        let result = parse_sse_response(sse_text);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_parse_sse_response_done_marker_ignored() {
+        let sse_text = r#"data: [DONE]
+data: {"jsonrpc":"2.0","id":1,"result":{}}
+"#;
+        let result = parse_sse_response(sse_text);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_parse_sse_response_fallback_to_raw_json() {
+        // No data: prefix, but valid JSON
+        let raw_json = r#"{"jsonrpc":"2.0","id":1,"result":{}}"#;
+        let result = parse_sse_response(raw_json);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_parse_sse_response_invalid() {
+        let invalid = "not valid at all";
+        let result = parse_sse_response(invalid);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_sse_response_with_error() {
+        let sse_text = r#"data: {"jsonrpc":"2.0","id":1,"error":{"code":-32600,"message":"Invalid request"}}"#;
+        let result = parse_sse_response(sse_text).unwrap();
+        assert!(result.error.is_some());
+        assert_eq!(result.error.unwrap().message, "Invalid request");
+    }
+
+    // =========================================================================
+    // next_request_id tests
+    // =========================================================================
+
+    #[test]
+    fn test_next_request_id_increments() {
+        let id1 = next_request_id();
+        let id2 = next_request_id();
+        let id3 = next_request_id();
+
+        // IDs should be strictly increasing
+        assert!(id2 > id1);
+        assert!(id3 > id2);
+    }
+
+    // =========================================================================
+    // JSON-RPC types serialization tests
+    // =========================================================================
+
+    #[test]
+    fn test_json_rpc_response_with_result() {
+        let json = r#"{"jsonrpc":"2.0","id":1,"result":{"tools":[]}}"#;
+        let response: JsonRpcResponse = serde_json::from_str(json).unwrap();
+        assert!(response.result.is_some());
+        assert!(response.error.is_none());
+    }
+
+    #[test]
+    fn test_json_rpc_response_with_error() {
+        let json = r#"{"jsonrpc":"2.0","id":1,"error":{"code":-32600,"message":"Invalid"}}"#;
+        let response: JsonRpcResponse = serde_json::from_str(json).unwrap();
+        assert!(response.result.is_none());
+        assert!(response.error.is_some());
+        assert_eq!(response.error.unwrap().code, -32600);
+    }
+
+    #[test]
+    fn test_json_rpc_request_serialization() {
+        let request = JsonRpcRequest {
+            jsonrpc: "2.0",
+            id: 42,
+            method: "initialize".to_string(),
+            params: Some(json!({"test": true})),
+        };
+        let json = serde_json::to_string(&request).unwrap();
+        assert!(json.contains("\"jsonrpc\":\"2.0\""));
+        assert!(json.contains("\"id\":42"));
+        assert!(json.contains("\"method\":\"initialize\""));
+        assert!(json.contains("\"params\":{\"test\":true}"));
+    }
+
+    #[test]
+    fn test_json_rpc_request_without_params() {
+        let request = JsonRpcRequest {
+            jsonrpc: "2.0",
+            id: 1,
+            method: "test".to_string(),
+            params: None,
+        };
+        let json = serde_json::to_string(&request).unwrap();
+        // params should be omitted when None
+        assert!(!json.contains("params"));
+    }
+
+    #[test]
+    fn test_json_rpc_notification_serialization() {
+        let notification = JsonRpcNotification {
+            jsonrpc: "2.0",
+            method: "notifications/initialized".to_string(),
+        };
+        let json = serde_json::to_string(&notification).unwrap();
+        assert!(json.contains("\"method\":\"notifications/initialized\""));
+        // Notifications don't have an id field
+        assert!(!json.contains("\"id\""));
+    }
+
+    // =========================================================================
+    // McpTestResult serialization tests
+    // =========================================================================
+
+    #[test]
+    fn test_mcp_test_result_serialization() {
+        let result = McpTestResult::success(
+            McpServerInfo {
+                name: "test".to_string(),
+                version: Some("1.0".to_string()),
+            },
+            vec![McpTool {
+                name: "tool1".to_string(),
+                description: None,
+                input_schema: None,
+            }],
+            true,
+            false,
+            150,
+        );
+
+        let json = serde_json::to_string(&result).unwrap();
+        assert!(json.contains("\"success\":true"));
+        assert!(json.contains("\"responseTimeMs\":150"));
+        assert!(json.contains("\"resourcesSupported\":true"));
+    }
+
+    #[test]
+    fn test_mcp_test_result_deserialization() {
+        let json = r#"{
+            "success": true,
+            "serverInfo": {"name": "test", "version": "1.0"},
+            "tools": [],
+            "resourcesSupported": true,
+            "promptsSupported": false,
+            "responseTimeMs": 100
+        }"#;
+
+        let result: McpTestResult = serde_json::from_str(json).unwrap();
+        assert!(result.success);
+        assert_eq!(result.server_info.unwrap().name, "test");
+        assert!(result.tools.is_empty());
+    }
+
+    // =========================================================================
+    // Additional edge case tests
+    // =========================================================================
+
+    #[test]
+    fn test_mcp_tool_with_complex_schema() {
+        let json = r#"{
+            "name": "complex_tool",
+            "description": "A tool with complex schema",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "path": {"type": "string"},
+                    "options": {
+                        "type": "object",
+                        "properties": {
+                            "recursive": {"type": "boolean"},
+                            "maxDepth": {"type": "integer"}
+                        }
+                    }
+                },
+                "required": ["path"]
+            }
+        }"#;
+
+        let tool: McpTool = serde_json::from_str(json).unwrap();
+        assert_eq!(tool.name, "complex_tool");
+        let schema = tool.input_schema.unwrap();
+        assert!(schema.get("properties").is_some());
+        assert!(schema.get("required").is_some());
+    }
+
+    #[test]
+    fn test_json_rpc_response_with_null_id() {
+        // Notifications may have null or missing id
+        let json = r#"{"jsonrpc":"2.0","id":null,"result":{}}"#;
+        let response: JsonRpcResponse = serde_json::from_str(json).unwrap();
+        assert!(response.id.is_none());
+        assert!(response.result.is_some());
+    }
+
+    #[test]
+    fn test_json_rpc_error_with_data() {
+        let json = r#"{"jsonrpc":"2.0","id":1,"error":{"code":-32602,"message":"Invalid params","data":{"expected":"string","got":"number"}}}"#;
+        let response: JsonRpcResponse = serde_json::from_str(json).unwrap();
+        let error = response.error.unwrap();
+        assert_eq!(error.code, -32602);
+        assert_eq!(error.message, "Invalid params");
+        assert!(error.data.is_some());
+    }
+
+    #[test]
+    fn test_mcp_test_result_round_trip() {
+        let original = McpTestResult::success(
+            McpServerInfo {
+                name: "round-trip".to_string(),
+                version: Some("2.5.0".to_string()),
+            },
+            vec![
+                McpTool {
+                    name: "tool1".to_string(),
+                    description: Some("First tool".to_string()),
+                    input_schema: Some(json!({"type": "object"})),
+                },
+                McpTool {
+                    name: "tool2".to_string(),
+                    description: None,
+                    input_schema: None,
+                },
+            ],
+            true,
+            true,
+            999,
+        );
+
+        let json = serde_json::to_string(&original).unwrap();
+        let parsed: McpTestResult = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(parsed.success, original.success);
+        assert_eq!(parsed.tools.len(), 2);
+        assert_eq!(parsed.response_time_ms, 999);
+    }
+
+    #[test]
+    fn test_parse_sse_response_empty_result() {
+        let sse_text = r#"data: {"jsonrpc":"2.0","id":1,"result":null}"#;
+        let result = parse_sse_response(sse_text).unwrap();
+        assert!(result.result.is_none() || result.result.unwrap().is_null());
+    }
+
+    #[test]
+    fn test_parse_sse_response_with_event_prefix() {
+        let sse_text = r#"event: message
+id: 123
+data: {"jsonrpc":"2.0","id":1,"result":{"test":true}}
+
+"#;
+        let result = parse_sse_response(sse_text).unwrap();
+        assert!(result.result.is_some());
+    }
+
+    #[test]
+    fn test_parse_sse_response_multiline_data() {
+        // Some SSE implementations may split across lines
+        let sse_text = r#"data: {"jsonrpc":"2.0",
+data: "id":1,
+data: "result":{}}
+"#;
+        // Our parser should handle this or fall back to raw JSON parse
+        // Since this is malformed, it should still try to find valid JSON
+        let result = parse_sse_response(sse_text);
+        // The parser may not handle this case, which is expected
+        // Just verify it doesn't panic
+        let _ = result;
+    }
+
+    #[test]
+    fn test_mcp_server_info_serialization() {
+        let info = McpServerInfo {
+            name: "test-server".to_string(),
+            version: Some("1.2.3".to_string()),
+        };
+
+        let json = serde_json::to_string(&info).unwrap();
+        assert!(json.contains("\"name\":\"test-server\""));
+        assert!(json.contains("\"version\":\"1.2.3\""));
+    }
+
+    #[test]
+    fn test_mcp_server_info_camel_case() {
+        // Ensure camelCase is preserved
+        let info = McpServerInfo {
+            name: "test".to_string(),
+            version: None,
+        };
+
+        let json = serde_json::to_string(&info).unwrap();
+        // name and version should NOT be converted to camelCase in output
+        // since they're already lowercase
+        assert!(json.contains("\"name\""));
+    }
+
+    #[test]
+    fn test_mcp_test_result_defaults() {
+        // Test that defaults work when deserializing minimal JSON
+        let json = r#"{"success": false}"#;
+        let result: McpTestResult = serde_json::from_str(json).unwrap();
+
+        assert!(!result.success);
+        assert!(result.server_info.is_none());
+        assert!(result.tools.is_empty());
+        assert!(!result.resources_supported);
+        assert!(!result.prompts_supported);
+        assert!(result.error.is_none());
+        assert_eq!(result.response_time_ms, 0);
+    }
+
+    #[test]
+    fn test_mcp_tool_empty_description() {
+        let json = r#"{"name": "tool", "description": ""}"#;
+        let tool: McpTool = serde_json::from_str(json).unwrap();
+        assert_eq!(tool.description, Some("".to_string()));
+    }
+
+    #[test]
+    fn test_json_rpc_request_with_complex_params() {
+        let request = JsonRpcRequest {
+            jsonrpc: "2.0",
+            id: 1,
+            method: "initialize".to_string(),
+            params: Some(json!({
+                "protocolVersion": "2024-11-05",
+                "capabilities": {
+                    "roots": {"listChanged": true},
+                    "sampling": {}
+                },
+                "clientInfo": {
+                    "name": "test-client",
+                    "version": "1.0.0"
+                }
+            })),
+        };
+
+        let json = serde_json::to_string(&request).unwrap();
+        assert!(json.contains("protocolVersion"));
+        assert!(json.contains("capabilities"));
+        assert!(json.contains("clientInfo"));
+    }
+
+    #[test]
+    fn test_mcp_tool_array_deserialization() {
+        let json = r#"[
+            {"name": "tool1", "description": "First"},
+            {"name": "tool2"},
+            {"name": "tool3", "inputSchema": {"type": "object"}}
+        ]"#;
+
+        let tools: Vec<McpTool> = serde_json::from_str(json).unwrap();
+        assert_eq!(tools.len(), 3);
+        assert_eq!(tools[0].name, "tool1");
+        assert_eq!(tools[1].description, None);
+        assert!(tools[2].input_schema.is_some());
     }
 }

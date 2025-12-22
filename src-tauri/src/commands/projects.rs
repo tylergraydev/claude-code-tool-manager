@@ -348,3 +348,462 @@ pub fn sync_project_config(db: State<'_, Mutex<Database>>, project_id: i64) -> R
 
     Ok(())
 }
+
+// ============================================================================
+// Testable helper functions (no Tauri State dependency)
+// ============================================================================
+
+/// Create a project directly in the database (for testing)
+pub fn create_project_in_db(db: &Database, project: &CreateProjectRequest) -> Result<Project, String> {
+    db.conn()
+        .execute(
+            "INSERT INTO projects (name, path, has_mcp_file, has_settings_file)
+             VALUES (?, ?, 0, 0)",
+            params![project.name, project.path],
+        )
+        .map_err(|e| e.to_string())?;
+
+    let id = db.conn().last_insert_rowid();
+    get_project_by_id(db, id)
+}
+
+/// Get a project by ID directly from the database (for testing)
+pub fn get_project_by_id(db: &Database, id: i64) -> Result<Project, String> {
+    db.conn()
+        .query_row(
+            "SELECT id, name, path, has_mcp_file, has_settings_file, last_scanned_at, editor_type, created_at, updated_at
+             FROM projects WHERE id = ?",
+            [id],
+            |row| {
+                Ok(Project {
+                    id: row.get(0)?,
+                    name: row.get(1)?,
+                    path: row.get(2)?,
+                    has_mcp_file: row.get::<_, i32>(3)? != 0,
+                    has_settings_file: row.get::<_, i32>(4)? != 0,
+                    last_scanned_at: row.get(5)?,
+                    editor_type: row.get::<_, Option<String>>(6)?.unwrap_or_else(|| "claude_code".to_string()),
+                    created_at: row.get(7)?,
+                    updated_at: row.get(8)?,
+                    assigned_mcps: vec![],
+                })
+            },
+        )
+        .map_err(|e| e.to_string())
+}
+
+/// Get a project by path directly from the database (for testing)
+pub fn get_project_by_path(db: &Database, path: &str) -> Result<Project, String> {
+    db.conn()
+        .query_row(
+            "SELECT id, name, path, has_mcp_file, has_settings_file, last_scanned_at, editor_type, created_at, updated_at
+             FROM projects WHERE path = ?",
+            [path],
+            |row| {
+                Ok(Project {
+                    id: row.get(0)?,
+                    name: row.get(1)?,
+                    path: row.get(2)?,
+                    has_mcp_file: row.get::<_, i32>(3)? != 0,
+                    has_settings_file: row.get::<_, i32>(4)? != 0,
+                    last_scanned_at: row.get(5)?,
+                    editor_type: row.get::<_, Option<String>>(6)?.unwrap_or_else(|| "claude_code".to_string()),
+                    created_at: row.get(7)?,
+                    updated_at: row.get(8)?,
+                    assigned_mcps: vec![],
+                })
+            },
+        )
+        .map_err(|e| e.to_string())
+}
+
+/// Get all projects directly from the database (for testing)
+pub fn get_all_projects_from_db(db: &Database) -> Result<Vec<Project>, String> {
+    let mut stmt = db
+        .conn()
+        .prepare(
+            "SELECT id, name, path, has_mcp_file, has_settings_file, last_scanned_at, editor_type, created_at, updated_at
+             FROM projects ORDER BY name",
+        )
+        .map_err(|e| e.to_string())?;
+
+    let projects: Vec<Project> = stmt
+        .query_map([], |row| {
+            Ok(Project {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                path: row.get(2)?,
+                has_mcp_file: row.get::<_, i32>(3)? != 0,
+                has_settings_file: row.get::<_, i32>(4)? != 0,
+                last_scanned_at: row.get(5)?,
+                editor_type: row.get::<_, Option<String>>(6)?.unwrap_or_else(|| "claude_code".to_string()),
+                created_at: row.get(7)?,
+                updated_at: row.get(8)?,
+                assigned_mcps: vec![],
+            })
+        })
+        .map_err(|e| e.to_string())?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    Ok(projects)
+}
+
+/// Delete a project directly from the database (for testing)
+pub fn delete_project_from_db(db: &Database, id: i64) -> Result<(), String> {
+    db.conn()
+        .execute("DELETE FROM projects WHERE id = ?", [id])
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+/// Assign an MCP to a project directly in the database (for testing)
+pub fn assign_mcp_to_project_in_db(db: &Database, project_id: i64, mcp_id: i64) -> Result<(), String> {
+    let order: i32 = db
+        .conn()
+        .query_row(
+            "SELECT COALESCE(MAX(display_order), 0) + 1 FROM project_mcps WHERE project_id = ?",
+            [project_id],
+            |row| row.get(0),
+        )
+        .unwrap_or(0);
+
+    db.conn()
+        .execute(
+            "INSERT OR IGNORE INTO project_mcps (project_id, mcp_id, display_order) VALUES (?, ?, ?)",
+            params![project_id, mcp_id, order],
+        )
+        .map_err(|e| e.to_string())?;
+
+    Ok(())
+}
+
+/// Remove an MCP from a project directly in the database (for testing)
+pub fn remove_mcp_from_project_in_db(db: &Database, project_id: i64, mcp_id: i64) -> Result<(), String> {
+    db.conn()
+        .execute(
+            "DELETE FROM project_mcps WHERE project_id = ? AND mcp_id = ?",
+            params![project_id, mcp_id],
+        )
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+/// Toggle a project MCP directly in the database (for testing)
+pub fn toggle_project_mcp_in_db(db: &Database, assignment_id: i64, enabled: bool) -> Result<(), String> {
+    db.conn()
+        .execute(
+            "UPDATE project_mcps SET is_enabled = ? WHERE id = ?",
+            params![enabled as i32, assignment_id],
+        )
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+/// Get project MCP assignments directly from the database (for testing)
+pub fn get_project_mcps_from_db(db: &Database, project_id: i64) -> Result<Vec<ProjectMcp>, String> {
+    let mut stmt = db
+        .conn()
+        .prepare(
+            "SELECT pm.id, pm.mcp_id, pm.is_enabled, pm.env_overrides, pm.display_order,
+                    m.id, m.name, m.description, m.type, m.command, m.args, m.url, m.headers, m.env,
+                    m.icon, m.tags, m.source, m.source_path, m.is_enabled_global, m.created_at, m.updated_at
+             FROM project_mcps pm
+             JOIN mcps m ON pm.mcp_id = m.id
+             WHERE pm.project_id = ?
+             ORDER BY pm.display_order",
+        )
+        .map_err(|e| e.to_string())?;
+
+    let mcps = stmt
+        .query_map([project_id], |row| {
+            Ok(ProjectMcp {
+                id: row.get(0)?,
+                mcp_id: row.get(1)?,
+                is_enabled: row.get::<_, i32>(2)? != 0,
+                env_overrides: parse_json_map(row.get(3)?),
+                display_order: row.get(4)?,
+                mcp: row_to_mcp(row, 5)?,
+            })
+        })
+        .map_err(|e| e.to_string())?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    Ok(mcps)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::commands::mcp::create_mcp_in_db;
+    use crate::db::models::CreateMcpRequest;
+
+    // =========================================================================
+    // Project CRUD tests
+    // =========================================================================
+
+    #[test]
+    fn test_create_project() {
+        let db = Database::in_memory().unwrap();
+
+        let project = CreateProjectRequest {
+            name: "Test Project".to_string(),
+            path: "/path/to/project".to_string(),
+        };
+
+        let created = create_project_in_db(&db, &project).unwrap();
+
+        assert_eq!(created.name, "Test Project");
+        assert_eq!(created.path, "/path/to/project");
+        assert!(!created.has_mcp_file);
+        assert!(!created.has_settings_file);
+        assert_eq!(created.editor_type, "claude_code");
+    }
+
+    #[test]
+    fn test_get_project_by_id() {
+        let db = Database::in_memory().unwrap();
+
+        let project = CreateProjectRequest {
+            name: "Findable Project".to_string(),
+            path: "/findable/path".to_string(),
+        };
+
+        let created = create_project_in_db(&db, &project).unwrap();
+        let found = get_project_by_id(&db, created.id).unwrap();
+
+        assert_eq!(found.id, created.id);
+        assert_eq!(found.name, "Findable Project");
+    }
+
+    #[test]
+    fn test_get_project_by_id_not_found() {
+        let db = Database::in_memory().unwrap();
+
+        let result = get_project_by_id(&db, 9999);
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_get_project_by_path() {
+        let db = Database::in_memory().unwrap();
+
+        let project = CreateProjectRequest {
+            name: "Path Project".to_string(),
+            path: "/unique/project/path".to_string(),
+        };
+
+        create_project_in_db(&db, &project).unwrap();
+        let found = get_project_by_path(&db, "/unique/project/path").unwrap();
+
+        assert_eq!(found.path, "/unique/project/path");
+        assert_eq!(found.name, "Path Project");
+    }
+
+    #[test]
+    fn test_get_all_projects_from_db() {
+        let db = Database::in_memory().unwrap();
+
+        for i in 1..=3 {
+            let project = CreateProjectRequest {
+                name: format!("Project {}", i),
+                path: format!("/path/{}", i),
+            };
+            create_project_in_db(&db, &project).unwrap();
+        }
+
+        let projects = get_all_projects_from_db(&db).unwrap();
+
+        assert_eq!(projects.len(), 3);
+        // Should be sorted by name
+        assert_eq!(projects[0].name, "Project 1");
+        assert_eq!(projects[1].name, "Project 2");
+        assert_eq!(projects[2].name, "Project 3");
+    }
+
+    #[test]
+    fn test_delete_project() {
+        let db = Database::in_memory().unwrap();
+
+        let project = CreateProjectRequest {
+            name: "To Delete".to_string(),
+            path: "/delete/me".to_string(),
+        };
+
+        let created = create_project_in_db(&db, &project).unwrap();
+        delete_project_from_db(&db, created.id).unwrap();
+
+        let result = get_project_by_id(&db, created.id);
+        assert!(result.is_err());
+    }
+
+    // =========================================================================
+    // Project MCP Assignment tests
+    // =========================================================================
+
+    fn create_test_mcp(db: &Database, name: &str) -> i64 {
+        let mcp = CreateMcpRequest {
+            name: name.to_string(),
+            description: None,
+            mcp_type: "stdio".to_string(),
+            command: Some("npx".to_string()),
+            args: None,
+            url: None,
+            headers: None,
+            env: None,
+            icon: None,
+            tags: None,
+        };
+        create_mcp_in_db(db, &mcp).unwrap().id
+    }
+
+    #[test]
+    fn test_assign_mcp_to_project() {
+        let db = Database::in_memory().unwrap();
+
+        let project = CreateProjectRequest {
+            name: "Project with MCP".to_string(),
+            path: "/mcp/project".to_string(),
+        };
+        let created_project = create_project_in_db(&db, &project).unwrap();
+        let mcp_id = create_test_mcp(&db, "test-mcp");
+
+        assign_mcp_to_project_in_db(&db, created_project.id, mcp_id).unwrap();
+
+        let mcps = get_project_mcps_from_db(&db, created_project.id).unwrap();
+
+        assert_eq!(mcps.len(), 1);
+        assert_eq!(mcps[0].mcp_id, mcp_id);
+        assert!(mcps[0].is_enabled);  // Default enabled
+    }
+
+    #[test]
+    fn test_assign_multiple_mcps_to_project() {
+        let db = Database::in_memory().unwrap();
+
+        let project = CreateProjectRequest {
+            name: "Multi MCP".to_string(),
+            path: "/multi/mcp".to_string(),
+        };
+        let created_project = create_project_in_db(&db, &project).unwrap();
+
+        let mcp1 = create_test_mcp(&db, "mcp-1");
+        let mcp2 = create_test_mcp(&db, "mcp-2");
+        let mcp3 = create_test_mcp(&db, "mcp-3");
+
+        assign_mcp_to_project_in_db(&db, created_project.id, mcp1).unwrap();
+        assign_mcp_to_project_in_db(&db, created_project.id, mcp2).unwrap();
+        assign_mcp_to_project_in_db(&db, created_project.id, mcp3).unwrap();
+
+        let mcps = get_project_mcps_from_db(&db, created_project.id).unwrap();
+
+        assert_eq!(mcps.len(), 3);
+        // Should be in display order
+        assert_eq!(mcps[0].display_order, 1);
+        assert_eq!(mcps[1].display_order, 2);
+        assert_eq!(mcps[2].display_order, 3);
+    }
+
+    #[test]
+    fn test_remove_mcp_from_project() {
+        let db = Database::in_memory().unwrap();
+
+        let project = CreateProjectRequest {
+            name: "Remove MCP".to_string(),
+            path: "/remove/mcp".to_string(),
+        };
+        let created_project = create_project_in_db(&db, &project).unwrap();
+        let mcp_id = create_test_mcp(&db, "removable");
+
+        assign_mcp_to_project_in_db(&db, created_project.id, mcp_id).unwrap();
+        remove_mcp_from_project_in_db(&db, created_project.id, mcp_id).unwrap();
+
+        let mcps = get_project_mcps_from_db(&db, created_project.id).unwrap();
+        assert!(mcps.is_empty());
+    }
+
+    #[test]
+    fn test_toggle_project_mcp() {
+        let db = Database::in_memory().unwrap();
+
+        let project = CreateProjectRequest {
+            name: "Toggle MCP".to_string(),
+            path: "/toggle/mcp".to_string(),
+        };
+        let created_project = create_project_in_db(&db, &project).unwrap();
+        let mcp_id = create_test_mcp(&db, "toggleable");
+
+        assign_mcp_to_project_in_db(&db, created_project.id, mcp_id).unwrap();
+
+        let mcps = get_project_mcps_from_db(&db, created_project.id).unwrap();
+        let assignment_id = mcps[0].id;
+
+        // Disable
+        toggle_project_mcp_in_db(&db, assignment_id, false).unwrap();
+        let mcps = get_project_mcps_from_db(&db, created_project.id).unwrap();
+        assert!(!mcps[0].is_enabled);
+
+        // Re-enable
+        toggle_project_mcp_in_db(&db, assignment_id, true).unwrap();
+        let mcps = get_project_mcps_from_db(&db, created_project.id).unwrap();
+        assert!(mcps[0].is_enabled);
+    }
+
+    #[test]
+    fn test_duplicate_mcp_assignment_ignored() {
+        let db = Database::in_memory().unwrap();
+
+        let project = CreateProjectRequest {
+            name: "Dup Project".to_string(),
+            path: "/dup/project".to_string(),
+        };
+        let created_project = create_project_in_db(&db, &project).unwrap();
+        let mcp_id = create_test_mcp(&db, "dup-mcp");
+
+        // Assign twice
+        assign_mcp_to_project_in_db(&db, created_project.id, mcp_id).unwrap();
+        assign_mcp_to_project_in_db(&db, created_project.id, mcp_id).unwrap();
+
+        // Should only have one
+        let mcps = get_project_mcps_from_db(&db, created_project.id).unwrap();
+        assert_eq!(mcps.len(), 1);
+    }
+
+    // =========================================================================
+    // Cascade delete tests
+    // =========================================================================
+
+    #[test]
+    fn test_delete_project_removes_mcp_assignments() {
+        let db = Database::in_memory().unwrap();
+
+        let project = CreateProjectRequest {
+            name: "Cascade".to_string(),
+            path: "/cascade/path".to_string(),
+        };
+        let created_project = create_project_in_db(&db, &project).unwrap();
+        let mcp_id = create_test_mcp(&db, "cascade-mcp");
+
+        assign_mcp_to_project_in_db(&db, created_project.id, mcp_id).unwrap();
+
+        // Verify assignment exists
+        let mcps = get_project_mcps_from_db(&db, created_project.id).unwrap();
+        assert_eq!(mcps.len(), 1);
+
+        // Delete project
+        delete_project_from_db(&db, created_project.id).unwrap();
+
+        // Verify assignment is gone (via foreign key cascade)
+        let count: i64 = db
+            .conn()
+            .query_row(
+                "SELECT COUNT(*) FROM project_mcps WHERE project_id = ?",
+                [created_project.id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(count, 0);
+    }
+}

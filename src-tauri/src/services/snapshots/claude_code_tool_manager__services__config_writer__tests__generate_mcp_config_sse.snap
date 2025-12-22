@@ -1,0 +1,12 @@
+---
+source: src/services/config_writer.rs
+expression: config
+---
+{
+  "mcpServers": {
+    "remote-sse": {
+      "type": "sse",
+      "url": "https://mcp.example.com/sse"
+    }
+  }
+}

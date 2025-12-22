@@ -585,39 +585,42 @@ pub fn scan_global_agents(db: &Database) -> Result<usize> {
 }
 
 /// Parsed skill data from markdown file
-struct ParsedSkill {
-    name: String,
-    description: Option<String>,
-    content: String,
-    skill_type: String,
-    allowed_tools: Option<String>,
-    argument_hint: Option<String>,
-    model: Option<String>,
-    disable_model_invocation: bool,
-    tags: Vec<String>,
+#[derive(Debug, PartialEq)]
+pub(crate) struct ParsedSkill {
+    pub(crate) name: String,
+    pub(crate) description: Option<String>,
+    pub(crate) content: String,
+    pub(crate) skill_type: String,
+    pub(crate) allowed_tools: Option<String>,
+    pub(crate) argument_hint: Option<String>,
+    pub(crate) model: Option<String>,
+    pub(crate) disable_model_invocation: bool,
+    pub(crate) tags: Vec<String>,
 }
 
 /// Parsed skill file data (references, assets, scripts)
-struct ParsedSkillFile {
-    file_type: String,  // "reference", "asset", "script"
-    name: String,
-    content: String,
+#[derive(Debug, PartialEq)]
+pub(crate) struct ParsedSkillFile {
+    pub(crate) file_type: String,  // "reference", "asset", "script"
+    pub(crate) name: String,
+    pub(crate) content: String,
 }
 
 /// Parsed agent data from markdown file
-struct ParsedAgent {
-    name: String,
-    description: String,
-    content: String,
-    tools: Vec<String>,
-    model: Option<String>,
-    permission_mode: Option<String>,
-    skills: Vec<String>,
-    tags: Vec<String>,
+#[derive(Debug, PartialEq)]
+pub(crate) struct ParsedAgent {
+    pub(crate) name: String,
+    pub(crate) description: String,
+    pub(crate) content: String,
+    pub(crate) tools: Vec<String>,
+    pub(crate) model: Option<String>,
+    pub(crate) permission_mode: Option<String>,
+    pub(crate) skills: Vec<String>,
+    pub(crate) tags: Vec<String>,
 }
 
 /// Parse a skill markdown file
-fn parse_skill_file(path: &Path) -> Option<ParsedSkill> {
+pub(crate) fn parse_skill_file(path: &Path) -> Option<ParsedSkill> {
     let content = std::fs::read_to_string(path).ok()?;
     let file_name = path.file_stem()?.to_string_lossy().to_string();
 
@@ -743,7 +746,7 @@ fn parse_agent_skill_dir(skill_dir: &Path) -> Option<(ParsedSkill, Vec<ParsedSki
 }
 
 /// Parse an agent markdown file
-fn parse_agent_file(path: &Path) -> Option<ParsedAgent> {
+pub(crate) fn parse_agent_file(path: &Path) -> Option<ParsedAgent> {
     let content = std::fs::read_to_string(path).ok()?;
     let file_name = path.file_stem()?.to_string_lossy().to_string();
 
@@ -779,7 +782,7 @@ fn parse_agent_file(path: &Path) -> Option<ParsedAgent> {
 }
 
 /// Parse YAML-like frontmatter from markdown content
-fn parse_frontmatter(content: &str) -> (std::collections::HashMap<String, String>, String) {
+pub(crate) fn parse_frontmatter(content: &str) -> (std::collections::HashMap<String, String>, String) {
     let mut frontmatter = std::collections::HashMap::new();
 
     if content.starts_with("---") {
@@ -1047,19 +1050,20 @@ fn assign_agent_to_project(db: &Database, project_id: i64, agent_id: i64) -> Res
 }
 
 /// Parsed hook data from settings.json
-struct ParsedHook {
-    name: String,
-    description: Option<String>,
-    event_type: String,
-    matcher: Option<String>,
-    hook_type: String,
-    command: Option<String>,
-    prompt: Option<String>,
-    timeout: Option<i32>,
+#[derive(Debug)]
+pub(crate) struct ParsedHook {
+    pub(crate) name: String,
+    pub(crate) description: Option<String>,
+    pub(crate) event_type: String,
+    pub(crate) matcher: Option<String>,
+    pub(crate) hook_type: String,
+    pub(crate) command: Option<String>,
+    pub(crate) prompt: Option<String>,
+    pub(crate) timeout: Option<i32>,
 }
 
 /// Parse hooks from a settings.json file
-fn parse_hooks_from_settings(path: &Path) -> Vec<ParsedHook> {
+pub(crate) fn parse_hooks_from_settings(path: &Path) -> Vec<ParsedHook> {
     let mut hooks = Vec::new();
 
     let content = match std::fs::read_to_string(path) {
@@ -1610,4 +1614,489 @@ fn scan_opencode_project_agents(db: &Database, project_id: i64, agent_dir: &Path
     }
 
     Ok(count)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+    use std::fs;
+
+    // =========================================================================
+    // parse_frontmatter tests
+    // =========================================================================
+
+    #[test]
+    fn test_parse_frontmatter_valid() {
+        let content = r#"---
+name: test-skill
+description: A test skill
+type: command
+---
+This is the body content."#;
+
+        let (fm, body) = parse_frontmatter(content);
+
+        assert_eq!(fm.get("name"), Some(&"test-skill".to_string()));
+        assert_eq!(fm.get("description"), Some(&"A test skill".to_string()));
+        assert_eq!(fm.get("type"), Some(&"command".to_string()));
+        assert_eq!(body, "This is the body content.");
+    }
+
+    #[test]
+    fn test_parse_frontmatter_with_multiline_body() {
+        let content = r#"---
+name: test
+---
+Line 1
+Line 2
+Line 3"#;
+
+        let (fm, body) = parse_frontmatter(content);
+
+        assert_eq!(fm.get("name"), Some(&"test".to_string()));
+        assert!(body.contains("Line 1"));
+        assert!(body.contains("Line 2"));
+        assert!(body.contains("Line 3"));
+    }
+
+    #[test]
+    fn test_parse_frontmatter_no_frontmatter() {
+        let content = "Just regular content without frontmatter.";
+
+        let (fm, body) = parse_frontmatter(content);
+
+        assert!(fm.is_empty());
+        assert_eq!(body, "Just regular content without frontmatter.");
+    }
+
+    #[test]
+    fn test_parse_frontmatter_only_opening() {
+        let content = r#"---
+name: test
+No closing delimiter"#;
+
+        let (fm, body) = parse_frontmatter(content);
+
+        // Should return content as-is when no closing delimiter
+        assert!(fm.is_empty());
+        assert!(body.starts_with("---"));
+    }
+
+    #[test]
+    fn test_parse_frontmatter_empty_values_skipped() {
+        let content = r#"---
+name: test
+empty_key:
+another: value
+---
+Body"#;
+
+        let (fm, body) = parse_frontmatter(content);
+
+        assert_eq!(fm.get("name"), Some(&"test".to_string()));
+        assert_eq!(fm.get("another"), Some(&"value".to_string()));
+        assert!(fm.get("empty_key").is_none());
+        assert_eq!(body, "Body");
+    }
+
+    #[test]
+    fn test_parse_frontmatter_with_comma_separated_values() {
+        let content = r#"---
+tags: tag1, tag2, tag3
+tools: Read, Write, Bash
+---
+Content"#;
+
+        let (fm, _) = parse_frontmatter(content);
+
+        assert_eq!(fm.get("tags"), Some(&"tag1, tag2, tag3".to_string()));
+        assert_eq!(fm.get("tools"), Some(&"Read, Write, Bash".to_string()));
+    }
+
+    #[test]
+    fn test_parse_frontmatter_colon_in_value() {
+        let content = r#"---
+url: https://example.com:8080
+---
+Body"#;
+
+        let (fm, _) = parse_frontmatter(content);
+
+        // Value after first colon should be preserved (including subsequent colons)
+        assert_eq!(fm.get("url"), Some(&"https://example.com:8080".to_string()));
+    }
+
+    // =========================================================================
+    // parse_skill_file tests
+    // =========================================================================
+
+    #[test]
+    fn test_parse_skill_file_command_type() {
+        let temp_dir = TempDir::new().unwrap();
+        let skill_path = temp_dir.path().join("test-command.md");
+
+        fs::write(&skill_path, r#"---
+description: Test command skill
+type: command
+allowed-tools: Read, Write
+argument-hint: <filename>
+---
+You are a helpful assistant."#).unwrap();
+
+        let skill = parse_skill_file(&skill_path).unwrap();
+
+        assert_eq!(skill.name, "test-command");
+        assert_eq!(skill.description, Some("Test command skill".to_string()));
+        assert_eq!(skill.skill_type, "command");
+        assert_eq!(skill.allowed_tools, Some("Read, Write".to_string()));
+        assert_eq!(skill.argument_hint, Some("<filename>".to_string()));
+        assert!(skill.content.contains("You are a helpful assistant."));
+    }
+
+    #[test]
+    fn test_parse_skill_file_skill_type() {
+        let temp_dir = TempDir::new().unwrap();
+        let skill_path = temp_dir.path().join("auto-skill.md");
+
+        fs::write(&skill_path, r#"---
+description: Auto-invoked skill
+type: skill
+model: sonnet
+disableModelInvocation: true
+---
+This skill is invoked by the model."#).unwrap();
+
+        let skill = parse_skill_file(&skill_path).unwrap();
+
+        assert_eq!(skill.name, "auto-skill");
+        assert_eq!(skill.skill_type, "skill");
+        assert_eq!(skill.model, Some("sonnet".to_string()));
+        assert!(skill.disable_model_invocation);
+    }
+
+    #[test]
+    fn test_parse_skill_file_defaults() {
+        let temp_dir = TempDir::new().unwrap();
+        let skill_path = temp_dir.path().join("minimal.md");
+
+        fs::write(&skill_path, "Just content, no frontmatter.").unwrap();
+
+        let skill = parse_skill_file(&skill_path).unwrap();
+
+        assert_eq!(skill.name, "minimal");
+        assert_eq!(skill.description, None);
+        assert_eq!(skill.skill_type, "command");  // Default type
+        assert_eq!(skill.allowed_tools, None);
+        assert!(!skill.disable_model_invocation);  // Default false
+        assert!(skill.tags.is_empty());
+    }
+
+    #[test]
+    fn test_parse_skill_file_with_tags() {
+        let temp_dir = TempDir::new().unwrap();
+        let skill_path = temp_dir.path().join("tagged.md");
+
+        fs::write(&skill_path, r#"---
+description: Tagged skill
+tags: development, testing, automation
+---
+Skill content."#).unwrap();
+
+        let skill = parse_skill_file(&skill_path).unwrap();
+
+        assert_eq!(skill.tags, vec!["development", "testing", "automation"]);
+    }
+
+    #[test]
+    fn test_parse_skill_file_alternate_key_formats() {
+        let temp_dir = TempDir::new().unwrap();
+        let skill_path = temp_dir.path().join("alternate.md");
+
+        // Test allowed_tools instead of allowed-tools
+        fs::write(&skill_path, r#"---
+allowed_tools: Bash
+---
+Content."#).unwrap();
+
+        let skill = parse_skill_file(&skill_path).unwrap();
+
+        assert_eq!(skill.allowed_tools, Some("Bash".to_string()));
+    }
+
+    #[test]
+    fn test_parse_skill_file_nonexistent() {
+        let result = parse_skill_file(Path::new("/nonexistent/path/skill.md"));
+        assert!(result.is_none());
+    }
+
+    // =========================================================================
+    // parse_agent_file tests
+    // =========================================================================
+
+    #[test]
+    fn test_parse_agent_file_full() {
+        let temp_dir = TempDir::new().unwrap();
+        let agent_path = temp_dir.path().join("code-reviewer.md");
+
+        fs::write(&agent_path, r#"---
+description: Reviews code for quality
+tools: Read, Grep, Glob
+model: opus
+permissionMode: bypassPermissions
+skills: lint, format
+tags: review, code-quality
+---
+You are a code review expert."#).unwrap();
+
+        let agent = parse_agent_file(&agent_path).unwrap();
+
+        assert_eq!(agent.name, "code-reviewer");
+        assert_eq!(agent.description, "Reviews code for quality");
+        assert_eq!(agent.tools, vec!["Read", "Grep", "Glob"]);
+        assert_eq!(agent.model, Some("opus".to_string()));
+        assert_eq!(agent.permission_mode, Some("bypassPermissions".to_string()));
+        assert_eq!(agent.skills, vec!["lint", "format"]);
+        assert_eq!(agent.tags, vec!["review", "code-quality"]);
+        assert!(agent.content.contains("code review expert"));
+    }
+
+    #[test]
+    fn test_parse_agent_file_minimal() {
+        let temp_dir = TempDir::new().unwrap();
+        let agent_path = temp_dir.path().join("simple-agent.md");
+
+        fs::write(&agent_path, "Just some agent instructions.").unwrap();
+
+        let agent = parse_agent_file(&agent_path).unwrap();
+
+        assert_eq!(agent.name, "simple-agent");
+        assert_eq!(agent.description, "simple-agent");  // Falls back to filename
+        assert!(agent.tools.is_empty());
+        assert!(agent.model.is_none());
+        assert!(agent.permission_mode.is_none());
+        assert!(agent.skills.is_empty());
+    }
+
+    #[test]
+    fn test_parse_agent_file_permission_mode_snake_case() {
+        let temp_dir = TempDir::new().unwrap();
+        let agent_path = temp_dir.path().join("snake.md");
+
+        fs::write(&agent_path, r#"---
+permission_mode: askUser
+---
+Content"#).unwrap();
+
+        let agent = parse_agent_file(&agent_path).unwrap();
+
+        assert_eq!(agent.permission_mode, Some("askUser".to_string()));
+    }
+
+    #[test]
+    fn test_parse_agent_file_nonexistent() {
+        let result = parse_agent_file(Path::new("/nonexistent/agent.md"));
+        assert!(result.is_none());
+    }
+
+    // =========================================================================
+    // parse_hooks_from_settings tests
+    // =========================================================================
+
+    #[test]
+    fn test_parse_hooks_from_settings_command_hook() {
+        let temp_dir = TempDir::new().unwrap();
+        let settings_path = temp_dir.path().join("settings.json");
+
+        fs::write(&settings_path, r#"{
+            "hooks": {
+                "PostToolUse": [
+                    {
+                        "matcher": "Write|Edit",
+                        "hooks": [
+                            {
+                                "type": "command",
+                                "command": "npm run lint"
+                            }
+                        ]
+                    }
+                ]
+            }
+        }"#).unwrap();
+
+        let hooks = parse_hooks_from_settings(&settings_path);
+
+        assert_eq!(hooks.len(), 1);
+        assert_eq!(hooks[0].event_type, "PostToolUse");
+        assert_eq!(hooks[0].matcher, Some("Write|Edit".to_string()));
+        assert_eq!(hooks[0].hook_type, "command");
+        assert_eq!(hooks[0].command, Some("npm run lint".to_string()));
+    }
+
+    #[test]
+    fn test_parse_hooks_from_settings_prompt_hook() {
+        let temp_dir = TempDir::new().unwrap();
+        let settings_path = temp_dir.path().join("settings.json");
+
+        fs::write(&settings_path, r#"{
+            "hooks": {
+                "PreToolUse": [
+                    {
+                        "hooks": [
+                            {
+                                "type": "prompt",
+                                "prompt": "Always verify before writing"
+                            }
+                        ]
+                    }
+                ]
+            }
+        }"#).unwrap();
+
+        let hooks = parse_hooks_from_settings(&settings_path);
+
+        assert_eq!(hooks.len(), 1);
+        assert_eq!(hooks[0].hook_type, "prompt");
+        assert_eq!(hooks[0].prompt, Some("Always verify before writing".to_string()));
+    }
+
+    #[test]
+    fn test_parse_hooks_from_settings_with_timeout() {
+        let temp_dir = TempDir::new().unwrap();
+        let settings_path = temp_dir.path().join("settings.json");
+
+        fs::write(&settings_path, r#"{
+            "hooks": {
+                "PostToolUse": [
+                    {
+                        "hooks": [
+                            {
+                                "type": "command",
+                                "command": "slow-command",
+                                "timeout": 30000
+                            }
+                        ]
+                    }
+                ]
+            }
+        }"#).unwrap();
+
+        let hooks = parse_hooks_from_settings(&settings_path);
+
+        assert_eq!(hooks.len(), 1);
+        assert_eq!(hooks[0].timeout, Some(30000));
+    }
+
+    #[test]
+    fn test_parse_hooks_from_settings_multiple_event_types() {
+        let temp_dir = TempDir::new().unwrap();
+        let settings_path = temp_dir.path().join("settings.json");
+
+        fs::write(&settings_path, r#"{
+            "hooks": {
+                "PreToolUse": [
+                    { "hooks": [{ "type": "command", "command": "pre-cmd" }] }
+                ],
+                "PostToolUse": [
+                    { "hooks": [{ "type": "command", "command": "post-cmd" }] }
+                ]
+            }
+        }"#).unwrap();
+
+        let hooks = parse_hooks_from_settings(&settings_path);
+
+        assert_eq!(hooks.len(), 2);
+        let event_types: Vec<_> = hooks.iter().map(|h| h.event_type.as_str()).collect();
+        assert!(event_types.contains(&"PreToolUse"));
+        assert!(event_types.contains(&"PostToolUse"));
+    }
+
+    #[test]
+    fn test_parse_hooks_from_settings_empty_hooks() {
+        let temp_dir = TempDir::new().unwrap();
+        let settings_path = temp_dir.path().join("settings.json");
+
+        fs::write(&settings_path, r#"{ "hooks": {} }"#).unwrap();
+
+        let hooks = parse_hooks_from_settings(&settings_path);
+
+        assert!(hooks.is_empty());
+    }
+
+    #[test]
+    fn test_parse_hooks_from_settings_no_hooks_key() {
+        let temp_dir = TempDir::new().unwrap();
+        let settings_path = temp_dir.path().join("settings.json");
+
+        fs::write(&settings_path, r#"{ "other": "config" }"#).unwrap();
+
+        let hooks = parse_hooks_from_settings(&settings_path);
+
+        assert!(hooks.is_empty());
+    }
+
+    #[test]
+    fn test_parse_hooks_from_settings_invalid_json() {
+        let temp_dir = TempDir::new().unwrap();
+        let settings_path = temp_dir.path().join("settings.json");
+
+        fs::write(&settings_path, "not valid json").unwrap();
+
+        let hooks = parse_hooks_from_settings(&settings_path);
+
+        assert!(hooks.is_empty());
+    }
+
+    #[test]
+    fn test_parse_hooks_from_settings_nonexistent_file() {
+        let hooks = parse_hooks_from_settings(Path::new("/nonexistent/settings.json"));
+        assert!(hooks.is_empty());
+    }
+
+    #[test]
+    fn test_parse_hooks_from_settings_multiple_hooks_in_entry() {
+        let temp_dir = TempDir::new().unwrap();
+        let settings_path = temp_dir.path().join("settings.json");
+
+        fs::write(&settings_path, r#"{
+            "hooks": {
+                "PostToolUse": [
+                    {
+                        "matcher": "Write",
+                        "hooks": [
+                            { "type": "command", "command": "lint" },
+                            { "type": "command", "command": "test" }
+                        ]
+                    }
+                ]
+            }
+        }"#).unwrap();
+
+        let hooks = parse_hooks_from_settings(&settings_path);
+
+        assert_eq!(hooks.len(), 2);
+        let commands: Vec<_> = hooks.iter().filter_map(|h| h.command.as_ref()).collect();
+        assert!(commands.contains(&&"lint".to_string()));
+        assert!(commands.contains(&&"test".to_string()));
+    }
+
+    #[test]
+    fn test_parse_hooks_from_settings_default_type() {
+        let temp_dir = TempDir::new().unwrap();
+        let settings_path = temp_dir.path().join("settings.json");
+
+        // No explicit type - should default to "command"
+        fs::write(&settings_path, r#"{
+            "hooks": {
+                "PostToolUse": [
+                    { "hooks": [{ "command": "some-cmd" }] }
+                ]
+            }
+        }"#).unwrap();
+
+        let hooks = parse_hooks_from_settings(&settings_path);
+
+        assert_eq!(hooks.len(), 1);
+        assert_eq!(hooks[0].hook_type, "command");
+    }
 }

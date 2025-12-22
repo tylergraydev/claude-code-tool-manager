@@ -116,6 +116,23 @@ pub fn write_invoke_log(
     args: Option<String>,
     error: Option<String>,
 ) -> Result<(), String> {
+    let (message, level) = format_invoke_log(&command, duration_ms, success, error.as_deref());
+
+    debug_logger::write_log_with_context(&level, "invoke", &message, args.as_deref())
+        .map_err(|e| format!("Failed to write log: {}", e))
+}
+
+// ============================================================================
+// Testable helper functions (no Tauri AppHandle dependency)
+// ============================================================================
+
+/// Format an invoke log message (for testing)
+pub fn format_invoke_log(
+    command: &str,
+    duration_ms: f64,
+    success: bool,
+    error: Option<&str>,
+) -> (String, String) {
     let message = if success {
         format!("{} ({:.1}ms)", command, duration_ms)
     } else {
@@ -124,6 +141,114 @@ pub fn write_invoke_log(
 
     let level = if success { "INFO" } else { "ERROR" };
 
-    debug_logger::write_log_with_context(level, "invoke", &message, args.as_deref())
-        .map_err(|e| format!("Failed to write log: {}", e))
+    (message, level.to_string())
+}
+
+/// Format a frontend log message (for testing)
+pub fn format_frontend_log(level: &str, message: &str, context: Option<&str>) -> (String, String, Option<String>) {
+    (level.to_uppercase(), message.to_string(), context.map(|s| s.to_string()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // =========================================================================
+    // format_invoke_log tests
+    // =========================================================================
+
+    #[test]
+    fn test_format_invoke_log_success() {
+        let (message, level) = format_invoke_log("get_mcps", 123.5, true, None);
+
+        assert_eq!(level, "INFO");
+        assert!(message.contains("get_mcps"));
+        assert!(message.contains("123.5ms"));
+        assert!(!message.contains("FAILED"));
+    }
+
+    #[test]
+    fn test_format_invoke_log_failure_with_error() {
+        let (message, level) = format_invoke_log("save_mcp", 50.0, false, Some("Database error"));
+
+        assert_eq!(level, "ERROR");
+        assert!(message.contains("FAILED"));
+        assert!(message.contains("save_mcp"));
+        assert!(message.contains("50.0ms"));
+        assert!(message.contains("Database error"));
+    }
+
+    #[test]
+    fn test_format_invoke_log_failure_no_error() {
+        let (message, level) = format_invoke_log("delete_mcp", 10.0, false, None);
+
+        assert_eq!(level, "ERROR");
+        assert!(message.contains("FAILED"));
+        assert!(message.contains("delete_mcp"));
+        // Should not crash with empty error
+    }
+
+    #[test]
+    fn test_format_invoke_log_fast_command() {
+        let (message, _level) = format_invoke_log("quick_check", 0.1, true, None);
+
+        assert!(message.contains("0.1ms"));
+    }
+
+    #[test]
+    fn test_format_invoke_log_slow_command() {
+        let (message, _level) = format_invoke_log("slow_operation", 5432.1, true, None);
+
+        assert!(message.contains("5432.1ms"));
+    }
+
+    // =========================================================================
+    // format_frontend_log tests
+    // =========================================================================
+
+    #[test]
+    fn test_format_frontend_log_basic() {
+        let (level, msg, ctx) = format_frontend_log("info", "User clicked button", None);
+
+        assert_eq!(level, "INFO");
+        assert_eq!(msg, "User clicked button");
+        assert!(ctx.is_none());
+    }
+
+    #[test]
+    fn test_format_frontend_log_with_context() {
+        let (level, msg, ctx) = format_frontend_log("error", "Failed to load", Some(r#"{"page": "settings"}"#));
+
+        assert_eq!(level, "ERROR");
+        assert_eq!(msg, "Failed to load");
+        assert_eq!(ctx, Some(r#"{"page": "settings"}"#.to_string()));
+    }
+
+    #[test]
+    fn test_format_frontend_log_uppercase_level() {
+        let (level, _, _) = format_frontend_log("debug", "Debug message", None);
+        assert_eq!(level, "DEBUG");
+
+        let (level, _, _) = format_frontend_log("WARN", "Warning", None);
+        assert_eq!(level, "WARN");
+
+        let (level, _, _) = format_frontend_log("Error", "Error", None);
+        assert_eq!(level, "ERROR");
+    }
+
+    // =========================================================================
+    // Integration-like tests (verify no panics)
+    // =========================================================================
+
+    #[test]
+    fn test_is_debug_mode_enabled_does_not_panic() {
+        // Just verify it doesn't panic
+        let _ = debug_logger::is_debug_enabled();
+    }
+
+    #[test]
+    fn test_get_debug_log_path_does_not_panic() {
+        // Just verify it doesn't panic
+        let _ = debug_logger::get_log_file_path();
+    }
 }

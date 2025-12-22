@@ -97,12 +97,35 @@ pub fn update_project_editor_type(
         project_id, editor_type
     );
 
+    let db = db.lock().map_err(|e| e.to_string())?;
+    update_project_editor_type_in_db(&db, project_id, &editor_type)
+}
+
+// ============================================================================
+// Testable helper functions (no Tauri State dependency)
+// ============================================================================
+
+/// Get app settings directly from the database (for testing)
+pub fn get_app_settings_from_db(db: &Database) -> Result<AppSettings, String> {
+    let default_editor = db
+        .get_setting("default_editor")
+        .unwrap_or_else(|| "claude_code".to_string());
+
+    Ok(AppSettings { default_editor })
+}
+
+/// Update app settings directly in the database (for testing)
+pub fn update_app_settings_in_db(db: &Database, settings: &AppSettings) -> Result<(), String> {
+    db.set_setting("default_editor", &settings.default_editor)
+        .map_err(|e| e.to_string())
+}
+
+/// Update project editor type directly in the database (for testing)
+pub fn update_project_editor_type_in_db(db: &Database, project_id: i64, editor_type: &str) -> Result<(), String> {
     // Validate editor type
     if editor_type != "claude_code" && editor_type != "opencode" {
         return Err(format!("Invalid editor type: {}", editor_type));
     }
-
-    let db = db.lock().map_err(|e| e.to_string())?;
 
     db.conn()
         .execute(
@@ -112,4 +135,211 @@ pub fn update_project_editor_type(
         .map_err(|e| e.to_string())?;
 
     Ok(())
+}
+
+/// Get project editor type directly from the database (for testing)
+pub fn get_project_editor_type_from_db(db: &Database, project_id: i64) -> Result<String, String> {
+    db.conn()
+        .query_row(
+            "SELECT COALESCE(editor_type, 'claude_code') FROM projects WHERE id = ?",
+            [project_id],
+            |row| row.get(0),
+        )
+        .map_err(|e| e.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::commands::projects::create_project_in_db;
+    use crate::db::CreateProjectRequest;
+
+    // =========================================================================
+    // AppSettings tests
+    // =========================================================================
+
+    #[test]
+    fn test_get_app_settings_default() {
+        let db = Database::in_memory().unwrap();
+
+        let settings = get_app_settings_from_db(&db).unwrap();
+
+        // Default is claude_code
+        assert_eq!(settings.default_editor, "claude_code");
+    }
+
+    #[test]
+    fn test_update_and_get_app_settings() {
+        let db = Database::in_memory().unwrap();
+
+        // Update to opencode
+        let settings = AppSettings {
+            default_editor: "opencode".to_string(),
+        };
+        update_app_settings_in_db(&db, &settings).unwrap();
+
+        let fetched = get_app_settings_from_db(&db).unwrap();
+        assert_eq!(fetched.default_editor, "opencode");
+
+        // Update back to claude_code
+        let settings = AppSettings {
+            default_editor: "claude_code".to_string(),
+        };
+        update_app_settings_in_db(&db, &settings).unwrap();
+
+        let fetched = get_app_settings_from_db(&db).unwrap();
+        assert_eq!(fetched.default_editor, "claude_code");
+    }
+
+    #[test]
+    fn test_app_settings_serde() {
+        let settings = AppSettings {
+            default_editor: "claude_code".to_string(),
+        };
+
+        let json = serde_json::to_string(&settings).unwrap();
+        assert!(json.contains("defaultEditor")); // camelCase
+
+        let deserialized: AppSettings = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.default_editor, "claude_code");
+    }
+
+    // =========================================================================
+    // Project editor type tests
+    // =========================================================================
+
+    fn create_test_project(db: &Database) -> i64 {
+        let project = CreateProjectRequest {
+            name: "Test Project".to_string(),
+            path: format!("/test/project/{}", std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()),
+        };
+        create_project_in_db(db, &project).unwrap().id
+    }
+
+    #[test]
+    fn test_get_project_editor_type_default() {
+        let db = Database::in_memory().unwrap();
+        let project_id = create_test_project(&db);
+
+        let editor_type = get_project_editor_type_from_db(&db, project_id).unwrap();
+
+        assert_eq!(editor_type, "claude_code");
+    }
+
+    #[test]
+    fn test_update_project_editor_type_to_opencode() {
+        let db = Database::in_memory().unwrap();
+        let project_id = create_test_project(&db);
+
+        update_project_editor_type_in_db(&db, project_id, "opencode").unwrap();
+
+        let editor_type = get_project_editor_type_from_db(&db, project_id).unwrap();
+        assert_eq!(editor_type, "opencode");
+    }
+
+    #[test]
+    fn test_update_project_editor_type_to_claude_code() {
+        let db = Database::in_memory().unwrap();
+        let project_id = create_test_project(&db);
+
+        // First set to opencode
+        update_project_editor_type_in_db(&db, project_id, "opencode").unwrap();
+
+        // Then back to claude_code
+        update_project_editor_type_in_db(&db, project_id, "claude_code").unwrap();
+
+        let editor_type = get_project_editor_type_from_db(&db, project_id).unwrap();
+        assert_eq!(editor_type, "claude_code");
+    }
+
+    #[test]
+    fn test_update_project_editor_type_invalid() {
+        let db = Database::in_memory().unwrap();
+        let project_id = create_test_project(&db);
+
+        let result = update_project_editor_type_in_db(&db, project_id, "invalid_editor");
+
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Invalid editor type"));
+    }
+
+    #[test]
+    fn test_get_project_editor_type_not_found() {
+        let db = Database::in_memory().unwrap();
+
+        let result = get_project_editor_type_from_db(&db, 9999);
+
+        assert!(result.is_err());
+    }
+
+    // =========================================================================
+    // EditorInfo tests
+    // =========================================================================
+
+    #[test]
+    fn test_editor_info_serde() {
+        let info = EditorInfo {
+            id: "claude_code".to_string(),
+            name: "Claude Code".to_string(),
+            is_installed: true,
+            config_path: "/home/user/.claude.json".to_string(),
+        };
+
+        let json = serde_json::to_string(&info).unwrap();
+        // Should use camelCase
+        assert!(json.contains("isInstalled"));
+        assert!(json.contains("configPath"));
+
+        let deserialized: EditorInfo = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.id, "claude_code");
+        assert!(deserialized.is_installed);
+    }
+
+    #[test]
+    fn test_editor_info_not_installed() {
+        let info = EditorInfo {
+            id: "opencode".to_string(),
+            name: "OpenCode".to_string(),
+            is_installed: false,
+            config_path: "".to_string(),
+        };
+
+        let json = serde_json::to_string(&info).unwrap();
+        let deserialized: EditorInfo = serde_json::from_str(&json).unwrap();
+
+        assert!(!deserialized.is_installed);
+    }
+
+    // =========================================================================
+    // OpenCodePaths tests
+    // =========================================================================
+
+    #[test]
+    fn test_opencode_paths_serde() {
+        let paths = OpenCodePaths {
+            config_dir: "/home/user/.config/opencode".to_string(),
+            config_file: "/home/user/.config/opencode/opencode.json".to_string(),
+            command_dir: "/home/user/.config/opencode/command".to_string(),
+            agent_dir: "/home/user/.config/opencode/agent".to_string(),
+            plugin_dir: "/home/user/.config/opencode/plugin".to_string(),
+            tool_dir: "/home/user/.config/opencode/tool".to_string(),
+            knowledge_dir: "/home/user/.config/opencode/knowledge".to_string(),
+        };
+
+        let json = serde_json::to_string(&paths).unwrap();
+        // Should use camelCase
+        assert!(json.contains("configDir"));
+        assert!(json.contains("configFile"));
+        assert!(json.contains("commandDir"));
+        assert!(json.contains("agentDir"));
+        assert!(json.contains("pluginDir"));
+        assert!(json.contains("toolDir"));
+        assert!(json.contains("knowledgeDir"));
+
+        let deserialized: OpenCodePaths = serde_json::from_str(&json).unwrap();
+        assert!(deserialized.config_dir.contains("opencode"));
+    }
 }

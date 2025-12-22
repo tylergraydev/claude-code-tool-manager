@@ -1,0 +1,11 @@
+---
+source: src/services/config_writer.rs
+expression: config
+---
+{
+  "mcpServers": {
+    "minimal": {
+      "command": "python"
+    }
+  }
+}
