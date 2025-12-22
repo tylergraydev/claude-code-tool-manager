@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.5] - 2025-12-21
+
+### Added
+- **Debug Mode**: Enable file-based logging from Global Settings to help troubleshoot issues
+  - Toggle in Settings > Global Settings
+  - Captures Rust backend logs, frontend console logs, and Tauri invoke calls
+  - Log files saved to app data directory
+  - "Open Folder" button for easy access to log files
+- Debug logging throughout the application for better diagnostics
+- Screenshots added to README documentation
+
+### Fixed
+- "Ambiguous column name: created_at" SQL error when loading hooks
+  - Fixed JOIN queries in hooks commands to use table-prefixed column names
+
+### Changed
+- Bug report template now includes instructions for attaching debug logs
+
 ## [1.3.4] - 2025-12-21
 
 ### Added
@@ -104,7 +122,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Dark mode
   - Search and filter
 
-[Unreleased]: https://github.com/tylergraydev/claude-code-tool-manager/compare/v1.3.4...HEAD
+[Unreleased]: https://github.com/tylergraydev/claude-code-tool-manager/compare/v1.3.5...HEAD
+[1.3.5]: https://github.com/tylergraydev/claude-code-tool-manager/compare/v1.3.4...v1.3.5
 [1.3.4]: https://github.com/tylergraydev/claude-code-tool-manager/compare/v1.3.3...v1.3.4
 [1.3.3]: https://github.com/tylergraydev/claude-code-tool-manager/compare/v1.3.2...v1.3.3
 [1.3.2]: https://github.com/tylergraydev/claude-code-tool-manager/compare/v1.3.1...v1.3.2
