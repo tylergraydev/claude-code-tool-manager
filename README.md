@@ -27,8 +27,11 @@ Claude Code stores its configuration across multiple JSON files and markdown fil
 Create, organize, and assign MCP servers to projects or global settings.
 
 - **MCP Library**: Create, edit, and organize MCP server configurations
-- **MCP Testing**: Test stdio MCP servers to verify they work
+- **MCP Testing**: Test MCP servers to verify they work
   - Click the menu button on any MCP card and select "Test"
+  - **Stdio MCPs**: Full testing with tool listing (npx, uvx, node commands)
+  - **HTTP MCPs**: Full testing with Streamable HTTP transport support
+  - **SSE MCPs**: Connectivity verification (full tool listing coming soon)
   - Automatically runs the MCP protocol handshake
   - Lists all available tools with descriptions and input schemas
   - Shows server info, version, and capabilities
@@ -37,8 +40,6 @@ Create, organize, and assign MCP servers to projects or global settings.
 - **Global settings**: Enable MCPs globally across all projects
 - **Paste-to-import**: Quickly import MCP configs from JSON or `claude mcp add` commands
 - **Multiple transport types**: Support for stdio, HTTP, and SSE MCP servers
-
-> **Note**: MCP testing currently only supports stdio MCPs (e.g., `npx`, `uvx`, `node` commands). HTTP and SSE testing is coming soon.
 
 ### Skills (Slash Commands & Agent Skills)
 

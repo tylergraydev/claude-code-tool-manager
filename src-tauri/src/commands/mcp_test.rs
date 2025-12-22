@@ -65,10 +65,15 @@ pub fn test_mcp(db: State<'_, Mutex<Database>>, mcp_id: i64) -> Result<McpTestRe
             info!("[MCP Test] Testing STDIO MCP: {} {:?}", cmd, args);
             mcp_client::test_stdio_mcp(&cmd, &args, env.as_ref(), 30)
         }
-        "http" | "sse" => {
-            let mcp_url = url.ok_or_else(|| "HTTP/SSE MCP requires a URL".to_string())?;
+        "http" => {
+            let mcp_url = url.ok_or_else(|| "HTTP MCP requires a URL".to_string())?;
             info!("[MCP Test] Testing HTTP MCP: {}", mcp_url);
             mcp_client::test_http_mcp(&mcp_url, headers.as_ref(), 30)
+        }
+        "sse" => {
+            let mcp_url = url.ok_or_else(|| "SSE MCP requires a URL".to_string())?;
+            info!("[MCP Test] Testing SSE MCP: {}", mcp_url);
+            mcp_client::test_sse_mcp(&mcp_url, headers.as_ref(), 30)
         }
         _ => {
             return Err(format!("Unknown MCP type: {}", mcp_type));
@@ -98,10 +103,15 @@ pub fn test_mcp_config(
             info!("[MCP Test] Testing STDIO config: {} {:?}", cmd, args_vec);
             mcp_client::test_stdio_mcp(&cmd, &args_vec, env.as_ref(), 30)
         }
-        "http" | "sse" => {
-            let mcp_url = url.ok_or_else(|| "HTTP/SSE MCP requires a URL".to_string())?;
+        "http" => {
+            let mcp_url = url.ok_or_else(|| "HTTP MCP requires a URL".to_string())?;
             info!("[MCP Test] Testing HTTP config: {}", mcp_url);
             mcp_client::test_http_mcp(&mcp_url, headers.as_ref(), 30)
+        }
+        "sse" => {
+            let mcp_url = url.ok_or_else(|| "SSE MCP requires a URL".to_string())?;
+            info!("[MCP Test] Testing SSE config: {}", mcp_url);
+            mcp_client::test_sse_mcp(&mcp_url, headers.as_ref(), 30)
         }
         _ => {
             return Err(format!("Unknown MCP type: {}", mcp_type));

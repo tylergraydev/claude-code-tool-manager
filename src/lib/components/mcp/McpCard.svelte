@@ -99,7 +99,7 @@
 						class="absolute right-0 top-full mt-1 w-40 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-10"
 						onclick={(e) => e.stopPropagation()}
 					>
-						{#if onTest && mcp.type === 'stdio'}
+						{#if onTest}
 							<button
 								onclick={() => {
 									onTest(mcp);

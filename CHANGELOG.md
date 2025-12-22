@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.7] - 2025-12-21
+
+### Added
+- **HTTP MCP Testing**: Full support for Streamable HTTP transport
+  - Session tracking via `mcp-session-id` header
+  - Parses both JSON and SSE-formatted responses
+  - Lists all available tools with descriptions and schemas
+- **SSE MCP Testing**: Basic connectivity verification for SSE transport
+  - Verifies SSE endpoint responds correctly
+  - Shows "connected" status when successful
+  - Note: Full tool listing requires async implementation (coming soon)
+
+### Fixed
+- HTTP MCPs now maintain session across initialize/tools requests
+- Proper Accept header (`application/json, text/event-stream`) for MCP spec compliance
+
 ## [1.3.6] - 2025-12-21
 
 ### Added
@@ -21,7 +37,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Imports MCP server configurations from OpenCode projects
 
 ### Changed
-- HTTP and SSE MCP testing is disabled for now (coming soon)
 - Improved process spawning to properly inherit PATH environment
 
 ### Fixed
@@ -143,7 +158,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Dark mode
   - Search and filter
 
-[Unreleased]: https://github.com/tylergraydev/claude-code-tool-manager/compare/v1.3.6...HEAD
+[Unreleased]: https://github.com/tylergraydev/claude-code-tool-manager/compare/v1.3.7...HEAD
+[1.3.7]: https://github.com/tylergraydev/claude-code-tool-manager/compare/v1.3.6...v1.3.7
 [1.3.6]: https://github.com/tylergraydev/claude-code-tool-manager/compare/v1.3.5...v1.3.6
 [1.3.5]: https://github.com/tylergraydev/claude-code-tool-manager/compare/v1.3.4...v1.3.5
 [1.3.4]: https://github.com/tylergraydev/claude-code-tool-manager/compare/v1.3.3...v1.3.4
