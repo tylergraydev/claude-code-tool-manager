@@ -7,18 +7,18 @@ use std::path::PathBuf;
 pub struct OpenCodePathsInternal {
     #[allow(dead_code)]
     pub home: PathBuf,
-    pub config_dir: PathBuf,           // ~/.config/opencode/
-    pub config_file: PathBuf,          // ~/.config/opencode/opencode.json
-    pub command_dir: PathBuf,          // ~/.config/opencode/command/ (slash commands)
-    pub agent_dir: PathBuf,            // ~/.config/opencode/agent/ (sub-agents)
-    pub plugin_dir: PathBuf,           // ~/.config/opencode/plugin/ (hooks)
-    pub tool_dir: PathBuf,             // ~/.config/opencode/tool/ (custom tools)
-    pub knowledge_dir: PathBuf,        // ~/.config/opencode/knowledge/ (context files)
+    pub config_dir: PathBuf,    // ~/.config/opencode/
+    pub config_file: PathBuf,   // ~/.config/opencode/opencode.json
+    pub command_dir: PathBuf,   // ~/.config/opencode/command/ (slash commands)
+    pub agent_dir: PathBuf,     // ~/.config/opencode/agent/ (sub-agents)
+    pub plugin_dir: PathBuf,    // ~/.config/opencode/plugin/ (hooks)
+    pub tool_dir: PathBuf,      // ~/.config/opencode/tool/ (custom tools)
+    pub knowledge_dir: PathBuf, // ~/.config/opencode/knowledge/ (context files)
 }
 
 pub fn get_opencode_paths() -> Result<OpenCodePathsInternal> {
-    let base_dirs = BaseDirs::new()
-        .ok_or_else(|| anyhow::anyhow!("Could not determine home directory"))?;
+    let base_dirs =
+        BaseDirs::new().ok_or_else(|| anyhow::anyhow!("Could not determine home directory"))?;
 
     let home = base_dirs.home_dir().to_path_buf();
 

@@ -1,4 +1,6 @@
-use crate::db::{CreateRepoRequest, Database, ImportResult, RateLimitInfo, Repo, RepoItem, SyncResult};
+use crate::db::{
+    CreateRepoRequest, Database, ImportResult, RateLimitInfo, Repo, RepoItem, SyncResult,
+};
 use crate::services::github_client::{parse_github_url, GitHubClient};
 use crate::services::repo_parser::parse_frontmatter;
 use crate::services::repo_sync;
@@ -16,11 +18,14 @@ pub fn get_all_repos(db: State<'_, Mutex<Database>>) -> Result<Vec<Repo>, String
 
 /// Add a new repository
 #[tauri::command]
-pub fn add_repo(db: State<'_, Mutex<Database>>, request: CreateRepoRequest) -> Result<Repo, String> {
+pub fn add_repo(
+    db: State<'_, Mutex<Database>>,
+    request: CreateRepoRequest,
+) -> Result<Repo, String> {
     let db = db.lock().map_err(|e| e.to_string())?;
 
-    let (owner, repo) = parse_github_url(&request.github_url)
-        .ok_or_else(|| "Invalid GitHub URL".to_string())?;
+    let (owner, repo) =
+        parse_github_url(&request.github_url).ok_or_else(|| "Invalid GitHub URL".to_string())?;
 
     let name = format!("{}/{}", owner, repo);
 
@@ -81,13 +86,17 @@ pub fn remove_repo(db: State<'_, Mutex<Database>>, id: i64) -> Result<(), String
     // Check if it's a default repo
     let is_default: bool = db
         .conn()
-        .query_row("SELECT is_default FROM repos WHERE id = ?", params![id], |row| {
-            row.get::<_, i32>(0).map(|v| v != 0)
-        })
+        .query_row(
+            "SELECT is_default FROM repos WHERE id = ?",
+            params![id],
+            |row| row.get::<_, i32>(0).map(|v| v != 0),
+        )
         .map_err(|e| e.to_string())?;
 
     if is_default {
-        return Err("Cannot remove default repositories. You can disable them instead.".to_string());
+        return Err(
+            "Cannot remove default repositories. You can disable them instead.".to_string(),
+        );
     }
 
     db.conn()
@@ -114,7 +123,10 @@ pub fn toggle_repo(db: State<'_, Mutex<Database>>, id: i64, enabled: bool) -> Re
 
 /// Get items from a specific repository
 #[tauri::command]
-pub fn get_repo_items(db: State<'_, Mutex<Database>>, repo_id: i64) -> Result<Vec<RepoItem>, String> {
+pub fn get_repo_items(
+    db: State<'_, Mutex<Database>>,
+    repo_id: i64,
+) -> Result<Vec<RepoItem>, String> {
     let db = db.lock().map_err(|e| e.to_string())?;
     repo_sync::get_repo_items(&db, repo_id).map_err(|e| e.to_string())
 }
@@ -242,15 +254,24 @@ async fn fetch_content_from_url(url: &str) -> Result<String, String> {
         .map_err(|e| format!("Failed to fetch content: {}", e))?;
 
     if !response.status().is_success() {
-        return Err(format!("Failed to fetch content: HTTP {}", response.status()));
+        return Err(format!(
+            "Failed to fetch content: HTTP {}",
+            response.status()
+        ));
     }
 
-    response.text().await.map_err(|e| format!("Failed to read content: {}", e))
+    response
+        .text()
+        .await
+        .map_err(|e| format!("Failed to read content: {}", e))
 }
 
 /// Import a repository item to the local library
 #[tauri::command]
-pub async fn import_repo_item(db: State<'_, Mutex<Database>>, item_id: i64) -> Result<ImportResult, String> {
+pub async fn import_repo_item(
+    db: State<'_, Mutex<Database>>,
+    item_id: i64,
+) -> Result<ImportResult, String> {
     // Get the repo item (scope the lock)
     let item: RepoItem = {
         let db = db.lock().map_err(|e| e.to_string())?;
@@ -314,10 +335,15 @@ pub async fn import_repo_item(db: State<'_, Mutex<Database>>, item_id: i64) -> R
             let content = body.trim().to_string();
 
             // Determine skill type and allowed tools
-            let allowed_tools = frontmatter.get("allowed-tools")
+            let allowed_tools = frontmatter
+                .get("allowed-tools")
                 .or_else(|| frontmatter.get("allowedtools"))
                 .cloned();
-            let skill_type = if allowed_tools.is_some() { "skill" } else { "command" };
+            let skill_type = if allowed_tools.is_some() {
+                "skill"
+            } else {
+                "command"
+            };
 
             db.conn()
                 .execute(
@@ -335,18 +361,29 @@ pub async fn import_repo_item(db: State<'_, Mutex<Database>>, item_id: i64) -> R
 
             // Extract all fields from frontmatter
             let model = frontmatter.get("model").cloned();
-            let permission_mode = frontmatter.get("permissionmode")
+            let permission_mode = frontmatter
+                .get("permissionmode")
                 .or_else(|| frontmatter.get("permission-mode"))
                 .cloned();
-            let tools = frontmatter.get("tools")
-                .map(|t| t.split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect::<Vec<_>>());
-            let skills = frontmatter.get("skills")
-                .map(|t| t.split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect::<Vec<_>>());
+            let tools = frontmatter.get("tools").map(|t| {
+                t.split(',')
+                    .map(|s| s.trim().to_string())
+                    .filter(|s| !s.is_empty())
+                    .collect::<Vec<_>>()
+            });
+            let skills = frontmatter.get("skills").map(|t| {
+                t.split(',')
+                    .map(|s| s.trim().to_string())
+                    .filter(|s| !s.is_empty())
+                    .collect::<Vec<_>>()
+            });
 
             let tools_json = tools.as_ref().map(|t| serde_json::to_string(t).unwrap());
             let skills_json = skills.as_ref().map(|t| serde_json::to_string(t).unwrap());
 
-            let description = item.description.unwrap_or_else(|| "Imported from marketplace".to_string());
+            let description = item
+                .description
+                .unwrap_or_else(|| "Imported from marketplace".to_string());
             db.conn()
                 .execute(
                     r#"INSERT INTO subagents (name, description, content, tools, model, permission_mode, skills, source)
@@ -392,10 +429,7 @@ pub async fn import_repo_item(db: State<'_, Mutex<Database>>, item_id: i64) -> R
 pub async fn get_github_rate_limit() -> Result<RateLimitInfo, String> {
     let client = GitHubClient::new(None);
 
-    let (limit, remaining, reset) = client
-        .get_rate_limit()
-        .await
-        .map_err(|e| e.to_string())?;
+    let (limit, remaining, reset) = client.get_rate_limit().await.map_err(|e| e.to_string())?;
 
     let reset_at = chrono::DateTime::from_timestamp(reset, 0)
         .map(|dt| dt.to_rfc3339())
@@ -440,8 +474,8 @@ pub fn reset_repos_to_defaults(db: State<'_, Mutex<Database>>) -> Result<(), Str
 
 /// Add a repo directly in the database (for testing)
 pub fn add_repo_in_db(db: &Database, request: &CreateRepoRequest) -> Result<Repo, String> {
-    let (owner, repo) = parse_github_url(&request.github_url)
-        .ok_or_else(|| "Invalid GitHub URL".to_string())?;
+    let (owner, repo) =
+        parse_github_url(&request.github_url).ok_or_else(|| "Invalid GitHub URL".to_string())?;
 
     let name = format!("{}/{}", owner, repo);
 
@@ -510,13 +544,17 @@ pub fn remove_repo_in_db(db: &Database, id: i64) -> Result<(), String> {
     // Check if it's a default repo
     let is_default: bool = db
         .conn()
-        .query_row("SELECT is_default FROM repos WHERE id = ?", params![id], |row| {
-            row.get::<_, i32>(0).map(|v| v != 0)
-        })
+        .query_row(
+            "SELECT is_default FROM repos WHERE id = ?",
+            params![id],
+            |row| row.get::<_, i32>(0).map(|v| v != 0),
+        )
         .map_err(|e| e.to_string())?;
 
     if is_default {
-        return Err("Cannot remove default repositories. You can disable them instead.".to_string());
+        return Err(
+            "Cannot remove default repositories. You can disable them instead.".to_string(),
+        );
     }
 
     db.conn()
@@ -578,7 +616,11 @@ pub fn get_repo_item_by_id(db: &Database, id: i64) -> Result<RepoItem, String> {
 }
 
 /// Mark a repo item as imported directly in the database (for testing)
-pub fn mark_item_imported_in_db(db: &Database, item_id: i64, imported_id: i64) -> Result<(), String> {
+pub fn mark_item_imported_in_db(
+    db: &Database,
+    item_id: i64,
+    imported_id: i64,
+) -> Result<(), String> {
     db.conn()
         .execute(
             "UPDATE repo_items SET is_imported = 1, imported_item_id = ? WHERE id = ?",
@@ -630,7 +672,7 @@ mod tests {
         assert!(created.name.contains("testrepo"));
         assert_eq!(created.repo_type, "file_based");
         assert_eq!(created.content_type, "skill");
-        assert!(created.is_enabled);  // Default enabled
+        assert!(created.is_enabled); // Default enabled
         assert!(!created.is_default); // Not a default repo
     }
 
@@ -797,7 +839,8 @@ mod tests {
         let db = Database::in_memory().unwrap();
         let repo_id = create_test_repo(&db);
 
-        let item_id = add_repo_item_in_db(&db, repo_id, "mcp", "minimal-mcp", None, None, None).unwrap();
+        let item_id =
+            add_repo_item_in_db(&db, repo_id, "mcp", "minimal-mcp", None, None, None).unwrap();
 
         let item = get_repo_item_by_id(&db, item_id).unwrap();
 
@@ -812,7 +855,8 @@ mod tests {
         let db = Database::in_memory().unwrap();
         let repo_id = create_test_repo(&db);
 
-        let item_id = add_repo_item_in_db(&db, repo_id, "skill", "importable", None, None, None).unwrap();
+        let item_id =
+            add_repo_item_in_db(&db, repo_id, "skill", "importable", None, None, None).unwrap();
 
         // Initially not imported
         let item = get_repo_item_by_id(&db, item_id).unwrap();
@@ -835,14 +879,20 @@ mod tests {
     fn test_convert_blob_url_to_raw() {
         let blob_url = "https://github.com/owner/repo/blob/main/path/to/file.md";
         let raw = convert_to_raw_url(blob_url);
-        assert_eq!(raw, "https://raw.githubusercontent.com/owner/repo/main/path/to/file.md");
+        assert_eq!(
+            raw,
+            "https://raw.githubusercontent.com/owner/repo/main/path/to/file.md"
+        );
     }
 
     #[test]
     fn test_convert_blob_url_with_branch() {
         let blob_url = "https://github.com/owner/repo/blob/feature-branch/file.md";
         let raw = convert_to_raw_url(blob_url);
-        assert_eq!(raw, "https://raw.githubusercontent.com/owner/repo/feature-branch/file.md");
+        assert_eq!(
+            raw,
+            "https://raw.githubusercontent.com/owner/repo/feature-branch/file.md"
+        );
     }
 
     #[test]

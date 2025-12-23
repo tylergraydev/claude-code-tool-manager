@@ -6,23 +6,24 @@ pub struct ClaudePathsInternal {
     #[allow(dead_code)]
     pub home: PathBuf,
     pub claude_dir: PathBuf,
-    pub claude_json: PathBuf,  // Main Claude Code config file (~/.claude.json)
+    pub claude_json: PathBuf, // Main Claude Code config file (~/.claude.json)
     pub global_settings: PathBuf,
     pub plugins_dir: PathBuf,
     pub marketplaces_dir: PathBuf,
-    pub commands_dir: PathBuf,  // ~/.claude/commands/ for command-type skills
-    pub skills_dir: PathBuf,    // ~/.claude/skills/ for agent-type skills
-    pub agents_dir: PathBuf,    // ~/.claude/agents/ for sub-agents
+    pub commands_dir: PathBuf, // ~/.claude/commands/ for command-type skills
+    pub skills_dir: PathBuf,   // ~/.claude/skills/ for agent-type skills
+    pub agents_dir: PathBuf,   // ~/.claude/agents/ for sub-agents
 }
 
 pub fn get_claude_paths() -> Result<ClaudePathsInternal> {
-    let base_dirs = BaseDirs::new().ok_or_else(|| anyhow::anyhow!("Could not determine home directory"))?;
+    let base_dirs =
+        BaseDirs::new().ok_or_else(|| anyhow::anyhow!("Could not determine home directory"))?;
 
     let home = base_dirs.home_dir().to_path_buf();
     let claude_dir = home.join(".claude");
 
     Ok(ClaudePathsInternal {
-        claude_json: home.join(".claude.json"),  // ~/.claude.json
+        claude_json: home.join(".claude.json"), // ~/.claude.json
         global_settings: claude_dir.join("settings.json"),
         plugins_dir: claude_dir.join("plugins"),
         marketplaces_dir: claude_dir.join("plugins").join("marketplaces"),
@@ -79,7 +80,10 @@ mod tests {
 
     #[test]
     fn test_normalize_path_backslashes() {
-        assert_eq!(normalize_path("C:\\Users\\Test\\file.txt"), "C:/Users/Test/file.txt");
+        assert_eq!(
+            normalize_path("C:\\Users\\Test\\file.txt"),
+            "C:/Users/Test/file.txt"
+        );
         assert_eq!(normalize_path("path\\to\\file"), "path/to/file");
     }
 
@@ -91,7 +95,10 @@ mod tests {
 
     #[test]
     fn test_normalize_path_mixed_slashes() {
-        assert_eq!(normalize_path("path\\to/mixed\\slashes"), "path/to/mixed/slashes");
+        assert_eq!(
+            normalize_path("path\\to/mixed\\slashes"),
+            "path/to/mixed/slashes"
+        );
     }
 
     #[test]

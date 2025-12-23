@@ -131,7 +131,15 @@ pub fn sync_global_config(db: State<'_, Mutex<Database>>) -> Result<(), String> 
         )
         .map_err(|e| e.to_string())?;
 
-    let mcps: Vec<(String, String, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>)> = stmt
+    let mcps: Vec<(
+        String,
+        String,
+        Option<String>,
+        Option<String>,
+        Option<String>,
+        Option<String>,
+        Option<String>,
+    )> = stmt
         .query_map([], |row| {
             Ok((
                 row.get(0)?,
@@ -329,7 +337,7 @@ mod tests {
 
         assert_eq!(global_mcps.len(), 1);
         assert_eq!(global_mcps[0].mcp_id, mcp_id);
-        assert!(global_mcps[0].is_enabled);  // Default enabled
+        assert!(global_mcps[0].is_enabled); // Default enabled
     }
 
     #[test]
@@ -427,9 +435,15 @@ mod tests {
         let global_mcps = get_global_mcps_from_db(&db).unwrap();
 
         assert_eq!(global_mcps[0].mcp.name, "detailed-mcp");
-        assert_eq!(global_mcps[0].mcp.description, Some("A detailed MCP".to_string()));
+        assert_eq!(
+            global_mcps[0].mcp.description,
+            Some("A detailed MCP".to_string())
+        );
         assert_eq!(global_mcps[0].mcp.mcp_type, "sse");
-        assert_eq!(global_mcps[0].mcp.url, Some("https://example.com".to_string()));
+        assert_eq!(
+            global_mcps[0].mcp.url,
+            Some("https://example.com".to_string())
+        );
     }
 
     #[test]
@@ -443,7 +457,9 @@ mod tests {
         // MCP should still exist
         let count: i64 = db
             .conn()
-            .query_row("SELECT COUNT(*) FROM mcps WHERE id = ?", [mcp_id], |row| row.get(0))
+            .query_row("SELECT COUNT(*) FROM mcps WHERE id = ?", [mcp_id], |row| {
+                row.get(0)
+            })
             .unwrap();
         assert_eq!(count, 1);
     }

@@ -146,10 +146,16 @@ pub fn get_hook_templates(db: State<'_, Mutex<Database>>) -> Result<Vec<Hook>, S
 }
 
 #[tauri::command]
-pub fn create_hook(db: State<'_, Mutex<Database>>, hook: CreateHookRequest) -> Result<Hook, String> {
+pub fn create_hook(
+    db: State<'_, Mutex<Database>>,
+    hook: CreateHookRequest,
+) -> Result<Hook, String> {
     let db_guard = db.lock().map_err(|e| e.to_string())?;
 
-    let tags_json = hook.tags.as_ref().map(|t| serde_json::to_string(t).unwrap());
+    let tags_json = hook
+        .tags
+        .as_ref()
+        .map(|t| serde_json::to_string(t).unwrap());
 
     db_guard
         .conn()
@@ -174,7 +180,10 @@ pub fn create_hook(db: State<'_, Mutex<Database>>, hook: CreateHookRequest) -> R
 
     let mut stmt = db_guard
         .conn()
-        .prepare(&format!("SELECT {} FROM hooks WHERE id = ?", HOOK_SELECT_FIELDS))
+        .prepare(&format!(
+            "SELECT {} FROM hooks WHERE id = ?",
+            HOOK_SELECT_FIELDS
+        ))
         .map_err(|e| e.to_string())?;
 
     stmt.query_row([id], row_to_hook).map_err(|e| e.to_string())
@@ -191,7 +200,10 @@ pub fn create_hook_from_template(
     // Get the template
     let mut stmt = db_guard
         .conn()
-        .prepare(&format!("SELECT {} FROM hooks WHERE id = ?", HOOK_SELECT_FIELDS))
+        .prepare(&format!(
+            "SELECT {} FROM hooks WHERE id = ?",
+            HOOK_SELECT_FIELDS
+        ))
         .map_err(|e| e.to_string())?;
 
     let template: Hook = stmt
@@ -222,7 +234,10 @@ pub fn create_hook_from_template(
 
     let mut stmt = db_guard
         .conn()
-        .prepare(&format!("SELECT {} FROM hooks WHERE id = ?", HOOK_SELECT_FIELDS))
+        .prepare(&format!(
+            "SELECT {} FROM hooks WHERE id = ?",
+            HOOK_SELECT_FIELDS
+        ))
         .map_err(|e| e.to_string())?;
 
     stmt.query_row([id], row_to_hook).map_err(|e| e.to_string())
@@ -236,7 +251,10 @@ pub fn update_hook(
 ) -> Result<Hook, String> {
     let db_guard = db.lock().map_err(|e| e.to_string())?;
 
-    let tags_json = hook.tags.as_ref().map(|t| serde_json::to_string(t).unwrap());
+    let tags_json = hook
+        .tags
+        .as_ref()
+        .map(|t| serde_json::to_string(t).unwrap());
 
     db_guard
         .conn()
@@ -290,7 +308,10 @@ pub fn update_hook(
 
     let mut stmt = db_guard
         .conn()
-        .prepare(&format!("SELECT {} FROM hooks WHERE id = ?", HOOK_SELECT_FIELDS))
+        .prepare(&format!(
+            "SELECT {} FROM hooks WHERE id = ?",
+            HOOK_SELECT_FIELDS
+        ))
         .map_err(|e| e.to_string())?;
 
     stmt.query_row([id], row_to_hook).map_err(|e| e.to_string())
@@ -435,7 +456,10 @@ pub fn get_project_hooks(
     db: State<'_, Mutex<Database>>,
     project_id: i64,
 ) -> Result<Vec<ProjectHook>, String> {
-    info!("[Hooks] Loading project hooks for project_id={}", project_id);
+    info!(
+        "[Hooks] Loading project hooks for project_id={}",
+        project_id
+    );
     let db = db.lock().map_err(|e| {
         error!("[Hooks] Failed to acquire database lock: {}", e);
         e.to_string()
@@ -482,9 +506,11 @@ pub fn assign_hook_to_project(
     // Get project path
     let project_path: String = db_guard
         .conn()
-        .query_row("SELECT path FROM projects WHERE id = ?", [project_id], |row| {
-            row.get(0)
-        })
+        .query_row(
+            "SELECT path FROM projects WHERE id = ?",
+            [project_id],
+            |row| row.get(0),
+        )
         .map_err(|e| e.to_string())?;
 
     db_guard
@@ -509,9 +535,11 @@ pub fn remove_hook_from_project(
     // Get project path
     let project_path: String = db_guard
         .conn()
-        .query_row("SELECT path FROM projects WHERE id = ?", [project_id], |row| {
-            row.get(0)
-        })
+        .query_row(
+            "SELECT path FROM projects WHERE id = ?",
+            [project_id],
+            |row| row.get(0),
+        )
         .map_err(|e| e.to_string())?;
 
     db_guard
@@ -562,9 +590,11 @@ pub fn seed_hook_templates(db: State<'_, Mutex<Database>>) -> Result<(), String>
     // Check if templates already exist
     let count: i64 = db_guard
         .conn()
-        .query_row("SELECT COUNT(*) FROM hooks WHERE is_template = 1", [], |row| {
-            row.get(0)
-        })
+        .query_row(
+            "SELECT COUNT(*) FROM hooks WHERE is_template = 1",
+            [],
+            |row| row.get(0),
+        )
         .unwrap_or(0);
 
     if count > 0 {
@@ -644,7 +674,10 @@ pub fn seed_hook_templates(db: State<'_, Mutex<Database>>) -> Result<(), String>
 
 /// Create a hook directly in the database (for testing)
 pub fn create_hook_in_db(db: &Database, hook: &CreateHookRequest) -> Result<Hook, String> {
-    let tags_json = hook.tags.as_ref().map(|t| serde_json::to_string(t).unwrap());
+    let tags_json = hook
+        .tags
+        .as_ref()
+        .map(|t| serde_json::to_string(t).unwrap());
 
     db.conn()
         .execute(
@@ -672,7 +705,10 @@ pub fn create_hook_in_db(db: &Database, hook: &CreateHookRequest) -> Result<Hook
 pub fn get_hook_by_id(db: &Database, id: i64) -> Result<Hook, String> {
     let mut stmt = db
         .conn()
-        .prepare(&format!("SELECT {} FROM hooks WHERE id = ?", HOOK_SELECT_FIELDS))
+        .prepare(&format!(
+            "SELECT {} FROM hooks WHERE id = ?",
+            HOOK_SELECT_FIELDS
+        ))
         .map_err(|e| e.to_string())?;
 
     stmt.query_row([id], row_to_hook).map_err(|e| e.to_string())
@@ -699,7 +735,10 @@ pub fn get_all_hooks_from_db(db: &Database) -> Result<Vec<Hook>, String> {
 
 /// Update a hook directly in the database (for testing)
 pub fn update_hook_in_db(db: &Database, id: i64, hook: &CreateHookRequest) -> Result<Hook, String> {
-    let tags_json = hook.tags.as_ref().map(|t| serde_json::to_string(t).unwrap());
+    let tags_json = hook
+        .tags
+        .as_ref()
+        .map(|t| serde_json::to_string(t).unwrap());
 
     db.conn()
         .execute(
@@ -824,7 +863,10 @@ mod tests {
         assert_eq!(created.command, Some("npm run lint".to_string()));
         assert_eq!(created.prompt, None);
         assert_eq!(created.timeout, Some(30));
-        assert_eq!(created.tags, Some(vec!["lint".to_string(), "format".to_string()]));
+        assert_eq!(
+            created.tags,
+            Some(vec!["lint".to_string(), "format".to_string()])
+        );
         assert_eq!(created.source, "manual");
         assert!(!created.is_template);
     }
@@ -849,7 +891,10 @@ mod tests {
 
         assert_eq!(created.name, "prompt-hook");
         assert_eq!(created.hook_type, "prompt");
-        assert_eq!(created.prompt, Some("Always verify before writing".to_string()));
+        assert_eq!(
+            created.prompt,
+            Some("Always verify before writing".to_string())
+        );
         assert_eq!(created.command, None);
     }
 
@@ -1042,7 +1087,7 @@ mod tests {
 
         assert_eq!(global_hooks.len(), 1);
         assert_eq!(global_hooks[0].hook_id, created.id);
-        assert!(global_hooks[0].is_enabled);  // Default enabled
+        assert!(global_hooks[0].is_enabled); // Default enabled
     }
 
     #[test]

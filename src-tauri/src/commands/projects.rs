@@ -62,7 +62,9 @@ pub fn get_all_projects(db: State<'_, Mutex<Database>>) -> Result<Vec<Project>, 
                 has_mcp_file: row.get::<_, i32>(3)? != 0,
                 has_settings_file: row.get::<_, i32>(4)? != 0,
                 last_scanned_at: row.get(5)?,
-                editor_type: row.get::<_, Option<String>>(6)?.unwrap_or_else(|| "claude_code".to_string()),
+                editor_type: row
+                    .get::<_, Option<String>>(6)?
+                    .unwrap_or_else(|| "claude_code".to_string()),
                 created_at: row.get(7)?,
                 updated_at: row.get(8)?,
                 assigned_mcps: vec![],
@@ -117,7 +119,10 @@ pub fn add_project(
 ) -> Result<Project, String> {
     use crate::utils::paths::get_claude_paths;
 
-    info!("[Projects] Adding project: {} at {}", project.name, project.path);
+    info!(
+        "[Projects] Adding project: {} at {}",
+        project.name, project.path
+    );
     let db = db.lock().map_err(|e| e.to_string())?;
 
     // Check if .claude/.mcp.json exists
@@ -132,7 +137,12 @@ pub fn add_project(
         .execute(
             "INSERT INTO projects (name, path, has_mcp_file, has_settings_file)
              VALUES (?, ?, ?, ?)",
-            params![project.name, project.path, has_mcp_file as i32, has_settings_file as i32],
+            params![
+                project.name,
+                project.path,
+                has_mcp_file as i32,
+                has_settings_file as i32
+            ],
         )
         .map_err(|e| e.to_string())?;
 
@@ -178,11 +188,9 @@ pub async fn browse_for_project(app: tauri::AppHandle) -> Result<Option<String>,
 
     let (tx, rx) = mpsc::channel();
 
-    app.dialog()
-        .file()
-        .pick_folder(move |folder| {
-            let _ = tx.send(folder.map(|f| f.to_string()));
-        });
+    app.dialog().file().pick_folder(move |folder| {
+        let _ = tx.send(folder.map(|f| f.to_string()));
+    });
 
     rx.recv()
         .map_err(|e| e.to_string())?
@@ -280,7 +288,16 @@ pub fn sync_project_config(db: State<'_, Mutex<Database>>, project_id: i64) -> R
         )
         .map_err(|e| e.to_string())?;
 
-    let mcps_with_enabled: Vec<(String, String, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, bool)> = stmt
+    let mcps_with_enabled: Vec<(
+        String,
+        String,
+        Option<String>,
+        Option<String>,
+        Option<String>,
+        Option<String>,
+        Option<String>,
+        bool,
+    )> = stmt
         .query_map([project_id], |row| {
             Ok((
                 row.get(0)?,
@@ -307,14 +324,25 @@ pub fn sync_project_config(db: State<'_, Mutex<Database>>, project_id: i64) -> R
                 .iter()
                 .filter(|(_, _, _, _, _, _, _, enabled)| *enabled)
                 .map(|(n, t, cmd, args, url, headers, env, _)| {
-                    (n.clone(), t.clone(), cmd.clone(), args.clone(), url.clone(), headers.clone(), env.clone())
+                    (
+                        n.clone(),
+                        t.clone(),
+                        cmd.clone(),
+                        args.clone(),
+                        url.clone(),
+                        headers.clone(),
+                        env.clone(),
+                    )
                 })
                 .collect();
 
             opencode_config::write_opencode_project_config(&project_path, &enabled_mcps)
                 .map_err(|e| e.to_string())?;
 
-            info!("[Projects] Wrote OpenCode config for project {}", project_id);
+            info!(
+                "[Projects] Wrote OpenCode config for project {}",
+                project_id
+            );
         }
         _ => {
             // Claude Code: Write to claude.json (includes disabled state)
@@ -327,14 +355,25 @@ pub fn sync_project_config(db: State<'_, Mutex<Database>>, project_id: i64) -> R
                 .iter()
                 .filter(|(_, _, _, _, _, _, _, enabled)| *enabled)
                 .map(|(n, t, cmd, args, url, headers, env, _)| {
-                    (n.clone(), t.clone(), cmd.clone(), args.clone(), url.clone(), headers.clone(), env.clone())
+                    (
+                        n.clone(),
+                        t.clone(),
+                        cmd.clone(),
+                        args.clone(),
+                        url.clone(),
+                        headers.clone(),
+                        env.clone(),
+                    )
                 })
                 .collect();
 
             config_writer::write_project_config(&project_path, &enabled_mcps)
                 .map_err(|e| e.to_string())?;
 
-            info!("[Projects] Wrote Claude Code config for project {}", project_id);
+            info!(
+                "[Projects] Wrote Claude Code config for project {}",
+                project_id
+            );
         }
     }
 
@@ -354,7 +393,10 @@ pub fn sync_project_config(db: State<'_, Mutex<Database>>, project_id: i64) -> R
 // ============================================================================
 
 /// Create a project directly in the database (for testing)
-pub fn create_project_in_db(db: &Database, project: &CreateProjectRequest) -> Result<Project, String> {
+pub fn create_project_in_db(
+    db: &Database,
+    project: &CreateProjectRequest,
+) -> Result<Project, String> {
     db.conn()
         .execute(
             "INSERT INTO projects (name, path, has_mcp_file, has_settings_file)
@@ -436,7 +478,9 @@ pub fn get_all_projects_from_db(db: &Database) -> Result<Vec<Project>, String> {
                 has_mcp_file: row.get::<_, i32>(3)? != 0,
                 has_settings_file: row.get::<_, i32>(4)? != 0,
                 last_scanned_at: row.get(5)?,
-                editor_type: row.get::<_, Option<String>>(6)?.unwrap_or_else(|| "claude_code".to_string()),
+                editor_type: row
+                    .get::<_, Option<String>>(6)?
+                    .unwrap_or_else(|| "claude_code".to_string()),
                 created_at: row.get(7)?,
                 updated_at: row.get(8)?,
                 assigned_mcps: vec![],
@@ -458,7 +502,11 @@ pub fn delete_project_from_db(db: &Database, id: i64) -> Result<(), String> {
 }
 
 /// Assign an MCP to a project directly in the database (for testing)
-pub fn assign_mcp_to_project_in_db(db: &Database, project_id: i64, mcp_id: i64) -> Result<(), String> {
+pub fn assign_mcp_to_project_in_db(
+    db: &Database,
+    project_id: i64,
+    mcp_id: i64,
+) -> Result<(), String> {
     let order: i32 = db
         .conn()
         .query_row(
@@ -479,7 +527,11 @@ pub fn assign_mcp_to_project_in_db(db: &Database, project_id: i64, mcp_id: i64) 
 }
 
 /// Remove an MCP from a project directly in the database (for testing)
-pub fn remove_mcp_from_project_in_db(db: &Database, project_id: i64, mcp_id: i64) -> Result<(), String> {
+pub fn remove_mcp_from_project_in_db(
+    db: &Database,
+    project_id: i64,
+    mcp_id: i64,
+) -> Result<(), String> {
     db.conn()
         .execute(
             "DELETE FROM project_mcps WHERE project_id = ? AND mcp_id = ?",
@@ -490,7 +542,11 @@ pub fn remove_mcp_from_project_in_db(db: &Database, project_id: i64, mcp_id: i64
 }
 
 /// Toggle a project MCP directly in the database (for testing)
-pub fn toggle_project_mcp_in_db(db: &Database, assignment_id: i64, enabled: bool) -> Result<(), String> {
+pub fn toggle_project_mcp_in_db(
+    db: &Database,
+    assignment_id: i64,
+    enabled: bool,
+) -> Result<(), String> {
     db.conn()
         .execute(
             "UPDATE project_mcps SET is_enabled = ? WHERE id = ?",
@@ -676,7 +732,7 @@ mod tests {
 
         assert_eq!(mcps.len(), 1);
         assert_eq!(mcps[0].mcp_id, mcp_id);
-        assert!(mcps[0].is_enabled);  // Default enabled
+        assert!(mcps[0].is_enabled); // Default enabled
     }
 
     #[test]

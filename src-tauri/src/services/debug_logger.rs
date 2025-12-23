@@ -40,11 +40,15 @@ pub fn enable_debug_logging(app_data_dir: &PathBuf) -> Result<PathBuf> {
 
     // Store file handle and path
     {
-        let mut file_guard = LOG_FILE.lock().map_err(|e| anyhow::anyhow!("Lock error: {}", e))?;
+        let mut file_guard = LOG_FILE
+            .lock()
+            .map_err(|e| anyhow::anyhow!("Lock error: {}", e))?;
         *file_guard = Some(file);
     }
     {
-        let mut path_guard = LOG_FILE_PATH.lock().map_err(|e| anyhow::anyhow!("Lock error: {}", e))?;
+        let mut path_guard = LOG_FILE_PATH
+            .lock()
+            .map_err(|e| anyhow::anyhow!("Lock error: {}", e))?;
         *path_guard = Some(log_path.clone());
     }
 
@@ -53,9 +57,21 @@ pub fn enable_debug_logging(app_data_dir: &PathBuf) -> Result<PathBuf> {
 
     // Write header
     write_log("INFO", "debug", "Debug logging enabled")?;
-    write_log("INFO", "debug", &format!("Log file: {}", log_path.display()))?;
-    write_log("INFO", "debug", &format!("App version: {}", env!("CARGO_PKG_VERSION")))?;
-    write_log("INFO", "debug", &format!("Platform: {}", std::env::consts::OS))?;
+    write_log(
+        "INFO",
+        "debug",
+        &format!("Log file: {}", log_path.display()),
+    )?;
+    write_log(
+        "INFO",
+        "debug",
+        &format!("App version: {}", env!("CARGO_PKG_VERSION")),
+    )?;
+    write_log(
+        "INFO",
+        "debug",
+        &format!("Platform: {}", std::env::consts::OS),
+    )?;
 
     Ok(log_path)
 }
@@ -70,7 +86,9 @@ pub fn disable_debug_logging() -> Result<()> {
 
     // Close file handle
     {
-        let mut file_guard = LOG_FILE.lock().map_err(|e| anyhow::anyhow!("Lock error: {}", e))?;
+        let mut file_guard = LOG_FILE
+            .lock()
+            .map_err(|e| anyhow::anyhow!("Lock error: {}", e))?;
         if let Some(mut file) = file_guard.take() {
             let _ = file.flush();
         }
@@ -89,9 +107,17 @@ pub fn write_log(level: &str, source: &str, message: &str) -> Result<()> {
     }
 
     let timestamp = Local::now().format("%Y-%m-%d %H:%M:%S%.3f");
-    let log_line = format!("[{}] [{}] [{}] {}\n", timestamp, level.to_uppercase(), source, message);
+    let log_line = format!(
+        "[{}] [{}] [{}] {}\n",
+        timestamp,
+        level.to_uppercase(),
+        source,
+        message
+    );
 
-    let mut file_guard = LOG_FILE.lock().map_err(|e| anyhow::anyhow!("Lock error: {}", e))?;
+    let mut file_guard = LOG_FILE
+        .lock()
+        .map_err(|e| anyhow::anyhow!("Lock error: {}", e))?;
     if let Some(ref mut file) = *file_guard {
         file.write_all(log_line.as_bytes())?;
         file.flush()?;
@@ -101,18 +127,38 @@ pub fn write_log(level: &str, source: &str, message: &str) -> Result<()> {
 }
 
 /// Write a log entry with optional context (for structured data like JSON)
-pub fn write_log_with_context(level: &str, source: &str, message: &str, context: Option<&str>) -> Result<()> {
+pub fn write_log_with_context(
+    level: &str,
+    source: &str,
+    message: &str,
+    context: Option<&str>,
+) -> Result<()> {
     if !is_debug_enabled() {
         return Ok(());
     }
 
     let timestamp = Local::now().format("%Y-%m-%d %H:%M:%S%.3f");
     let log_line = match context {
-        Some(ctx) => format!("[{}] [{}] [{}] {} | {}\n", timestamp, level.to_uppercase(), source, message, ctx),
-        None => format!("[{}] [{}] [{}] {}\n", timestamp, level.to_uppercase(), source, message),
+        Some(ctx) => format!(
+            "[{}] [{}] [{}] {} | {}\n",
+            timestamp,
+            level.to_uppercase(),
+            source,
+            message,
+            ctx
+        ),
+        None => format!(
+            "[{}] [{}] [{}] {}\n",
+            timestamp,
+            level.to_uppercase(),
+            source,
+            message
+        ),
     };
 
-    let mut file_guard = LOG_FILE.lock().map_err(|e| anyhow::anyhow!("Lock error: {}", e))?;
+    let mut file_guard = LOG_FILE
+        .lock()
+        .map_err(|e| anyhow::anyhow!("Lock error: {}", e))?;
     if let Some(ref mut file) = *file_guard {
         file.write_all(log_line.as_bytes())?;
         file.flush()?;
@@ -368,7 +414,10 @@ mod tests {
             // Read log file and verify our message is there
             let content = fs::read_to_string(&log_path).unwrap();
             assert!(content.contains("[INFO]"), "Log should contain INFO level");
-            assert!(content.contains(&unique_msg), "Log should contain our unique message");
+            assert!(
+                content.contains(&unique_msg),
+                "Log should contain our unique message"
+            );
         }
 
         // Clean up
@@ -390,8 +439,14 @@ mod tests {
             write_log_with_context("INFO", "invoke", &unique_msg, Some(&context)).unwrap();
 
             let content = fs::read_to_string(&log_path).unwrap();
-            assert!(content.contains(&unique_msg), "Log should contain our message");
-            assert!(content.contains(&context), "Log should contain context JSON");
+            assert!(
+                content.contains(&unique_msg),
+                "Log should contain our message"
+            );
+            assert!(
+                content.contains(&context),
+                "Log should contain context JSON"
+            );
         }
 
         // Clean up
@@ -410,7 +465,10 @@ mod tests {
             write_log_with_context("WARN", "frontend", &unique_msg, None).unwrap();
 
             let content = fs::read_to_string(&log_path).unwrap();
-            assert!(content.contains(&unique_msg), "Log should contain our warning message");
+            assert!(
+                content.contains(&unique_msg),
+                "Log should contain our warning message"
+            );
         }
 
         // Clean up

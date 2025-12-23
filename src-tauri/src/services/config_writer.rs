@@ -4,13 +4,13 @@ use serde_json::{json, Map, Value};
 use std::path::Path;
 
 type McpTuple = (
-    String,                         // name
-    String,                         // type
-    Option<String>,                 // command
-    Option<String>,                 // args (JSON)
-    Option<String>,                 // url
-    Option<String>,                 // headers (JSON)
-    Option<String>,                 // env (JSON)
+    String,         // name
+    String,         // type
+    Option<String>, // command
+    Option<String>, // args (JSON)
+    Option<String>, // url
+    Option<String>, // headers (JSON)
+    Option<String>, // env (JSON)
 );
 
 pub fn generate_mcp_config(mcps: &[McpTuple]) -> Value {
@@ -52,7 +52,9 @@ pub fn generate_mcp_config(mcps: &[McpTuple]) -> Value {
                     obj.insert("url".to_string(), json!(u));
                 }
                 if let Some(headers_json) = headers {
-                    if let Ok(headers_val) = serde_json::from_str::<Map<String, Value>>(headers_json) {
+                    if let Ok(headers_val) =
+                        serde_json::from_str::<Map<String, Value>>(headers_json)
+                    {
                         obj.insert("headers".to_string(), Value::Object(headers_val));
                     }
                 }
@@ -103,14 +105,14 @@ pub fn write_global_config(paths: &ClaudePathsInternal, mcps: &[McpTuple]) -> Re
 
 /// Tuple for MCP with enabled state for claude.json
 pub type McpWithEnabledTuple = (
-    String,                         // name
-    String,                         // type
-    Option<String>,                 // command
-    Option<String>,                 // args (JSON)
-    Option<String>,                 // url
-    Option<String>,                 // headers (JSON)
-    Option<String>,                 // env (JSON)
-    bool,                           // is_enabled
+    String,         // name
+    String,         // type
+    Option<String>, // command
+    Option<String>, // args (JSON)
+    Option<String>, // url
+    Option<String>, // headers (JSON)
+    Option<String>, // env (JSON)
+    bool,           // is_enabled
 );
 
 /// Write project MCPs to claude.json (the main Claude Code config)
@@ -135,7 +137,11 @@ pub fn write_project_to_claude_json(
     }
 
     let normalized_path = normalize_path(project_path);
-    let projects = claude_json.get_mut("projects").unwrap().as_object_mut().unwrap();
+    let projects = claude_json
+        .get_mut("projects")
+        .unwrap()
+        .as_object_mut()
+        .unwrap();
 
     // Find or create project entry (check both path formats)
     let project_key = if projects.contains_key(project_path) {
@@ -144,19 +150,22 @@ pub fn write_project_to_claude_json(
         normalized_path.clone()
     } else {
         // Create new project entry
-        projects.insert(normalized_path.clone(), json!({
-            "allowedTools": [],
-            "mcpContextUris": [],
-            "mcpServers": {},
-            "enabledMcpjsonServers": [],
-            "disabledMcpjsonServers": [],
-            "disabledMcpServers": [],
-            "hasTrustDialogAccepted": false,
-            "projectOnboardingSeenCount": 0,
-            "hasClaudeMdExternalIncludesApproved": false,
-            "hasClaudeMdExternalIncludesWarningShown": false,
-            "exampleFiles": []
-        }));
+        projects.insert(
+            normalized_path.clone(),
+            json!({
+                "allowedTools": [],
+                "mcpContextUris": [],
+                "mcpServers": {},
+                "enabledMcpjsonServers": [],
+                "disabledMcpjsonServers": [],
+                "disabledMcpServers": [],
+                "hasTrustDialogAccepted": false,
+                "projectOnboardingSeenCount": 0,
+                "hasClaudeMdExternalIncludesApproved": false,
+                "hasClaudeMdExternalIncludesWarningShown": false,
+                "exampleFiles": []
+            }),
+        );
         normalized_path
     };
 
@@ -201,7 +210,9 @@ pub fn write_project_to_claude_json(
                     obj.insert("url".to_string(), json!(u));
                 }
                 if let Some(headers_json) = headers {
-                    if let Ok(headers_val) = serde_json::from_str::<Map<String, Value>>(headers_json) {
+                    if let Ok(headers_val) =
+                        serde_json::from_str::<Map<String, Value>>(headers_json)
+                    {
                         obj.insert("headers".to_string(), Value::Object(headers_val));
                     }
                 }

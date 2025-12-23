@@ -49,7 +49,7 @@ pub struct Project {
     pub has_settings_file: bool,
     pub last_scanned_at: Option<String>,
     #[serde(default = "default_editor_type")]
-    pub editor_type: String,  // "claude_code" or "opencode"
+    pub editor_type: String, // "claude_code" or "opencode"
     pub created_at: String,
     pub updated_at: String,
     #[serde(default)]
@@ -92,7 +92,7 @@ pub struct CreateProjectRequest {
 #[serde(rename_all = "camelCase")]
 pub struct ClaudePaths {
     pub claude_dir: String,
-    pub claude_json: String,  // ~/.claude.json - main config with global MCPs
+    pub claude_json: String, // ~/.claude.json - main config with global MCPs
     pub global_settings: String,
     pub plugins_dir: String,
 }
@@ -105,7 +105,7 @@ pub struct Skill {
     pub name: String,
     pub description: Option<String>,
     pub content: String,
-    pub skill_type: String,  // "command" or "skill"
+    pub skill_type: String, // "command" or "skill"
     pub allowed_tools: Option<Vec<String>>,
     pub argument_hint: Option<String>,
     pub model: Option<String>,
@@ -154,7 +154,7 @@ pub struct GlobalSkill {
 pub struct SkillFile {
     pub id: i64,
     pub skill_id: i64,
-    pub file_type: String,  // "reference", "asset", "script"
+    pub file_type: String, // "reference", "asset", "script"
     pub name: String,
     pub content: String,
     pub created_at: String,
@@ -352,7 +352,7 @@ pub struct GlobalHook {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AppSettings {
-    pub default_editor: String,  // "claude_code" or "opencode"
+    pub default_editor: String, // "claude_code" or "opencode"
 }
 
 impl Default for AppSettings {
@@ -367,23 +367,23 @@ impl Default for AppSettings {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OpenCodePaths {
-    pub config_dir: String,      // ~/.config/opencode/
-    pub config_file: String,     // ~/.config/opencode/opencode.json
-    pub command_dir: String,     // ~/.config/opencode/command/
-    pub agent_dir: String,       // ~/.config/opencode/agent/
-    pub plugin_dir: String,      // ~/.config/opencode/plugin/
-    pub tool_dir: String,        // ~/.config/opencode/tool/
-    pub knowledge_dir: String,   // ~/.config/opencode/knowledge/
+    pub config_dir: String,    // ~/.config/opencode/
+    pub config_file: String,   // ~/.config/opencode/opencode.json
+    pub command_dir: String,   // ~/.config/opencode/command/
+    pub agent_dir: String,     // ~/.config/opencode/agent/
+    pub plugin_dir: String,    // ~/.config/opencode/plugin/
+    pub tool_dir: String,      // ~/.config/opencode/tool/
+    pub knowledge_dir: String, // ~/.config/opencode/knowledge/
 }
 
 // Editor info for frontend
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EditorInfo {
-    pub id: String,              // "claude_code" or "opencode"
-    pub name: String,            // "Claude Code" or "OpenCode"
-    pub is_installed: bool,      // Whether config directory exists
-    pub config_path: String,     // Path to main config file
+    pub id: String,          // "claude_code" or "opencode"
+    pub name: String,        // "Claude Code" or "OpenCode"
+    pub is_installed: bool,  // Whether config directory exists
+    pub config_path: String, // Path to main config file
 }
 
 #[cfg(test)]
@@ -554,7 +554,10 @@ mod tests {
 
         assert_eq!(skill.name, parsed.name);
         assert_eq!(skill.skill_type, parsed.skill_type);
-        assert_eq!(skill.disable_model_invocation, parsed.disable_model_invocation);
+        assert_eq!(
+            skill.disable_model_invocation,
+            parsed.disable_model_invocation
+        );
     }
 
     #[test]

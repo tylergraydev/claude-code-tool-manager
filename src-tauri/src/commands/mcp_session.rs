@@ -74,7 +74,10 @@ pub fn start_mcp_session(
 
     // Start session based on MCP type
     let manager = session_manager.lock().map_err(|e| {
-        error!("[MCP Session] Failed to acquire session manager lock: {}", e);
+        error!(
+            "[MCP Session] Failed to acquire session manager lock: {}",
+            e
+        );
         e.to_string()
     })?;
 
@@ -115,7 +118,10 @@ pub fn execute_tool(
     );
 
     let manager = session_manager.lock().map_err(|e| {
-        error!("[MCP Session] Failed to acquire session manager lock: {}", e);
+        error!(
+            "[MCP Session] Failed to acquire session manager lock: {}",
+            e
+        );
         e.to_string()
     })?;
 
@@ -133,7 +139,10 @@ pub fn end_mcp_session(
     info!("[MCP Session] Ending session {}", session_id);
 
     let manager = session_manager.lock().map_err(|e| {
-        error!("[MCP Session] Failed to acquire session manager lock: {}", e);
+        error!(
+            "[MCP Session] Failed to acquire session manager lock: {}",
+            e
+        );
         e.to_string()
     })?;
 
@@ -146,7 +155,10 @@ pub fn list_mcp_sessions(
     session_manager: State<'_, Mutex<McpSessionManager>>,
 ) -> Result<Vec<SessionInfo>, String> {
     let manager = session_manager.lock().map_err(|e| {
-        error!("[MCP Session] Failed to acquire session manager lock: {}", e);
+        error!(
+            "[MCP Session] Failed to acquire session manager lock: {}",
+            e
+        );
         e.to_string()
     })?;
 
@@ -160,7 +172,10 @@ pub fn get_mcp_session(
     session_id: String,
 ) -> Result<Option<SessionInfo>, String> {
     let manager = session_manager.lock().map_err(|e| {
-        error!("[MCP Session] Failed to acquire session manager lock: {}", e);
+        error!(
+            "[MCP Session] Failed to acquire session manager lock: {}",
+            e
+        );
         e.to_string()
     })?;
 
@@ -174,7 +189,10 @@ pub fn get_session_tools(
     session_id: String,
 ) -> Result<Vec<McpTool>, String> {
     let manager = session_manager.lock().map_err(|e| {
-        error!("[MCP Session] Failed to acquire session manager lock: {}", e);
+        error!(
+            "[MCP Session] Failed to acquire session manager lock: {}",
+            e
+        );
         e.to_string()
     })?;
 
@@ -190,7 +208,10 @@ pub fn cleanup_idle_sessions(
     max_idle_secs: Option<u64>,
 ) -> Result<usize, String> {
     let manager = session_manager.lock().map_err(|e| {
-        error!("[MCP Session] Failed to acquire session manager lock: {}", e);
+        error!(
+            "[MCP Session] Failed to acquire session manager lock: {}",
+            e
+        );
         e.to_string()
     })?;
 

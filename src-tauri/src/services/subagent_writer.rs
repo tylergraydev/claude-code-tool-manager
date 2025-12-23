@@ -59,7 +59,10 @@ pub fn write_subagent_file(base_path: &Path, subagent: &SubAgent) -> Result<()> 
 
 /// Delete a sub-agent file from {base_path}/.claude/agents/{name}.md
 pub fn delete_subagent_file(base_path: &Path, name: &str) -> Result<()> {
-    let file_path = base_path.join(".claude").join("agents").join(format!("{}.md", name));
+    let file_path = base_path
+        .join(".claude")
+        .join("agents")
+        .join(format!("{}.md", name));
     if file_path.exists() {
         std::fs::remove_file(file_path)?;
     }
@@ -68,14 +71,16 @@ pub fn delete_subagent_file(base_path: &Path, name: &str) -> Result<()> {
 
 /// Write a sub-agent to the global Claude config (~/.claude/agents/)
 pub fn write_global_subagent(subagent: &SubAgent) -> Result<()> {
-    let base_dirs = BaseDirs::new().ok_or_else(|| anyhow::anyhow!("Could not find home directory"))?;
+    let base_dirs =
+        BaseDirs::new().ok_or_else(|| anyhow::anyhow!("Could not find home directory"))?;
     let home = base_dirs.home_dir();
     write_subagent_file(home, subagent)
 }
 
 /// Delete a sub-agent from the global Claude config (~/.claude/agents/)
 pub fn delete_global_subagent(name: &str) -> Result<()> {
-    let base_dirs = BaseDirs::new().ok_or_else(|| anyhow::anyhow!("Could not find home directory"))?;
+    let base_dirs =
+        BaseDirs::new().ok_or_else(|| anyhow::anyhow!("Could not find home directory"))?;
     let home = base_dirs.home_dir();
     delete_subagent_file(home, name)
 }
@@ -141,7 +146,11 @@ pub fn delete_project_subagent_opencode(project_path: &Path, name: &str) -> Resu
 }
 
 /// Write a sub-agent based on editor type
-pub fn write_subagent_for_editor(base_path: &Path, subagent: &SubAgent, editor: EditorType) -> Result<()> {
+pub fn write_subagent_for_editor(
+    base_path: &Path,
+    subagent: &SubAgent,
+    editor: EditorType,
+) -> Result<()> {
     match editor {
         EditorType::ClaudeCode => write_subagent_file(base_path, subagent),
         EditorType::OpenCode => {
@@ -285,7 +294,8 @@ mod tests {
 
         write_subagent_file(temp_dir.path(), &subagent).unwrap();
 
-        let expected_path = temp_dir.path()
+        let expected_path = temp_dir
+            .path()
             .join(".claude")
             .join("agents")
             .join("code-reviewer.md");
@@ -299,7 +309,8 @@ mod tests {
 
         write_subagent_file(temp_dir.path(), &subagent).unwrap();
 
-        let file_path = temp_dir.path()
+        let file_path = temp_dir
+            .path()
             .join(".claude")
             .join("agents")
             .join("code-reviewer.md");
@@ -334,7 +345,8 @@ mod tests {
 
         // Write first
         write_subagent_file(temp_dir.path(), &subagent).unwrap();
-        let file_path = temp_dir.path()
+        let file_path = temp_dir
+            .path()
             .join(".claude")
             .join("agents")
             .join("code-reviewer.md");
@@ -366,9 +378,7 @@ mod tests {
         write_subagent_file_opencode(temp_dir.path(), &subagent).unwrap();
 
         // OpenCode uses singular "agent" not "agents"
-        let expected_path = temp_dir.path()
-            .join("agent")
-            .join("code-reviewer.md");
+        let expected_path = temp_dir.path().join("agent").join("code-reviewer.md");
         assert!(expected_path.exists());
     }
 
@@ -396,7 +406,8 @@ mod tests {
 
         write_subagent_for_editor(temp_dir.path(), &subagent, EditorType::ClaudeCode).unwrap();
 
-        let expected_path = temp_dir.path()
+        let expected_path = temp_dir
+            .path()
             .join(".claude")
             .join("agents")
             .join("code-reviewer.md");
@@ -410,7 +421,8 @@ mod tests {
 
         write_subagent_for_editor(temp_dir.path(), &subagent, EditorType::OpenCode).unwrap();
 
-        let expected_path = temp_dir.path()
+        let expected_path = temp_dir
+            .path()
             .join(".opencode")
             .join("agent")
             .join("code-reviewer.md");
@@ -423,9 +435,11 @@ mod tests {
         let subagent = sample_full_subagent();
 
         write_subagent_for_editor(temp_dir.path(), &subagent, EditorType::ClaudeCode).unwrap();
-        delete_subagent_for_editor(temp_dir.path(), &subagent.name, EditorType::ClaudeCode).unwrap();
+        delete_subagent_for_editor(temp_dir.path(), &subagent.name, EditorType::ClaudeCode)
+            .unwrap();
 
-        let expected_path = temp_dir.path()
+        let expected_path = temp_dir
+            .path()
             .join(".claude")
             .join("agents")
             .join("code-reviewer.md");

@@ -1,9 +1,9 @@
-use crate::db::models::{CreateSubAgentRequest, SubAgent, GlobalSubAgent, ProjectSubAgent};
+use crate::db::models::{CreateSubAgentRequest, GlobalSubAgent, ProjectSubAgent, SubAgent};
 use crate::db::schema::Database;
 use crate::services::subagent_writer;
 use rusqlite::params;
-use std::sync::Mutex;
 use std::path::Path;
+use std::sync::Mutex;
 use tauri::State;
 
 fn parse_json_array(s: Option<String>) -> Option<Vec<String>> {
@@ -65,12 +65,24 @@ pub fn get_all_subagents(db: State<'_, Mutex<Database>>) -> Result<Vec<SubAgent>
 }
 
 #[tauri::command]
-pub fn create_subagent(db: State<'_, Mutex<Database>>, subagent: CreateSubAgentRequest) -> Result<SubAgent, String> {
+pub fn create_subagent(
+    db: State<'_, Mutex<Database>>,
+    subagent: CreateSubAgentRequest,
+) -> Result<SubAgent, String> {
     let db_guard = db.lock().map_err(|e| e.to_string())?;
 
-    let tools_json = subagent.tools.as_ref().map(|t| serde_json::to_string(t).unwrap());
-    let skills_json = subagent.skills.as_ref().map(|t| serde_json::to_string(t).unwrap());
-    let tags_json = subagent.tags.as_ref().map(|t| serde_json::to_string(t).unwrap());
+    let tools_json = subagent
+        .tools
+        .as_ref()
+        .map(|t| serde_json::to_string(t).unwrap());
+    let skills_json = subagent
+        .skills
+        .as_ref()
+        .map(|t| serde_json::to_string(t).unwrap());
+    let tags_json = subagent
+        .tags
+        .as_ref()
+        .map(|t| serde_json::to_string(t).unwrap());
 
     db_guard.conn()
         .execute(
@@ -102,9 +114,18 @@ pub fn update_subagent(
 ) -> Result<SubAgent, String> {
     let db = db.lock().map_err(|e| e.to_string())?;
 
-    let tools_json = subagent.tools.as_ref().map(|t| serde_json::to_string(t).unwrap());
-    let skills_json = subagent.skills.as_ref().map(|t| serde_json::to_string(t).unwrap());
-    let tags_json = subagent.tags.as_ref().map(|t| serde_json::to_string(t).unwrap());
+    let tools_json = subagent
+        .tools
+        .as_ref()
+        .map(|t| serde_json::to_string(t).unwrap());
+    let skills_json = subagent
+        .skills
+        .as_ref()
+        .map(|t| serde_json::to_string(t).unwrap());
+    let tags_json = subagent
+        .tags
+        .as_ref()
+        .map(|t| serde_json::to_string(t).unwrap());
 
     db.conn()
         .execute(
@@ -184,10 +205,12 @@ pub fn add_global_subagent(db: State<'_, Mutex<Database>>, subagent_id: i64) -> 
         .prepare("SELECT id, name, description, content, tools, model, permission_mode, skills, tags, source, created_at, updated_at FROM subagents WHERE id = ?")
         .map_err(|e| e.to_string())?;
 
-    let subagent: SubAgent = stmt.query_row([subagent_id], row_to_subagent)
+    let subagent: SubAgent = stmt
+        .query_row([subagent_id], row_to_subagent)
         .map_err(|e| e.to_string())?;
 
-    db_guard.conn()
+    db_guard
+        .conn()
         .execute(
             "INSERT OR IGNORE INTO global_subagents (subagent_id) VALUES (?)",
             [subagent_id],
@@ -195,37 +218,52 @@ pub fn add_global_subagent(db: State<'_, Mutex<Database>>, subagent_id: i64) -> 
         .map_err(|e| e.to_string())?;
 
     // Write the subagent file to global config
-    subagent_writer::write_global_subagent(&subagent)
-        .map_err(|e| e.to_string())?;
+    subagent_writer::write_global_subagent(&subagent).map_err(|e| e.to_string())?;
 
     Ok(())
 }
 
 #[tauri::command]
-pub fn remove_global_subagent(db: State<'_, Mutex<Database>>, subagent_id: i64) -> Result<(), String> {
+pub fn remove_global_subagent(
+    db: State<'_, Mutex<Database>>,
+    subagent_id: i64,
+) -> Result<(), String> {
     let db_guard = db.lock().map_err(|e| e.to_string())?;
 
     // Get the subagent name for file deletion
-    let name: String = db_guard.conn()
-        .query_row("SELECT name FROM subagents WHERE id = ?", [subagent_id], |row| row.get(0))
+    let name: String = db_guard
+        .conn()
+        .query_row(
+            "SELECT name FROM subagents WHERE id = ?",
+            [subagent_id],
+            |row| row.get(0),
+        )
         .map_err(|e| e.to_string())?;
 
-    db_guard.conn()
-        .execute("DELETE FROM global_subagents WHERE subagent_id = ?", [subagent_id])
+    db_guard
+        .conn()
+        .execute(
+            "DELETE FROM global_subagents WHERE subagent_id = ?",
+            [subagent_id],
+        )
         .map_err(|e| e.to_string())?;
 
     // Delete the subagent file from global config
-    subagent_writer::delete_global_subagent(&name)
-        .map_err(|e| e.to_string())?;
+    subagent_writer::delete_global_subagent(&name).map_err(|e| e.to_string())?;
 
     Ok(())
 }
 
 #[tauri::command]
-pub fn toggle_global_subagent(db: State<'_, Mutex<Database>>, id: i64, enabled: bool) -> Result<(), String> {
+pub fn toggle_global_subagent(
+    db: State<'_, Mutex<Database>>,
+    id: i64,
+    enabled: bool,
+) -> Result<(), String> {
     let db_guard = db.lock().map_err(|e| e.to_string())?;
 
-    db_guard.conn()
+    db_guard
+        .conn()
         .execute(
             "UPDATE global_subagents SET is_enabled = ? WHERE id = ?",
             params![enabled as i32, id],
@@ -242,16 +280,15 @@ pub fn toggle_global_subagent(db: State<'_, Mutex<Database>>, id: i64, enabled: 
         )
         .map_err(|e| e.to_string())?;
 
-    let subagent: SubAgent = stmt.query_row([id], row_to_subagent)
+    let subagent: SubAgent = stmt
+        .query_row([id], row_to_subagent)
         .map_err(|e| e.to_string())?;
 
     // Write or delete the file based on enabled state
     if enabled {
-        subagent_writer::write_global_subagent(&subagent)
-            .map_err(|e| e.to_string())?;
+        subagent_writer::write_global_subagent(&subagent).map_err(|e| e.to_string())?;
     } else {
-        subagent_writer::delete_global_subagent(&subagent.name)
-            .map_err(|e| e.to_string())?;
+        subagent_writer::delete_global_subagent(&subagent.name).map_err(|e| e.to_string())?;
     }
 
     Ok(())
@@ -267,18 +304,25 @@ pub fn assign_subagent_to_project(
     let db_guard = db.lock().map_err(|e| e.to_string())?;
 
     // Get project path and subagent details
-    let project_path: String = db_guard.conn()
-        .query_row("SELECT path FROM projects WHERE id = ?", [project_id], |row| row.get(0))
+    let project_path: String = db_guard
+        .conn()
+        .query_row(
+            "SELECT path FROM projects WHERE id = ?",
+            [project_id],
+            |row| row.get(0),
+        )
         .map_err(|e| e.to_string())?;
 
     let mut stmt = db_guard.conn()
         .prepare("SELECT id, name, description, content, tools, model, permission_mode, skills, tags, source, created_at, updated_at FROM subagents WHERE id = ?")
         .map_err(|e| e.to_string())?;
 
-    let subagent: SubAgent = stmt.query_row([subagent_id], row_to_subagent)
+    let subagent: SubAgent = stmt
+        .query_row([subagent_id], row_to_subagent)
         .map_err(|e| e.to_string())?;
 
-    db_guard.conn()
+    db_guard
+        .conn()
         .execute(
             "INSERT OR IGNORE INTO project_subagents (project_id, subagent_id) VALUES (?, ?)",
             params![project_id, subagent_id],
@@ -301,15 +345,26 @@ pub fn remove_subagent_from_project(
     let db_guard = db.lock().map_err(|e| e.to_string())?;
 
     // Get project path and subagent name
-    let project_path: String = db_guard.conn()
-        .query_row("SELECT path FROM projects WHERE id = ?", [project_id], |row| row.get(0))
+    let project_path: String = db_guard
+        .conn()
+        .query_row(
+            "SELECT path FROM projects WHERE id = ?",
+            [project_id],
+            |row| row.get(0),
+        )
         .map_err(|e| e.to_string())?;
 
-    let name: String = db_guard.conn()
-        .query_row("SELECT name FROM subagents WHERE id = ?", [subagent_id], |row| row.get(0))
+    let name: String = db_guard
+        .conn()
+        .query_row(
+            "SELECT name FROM subagents WHERE id = ?",
+            [subagent_id],
+            |row| row.get(0),
+        )
         .map_err(|e| e.to_string())?;
 
-    db_guard.conn()
+    db_guard
+        .conn()
         .execute(
             "DELETE FROM project_subagents WHERE project_id = ? AND subagent_id = ?",
             params![project_id, subagent_id],
@@ -331,7 +386,8 @@ pub fn toggle_project_subagent(
 ) -> Result<(), String> {
     let db_guard = db.lock().map_err(|e| e.to_string())?;
 
-    db_guard.conn()
+    db_guard
+        .conn()
         .execute(
             "UPDATE project_subagents SET is_enabled = ? WHERE id = ?",
             params![enabled as i32, assignment_id],
@@ -349,9 +405,11 @@ pub fn toggle_project_subagent(
         )
         .map_err(|e| e.to_string())?;
 
-    let (project_path, subagent): (String, SubAgent) = stmt.query_row([assignment_id], |row: &rusqlite::Row| {
-        Ok((row.get(0)?, row_to_subagent_with_offset(row, 1)?))
-    }).map_err(|e: rusqlite::Error| e.to_string())?;
+    let (project_path, subagent): (String, SubAgent) = stmt
+        .query_row([assignment_id], |row: &rusqlite::Row| {
+            Ok((row.get(0)?, row_to_subagent_with_offset(row, 1)?))
+        })
+        .map_err(|e: rusqlite::Error| e.to_string())?;
 
     // Write or delete the file based on enabled state
     if enabled {
@@ -370,7 +428,9 @@ pub fn get_project_subagents(
     db: State<'_, Mutex<Database>>,
     project_id: i64,
 ) -> Result<Vec<ProjectSubAgent>, String> {
-    let db = db.lock().map_err(|e: std::sync::PoisonError<_>| e.to_string())?;
+    let db = db
+        .lock()
+        .map_err(|e: std::sync::PoisonError<_>| e.to_string())?;
     let mut stmt = db
         .conn()
         .prepare(
@@ -404,10 +464,22 @@ pub fn get_project_subagents(
 // ============================================================================
 
 /// Create a subagent directly in the database (for testing)
-pub fn create_subagent_in_db(db: &Database, subagent: &CreateSubAgentRequest) -> Result<SubAgent, String> {
-    let tools_json = subagent.tools.as_ref().map(|t| serde_json::to_string(t).unwrap());
-    let skills_json = subagent.skills.as_ref().map(|t| serde_json::to_string(t).unwrap());
-    let tags_json = subagent.tags.as_ref().map(|t| serde_json::to_string(t).unwrap());
+pub fn create_subagent_in_db(
+    db: &Database,
+    subagent: &CreateSubAgentRequest,
+) -> Result<SubAgent, String> {
+    let tools_json = subagent
+        .tools
+        .as_ref()
+        .map(|t| serde_json::to_string(t).unwrap());
+    let skills_json = subagent
+        .skills
+        .as_ref()
+        .map(|t| serde_json::to_string(t).unwrap());
+    let tags_json = subagent
+        .tags
+        .as_ref()
+        .map(|t| serde_json::to_string(t).unwrap());
 
     db.conn()
         .execute(
@@ -455,10 +527,23 @@ pub fn get_all_subagents_from_db(db: &Database) -> Result<Vec<SubAgent>, String>
 }
 
 /// Update a subagent directly in the database (for testing)
-pub fn update_subagent_in_db(db: &Database, id: i64, subagent: &CreateSubAgentRequest) -> Result<SubAgent, String> {
-    let tools_json = subagent.tools.as_ref().map(|t| serde_json::to_string(t).unwrap());
-    let skills_json = subagent.skills.as_ref().map(|t| serde_json::to_string(t).unwrap());
-    let tags_json = subagent.tags.as_ref().map(|t| serde_json::to_string(t).unwrap());
+pub fn update_subagent_in_db(
+    db: &Database,
+    id: i64,
+    subagent: &CreateSubAgentRequest,
+) -> Result<SubAgent, String> {
+    let tools_json = subagent
+        .tools
+        .as_ref()
+        .map(|t| serde_json::to_string(t).unwrap());
+    let skills_json = subagent
+        .skills
+        .as_ref()
+        .map(|t| serde_json::to_string(t).unwrap());
+    let tags_json = subagent
+        .tags
+        .as_ref()
+        .map(|t| serde_json::to_string(t).unwrap());
 
     db.conn()
         .execute(
@@ -500,8 +585,14 @@ mod tests {
         CreateSubAgentRequest {
             name: "test-writer".to_string(),
             description: "Writes unit tests".to_string(),
-            content: "You are a test writing expert. Create comprehensive unit tests with good coverage.".to_string(),
-            tools: Some(vec!["Read".to_string(), "Write".to_string(), "Bash".to_string()]),
+            content:
+                "You are a test writing expert. Create comprehensive unit tests with good coverage."
+                    .to_string(),
+            tools: Some(vec![
+                "Read".to_string(),
+                "Write".to_string(),
+                "Bash".to_string(),
+            ]),
             model: Some("opus".to_string()),
             permission_mode: None,
             skills: None,
@@ -534,13 +625,32 @@ mod tests {
         let subagent = create_subagent_in_db(&db, &req).unwrap();
 
         assert_eq!(subagent.name, "code-reviewer");
-        assert_eq!(subagent.description, "Reviews code for bugs and improvements");
+        assert_eq!(
+            subagent.description,
+            "Reviews code for bugs and improvements"
+        );
         assert!(subagent.content.contains("code review expert"));
-        assert_eq!(subagent.tools, Some(vec!["Read".to_string(), "Grep".to_string(), "Glob".to_string()]));
+        assert_eq!(
+            subagent.tools,
+            Some(vec![
+                "Read".to_string(),
+                "Grep".to_string(),
+                "Glob".to_string()
+            ])
+        );
         assert_eq!(subagent.model, Some("sonnet".to_string()));
-        assert_eq!(subagent.permission_mode, Some("bypassPermissions".to_string()));
-        assert_eq!(subagent.skills, Some(vec!["lint".to_string(), "format".to_string()]));
-        assert_eq!(subagent.tags, Some(vec!["review".to_string(), "quality".to_string()]));
+        assert_eq!(
+            subagent.permission_mode,
+            Some("bypassPermissions".to_string())
+        );
+        assert_eq!(
+            subagent.skills,
+            Some(vec!["lint".to_string(), "format".to_string()])
+        );
+        assert_eq!(
+            subagent.tags,
+            Some(vec!["review".to_string(), "quality".to_string()])
+        );
         assert_eq!(subagent.source, "manual");
     }
 
@@ -609,20 +719,32 @@ mod tests {
     fn test_get_all_subagents_sorted_by_name() {
         let db = Database::in_memory().unwrap();
 
-        create_subagent_in_db(&db, &CreateSubAgentRequest {
-            name: "zebra-agent".to_string(),
-            ..sample_minimal_subagent()
-        }).unwrap();
+        create_subagent_in_db(
+            &db,
+            &CreateSubAgentRequest {
+                name: "zebra-agent".to_string(),
+                ..sample_minimal_subagent()
+            },
+        )
+        .unwrap();
 
-        create_subagent_in_db(&db, &CreateSubAgentRequest {
-            name: "alpha-agent".to_string(),
-            ..sample_minimal_subagent()
-        }).unwrap();
+        create_subagent_in_db(
+            &db,
+            &CreateSubAgentRequest {
+                name: "alpha-agent".to_string(),
+                ..sample_minimal_subagent()
+            },
+        )
+        .unwrap();
 
-        create_subagent_in_db(&db, &CreateSubAgentRequest {
-            name: "middle-agent".to_string(),
-            ..sample_minimal_subagent()
-        }).unwrap();
+        create_subagent_in_db(
+            &db,
+            &CreateSubAgentRequest {
+                name: "middle-agent".to_string(),
+                ..sample_minimal_subagent()
+            },
+        )
+        .unwrap();
 
         let subagents = get_all_subagents_from_db(&db).unwrap();
 
@@ -715,7 +837,14 @@ mod tests {
     #[test]
     fn test_parse_json_array_valid() {
         let result = parse_json_array(Some(r#"["Read", "Write", "Bash"]"#.to_string()));
-        assert_eq!(result, Some(vec!["Read".to_string(), "Write".to_string(), "Bash".to_string()]));
+        assert_eq!(
+            result,
+            Some(vec![
+                "Read".to_string(),
+                "Write".to_string(),
+                "Bash".to_string()
+            ])
+        );
     }
 
     #[test]

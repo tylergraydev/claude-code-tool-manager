@@ -98,13 +98,8 @@ pub fn write_frontend_log(
     message: String,
     context: Option<String>,
 ) -> Result<(), String> {
-    debug_logger::write_log_with_context(
-        &level,
-        "frontend",
-        &message,
-        context.as_deref(),
-    )
-    .map_err(|e| format!("Failed to write log: {}", e))
+    debug_logger::write_log_with_context(&level, "frontend", &message, context.as_deref())
+        .map_err(|e| format!("Failed to write log: {}", e))
 }
 
 /// Write an invoke log entry from the frontend
@@ -136,7 +131,12 @@ pub fn format_invoke_log(
     let message = if success {
         format!("{} ({:.1}ms)", command, duration_ms)
     } else {
-        format!("FAILED {} ({:.1}ms): {}", command, duration_ms, error.unwrap_or_default())
+        format!(
+            "FAILED {} ({:.1}ms): {}",
+            command,
+            duration_ms,
+            error.unwrap_or_default()
+        )
     };
 
     let level = if success { "INFO" } else { "ERROR" };
@@ -145,8 +145,16 @@ pub fn format_invoke_log(
 }
 
 /// Format a frontend log message (for testing)
-pub fn format_frontend_log(level: &str, message: &str, context: Option<&str>) -> (String, String, Option<String>) {
-    (level.to_uppercase(), message.to_string(), context.map(|s| s.to_string()))
+pub fn format_frontend_log(
+    level: &str,
+    message: &str,
+    context: Option<&str>,
+) -> (String, String, Option<String>) {
+    (
+        level.to_uppercase(),
+        message.to_string(),
+        context.map(|s| s.to_string()),
+    )
 }
 
 #[cfg(test)]
@@ -217,7 +225,8 @@ mod tests {
 
     #[test]
     fn test_format_frontend_log_with_context() {
-        let (level, msg, ctx) = format_frontend_log("error", "Failed to load", Some(r#"{"page": "settings"}"#));
+        let (level, msg, ctx) =
+            format_frontend_log("error", "Failed to load", Some(r#"{"page": "settings"}"#));
 
         assert_eq!(level, "ERROR");
         assert_eq!(msg, "Failed to load");

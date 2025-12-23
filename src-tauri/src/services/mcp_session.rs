@@ -12,7 +12,9 @@ use std::sync::{Arc, Mutex};
 use std::time::Instant;
 use uuid::Uuid;
 
-use super::mcp_client::{HttpMcpClient, McpServerInfo, McpTool, SseMcpClient, StdioMcpClient, ToolCallResult};
+use super::mcp_client::{
+    HttpMcpClient, McpServerInfo, McpTool, SseMcpClient, StdioMcpClient, ToolCallResult,
+};
 
 // ============================================================================
 // Session Types
@@ -367,7 +369,9 @@ impl McpSessionManager {
     /// Get information about a specific session
     pub fn get_session_info(&self, session_id: &str) -> Option<SessionInfo> {
         let sessions = self.sessions.lock().unwrap();
-        sessions.get(session_id).map(|s| self.session_to_info(session_id, s))
+        sessions
+            .get(session_id)
+            .map(|s| self.session_to_info(session_id, s))
     }
 
     /// List all active sessions

@@ -65,13 +65,25 @@ pub fn parse_mcp_file(path: &Path) -> Result<Vec<ParsedMcp>> {
                 headers: None,
                 env: if env.is_empty() { None } else { Some(env) },
             },
-            McpConfig::Remote { mcp_type, url, headers } => ParsedMcp {
+            McpConfig::Remote {
+                mcp_type,
+                url,
+                headers,
+            } => ParsedMcp {
                 name,
-                mcp_type: if mcp_type == "sse" { "sse".to_string() } else { "http".to_string() },
+                mcp_type: if mcp_type == "sse" {
+                    "sse".to_string()
+                } else {
+                    "http".to_string()
+                },
                 command: None,
                 args: None,
                 url: Some(url),
-                headers: if headers.is_empty() { None } else { Some(headers) },
+                headers: if headers.is_empty() {
+                    None
+                } else {
+                    Some(headers)
+                },
                 env: None,
             },
         };
@@ -111,7 +123,10 @@ mod tests {
         assert_eq!(mcps[0].name, "github");
         assert_eq!(mcps[0].mcp_type, "stdio");
         assert_eq!(mcps[0].command, Some("npx".to_string()));
-        assert_eq!(mcps[0].args, Some(vec!["-y".to_string(), "@github/mcp-server".to_string()]));
+        assert_eq!(
+            mcps[0].args,
+            Some(vec!["-y".to_string(), "@github/mcp-server".to_string()])
+        );
         assert!(mcps[0].env.is_some());
     }
 
@@ -214,7 +229,10 @@ mod tests {
 
         let mcps = parse_mcp_file(file.path()).unwrap();
         let headers = mcps[0].headers.as_ref().unwrap();
-        assert_eq!(headers.get("Authorization"), Some(&"Bearer token123".to_string()));
+        assert_eq!(
+            headers.get("Authorization"),
+            Some(&"Bearer token123".to_string())
+        );
         assert_eq!(headers.get("X-Custom"), Some(&"value".to_string()));
     }
 

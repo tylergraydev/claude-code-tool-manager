@@ -9,7 +9,7 @@ use std::path::Path;
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct OpenCodeMcpLocal {
     #[serde(rename = "type")]
-    pub mcp_type: String,  // "local"
+    pub mcp_type: String, // "local"
     pub command: Vec<String>,
     #[serde(default)]
     pub environment: HashMap<String, String>,
@@ -23,7 +23,7 @@ pub struct OpenCodeMcpLocal {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct OpenCodeMcpRemote {
     #[serde(rename = "type")]
-    pub mcp_type: String,  // "remote"
+    pub mcp_type: String, // "remote"
     pub url: String,
     #[serde(default)]
     pub headers: HashMap<String, String>,
@@ -60,7 +60,7 @@ pub struct OpenCodeConfig {
 #[derive(Debug)]
 pub struct ParsedOpenCodeMcp {
     pub name: String,
-    pub mcp_type: String,  // "stdio", "http", or "sse" (normalized to Claude format)
+    pub mcp_type: String, // "stdio", "http", or "sse" (normalized to Claude format)
     pub command: Option<String>,
     pub args: Option<Vec<String>>,
     pub url: Option<String>,
@@ -189,7 +189,9 @@ pub fn generate_opencode_mcp_config(mcps: &[McpTuple]) -> Value {
                 }
 
                 if let Some(headers_json) = headers {
-                    if let Ok(headers_val) = serde_json::from_str::<Map<String, Value>>(headers_json) {
+                    if let Ok(headers_val) =
+                        serde_json::from_str::<Map<String, Value>>(headers_json)
+                    {
                         obj.insert("headers".to_string(), Value::Object(headers_val));
                     }
                 }
@@ -268,8 +270,8 @@ pub fn get_paths() -> Result<OpenCodePathsInternal> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::TempDir;
     use std::fs;
+    use tempfile::TempDir;
 
     // =========================================================================
     // OpenCodeMcpLocal serde tests
@@ -336,7 +338,10 @@ mod tests {
         let mcp: OpenCodeMcpRemote = serde_json::from_str(json).unwrap();
         assert_eq!(mcp.mcp_type, "remote");
         assert_eq!(mcp.url, "https://api.example.com/mcp");
-        assert_eq!(mcp.headers.get("Authorization"), Some(&"Bearer token".to_string()));
+        assert_eq!(
+            mcp.headers.get("Authorization"),
+            Some(&"Bearer token".to_string())
+        );
         assert!(mcp.enabled);
     }
 
@@ -456,14 +461,18 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let config_path = temp_dir.path().join("opencode.json");
 
-        fs::write(&config_path, r#"{
+        fs::write(
+            &config_path,
+            r#"{
             "mcp": {
                 "test-mcp": {
                     "type": "local",
                     "command": ["node", "server.js"]
                 }
             }
-        }"#).unwrap();
+        }"#,
+        )
+        .unwrap();
 
         let config = parse_opencode_config(&config_path).unwrap();
         assert_eq!(config.mcp.len(), 1);
@@ -495,7 +504,9 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let config_path = temp_dir.path().join("opencode.json");
 
-        fs::write(&config_path, r#"{
+        fs::write(
+            &config_path,
+            r#"{
             "mcp": {
                 "my-server": {
                     "type": "local",
@@ -503,7 +514,9 @@ mod tests {
                     "environment": {"API_KEY": "secret"}
                 }
             }
-        }"#).unwrap();
+        }"#,
+        )
+        .unwrap();
 
         let mcps = parse_opencode_mcps(&config_path).unwrap();
         assert_eq!(mcps.len(), 1);
@@ -512,7 +525,10 @@ mod tests {
         assert_eq!(mcp.name, "my-server");
         assert_eq!(mcp.mcp_type, "stdio"); // Converted from "local"
         assert_eq!(mcp.command, Some("npx".to_string()));
-        assert_eq!(mcp.args, Some(vec!["-y".to_string(), "@test/server".to_string()]));
+        assert_eq!(
+            mcp.args,
+            Some(vec!["-y".to_string(), "@test/server".to_string()])
+        );
         assert!(mcp.env.is_some());
     }
 
@@ -521,7 +537,9 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let config_path = temp_dir.path().join("opencode.json");
 
-        fs::write(&config_path, r#"{
+        fs::write(
+            &config_path,
+            r#"{
             "mcp": {
                 "remote-server": {
                     "type": "remote",
@@ -529,7 +547,9 @@ mod tests {
                     "headers": {"X-API-Key": "key123"}
                 }
             }
-        }"#).unwrap();
+        }"#,
+        )
+        .unwrap();
 
         let mcps = parse_opencode_mcps(&config_path).unwrap();
         assert_eq!(mcps.len(), 1);
@@ -546,14 +566,18 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let config_path = temp_dir.path().join("opencode.json");
 
-        fs::write(&config_path, r#"{
+        fs::write(
+            &config_path,
+            r#"{
             "mcp": {
                 "empty": {
                     "type": "local",
                     "command": []
                 }
             }
-        }"#).unwrap();
+        }"#,
+        )
+        .unwrap();
 
         let mcps = parse_opencode_mcps(&config_path).unwrap();
         assert_eq!(mcps.len(), 1);
@@ -566,14 +590,18 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let config_path = temp_dir.path().join("opencode.json");
 
-        fs::write(&config_path, r#"{
+        fs::write(
+            &config_path,
+            r#"{
             "mcp": {
                 "single": {
                     "type": "local",
                     "command": ["python"]
                 }
             }
-        }"#).unwrap();
+        }"#,
+        )
+        .unwrap();
 
         let mcps = parse_opencode_mcps(&config_path).unwrap();
         assert_eq!(mcps[0].command, Some("python".to_string()));

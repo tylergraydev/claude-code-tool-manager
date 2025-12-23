@@ -29,7 +29,9 @@ pub const DEFAULT_REPOS: &[(&str, &str, &str, &str, &str)] = &[
 
 /// Seed default repositories if none exist
 pub fn seed_default_repos(db: &Database) -> Result<()> {
-    let count: i64 = db.conn().query_row("SELECT COUNT(*) FROM repos", [], |row| row.get(0))?;
+    let count: i64 = db
+        .conn()
+        .query_row("SELECT COUNT(*) FROM repos", [], |row| row.get(0))?;
 
     if count > 0 {
         return Ok(());
@@ -79,14 +81,35 @@ async fn sync_file_based_repo(client: &GitHubClient, repo: &Repo) -> Result<Vec<
     // Determine which directories to scan based on content type
     // Include common directory names that repos might use
     let dirs_to_scan: Vec<&str> = match repo.content_type.as_str() {
-        "skill" => vec!["", "commands", "skills", "workflows", "tools", "examples", "prompts"],
+        "skill" => vec![
+            "",
+            "commands",
+            "skills",
+            "workflows",
+            "tools",
+            "examples",
+            "prompts",
+        ],
         "subagent" => vec!["", "agents", "subagents"],
         "mcp" => vec!["", "src"],
-        "mixed" => vec!["", "commands", "skills", "workflows", "tools", "examples", "prompts", "agents", "subagents"],
+        "mixed" => vec![
+            "",
+            "commands",
+            "skills",
+            "workflows",
+            "tools",
+            "examples",
+            "prompts",
+            "agents",
+            "subagents",
+        ],
         _ => vec![""],
     };
 
-    if let Ok(files) = client.get_markdown_files(&repo.owner, &repo.repo, &dirs_to_scan).await {
+    if let Ok(files) = client
+        .get_markdown_files(&repo.owner, &repo.repo, &dirs_to_scan)
+        .await
+    {
         for (path, content) in files {
             // Skip junk files like README.md, CONTRIBUTING.md, etc.
             if should_skip_file(&path) {
@@ -161,10 +184,9 @@ fn update_repo_items(db: &Database, repo_id: i64, items: &[ParsedItem]) -> Resul
 
     // Delete all existing items for this repo (clean slate approach)
     // This ensures junk items that no longer pass filters are removed
-    let removed = db.conn().execute(
-        "DELETE FROM repo_items WHERE repo_id = ?",
-        params![repo_id],
-    )? as i32;
+    let removed =
+        db.conn()
+            .execute("DELETE FROM repo_items WHERE repo_id = ?", params![repo_id])? as i32;
 
     let mut added = 0;
 
@@ -722,11 +744,13 @@ mod tests {
         for (_, _, repo_type, content_type, _) in DEFAULT_REPOS {
             assert!(
                 ["file_based", "readme_based"].contains(repo_type),
-                "Invalid repo_type: {}", repo_type
+                "Invalid repo_type: {}",
+                repo_type
             );
             assert!(
                 ["skill", "subagent", "mcp", "mixed"].contains(content_type),
-                "Invalid content_type: {}", content_type
+                "Invalid content_type: {}",
+                content_type
             );
         }
     }

@@ -26,7 +26,14 @@ pub fn test_mcp(db: State<'_, Mutex<Database>>, mcp_id: i64) -> Result<McpTestRe
             .prepare("SELECT type, command, args, url, headers, env FROM mcps WHERE id = ?")
             .map_err(|e| e.to_string())?;
 
-        let mcp_data: (String, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>) = stmt
+        let mcp_data: (
+            String,
+            Option<String>,
+            Option<String>,
+            Option<String>,
+            Option<String>,
+            Option<String>,
+        ) = stmt
             .query_row([mcp_id], |row| {
                 Ok((
                     row.get(0)?,
@@ -49,11 +56,11 @@ pub fn test_mcp(db: State<'_, Mutex<Database>>, mcp_id: i64) -> Result<McpTestRe
             .and_then(|s| serde_json::from_str(&s).ok())
             .unwrap_or_default();
 
-        let headers: Option<HashMap<String, String>> = headers_json
-            .and_then(|s| serde_json::from_str(&s).ok());
+        let headers: Option<HashMap<String, String>> =
+            headers_json.and_then(|s| serde_json::from_str(&s).ok());
 
-        let env: Option<HashMap<String, String>> = env_json
-            .and_then(|s| serde_json::from_str(&s).ok());
+        let env: Option<HashMap<String, String>> =
+            env_json.and_then(|s| serde_json::from_str(&s).ok());
 
         (mcp_type, command, args, headers, env, url)
     };
@@ -129,13 +136,30 @@ pub fn test_mcp_config(
 pub fn get_mcp_test_data_from_db(
     db: &Database,
     mcp_id: i64,
-) -> Result<(String, Option<String>, Vec<String>, Option<HashMap<String, String>>, Option<HashMap<String, String>>, Option<String>), String> {
+) -> Result<
+    (
+        String,
+        Option<String>,
+        Vec<String>,
+        Option<HashMap<String, String>>,
+        Option<HashMap<String, String>>,
+        Option<String>,
+    ),
+    String,
+> {
     let mut stmt = db
         .conn()
         .prepare("SELECT type, command, args, url, headers, env FROM mcps WHERE id = ?")
         .map_err(|e| e.to_string())?;
 
-    let mcp_data: (String, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>) = stmt
+    let mcp_data: (
+        String,
+        Option<String>,
+        Option<String>,
+        Option<String>,
+        Option<String>,
+        Option<String>,
+    ) = stmt
         .query_row([mcp_id], |row| {
             Ok((
                 row.get(0)?,
@@ -154,11 +178,10 @@ pub fn get_mcp_test_data_from_db(
         .and_then(|s| serde_json::from_str(&s).ok())
         .unwrap_or_default();
 
-    let headers: Option<HashMap<String, String>> = headers_json
-        .and_then(|s| serde_json::from_str(&s).ok());
+    let headers: Option<HashMap<String, String>> =
+        headers_json.and_then(|s| serde_json::from_str(&s).ok());
 
-    let env: Option<HashMap<String, String>> = env_json
-        .and_then(|s| serde_json::from_str(&s).ok());
+    let env: Option<HashMap<String, String>> = env_json.and_then(|s| serde_json::from_str(&s).ok());
 
     Ok((mcp_type, command, args, headers, env, url))
 }
@@ -265,12 +288,16 @@ mod tests {
             .unwrap();
         let id = db.conn().last_insert_rowid();
 
-        let (mcp_type, command, args, _headers, env, url) = get_mcp_test_data_from_db(&db, id).unwrap();
+        let (mcp_type, command, args, _headers, env, url) =
+            get_mcp_test_data_from_db(&db, id).unwrap();
 
         assert_eq!(mcp_type, "stdio");
         assert_eq!(command, Some("npx".to_string()));
         assert_eq!(args, vec!["-y", "mcp-server"]);
-        assert_eq!(env.as_ref().and_then(|e| e.get("KEY")), Some(&"value".to_string()));
+        assert_eq!(
+            env.as_ref().and_then(|e| e.get("KEY")),
+            Some(&"value".to_string())
+        );
         assert!(url.is_none());
     }
 
@@ -292,7 +319,8 @@ mod tests {
             .unwrap();
         let id = db.conn().last_insert_rowid();
 
-        let (mcp_type, command, args, headers, _env, url) = get_mcp_test_data_from_db(&db, id).unwrap();
+        let (mcp_type, command, args, headers, _env, url) =
+            get_mcp_test_data_from_db(&db, id).unwrap();
 
         assert_eq!(mcp_type, "http");
         assert!(command.is_none());
@@ -317,7 +345,8 @@ mod tests {
             .unwrap();
         let id = db.conn().last_insert_rowid();
 
-        let (mcp_type, _command, _args, _headers, _env, url) = get_mcp_test_data_from_db(&db, id).unwrap();
+        let (mcp_type, _command, _args, _headers, _env, url) =
+            get_mcp_test_data_from_db(&db, id).unwrap();
 
         assert_eq!(mcp_type, "sse");
         assert_eq!(url, Some("https://api.example.com/sse".to_string()));
@@ -346,7 +375,8 @@ mod tests {
             .unwrap();
         let id = db.conn().last_insert_rowid();
 
-        let (mcp_type, command, args, headers, env, url) = get_mcp_test_data_from_db(&db, id).unwrap();
+        let (mcp_type, command, args, headers, env, url) =
+            get_mcp_test_data_from_db(&db, id).unwrap();
 
         assert_eq!(mcp_type, "stdio");
         assert!(command.is_none());
@@ -369,7 +399,8 @@ mod tests {
             .unwrap();
         let id = db.conn().last_insert_rowid();
 
-        let (_mcp_type, _command, args, _headers, env, _url) = get_mcp_test_data_from_db(&db, id).unwrap();
+        let (_mcp_type, _command, args, _headers, env, _url) =
+            get_mcp_test_data_from_db(&db, id).unwrap();
 
         assert!(args.is_empty());
         assert!(env.is_some());

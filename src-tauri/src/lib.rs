@@ -1,5 +1,5 @@
-use tauri::Manager;
 use std::sync::Mutex;
+use tauri::Manager;
 
 mod commands;
 mod db;
@@ -63,7 +63,6 @@ pub fn run() {
             commands::mcp::delete_mcp,
             commands::mcp::duplicate_mcp,
             commands::mcp::toggle_global_mcp,
-
             // Project Commands
             commands::projects::get_all_projects,
             commands::projects::add_project,
@@ -73,7 +72,6 @@ pub fn run() {
             commands::projects::remove_mcp_from_project,
             commands::projects::toggle_project_mcp,
             commands::projects::sync_project_config,
-
             // Global Settings Commands
             commands::config::get_global_mcps,
             commands::config::add_global_mcp,
@@ -83,10 +81,8 @@ pub fn run() {
             commands::config::get_claude_paths,
             commands::config::open_config_file,
             commands::config::backup_configs,
-
             // Scanner Commands
             commands::scanner::scan_claude_directory,
-
             // Claude.json Commands
             commands::claude_json::get_claude_json_mcps,
             commands::claude_json::get_claude_json_projects,
@@ -95,7 +91,6 @@ pub fn run() {
             commands::claude_json::toggle_mcp_in_claude_json,
             commands::claude_json::add_global_mcp_to_claude_json,
             commands::claude_json::remove_global_mcp_from_claude_json,
-
             // Skill Commands
             commands::skills::get_all_skills,
             commands::skills::create_skill,
@@ -113,7 +108,6 @@ pub fn run() {
             commands::skills::create_skill_file,
             commands::skills::update_skill_file,
             commands::skills::delete_skill_file,
-
             // Sub-Agent Commands
             commands::subagents::get_all_subagents,
             commands::subagents::create_subagent,
@@ -127,7 +121,6 @@ pub fn run() {
             commands::subagents::remove_subagent_from_project,
             commands::subagents::toggle_project_subagent,
             commands::subagents::get_project_subagents,
-
             // Hook Commands
             commands::hooks::get_all_hooks,
             commands::hooks::get_hook_templates,
@@ -144,7 +137,6 @@ pub fn run() {
             commands::hooks::remove_hook_from_project,
             commands::hooks::toggle_project_hook,
             commands::hooks::seed_hook_templates,
-
             // Repos (Marketplace) Commands
             commands::repos::get_all_repos,
             commands::repos::add_repo,
@@ -158,20 +150,17 @@ pub fn run() {
             commands::repos::get_github_rate_limit,
             commands::repos::seed_default_repos,
             commands::repos::reset_repos_to_defaults,
-
             // MCP Registry Commands
             commands::mcp_registry::search_mcp_registry,
             commands::mcp_registry::list_mcp_registry,
             commands::mcp_registry::get_mcp_from_registry,
             commands::mcp_registry::import_mcp_from_registry,
-
             // Settings Commands
             commands::settings::get_app_settings,
             commands::settings::update_app_settings,
             commands::settings::get_available_editors,
             commands::settings::get_opencode_paths_cmd,
             commands::settings::update_project_editor_type,
-
             // Debug Commands
             commands::debug::enable_debug_mode,
             commands::debug::disable_debug_mode,
@@ -180,11 +169,9 @@ pub fn run() {
             commands::debug::open_logs_folder,
             commands::debug::write_frontend_log,
             commands::debug::write_invoke_log,
-
             // MCP Test Commands
             commands::mcp_test::test_mcp,
             commands::mcp_test::test_mcp_config,
-
             // MCP Session Commands
             commands::mcp_session::start_mcp_session,
             commands::mcp_session::execute_tool,

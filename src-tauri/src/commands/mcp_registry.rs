@@ -86,11 +86,26 @@ pub fn import_mcp_from_registry(
 // ============================================================================
 
 /// Import an MCP from the registry to the local library (for testing)
-pub fn import_mcp_from_registry_in_db(db: &Database, entry: &RegistryMcpEntry) -> Result<i64, String> {
+pub fn import_mcp_from_registry_in_db(
+    db: &Database,
+    entry: &RegistryMcpEntry,
+) -> Result<i64, String> {
     // Convert args and headers to JSON strings for storage
-    let args_json = entry.args.as_ref().map(|a| serde_json::to_string(a).ok()).flatten();
-    let headers_json = entry.headers.as_ref().map(|h| serde_json::to_string(h).ok()).flatten();
-    let env_json = entry.env.as_ref().map(|e| serde_json::to_string(e).ok()).flatten();
+    let args_json = entry
+        .args
+        .as_ref()
+        .map(|a| serde_json::to_string(a).ok())
+        .flatten();
+    let headers_json = entry
+        .headers
+        .as_ref()
+        .map(|h| serde_json::to_string(h).ok())
+        .flatten();
+    let env_json = entry
+        .env
+        .as_ref()
+        .map(|e| serde_json::to_string(e).ok())
+        .flatten();
 
     db.conn()
         .execute(
@@ -138,9 +153,9 @@ pub fn get_registry_mcp_by_id(db: &Database, id: i64) -> Result<RegistryMcpEntry
                     env: env.and_then(|e| serde_json::from_str(&e).ok()),
                     env_placeholders: None, // Not stored in DB
                     source_url: row.get(8)?,
-                    version: None, // Not stored in DB
+                    version: None,       // Not stored in DB
                     registry_type: None, // Not stored in DB
-                    updated_at: None, // Not stored in DB
+                    updated_at: None,    // Not stored in DB
                 })
             },
         )
@@ -221,8 +236,14 @@ mod tests {
         assert_eq!(fetched.description, Some("A test MCP".to_string()));
         assert_eq!(fetched.mcp_type, "stdio");
         assert_eq!(fetched.command, Some("npx".to_string()));
-        assert_eq!(fetched.args, Some(vec!["-y".to_string(), "@test/mcp".to_string()]));
-        assert_eq!(fetched.env.as_ref().and_then(|e| e.get("API_KEY")), Some(&"test".to_string()));
+        assert_eq!(
+            fetched.args,
+            Some(vec!["-y".to_string(), "@test/mcp".to_string()])
+        );
+        assert_eq!(
+            fetched.env.as_ref().and_then(|e| e.get("API_KEY")),
+            Some(&"test".to_string())
+        );
     }
 
     #[test]
@@ -256,7 +277,10 @@ mod tests {
         assert_eq!(fetched.mcp_type, "sse");
         assert_eq!(fetched.url, Some("https://api.example.com/sse".to_string()));
         assert_eq!(
-            fetched.headers.as_ref().and_then(|h| h.get("Authorization")),
+            fetched
+                .headers
+                .as_ref()
+                .and_then(|h| h.get("Authorization")),
             Some(&"Bearer token".to_string())
         );
     }
@@ -318,7 +342,9 @@ mod tests {
         // Verify source is set to 'registry'
         let source: String = db
             .conn()
-            .query_row("SELECT source FROM mcps WHERE id = ?", [id], |row| row.get(0))
+            .query_row("SELECT source FROM mcps WHERE id = ?", [id], |row| {
+                row.get(0)
+            })
             .unwrap();
 
         assert_eq!(source, "registry");

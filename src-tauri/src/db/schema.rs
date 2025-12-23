@@ -282,11 +282,14 @@ impl Database {
 
     fn run_schema_migrations(&self) -> Result<()> {
         // Migration 1: Add new columns to skills table
-        let has_skill_type: bool = self.conn.query_row(
-            "SELECT COUNT(*) > 0 FROM pragma_table_info('skills') WHERE name = 'skill_type'",
-            [],
-            |row| row.get(0),
-        ).unwrap_or(false);
+        let has_skill_type: bool = self
+            .conn
+            .query_row(
+                "SELECT COUNT(*) > 0 FROM pragma_table_info('skills') WHERE name = 'skill_type'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap_or(false);
 
         if !has_skill_type {
             self.conn.execute_batch(
@@ -315,11 +318,14 @@ impl Database {
         }
 
         // Migration 3: Rename agents tables to subagents
-        let has_agents_table: bool = self.conn.query_row(
-            "SELECT COUNT(*) > 0 FROM sqlite_master WHERE type='table' AND name='agents'",
-            [],
-            |row| row.get(0),
-        ).unwrap_or(false);
+        let has_agents_table: bool = self
+            .conn
+            .query_row(
+                "SELECT COUNT(*) > 0 FROM sqlite_master WHERE type='table' AND name='agents'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap_or(false);
 
         if has_agents_table {
             self.conn.execute_batch(
@@ -348,11 +354,14 @@ impl Database {
         }
 
         // Migration 4: Add model and disable_model_invocation columns to skills
-        let has_skill_model: bool = self.conn.query_row(
-            "SELECT COUNT(*) > 0 FROM pragma_table_info('skills') WHERE name = 'model'",
-            [],
-            |row| row.get(0),
-        ).unwrap_or(false);
+        let has_skill_model: bool = self
+            .conn
+            .query_row(
+                "SELECT COUNT(*) > 0 FROM pragma_table_info('skills') WHERE name = 'model'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap_or(false);
 
         if !has_skill_model {
             self.conn.execute_batch(
@@ -364,11 +373,14 @@ impl Database {
         }
 
         // Migration 5: Add editor_type column to projects for OpenCode support
-        let has_editor_type: bool = self.conn.query_row(
-            "SELECT COUNT(*) > 0 FROM pragma_table_info('projects') WHERE name = 'editor_type'",
-            [],
-            |row| row.get(0),
-        ).unwrap_or(false);
+        let has_editor_type: bool = self
+            .conn
+            .query_row(
+                "SELECT COUNT(*) > 0 FROM pragma_table_info('projects') WHERE name = 'editor_type'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap_or(false);
 
         if !has_editor_type {
             self.conn.execute_batch(
@@ -397,11 +409,13 @@ impl Database {
 
     // App settings methods
     pub fn get_setting(&self, key: &str) -> Option<String> {
-        self.conn.query_row(
-            "SELECT value FROM app_settings WHERE key = ?",
-            [key],
-            |row| row.get(0),
-        ).ok()
+        self.conn
+            .query_row(
+                "SELECT value FROM app_settings WHERE key = ?",
+                [key],
+                |row| row.get(0),
+            )
+            .ok()
     }
 
     pub fn set_setting(&self, key: &str, value: &str) -> Result<()> {
@@ -412,4 +426,3 @@ impl Database {
         Ok(())
     }
 }
-

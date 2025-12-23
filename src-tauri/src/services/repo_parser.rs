@@ -49,7 +49,9 @@ pub fn should_skip_file(path: &str) -> bool {
     }
 
     // Check if it's in a junk directory
-    if JUNK_DIRS.iter().any(|dir| path_lower.contains(&format!("/{}/", dir)) || path_lower.starts_with(&format!("{}/", dir))) {
+    if JUNK_DIRS.iter().any(|dir| {
+        path_lower.contains(&format!("/{}/", dir)) || path_lower.starts_with(&format!("{}/", dir))
+    }) {
         return true;
     }
 
@@ -59,7 +61,9 @@ pub fn should_skip_file(path: &str) -> bool {
     }
 
     // Skip files that are clearly not content (templates, examples docs)
-    if file_name.contains("template") || file_name.contains("example") && !path_lower.contains("commands") {
+    if file_name.contains("template")
+        || file_name.contains("example") && !path_lower.contains("commands")
+    {
         return true;
     }
 
@@ -87,7 +91,11 @@ fn is_valid_mcp_url(url: &str) -> bool {
     }
 
     // Must not be an image file
-    if lower.ends_with(".svg") || lower.ends_with(".png") || lower.ends_with(".jpg") || lower.ends_with(".gif") {
+    if lower.ends_with(".svg")
+        || lower.ends_with(".png")
+        || lower.ends_with(".jpg")
+        || lower.ends_with(".gif")
+    {
         return false;
     }
 
@@ -111,8 +119,14 @@ pub fn parse_readme_for_mcps(content: &str) -> Vec<ParsedItem> {
     let link_pattern = Regex::new(r"\[([^\]]+)\]\(([^)]+)\)\s*[-–:]\s*(.+)").unwrap();
 
     for cap in link_pattern.captures_iter(content) {
-        let name = cap.get(1).map(|m| m.as_str().trim().to_string()).unwrap_or_default();
-        let url = cap.get(2).map(|m| m.as_str().trim().to_string()).unwrap_or_default();
+        let name = cap
+            .get(1)
+            .map(|m| m.as_str().trim().to_string())
+            .unwrap_or_default();
+        let url = cap
+            .get(2)
+            .map(|m| m.as_str().trim().to_string())
+            .unwrap_or_default();
         let description = cap.get(3).map(|m| m.as_str().trim().to_string());
 
         if is_valid_mcp_url(&url) && !items.iter().any(|i: &ParsedItem| i.name == name) {
@@ -133,8 +147,14 @@ pub fn parse_readme_for_mcps(content: &str) -> Vec<ParsedItem> {
     let table_pattern = Regex::new(r"\|\s*\[([^\]]+)\]\(([^)]+)\)\s*\|([^|]*)\|").unwrap();
 
     for cap in table_pattern.captures_iter(content) {
-        let name = cap.get(1).map(|m| m.as_str().trim().to_string()).unwrap_or_default();
-        let url = cap.get(2).map(|m| m.as_str().trim().to_string()).unwrap_or_default();
+        let name = cap
+            .get(1)
+            .map(|m| m.as_str().trim().to_string())
+            .unwrap_or_default();
+        let url = cap
+            .get(2)
+            .map(|m| m.as_str().trim().to_string())
+            .unwrap_or_default();
         let description = cap.get(3).map(|m| m.as_str().trim().to_string());
 
         if is_valid_mcp_url(&url) && !items.iter().any(|i: &ParsedItem| i.name == name) {
@@ -167,7 +187,11 @@ fn is_valid_skill_name(name: &str) -> bool {
 
     // Must not be an image file
     let lower = name.to_lowercase();
-    if lower.ends_with(".svg") || lower.ends_with(".png") || lower.ends_with(".jpg") || lower.ends_with(".gif") {
+    if lower.ends_with(".svg")
+        || lower.ends_with(".png")
+        || lower.ends_with(".jpg")
+        || lower.ends_with(".gif")
+    {
         return false;
     }
 
@@ -179,7 +203,11 @@ fn is_valid_skill_url(url: &str) -> bool {
     let lower = url.to_lowercase();
 
     // Must not be an image file
-    if lower.ends_with(".svg") || lower.ends_with(".png") || lower.ends_with(".jpg") || lower.ends_with(".gif") {
+    if lower.ends_with(".svg")
+        || lower.ends_with(".png")
+        || lower.ends_with(".jpg")
+        || lower.ends_with(".gif")
+    {
         return false;
     }
 
@@ -199,12 +227,14 @@ pub fn parse_readme_for_skills(content: &str) -> Vec<ParsedItem> {
     // Pattern 1: HTML anchor with image badge (awesome-claude-code format)
     // <a href="https://github.com/.../commands/name.md"><img ... alt="/name"></a>
     // followed by _description_ on the next line
-    let html_pattern = Regex::new(
-        r#"<a\s+href="([^"]+\.md)"[^>]*>.*?</a>\s*(?:<br\s*/?>)?\s*_([^_]+)_"#
-    ).unwrap();
+    let html_pattern =
+        Regex::new(r#"<a\s+href="([^"]+\.md)"[^>]*>.*?</a>\s*(?:<br\s*/?>)?\s*_([^_]+)_"#).unwrap();
 
     for cap in html_pattern.captures_iter(content) {
-        let url = cap.get(1).map(|m| m.as_str().trim().to_string()).unwrap_or_default();
+        let url = cap
+            .get(1)
+            .map(|m| m.as_str().trim().to_string())
+            .unwrap_or_default();
         let description = cap.get(2).map(|m| m.as_str().trim().to_string());
 
         // Extract name from URL path (e.g., /commands/commit.md -> commit)
@@ -215,7 +245,10 @@ pub fn parse_readme_for_skills(content: &str) -> Vec<ParsedItem> {
             .trim_end_matches(".md")
             .to_string();
 
-        if is_valid_skill_name(&name) && is_valid_skill_url(&url) && !items.iter().any(|i: &ParsedItem| i.name == name) {
+        if is_valid_skill_name(&name)
+            && is_valid_skill_url(&url)
+            && !items.iter().any(|i: &ParsedItem| i.name == name)
+        {
             items.push(ParsedItem {
                 name,
                 description,
@@ -229,10 +262,14 @@ pub fn parse_readme_for_skills(content: &str) -> Vec<ParsedItem> {
     }
 
     // Pattern 2: /command-name - Description (must be at start of line or after whitespace)
-    let command_pattern = Regex::new(r"(?m)^\s*[-*]?\s*/([a-zA-Z][a-zA-Z0-9_-]+)\s*[-–:]\s*(.+)").unwrap();
+    let command_pattern =
+        Regex::new(r"(?m)^\s*[-*]?\s*/([a-zA-Z][a-zA-Z0-9_-]+)\s*[-–:]\s*(.+)").unwrap();
 
     for cap in command_pattern.captures_iter(content) {
-        let name = cap.get(1).map(|m| m.as_str().trim().to_string()).unwrap_or_default();
+        let name = cap
+            .get(1)
+            .map(|m| m.as_str().trim().to_string())
+            .unwrap_or_default();
         let description = cap.get(2).map(|m| m.as_str().trim().to_string());
 
         if is_valid_skill_name(&name) && !items.iter().any(|i: &ParsedItem| i.name == name) {
@@ -250,11 +287,18 @@ pub fn parse_readme_for_skills(content: &str) -> Vec<ParsedItem> {
 
     // Pattern 3: Markdown links to .md files in list format
     // - [Name](file.md) or - [Name](file.md) - Description
-    let md_link_pattern = Regex::new(r"(?m)^\s*[-*]\s*\[([^\]]+)\]\(([^)]+\.md)\)(?:\s*[-–:]?\s*(.*))?").unwrap();
+    let md_link_pattern =
+        Regex::new(r"(?m)^\s*[-*]\s*\[([^\]]+)\]\(([^)]+\.md)\)(?:\s*[-–:]?\s*(.*))?").unwrap();
 
     for cap in md_link_pattern.captures_iter(content) {
-        let name = cap.get(1).map(|m| m.as_str().trim().to_string()).unwrap_or_default();
-        let url = cap.get(2).map(|m| m.as_str().trim().to_string()).unwrap_or_default();
+        let name = cap
+            .get(1)
+            .map(|m| m.as_str().trim().to_string())
+            .unwrap_or_default();
+        let url = cap
+            .get(2)
+            .map(|m| m.as_str().trim().to_string())
+            .unwrap_or_default();
         let description = cap.get(3).map(|m| m.as_str().trim().to_string());
 
         // Validate name and URL
@@ -281,13 +325,19 @@ pub fn parse_readme_for_skills(content: &str) -> Vec<ParsedItem> {
 
     // Pattern 4: GitHub repo links with descriptions (common awesome-list format)
     // - [repo-name](https://github.com/user/repo) - Description
-    let github_link_pattern = Regex::new(
-        r"(?m)^\s*[-*]\s*\[([^\]]+)\]\((https://github\.com/[^)]+)\)\s*[-–:]\s*(.+)"
-    ).unwrap();
+    let github_link_pattern =
+        Regex::new(r"(?m)^\s*[-*]\s*\[([^\]]+)\]\((https://github\.com/[^)]+)\)\s*[-–:]\s*(.+)")
+            .unwrap();
 
     for cap in github_link_pattern.captures_iter(content) {
-        let name = cap.get(1).map(|m| m.as_str().trim().to_string()).unwrap_or_default();
-        let url = cap.get(2).map(|m| m.as_str().trim().to_string()).unwrap_or_default();
+        let name = cap
+            .get(1)
+            .map(|m| m.as_str().trim().to_string())
+            .unwrap_or_default();
+        let url = cap
+            .get(2)
+            .map(|m| m.as_str().trim().to_string())
+            .unwrap_or_default();
         let description = cap.get(3).map(|m| m.as_str().trim().to_string());
 
         if is_valid_skill_name(&name) && !items.iter().any(|i: &ParsedItem| i.name == name) {
@@ -320,11 +370,12 @@ pub fn parse_skill_file(content: &str, file_path: &str) -> Option<ParsedItem> {
         .cloned()
         .or_else(|| extract_first_paragraph(body));
 
-    let skill_type = if frontmatter.contains_key("allowed-tools") || frontmatter.contains_key("allowedTools") {
-        "skill"
-    } else {
-        "command"
-    };
+    let skill_type =
+        if frontmatter.contains_key("allowed-tools") || frontmatter.contains_key("allowedTools") {
+            "skill"
+        } else {
+            "command"
+        };
 
     Some(ParsedItem {
         name: name.to_string(),
@@ -409,7 +460,11 @@ pub fn parse_frontmatter(content: &str) -> (std::collections::HashMap<String, St
         for line in fm_content.lines() {
             if let Some((key, value)) = line.split_once(':') {
                 let key = key.trim().to_lowercase().replace('_', "-");
-                let value = value.trim().trim_matches('"').trim_matches('\'').to_string();
+                let value = value
+                    .trim()
+                    .trim_matches('"')
+                    .trim_matches('\'')
+                    .to_string();
                 if !value.is_empty() {
                     frontmatter.insert(key, value);
                 }
@@ -426,7 +481,11 @@ pub fn parse_frontmatter(content: &str) -> (std::collections::HashMap<String, St
 fn extract_first_paragraph(content: &str) -> Option<String> {
     for line in content.lines() {
         let line = line.trim();
-        if !line.is_empty() && !line.starts_with('#') && !line.starts_with('-') && !line.starts_with('*') {
+        if !line.is_empty()
+            && !line.starts_with('#')
+            && !line.starts_with('-')
+            && !line.starts_with('*')
+        {
             return Some(line.to_string());
         }
     }
@@ -527,14 +586,14 @@ mod tests {
     }
 
     #[rstest]
-    #[case("a", false)]           // Too short
-    #[case("---", false)]         // Only dashes
-    #[case("123", false)]         // Only numbers
-    #[case("1-2-3", false)]       // Only numbers and dashes
-    #[case("icon.svg", false)]    // Image file
-    #[case("logo.png", false)]    // Image file
-    #[case("photo.jpg", false)]   // Image file
-    #[case("anim.gif", false)]    // Image file
+    #[case("a", false)] // Too short
+    #[case("---", false)] // Only dashes
+    #[case("123", false)] // Only numbers
+    #[case("1-2-3", false)] // Only numbers and dashes
+    #[case("icon.svg", false)] // Image file
+    #[case("logo.png", false)] // Image file
+    #[case("photo.jpg", false)] // Image file
+    #[case("anim.gif", false)] // Image file
     fn test_is_valid_skill_name_invalid(#[case] name: &str, #[case] expected: bool) {
         assert_eq!(is_valid_skill_name(name), expected);
     }
@@ -663,7 +722,10 @@ Do something simple.
 
         let item = parse_skill_file(content, "commands/plain.md").unwrap();
         assert_eq!(item.name, "plain");
-        assert_eq!(item.description, Some("Just plain content here.".to_string()));
+        assert_eq!(
+            item.description,
+            Some("Just plain content here.".to_string())
+        );
     }
 
     #[test]
@@ -706,7 +768,11 @@ You are a code review expert.
     #[case("skills/testing.md", "", "skill")]
     #[case("mcp/server.md", "", "mcp")]
     #[case("servers/github.md", "", "mcp")]
-    fn test_detect_item_type_from_path(#[case] path: &str, #[case] content: &str, #[case] expected: &str) {
+    fn test_detect_item_type_from_path(
+        #[case] path: &str,
+        #[case] content: &str,
+        #[case] expected: &str,
+    ) {
         assert_eq!(detect_item_type(path, content), expected);
     }
 

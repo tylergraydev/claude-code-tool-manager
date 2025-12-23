@@ -65,7 +65,7 @@ pub struct DetectedMcp {
     pub url: Option<String>,
     pub headers: Option<HashMap<String, String>>,
     pub env: Option<HashMap<String, String>>,
-    pub project_path: Option<String>,  // None for global MCPs
+    pub project_path: Option<String>, // None for global MCPs
     pub is_enabled: bool,
 }
 
@@ -94,7 +94,8 @@ pub fn get_all_mcps_from_claude_json() -> Result<Vec<DetectedMcp>> {
     // Get global MCPs
     if let Some(global_servers) = json.get("mcpServers").and_then(|v| v.as_object()) {
         for (name, server_value) in global_servers {
-            if let Ok(server) = serde_json::from_value::<ClaudeJsonMcpServer>(server_value.clone()) {
+            if let Ok(server) = serde_json::from_value::<ClaudeJsonMcpServer>(server_value.clone())
+            {
                 mcps.push(DetectedMcp {
                     name: name.clone(),
                     mcp_type: server.mcp_type,
@@ -104,7 +105,7 @@ pub fn get_all_mcps_from_claude_json() -> Result<Vec<DetectedMcp>> {
                     headers: server.headers,
                     env: server.env,
                     project_path: None,
-                    is_enabled: true,  // Global MCPs are enabled by default
+                    is_enabled: true, // Global MCPs are enabled by default
                 });
             }
         }
@@ -113,7 +114,8 @@ pub fn get_all_mcps_from_claude_json() -> Result<Vec<DetectedMcp>> {
     // Get project-specific MCPs
     if let Some(projects) = json.get("projects").and_then(|v| v.as_object()) {
         for (project_path, project_value) in projects {
-            if let Ok(project) = serde_json::from_value::<ClaudeJsonProject>(project_value.clone()) {
+            if let Ok(project) = serde_json::from_value::<ClaudeJsonProject>(project_value.clone())
+            {
                 for (name, server) in project.mcp_servers {
                     let is_enabled = !project.disabled_mcp_servers.contains(&name);
                     mcps.push(DetectedMcp {
@@ -193,18 +195,21 @@ pub fn add_mcp_to_project_in_claude_json(
         normalized_path
     } else {
         // Create new project entry
-        projects.insert(normalized_path.clone(), serde_json::json!({
-            "allowedTools": [],
-            "mcpContextUris": [],
-            "mcpServers": {},
-            "enabledMcpjsonServers": [],
-            "disabledMcpjsonServers": [],
-            "hasTrustDialogAccepted": false,
-            "projectOnboardingSeenCount": 0,
-            "hasClaudeMdExternalIncludesApproved": false,
-            "hasClaudeMdExternalIncludesWarningShown": false,
-            "exampleFiles": []
-        }));
+        projects.insert(
+            normalized_path.clone(),
+            serde_json::json!({
+                "allowedTools": [],
+                "mcpContextUris": [],
+                "mcpServers": {},
+                "enabledMcpjsonServers": [],
+                "disabledMcpjsonServers": [],
+                "hasTrustDialogAccepted": false,
+                "projectOnboardingSeenCount": 0,
+                "hasClaudeMdExternalIncludesApproved": false,
+                "hasClaudeMdExternalIncludesWarningShown": false,
+                "exampleFiles": []
+            }),
+        );
         normalized_path
     };
 
@@ -228,11 +233,17 @@ pub fn remove_mcp_from_project_in_claude_json(project_path: &str, mcp_name: &str
         // Try both path formats
         for key in [project_path, &normalized_path] {
             if let Some(project) = projects.get_mut(key) {
-                if let Some(servers) = project.get_mut("mcpServers").and_then(|v| v.as_object_mut()) {
+                if let Some(servers) = project
+                    .get_mut("mcpServers")
+                    .and_then(|v| v.as_object_mut())
+                {
                     servers.remove(mcp_name);
                 }
                 // Also remove from disabled list if present
-                if let Some(disabled) = project.get_mut("disabledMcpServers").and_then(|v| v.as_array_mut()) {
+                if let Some(disabled) = project
+                    .get_mut("disabledMcpServers")
+                    .and_then(|v| v.as_array_mut())
+                {
                     disabled.retain(|v| v.as_str() != Some(mcp_name));
                 }
             }
@@ -244,7 +255,11 @@ pub fn remove_mcp_from_project_in_claude_json(project_path: &str, mcp_name: &str
 }
 
 /// Toggle an MCP's enabled state in a project
-pub fn toggle_mcp_in_project_claude_json(project_path: &str, mcp_name: &str, enabled: bool) -> Result<()> {
+pub fn toggle_mcp_in_project_claude_json(
+    project_path: &str,
+    mcp_name: &str,
+    enabled: bool,
+) -> Result<()> {
     let mut json = read_claude_json()?;
     let normalized_path = normalize_path(project_path);
 
@@ -256,7 +271,8 @@ pub fn toggle_mcp_in_project_claude_json(project_path: &str, mcp_name: &str, ena
                     project["disabledMcpServers"] = serde_json::json!([]);
                 }
 
-                let disabled = project.get_mut("disabledMcpServers")
+                let disabled = project
+                    .get_mut("disabledMcpServers")
                     .and_then(|v| v.as_array_mut())
                     .unwrap();
 
@@ -333,7 +349,13 @@ mod tests {
 
         assert_eq!(server.mcp_type, "stdio");
         assert_eq!(server.command, Some("npx".to_string()));
-        assert_eq!(server.args, Some(vec!["-y".to_string(), "@modelcontextprotocol/server-memory".to_string()]));
+        assert_eq!(
+            server.args,
+            Some(vec![
+                "-y".to_string(),
+                "@modelcontextprotocol/server-memory".to_string()
+            ])
+        );
         assert!(server.url.is_none());
         assert!(server.headers.is_none());
     }
@@ -351,7 +373,10 @@ mod tests {
         assert_eq!(server.mcp_type, "sse");
         assert_eq!(server.url, Some("https://mcp.example.com/sse".to_string()));
         assert!(server.headers.is_some());
-        assert_eq!(server.headers.as_ref().unwrap().get("Authorization"), Some(&"Bearer token123".to_string()));
+        assert_eq!(
+            server.headers.as_ref().unwrap().get("Authorization"),
+            Some(&"Bearer token123".to_string())
+        );
         assert!(server.command.is_none());
     }
 
@@ -404,7 +429,7 @@ mod tests {
 
         let server: ClaudeJsonMcpServer = serde_json::from_str(json).unwrap();
 
-        assert_eq!(server.mcp_type, "stdio");  // Default
+        assert_eq!(server.mcp_type, "stdio"); // Default
         assert!(server.command.is_none());
         assert!(server.args.is_none());
         assert!(server.url.is_none());
@@ -545,7 +570,7 @@ mod tests {
             url: None,
             headers: None,
             env: None,
-            project_path: None,  // Global MCP
+            project_path: None, // Global MCP
             is_enabled: true,
         };
 
@@ -633,7 +658,10 @@ mod tests {
 
         assert_eq!(project.mcp_servers.len(), reparsed.mcp_servers.len());
         assert_eq!(project.disabled_mcp_servers, reparsed.disabled_mcp_servers);
-        assert_eq!(project.enabled_mcpjson_servers, reparsed.enabled_mcpjson_servers);
+        assert_eq!(
+            project.enabled_mcpjson_servers,
+            reparsed.enabled_mcpjson_servers
+        );
     }
 
     // =========================================================================

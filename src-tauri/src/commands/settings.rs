@@ -121,7 +121,11 @@ pub fn update_app_settings_in_db(db: &Database, settings: &AppSettings) -> Resul
 }
 
 /// Update project editor type directly in the database (for testing)
-pub fn update_project_editor_type_in_db(db: &Database, project_id: i64, editor_type: &str) -> Result<(), String> {
+pub fn update_project_editor_type_in_db(
+    db: &Database,
+    project_id: i64,
+    editor_type: &str,
+) -> Result<(), String> {
     // Validate editor type
     if editor_type != "claude_code" && editor_type != "opencode" {
         return Err(format!("Invalid editor type: {}", editor_type));
@@ -211,10 +215,13 @@ mod tests {
     fn create_test_project(db: &Database) -> i64 {
         let project = CreateProjectRequest {
             name: "Test Project".to_string(),
-            path: format!("/test/project/{}", std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_nanos()),
+            path: format!(
+                "/test/project/{}",
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_nanos()
+            ),
         };
         create_project_in_db(db, &project).unwrap().id
     }

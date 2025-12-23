@@ -1,9 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-use crate::services::claude_json::{
-    self, ClaudeJsonMcpServer, DetectedMcp,
-};
+use crate::services::claude_json::{self, ClaudeJsonMcpServer, DetectedMcp};
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -144,15 +142,13 @@ pub fn add_global_mcp_to_claude_json(request: AddMcpToClaudeJsonRequest) -> Resu
         env: request.env,
     };
 
-    claude_json::add_global_mcp_to_claude_json(&request.mcp_name, server)
-        .map_err(|e| e.to_string())
+    claude_json::add_global_mcp_to_claude_json(&request.mcp_name, server).map_err(|e| e.to_string())
 }
 
 /// Remove a global MCP from claude.json
 #[tauri::command]
 pub fn remove_global_mcp_from_claude_json(mcp_name: String) -> Result<(), String> {
-    claude_json::remove_global_mcp_from_claude_json(&mcp_name)
-        .map_err(|e| e.to_string())
+    claude_json::remove_global_mcp_from_claude_json(&mcp_name).map_err(|e| e.to_string())
 }
 
 #[cfg(test)]
@@ -172,7 +168,10 @@ mod tests {
             args: Some(vec!["-y".to_string(), "@test/mcp".to_string()]),
             url: None,
             headers: None,
-            env: Some(HashMap::from([("API_KEY".to_string(), "secret".to_string())])),
+            env: Some(HashMap::from([(
+                "API_KEY".to_string(),
+                "secret".to_string(),
+            )])),
             project_path: Some("/home/user/project".to_string()),
             is_enabled: true,
         };
@@ -210,7 +209,10 @@ mod tests {
             command: None,
             args: None,
             url: Some("https://api.example.com".to_string()),
-            headers: Some(HashMap::from([("X-API-Key".to_string(), "key123".to_string())])),
+            headers: Some(HashMap::from([(
+                "X-API-Key".to_string(),
+                "key123".to_string(),
+            )])),
             env: None,
             project_path: Some("/project/path".to_string()),
             is_enabled: true,
@@ -222,7 +224,10 @@ mod tests {
         assert_eq!(info.mcp_type, "http");
         assert_eq!(info.url, Some("https://api.example.com".to_string()));
         assert!(info.headers.is_some());
-        assert_eq!(info.headers.unwrap().get("X-API-Key"), Some(&"key123".to_string()));
+        assert_eq!(
+            info.headers.unwrap().get("X-API-Key"),
+            Some(&"key123".to_string())
+        );
         assert_eq!(info.project_path, Some("/project/path".to_string()));
         assert!(info.is_enabled);
     }
@@ -282,19 +287,17 @@ mod tests {
     fn test_claude_json_project_info_serialization() {
         let project = ClaudeJsonProjectInfo {
             path: "/home/user/myproject".to_string(),
-            mcps: vec![
-                ClaudeJsonMcpInfo {
-                    name: "mcp1".to_string(),
-                    mcp_type: "stdio".to_string(),
-                    command: Some("npx".to_string()),
-                    args: None,
-                    url: None,
-                    headers: None,
-                    env: None,
-                    project_path: Some("/home/user/myproject".to_string()),
-                    is_enabled: true,
-                },
-            ],
+            mcps: vec![ClaudeJsonMcpInfo {
+                name: "mcp1".to_string(),
+                mcp_type: "stdio".to_string(),
+                command: Some("npx".to_string()),
+                args: None,
+                url: None,
+                headers: None,
+                env: None,
+                project_path: Some("/home/user/myproject".to_string()),
+                is_enabled: true,
+            }],
         };
 
         let json = serde_json::to_string(&project).unwrap();
@@ -355,7 +358,10 @@ mod tests {
         assert_eq!(request.mcp_name, "new-mcp");
         assert_eq!(request.mcp_type, "stdio");
         assert_eq!(request.command, Some("python".to_string()));
-        assert_eq!(request.args, Some(vec!["-m".to_string(), "mcp_server".to_string()]));
+        assert_eq!(
+            request.args,
+            Some(vec!["-m".to_string(), "mcp_server".to_string()])
+        );
         assert!(request.url.is_none());
     }
 
@@ -371,9 +377,15 @@ mod tests {
 
         let request: AddMcpToClaudeJsonRequest = serde_json::from_str(json).unwrap();
         assert_eq!(request.mcp_type, "sse");
-        assert_eq!(request.url, Some("https://mcp.example.com/events".to_string()));
+        assert_eq!(
+            request.url,
+            Some("https://mcp.example.com/events".to_string())
+        );
         assert!(request.headers.is_some());
-        assert_eq!(request.headers.unwrap().get("X-Token"), Some(&"abc123".to_string()));
+        assert_eq!(
+            request.headers.unwrap().get("X-Token"),
+            Some(&"abc123".to_string())
+        );
         assert!(request.command.is_none());
     }
 

@@ -63,7 +63,7 @@ pub struct RepositoryInfo {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Package {
-    pub registry_type: String, // "npm", "pypi", "nuget", "oci", "mcpb"
+    pub registry_type: String,      // "npm", "pypi", "nuget", "oci", "mcpb"
     pub identifier: Option<String>, // Package identifier (e.g., "npm:@org/package")
     pub name: Option<String>,
     #[allow(dead_code)]
@@ -248,7 +248,11 @@ impl RegistryClient {
     }
 
     /// List servers with pagination
-    pub async fn list(&self, limit: u32, cursor: Option<&str>) -> Result<(Vec<RegistryServer>, Option<String>)> {
+    pub async fn list(
+        &self,
+        limit: u32,
+        cursor: Option<&str>,
+    ) -> Result<(Vec<RegistryServer>, Option<String>)> {
         let mut url = format!(
             "{}/v0/servers?limit={}&status=active&version=latest",
             self.base_url, limit
@@ -289,7 +293,10 @@ impl RegistryClient {
             .and_then(|s| s.as_array())
             .ok_or_else(|| anyhow!("No servers array in response"))?;
 
-        eprintln!("[Registry] API returned {} servers in response", servers_array.len());
+        eprintln!(
+            "[Registry] API returned {} servers in response",
+            servers_array.len()
+        );
 
         // Parse each server dynamically (API already filters for latest versions via version=latest param)
         let mut servers = Vec::new();
@@ -310,11 +317,17 @@ impl RegistryClient {
                     }
                     Err(e) => {
                         parse_failures += 1;
-                        let name = server_obj.get("name").and_then(|n| n.as_str()).unwrap_or("unknown");
+                        let name = server_obj
+                            .get("name")
+                            .and_then(|n| n.as_str())
+                            .unwrap_or("unknown");
                         // Log first few failures in detail
                         if parse_failures <= 3 {
                             eprintln!("[Registry] PARSE FAILED '{}': {}", name, e);
-                            eprintln!("[Registry] Server JSON: {}", serde_json::to_string_pretty(server_obj).unwrap_or_default());
+                            eprintln!(
+                                "[Registry] Server JSON: {}",
+                                serde_json::to_string_pretty(server_obj).unwrap_or_default()
+                            );
                         }
                     }
                 }
@@ -393,16 +406,14 @@ impl RegistryServer {
 
 fn extract_short_name(full_name: &str) -> String {
     // "io.github.user/my-mcp-server" -> "my-mcp-server"
-    full_name
-        .split('/')
-        .last()
-        .unwrap_or(full_name)
-        .to_string()
+    full_name.split('/').last().unwrap_or(full_name).to_string()
 }
 
 fn package_to_mcp_entry(server: &RegistryServer, package: &Package) -> Result<RegistryMcpEntry> {
     // Get package name from identifier or name field
-    let pkg_name = package.identifier.as_ref()
+    let pkg_name = package
+        .identifier
+        .as_ref()
         .or(package.name.as_ref())
         .ok_or_else(|| anyhow!("Missing package identifier or name"))?;
 
@@ -410,18 +421,17 @@ fn package_to_mcp_entry(server: &RegistryServer, package: &Package) -> Result<Re
     let clean_pkg_name = extract_package_name(pkg_name, &package.registry_type);
 
     let (command, mut args) = match package.registry_type.as_str() {
-        "npm" => {
-            ("npx".to_string(), vec!["-y".to_string(), clean_pkg_name])
-        }
-        "pypi" => {
-            ("uvx".to_string(), vec![clean_pkg_name])
-        }
-        "oci" | "docker" => {
-            (
-                "docker".to_string(),
-                vec!["run".to_string(), "-i".to_string(), "--rm".to_string(), clean_pkg_name],
-            )
-        }
+        "npm" => ("npx".to_string(), vec!["-y".to_string(), clean_pkg_name]),
+        "pypi" => ("uvx".to_string(), vec![clean_pkg_name]),
+        "oci" | "docker" => (
+            "docker".to_string(),
+            vec![
+                "run".to_string(),
+                "-i".to_string(),
+                "--rm".to_string(),
+                clean_pkg_name,
+            ],
+        ),
         other => {
             return Err(anyhow!("Unsupported registry type: {}", other));
         }
@@ -472,7 +482,11 @@ fn package_to_mcp_entry(server: &RegistryServer, package: &Package) -> Result<Re
     }
 
     let env = if env.is_empty() { None } else { Some(env) };
-    let env_placeholders = if env_placeholders.is_empty() { None } else { Some(env_placeholders) };
+    let env_placeholders = if env_placeholders.is_empty() {
+        None
+    } else {
+        Some(env_placeholders)
+    };
 
     Ok(RegistryMcpEntry {
         registry_id: server.name.clone(), // Use name as ID since there's no separate id field
@@ -502,9 +516,13 @@ fn extract_package_name(identifier: &str, registry_type: &str) -> String {
                 .trim_start_matches("ghcr.io/")
                 .trim_start_matches("gcr.io/");
             // Remove version tag
-            without_registry.split(':').next().unwrap_or(identifier).to_string()
+            without_registry
+                .split(':')
+                .next()
+                .unwrap_or(identifier)
+                .to_string()
         }
-        _ => identifier.to_string()
+        _ => identifier.to_string(),
     }
 }
 
@@ -520,7 +538,10 @@ fn remote_to_mcp_entry(server: &RegistryServer, remote: &Remote) -> RegistryMcpE
         hdrs.iter()
             .filter_map(|h| {
                 // Use the value if present, otherwise use a placeholder
-                let value = h.value.clone().unwrap_or_else(|| format!("${{{}}}", h.name));
+                let value = h
+                    .value
+                    .clone()
+                    .unwrap_or_else(|| format!("${{{}}}", h.name));
                 Some((h.name.clone(), value))
             })
             .collect::<HashMap<String, String>>()
@@ -547,8 +568,8 @@ fn remote_to_mcp_entry(server: &RegistryServer, remote: &Remote) -> RegistryMcpE
 #[cfg(test)]
 mod tests {
     use super::*;
-    use wiremock::{MockServer, Mock, ResponseTemplate};
     use wiremock::matchers::{method, path, query_param};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
 
     #[test]
     fn test_extract_short_name() {
@@ -673,7 +694,10 @@ mod tests {
 
         assert_eq!(servers.len(), 1);
         assert_eq!(servers[0].name, "io.github.test/filesystem-mcp");
-        assert_eq!(servers[0].description, Some("A filesystem MCP server".to_string()));
+        assert_eq!(
+            servers[0].description,
+            Some("A filesystem MCP server".to_string())
+        );
     }
 
     #[tokio::test]
@@ -983,7 +1007,10 @@ mod tests {
 
         let result = server.to_mcp_entry();
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("no packages or remotes"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("no packages or remotes"));
     }
 
     #[test]
@@ -1016,7 +1043,10 @@ mod tests {
         // Should fall back to remote since package type is unsupported
         let entry = server.to_mcp_entry().unwrap();
         assert_eq!(entry.mcp_type, "sse");
-        assert_eq!(entry.url, Some("https://fallback.example.com/sse".to_string()));
+        assert_eq!(
+            entry.url,
+            Some("https://fallback.example.com/sse".to_string())
+        );
     }
 
     #[test]
@@ -1086,16 +1116,14 @@ mod tests {
                 identifier: Some("@test/server".to_string()),
                 name: None,
                 version: None,
-                arguments: Some(vec![
-                    PackageArgument {
-                        arg_type: Some("named".to_string()),
-                        name: Some("--config".to_string()),
-                        value: Some("./config.json".to_string()),
-                        description: None,
-                        is_required: None,
-                        default: None,
-                    }
-                ]),
+                arguments: Some(vec![PackageArgument {
+                    arg_type: Some("named".to_string()),
+                    name: Some("--config".to_string()),
+                    value: Some("./config.json".to_string()),
+                    description: None,
+                    is_required: None,
+                    default: None,
+                }]),
                 environment_variables: None,
                 transport: None,
                 extra: None,

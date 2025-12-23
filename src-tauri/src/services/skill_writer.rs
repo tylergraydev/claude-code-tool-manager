@@ -121,7 +121,9 @@ pub fn delete_skill_file(base_path: &Path, skill: &Skill) -> Result<()> {
 
     match skill.skill_type.as_str() {
         "command" => {
-            let file_path = claude_dir.join("commands").join(format!("{}.md", skill.name));
+            let file_path = claude_dir
+                .join("commands")
+                .join(format!("{}.md", skill.name));
             if file_path.exists() {
                 std::fs::remove_file(file_path)?;
             }
@@ -134,7 +136,9 @@ pub fn delete_skill_file(base_path: &Path, skill: &Skill) -> Result<()> {
         }
         _ => {
             // Try both locations
-            let cmd_path = claude_dir.join("commands").join(format!("{}.md", skill.name));
+            let cmd_path = claude_dir
+                .join("commands")
+                .join(format!("{}.md", skill.name));
             if cmd_path.exists() {
                 std::fs::remove_file(cmd_path)?;
             }
@@ -150,14 +154,16 @@ pub fn delete_skill_file(base_path: &Path, skill: &Skill) -> Result<()> {
 
 /// Write a skill to the global Claude config (~/.claude/)
 pub fn write_global_skill(skill: &Skill) -> Result<()> {
-    let base_dirs = BaseDirs::new().ok_or_else(|| anyhow::anyhow!("Could not find home directory"))?;
+    let base_dirs =
+        BaseDirs::new().ok_or_else(|| anyhow::anyhow!("Could not find home directory"))?;
     let home = base_dirs.home_dir();
     write_skill_file(home, skill)
 }
 
 /// Delete a skill from the global Claude config (~/.claude/)
 pub fn delete_global_skill(skill: &Skill) -> Result<()> {
-    let base_dirs = BaseDirs::new().ok_or_else(|| anyhow::anyhow!("Could not find home directory"))?;
+    let base_dirs =
+        BaseDirs::new().ok_or_else(|| anyhow::anyhow!("Could not find home directory"))?;
     let home = base_dirs.home_dir();
     delete_skill_file(home, skill)
 }
@@ -188,7 +194,9 @@ pub(crate) fn file_type_to_dir(file_type: &str) -> &str {
 /// Only works for agent skills (type "skill"), not commands
 pub fn write_skill_subfile(base_path: &Path, skill: &Skill, file: &SkillFile) -> Result<()> {
     if skill.skill_type != "skill" {
-        return Err(anyhow::anyhow!("Skill files are only supported for agent skills, not commands"));
+        return Err(anyhow::anyhow!(
+            "Skill files are only supported for agent skills, not commands"
+        ));
     }
 
     let skill_dir = base_path.join(".claude").join("skills").join(&skill.name);
@@ -237,25 +245,35 @@ pub fn write_skill_files(base_path: &Path, skill: &Skill, files: &[SkillFile]) -
 
 /// Write a skill file to global config
 pub fn write_global_skill_file(skill: &Skill, file: &SkillFile) -> Result<()> {
-    let base_dirs = BaseDirs::new().ok_or_else(|| anyhow::anyhow!("Could not find home directory"))?;
+    let base_dirs =
+        BaseDirs::new().ok_or_else(|| anyhow::anyhow!("Could not find home directory"))?;
     let home = base_dirs.home_dir();
     write_skill_subfile(home, skill, file)
 }
 
 /// Delete a skill file from global config
 pub fn delete_global_skill_file(skill: &Skill, file: &SkillFile) -> Result<()> {
-    let base_dirs = BaseDirs::new().ok_or_else(|| anyhow::anyhow!("Could not find home directory"))?;
+    let base_dirs =
+        BaseDirs::new().ok_or_else(|| anyhow::anyhow!("Could not find home directory"))?;
     let home = base_dirs.home_dir();
     delete_skill_subfile(home, skill, file)
 }
 
 /// Write a skill file to project config
-pub fn write_project_skill_file(project_path: &Path, skill: &Skill, file: &SkillFile) -> Result<()> {
+pub fn write_project_skill_file(
+    project_path: &Path,
+    skill: &Skill,
+    file: &SkillFile,
+) -> Result<()> {
     write_skill_subfile(project_path, skill, file)
 }
 
 /// Delete a skill file from project config
-pub fn delete_project_skill_file(project_path: &Path, skill: &Skill, file: &SkillFile) -> Result<()> {
+pub fn delete_project_skill_file(
+    project_path: &Path,
+    skill: &Skill,
+    file: &SkillFile,
+) -> Result<()> {
     delete_skill_subfile(project_path, skill, file)
 }
 
@@ -582,7 +600,8 @@ mod tests {
 
         write_skill_file(temp_dir.path(), &skill).unwrap();
 
-        let expected_path = temp_dir.path()
+        let expected_path = temp_dir
+            .path()
             .join(".claude")
             .join("commands")
             .join("test-command.md");
@@ -596,7 +615,8 @@ mod tests {
 
         write_skill_file(temp_dir.path(), &skill).unwrap();
 
-        let expected_path = temp_dir.path()
+        let expected_path = temp_dir
+            .path()
             .join(".claude")
             .join("skills")
             .join("test-agent")
@@ -611,7 +631,8 @@ mod tests {
 
         write_skill_file(temp_dir.path(), &skill).unwrap();
 
-        let file_path = temp_dir.path()
+        let file_path = temp_dir
+            .path()
             .join(".claude")
             .join("commands")
             .join("test-command.md");
@@ -629,7 +650,8 @@ mod tests {
 
         write_skill_file(temp_dir.path(), &skill).unwrap();
 
-        let expected_path = temp_dir.path()
+        let expected_path = temp_dir
+            .path()
             .join(".claude")
             .join("commands")
             .join("test-command.md");
@@ -647,7 +669,8 @@ mod tests {
 
         // Write first
         write_skill_file(temp_dir.path(), &skill).unwrap();
-        let file_path = temp_dir.path()
+        let file_path = temp_dir
+            .path()
             .join(".claude")
             .join("commands")
             .join("test-command.md");
@@ -665,7 +688,8 @@ mod tests {
 
         // Write first
         write_skill_file(temp_dir.path(), &skill).unwrap();
-        let skill_dir = temp_dir.path()
+        let skill_dir = temp_dir
+            .path()
             .join(".claude")
             .join("skills")
             .join("test-agent");
@@ -698,7 +722,8 @@ mod tests {
 
         write_skill_subfile(temp_dir.path(), &skill, &file).unwrap();
 
-        let expected_path = temp_dir.path()
+        let expected_path = temp_dir
+            .path()
             .join(".claude")
             .join("skills")
             .join("test-agent")
@@ -715,7 +740,10 @@ mod tests {
 
         let result = write_skill_subfile(temp_dir.path(), &skill, &file);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("only supported for agent skills"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("only supported for agent skills"));
     }
 
     // =========================================================================
@@ -730,9 +758,7 @@ mod tests {
         write_skill_file_opencode(temp_dir.path(), &skill).unwrap();
 
         // OpenCode uses singular "command" not "commands"
-        let expected_path = temp_dir.path()
-            .join("command")
-            .join("test-command.md");
+        let expected_path = temp_dir.path().join("command").join("test-command.md");
         assert!(expected_path.exists());
     }
 
@@ -744,9 +770,7 @@ mod tests {
         write_skill_file_opencode(temp_dir.path(), &skill).unwrap();
 
         // OpenCode uses "agent" not "skills"
-        let expected_path = temp_dir.path()
-            .join("agent")
-            .join("test-agent.md");
+        let expected_path = temp_dir.path().join("agent").join("test-agent.md");
         assert!(expected_path.exists());
     }
 

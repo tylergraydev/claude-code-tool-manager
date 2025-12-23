@@ -137,11 +137,19 @@ impl GitHubClient {
     }
 
     /// Get repository contents (files and directories)
-    pub async fn get_contents(&self, owner: &str, repo: &str, path: &str) -> Result<Vec<ContentEntry>> {
+    pub async fn get_contents(
+        &self,
+        owner: &str,
+        repo: &str,
+        path: &str,
+    ) -> Result<Vec<ContentEntry>> {
         let url = if path.is_empty() {
             format!("{}/repos/{}/{}/contents", self.api_base, owner, repo)
         } else {
-            format!("{}/repos/{}/{}/contents/{}", self.api_base, owner, repo, path)
+            format!(
+                "{}/repos/{}/{}/contents/{}",
+                self.api_base, owner, repo, path
+            )
         };
 
         let response = self
@@ -165,10 +173,7 @@ impl GitHubClient {
     pub async fn get_readme(&self, owner: &str, repo: &str) -> Result<String> {
         // Try main branch first, then master
         for branch in ["main", "master"] {
-            let url = format!(
-                "{}/{}/{}/{}/README.md",
-                self.raw_base, owner, repo, branch
-            );
+            let url = format!("{}/{}/{}/{}/README.md", self.raw_base, owner, repo, branch);
 
             let response = self.client.get(&url).send().await?;
 
@@ -184,10 +189,7 @@ impl GitHubClient {
     pub async fn get_file(&self, owner: &str, repo: &str, path: &str) -> Result<String> {
         // Try main branch first, then master
         for branch in ["main", "master"] {
-            let url = format!(
-                "{}/{}/{}/{}/{}",
-                self.raw_base, owner, repo, branch, path
-            );
+            let url = format!("{}/{}/{}/{}/{}", self.raw_base, owner, repo, branch, path);
 
             let response = self.client.get(&url).send().await?;
 
@@ -196,7 +198,10 @@ impl GitHubClient {
             }
         }
 
-        Err(anyhow!("Could not find file {} in main or master branch", path))
+        Err(anyhow!(
+            "Could not find file {} in main or master branch",
+            path
+        ))
     }
 
     /// Get rate limit information
@@ -240,7 +245,12 @@ impl GitHubClient {
     }
 
     /// Get all markdown files in a directory (non-recursive, single level)
-    pub async fn get_markdown_files_in_dir(&self, owner: &str, repo: &str, path: &str) -> Result<Vec<(String, String)>> {
+    pub async fn get_markdown_files_in_dir(
+        &self,
+        owner: &str,
+        repo: &str,
+        path: &str,
+    ) -> Result<Vec<(String, String)>> {
         let mut files = Vec::new();
         let contents = self.get_contents(owner, repo, path).await?;
 
@@ -256,7 +266,12 @@ impl GitHubClient {
     }
 
     /// Get markdown files from multiple directories
-    pub async fn get_markdown_files(&self, owner: &str, repo: &str, dirs: &[&str]) -> Result<Vec<(String, String)>> {
+    pub async fn get_markdown_files(
+        &self,
+        owner: &str,
+        repo: &str,
+        dirs: &[&str],
+    ) -> Result<Vec<(String, String)>> {
         let mut all_files = Vec::new();
 
         for dir in dirs {
@@ -298,8 +313,8 @@ pub fn parse_github_url(url: &str) -> Option<(String, String)> {
 mod tests {
     use super::*;
     use rstest::rstest;
-    use wiremock::{MockServer, Mock, ResponseTemplate};
     use wiremock::matchers::{method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
 
     // =========================================================================
     // parse_github_url tests
@@ -335,7 +350,8 @@ mod tests {
     #[case("https://github.com/owner", None)]
     #[case("", None)]
     fn test_parse_github_url_invalid(#[case] url: &str, #[case] expected: Option<(&str, &str)>) {
-        let expected: Option<(String, String)> = expected.map(|(o, r)| (o.to_string(), r.to_string()));
+        let expected: Option<(String, String)> =
+            expected.map(|(o, r)| (o.to_string(), r.to_string()));
         assert_eq!(parse_github_url(url), expected);
     }
 
@@ -453,11 +469,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let client = GitHubClient::with_base_urls(
-            None,
-            mock_server.uri(),
-            mock_server.uri(),
-        );
+        let client = GitHubClient::with_base_urls(None, mock_server.uri(), mock_server.uri());
 
         let repo = client.get_repo("owner", "test-repo").await.unwrap();
         assert_eq!(repo.name, "test-repo");
@@ -479,11 +491,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let client = GitHubClient::with_base_urls(
-            None,
-            mock_server.uri(),
-            mock_server.uri(),
-        );
+        let client = GitHubClient::with_base_urls(None, mock_server.uri(), mock_server.uri());
 
         let result = client.get_repo("owner", "nonexistent").await;
         assert!(result.is_err());
@@ -517,11 +525,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let client = GitHubClient::with_base_urls(
-            None,
-            mock_server.uri(),
-            mock_server.uri(),
-        );
+        let client = GitHubClient::with_base_urls(None, mock_server.uri(), mock_server.uri());
 
         let contents = client.get_contents("owner", "repo", "src").await.unwrap();
         assert_eq!(contents.len(), 2);
@@ -548,11 +552,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let client = GitHubClient::with_base_urls(
-            None,
-            mock_server.uri(),
-            mock_server.uri(),
-        );
+        let client = GitHubClient::with_base_urls(None, mock_server.uri(), mock_server.uri());
 
         let contents = client.get_contents("owner", "repo", "").await.unwrap();
         assert_eq!(contents.len(), 1);
@@ -565,15 +565,13 @@ mod tests {
 
         Mock::given(method("GET"))
             .and(path("/owner/repo/main/README.md"))
-            .respond_with(ResponseTemplate::new(200).set_body_string("# Test Repo\n\nThis is a test."))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_string("# Test Repo\n\nThis is a test."),
+            )
             .mount(&mock_server)
             .await;
 
-        let client = GitHubClient::with_base_urls(
-            None,
-            mock_server.uri(),
-            mock_server.uri(),
-        );
+        let client = GitHubClient::with_base_urls(None, mock_server.uri(), mock_server.uri());
 
         let readme = client.get_readme("owner", "repo").await.unwrap();
         assert!(readme.contains("# Test Repo"));
@@ -598,11 +596,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let client = GitHubClient::with_base_urls(
-            None,
-            mock_server.uri(),
-            mock_server.uri(),
-        );
+        let client = GitHubClient::with_base_urls(None, mock_server.uri(), mock_server.uri());
 
         let readme = client.get_readme("owner", "repo").await.unwrap();
         assert!(readme.contains("# Master Branch"));
@@ -624,15 +618,14 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let client = GitHubClient::with_base_urls(
-            None,
-            mock_server.uri(),
-            mock_server.uri(),
-        );
+        let client = GitHubClient::with_base_urls(None, mock_server.uri(), mock_server.uri());
 
         let result = client.get_readme("owner", "repo").await;
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Could not find README.md"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Could not find README.md"));
     }
 
     #[tokio::test]
@@ -645,13 +638,12 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let client = GitHubClient::with_base_urls(
-            None,
-            mock_server.uri(),
-            mock_server.uri(),
-        );
+        let client = GitHubClient::with_base_urls(None, mock_server.uri(), mock_server.uri());
 
-        let content = client.get_file("owner", "repo", "src/config.json").await.unwrap();
+        let content = client
+            .get_file("owner", "repo", "src/config.json")
+            .await
+            .unwrap();
         assert!(content.contains(r#""key": "value""#));
     }
 
@@ -671,15 +663,14 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let client = GitHubClient::with_base_urls(
-            None,
-            mock_server.uri(),
-            mock_server.uri(),
-        );
+        let client = GitHubClient::with_base_urls(None, mock_server.uri(), mock_server.uri());
 
         let result = client.get_file("owner", "repo", "nonexistent.txt").await;
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Could not find file"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Could not find file"));
     }
 
     #[tokio::test]
@@ -700,11 +691,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let client = GitHubClient::with_base_urls(
-            None,
-            mock_server.uri(),
-            mock_server.uri(),
-        );
+        let client = GitHubClient::with_base_urls(None, mock_server.uri(), mock_server.uri());
 
         let (limit, remaining, reset) = client.get_rate_limit().await.unwrap();
         assert_eq!(limit, 5000);
@@ -731,11 +718,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let client = GitHubClient::with_base_urls(
-            None,
-            mock_server.uri(),
-            mock_server.uri(),
-        );
+        let client = GitHubClient::with_base_urls(None, mock_server.uri(), mock_server.uri());
 
         // Unauthenticated users have lower rate limit (60 vs 5000)
         let (limit, remaining, _) = client.get_rate_limit().await.unwrap();
@@ -785,17 +768,18 @@ mod tests {
 
         Mock::given(method("GET"))
             .and(path("/owner/repo/main/docs/api.md"))
-            .respond_with(ResponseTemplate::new(200).set_body_string("# API Reference\n\nEndpoints..."))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_string("# API Reference\n\nEndpoints..."),
+            )
             .mount(&mock_server)
             .await;
 
-        let client = GitHubClient::with_base_urls(
-            None,
-            mock_server.uri(),
-            mock_server.uri(),
-        );
+        let client = GitHubClient::with_base_urls(None, mock_server.uri(), mock_server.uri());
 
-        let files = client.get_markdown_files_in_dir("owner", "repo", "docs").await.unwrap();
+        let files = client
+            .get_markdown_files_in_dir("owner", "repo", "docs")
+            .await
+            .unwrap();
 
         // Should only get .md files, not .png
         assert_eq!(files.len(), 2);
@@ -858,13 +842,12 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let client = GitHubClient::with_base_urls(
-            None,
-            mock_server.uri(),
-            mock_server.uri(),
-        );
+        let client = GitHubClient::with_base_urls(None, mock_server.uri(), mock_server.uri());
 
-        let files = client.get_markdown_files("owner", "repo", &["docs", "guides"]).await.unwrap();
+        let files = client
+            .get_markdown_files("owner", "repo", &["docs", "guides"])
+            .await
+            .unwrap();
         assert_eq!(files.len(), 2);
     }
 

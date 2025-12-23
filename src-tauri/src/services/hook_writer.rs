@@ -24,7 +24,10 @@ fn generate_hooks_config(hooks: &[Hook]) -> Value {
     // Group hooks by event_type
     let mut by_event: HashMap<String, Vec<&Hook>> = HashMap::new();
     for hook in hooks {
-        by_event.entry(hook.event_type.clone()).or_default().push(hook);
+        by_event
+            .entry(hook.event_type.clone())
+            .or_default()
+            .push(hook);
     }
 
     let mut hooks_obj = Map::new();
@@ -97,8 +100,8 @@ fn write_settings_file(path: &Path, settings: &Value) -> Result<()> {
 
 /// Write hooks to the global settings file (~/.claude/settings.json)
 pub fn write_global_hooks(hooks: &[Hook]) -> Result<()> {
-    let base_dirs = BaseDirs::new()
-        .ok_or_else(|| anyhow::anyhow!("Could not find home directory"))?;
+    let base_dirs =
+        BaseDirs::new().ok_or_else(|| anyhow::anyhow!("Could not find home directory"))?;
     let home = base_dirs.home_dir();
     let settings_path = home.join(".claude").join("settings.json");
 
@@ -197,24 +200,22 @@ mod tests {
 
     #[test]
     fn test_generate_hooks_config_no_matcher() {
-        let hooks = vec![
-            Hook {
-                id: 1,
-                name: "session-greeting".to_string(),
-                description: None,
-                event_type: "SessionStart".to_string(),
-                matcher: None,
-                hook_type: "prompt".to_string(),
-                command: None,
-                prompt: Some("Welcome to the session!".to_string()),
-                timeout: None,
-                tags: None,
-                source: "manual".to_string(),
-                is_template: false,
-                created_at: "2024-01-01".to_string(),
-                updated_at: "2024-01-01".to_string(),
-            },
-        ];
+        let hooks = vec![Hook {
+            id: 1,
+            name: "session-greeting".to_string(),
+            description: None,
+            event_type: "SessionStart".to_string(),
+            matcher: None,
+            hook_type: "prompt".to_string(),
+            command: None,
+            prompt: Some("Welcome to the session!".to_string()),
+            timeout: None,
+            tags: None,
+            source: "manual".to_string(),
+            is_template: false,
+            created_at: "2024-01-01".to_string(),
+            updated_at: "2024-01-01".to_string(),
+        }];
 
         let config = generate_hooks_config(&hooks);
 
@@ -224,6 +225,9 @@ mod tests {
 
         let hook_actions = session_start[0].get("hooks").unwrap().as_array().unwrap();
         assert_eq!(hook_actions[0].get("type").unwrap(), "prompt");
-        assert_eq!(hook_actions[0].get("prompt").unwrap(), "Welcome to the session!");
+        assert_eq!(
+            hook_actions[0].get("prompt").unwrap(),
+            "Welcome to the session!"
+        );
     }
 }

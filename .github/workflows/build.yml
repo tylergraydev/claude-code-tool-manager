@@ -26,6 +26,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Generate SvelteKit files
+        run: npx svelte-kit sync
+
       - name: Run Vitest unit tests
         run: npm run test:run
 

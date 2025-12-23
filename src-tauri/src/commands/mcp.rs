@@ -74,8 +74,7 @@ pub fn get_mcp(db: State<'_, Mutex<Database>>, id: i64) -> Result<Mcp, String> {
         )
         .map_err(|e| e.to_string())?;
 
-    stmt.query_row([id], row_to_mcp)
-        .map_err(|e| e.to_string())
+    stmt.query_row([id], row_to_mcp).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -87,7 +86,10 @@ pub fn create_mcp(db: State<'_, Mutex<Database>>, mcp: CreateMcpRequest) -> Resu
     })?;
 
     let args_json = mcp.args.as_ref().map(|a| serde_json::to_string(a).unwrap());
-    let headers_json = mcp.headers.as_ref().map(|h| serde_json::to_string(h).unwrap());
+    let headers_json = mcp
+        .headers
+        .as_ref()
+        .map(|h| serde_json::to_string(h).unwrap());
     let env_json = mcp.env.as_ref().map(|e| serde_json::to_string(e).unwrap());
     let tags_json = mcp.tags.as_ref().map(|t| serde_json::to_string(t).unwrap());
 
@@ -126,8 +128,7 @@ pub fn create_mcp(db: State<'_, Mutex<Database>>, mcp: CreateMcpRequest) -> Resu
         )
         .map_err(|e| e.to_string())?;
 
-    stmt.query_row([id], row_to_mcp)
-        .map_err(|e| e.to_string())
+    stmt.query_row([id], row_to_mcp).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -140,7 +141,10 @@ pub fn update_mcp(
     let db = db.lock().map_err(|e| e.to_string())?;
 
     let args_json = mcp.args.as_ref().map(|a| serde_json::to_string(a).unwrap());
-    let headers_json = mcp.headers.as_ref().map(|h| serde_json::to_string(h).unwrap());
+    let headers_json = mcp
+        .headers
+        .as_ref()
+        .map(|h| serde_json::to_string(h).unwrap());
     let env_json = mcp.env.as_ref().map(|e| serde_json::to_string(e).unwrap());
     let tags_json = mcp.tags.as_ref().map(|t| serde_json::to_string(t).unwrap());
 
@@ -175,8 +179,7 @@ pub fn update_mcp(
         )
         .map_err(|e| e.to_string())?;
 
-    stmt.query_row([id], row_to_mcp)
-        .map_err(|e| e.to_string())
+    stmt.query_row([id], row_to_mcp).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -288,7 +291,10 @@ pub fn toggle_global_mcp(
 /// Create an MCP directly in the database (for testing)
 pub fn create_mcp_in_db(db: &Database, mcp: &CreateMcpRequest) -> Result<Mcp, String> {
     let args_json = mcp.args.as_ref().map(|a| serde_json::to_string(a).unwrap());
-    let headers_json = mcp.headers.as_ref().map(|h| serde_json::to_string(h).unwrap());
+    let headers_json = mcp
+        .headers
+        .as_ref()
+        .map(|h| serde_json::to_string(h).unwrap());
     let env_json = mcp.env.as_ref().map(|e| serde_json::to_string(e).unwrap());
     let tags_json = mcp.tags.as_ref().map(|t| serde_json::to_string(t).unwrap());
 
@@ -326,8 +332,7 @@ pub fn get_mcp_by_id(db: &Database, id: i64) -> Result<Mcp, String> {
         )
         .map_err(|e| e.to_string())?;
 
-    stmt.query_row([id], row_to_mcp)
-        .map_err(|e| e.to_string())
+    stmt.query_row([id], row_to_mcp).map_err(|e| e.to_string())
 }
 
 /// Get all MCPs directly from the database (for testing)
@@ -353,7 +358,10 @@ pub fn get_all_mcps_from_db(db: &Database) -> Result<Vec<Mcp>, String> {
 /// Update an MCP directly in the database (for testing)
 pub fn update_mcp_in_db(db: &Database, id: i64, mcp: &CreateMcpRequest) -> Result<Mcp, String> {
     let args_json = mcp.args.as_ref().map(|a| serde_json::to_string(a).unwrap());
-    let headers_json = mcp.headers.as_ref().map(|h| serde_json::to_string(h).unwrap());
+    let headers_json = mcp
+        .headers
+        .as_ref()
+        .map(|h| serde_json::to_string(h).unwrap());
     let env_json = mcp.env.as_ref().map(|e| serde_json::to_string(e).unwrap());
     let tags_json = mcp.tags.as_ref().map(|t| serde_json::to_string(t).unwrap());
 
@@ -414,9 +422,10 @@ mod tests {
             args: Some(vec!["-y".to_string(), "@test/mcp-server".to_string()]),
             url: None,
             headers: None,
-            env: Some(HashMap::from([
-                ("API_KEY".to_string(), "test123".to_string()),
-            ])),
+            env: Some(HashMap::from([(
+                "API_KEY".to_string(),
+                "test123".to_string(),
+            )])),
             icon: None,
             tags: Some(vec!["test".to_string(), "example".to_string()]),
         }
@@ -430,9 +439,10 @@ mod tests {
             command: None,
             args: None,
             url: Some("https://mcp.example.com/sse".to_string()),
-            headers: Some(HashMap::from([
-                ("Authorization".to_string(), "Bearer token".to_string()),
-            ])),
+            headers: Some(HashMap::from([(
+                "Authorization".to_string(),
+                "Bearer token".to_string(),
+            )])),
             env: None,
             icon: None,
             tags: None,
@@ -469,9 +479,18 @@ mod tests {
         assert_eq!(mcp.description, Some("A test MCP server".to_string()));
         assert_eq!(mcp.mcp_type, "stdio");
         assert_eq!(mcp.command, Some("npx".to_string()));
-        assert_eq!(mcp.args, Some(vec!["-y".to_string(), "@test/mcp-server".to_string()]));
-        assert_eq!(mcp.env.as_ref().unwrap().get("API_KEY"), Some(&"test123".to_string()));
-        assert_eq!(mcp.tags, Some(vec!["test".to_string(), "example".to_string()]));
+        assert_eq!(
+            mcp.args,
+            Some(vec!["-y".to_string(), "@test/mcp-server".to_string()])
+        );
+        assert_eq!(
+            mcp.env.as_ref().unwrap().get("API_KEY"),
+            Some(&"test123".to_string())
+        );
+        assert_eq!(
+            mcp.tags,
+            Some(vec!["test".to_string(), "example".to_string()])
+        );
         assert_eq!(mcp.source, "manual");
         assert!(!mcp.is_enabled_global);
     }
@@ -486,7 +505,10 @@ mod tests {
         assert_eq!(mcp.name, "sse-mcp");
         assert_eq!(mcp.mcp_type, "sse");
         assert_eq!(mcp.url, Some("https://mcp.example.com/sse".to_string()));
-        assert_eq!(mcp.headers.as_ref().unwrap().get("Authorization"), Some(&"Bearer token".to_string()));
+        assert_eq!(
+            mcp.headers.as_ref().unwrap().get("Authorization"),
+            Some(&"Bearer token".to_string())
+        );
         assert!(mcp.command.is_none());
     }
 
@@ -556,26 +578,38 @@ mod tests {
         let db = Database::in_memory().unwrap();
 
         // Create MCPs in non-alphabetical order
-        create_mcp_in_db(&db, &CreateMcpRequest {
-            name: "zebra-mcp".to_string(),
-            mcp_type: "stdio".to_string(),
-            command: Some("test".to_string()),
-            ..sample_minimal_mcp()
-        }).unwrap();
+        create_mcp_in_db(
+            &db,
+            &CreateMcpRequest {
+                name: "zebra-mcp".to_string(),
+                mcp_type: "stdio".to_string(),
+                command: Some("test".to_string()),
+                ..sample_minimal_mcp()
+            },
+        )
+        .unwrap();
 
-        create_mcp_in_db(&db, &CreateMcpRequest {
-            name: "alpha-mcp".to_string(),
-            mcp_type: "stdio".to_string(),
-            command: Some("test".to_string()),
-            ..sample_minimal_mcp()
-        }).unwrap();
+        create_mcp_in_db(
+            &db,
+            &CreateMcpRequest {
+                name: "alpha-mcp".to_string(),
+                mcp_type: "stdio".to_string(),
+                command: Some("test".to_string()),
+                ..sample_minimal_mcp()
+            },
+        )
+        .unwrap();
 
-        create_mcp_in_db(&db, &CreateMcpRequest {
-            name: "middle-mcp".to_string(),
-            mcp_type: "stdio".to_string(),
-            command: Some("test".to_string()),
-            ..sample_minimal_mcp()
-        }).unwrap();
+        create_mcp_in_db(
+            &db,
+            &CreateMcpRequest {
+                name: "middle-mcp".to_string(),
+                mcp_type: "stdio".to_string(),
+                command: Some("test".to_string()),
+                ..sample_minimal_mcp()
+            },
+        )
+        .unwrap();
 
         let mcps = get_all_mcps_from_db(&db).unwrap();
 
@@ -745,7 +779,10 @@ mod tests {
     #[test]
     fn test_parse_json_array_valid() {
         let result = parse_json_array(Some(r#"["a", "b", "c"]"#.to_string()));
-        assert_eq!(result, Some(vec!["a".to_string(), "b".to_string(), "c".to_string()]));
+        assert_eq!(
+            result,
+            Some(vec!["a".to_string(), "b".to_string(), "c".to_string()])
+        );
     }
 
     #[test]
