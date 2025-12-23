@@ -76,6 +76,6 @@ jobs:
             ## What's Changed
 
             See the [commit history](https://github.com/${{ github.repository }}/commits/${{ github.ref_name }}) for details.
-          releaseDraft: false
+          releaseDraft: true
           prerelease: false
           args: --target ${{ matrix.target }}
