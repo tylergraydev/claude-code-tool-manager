@@ -7,6 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.0] - 2025-12-22
+
+### Added
+- **MCP Execution & Exploration**: Interactively execute MCP tools directly from the Tool Manager
+  - **Session Management**: Persistent sessions for stdio MCP servers with proper lifecycle management
+  - **Tool Execution**: Execute any MCP tool with dynamic form-based parameter input
+  - **JSON Schema Form**: Dynamic form generation from JSON schema for tool parameters
+  - **Result Visualization**: Display tool results with JSON formatting and copy functionality
+  - **Execution History**: Track and re-run previous tool executions within a session
+- **E2E Test Infrastructure**: Playwright test framework setup for end-to-end testing
+- **Rust Test CI/CD**: Separate GitHub Actions workflow for Rust tests, Clippy, and formatting checks
+
+### Changed
+- Improved Rust test coverage from 46% to 64%
+- Applied consistent code formatting across all Rust files (cargo fmt)
+
+### Fixed
+- Debug logger tests marked as flaky (require serial execution)
+- CI workflow now builds frontend before running Rust tests
+
+## [1.3.10] - 2025-12-22
+
+### Added
+- Debug mode persistence: Debug logging state now persists between app restarts
+- Version automation in CI/CD
+
+## [1.3.9] - 2025-12-22
+
+### Fixed
+- Default MCP type to "stdio" when type is not specified during import
+
+## [1.3.8] - 2025-12-22
+
+### Added
+- Full SSE MCP tool listing support with async implementation
+
 ## [1.3.7] - 2025-12-21
 
 ### Added
@@ -158,7 +194,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Dark mode
   - Search and filter
 
-[Unreleased]: https://github.com/tylergraydev/claude-code-tool-manager/compare/v1.3.7...HEAD
+[Unreleased]: https://github.com/tylergraydev/claude-code-tool-manager/compare/v1.4.0...HEAD
+[1.4.0]: https://github.com/tylergraydev/claude-code-tool-manager/compare/v1.3.10...v1.4.0
+[1.3.10]: https://github.com/tylergraydev/claude-code-tool-manager/compare/v1.3.9...v1.3.10
+[1.3.9]: https://github.com/tylergraydev/claude-code-tool-manager/compare/v1.3.8...v1.3.9
+[1.3.8]: https://github.com/tylergraydev/claude-code-tool-manager/compare/v1.3.7...v1.3.8
 [1.3.7]: https://github.com/tylergraydev/claude-code-tool-manager/compare/v1.3.6...v1.3.7
 [1.3.6]: https://github.com/tylergraydev/claude-code-tool-manager/compare/v1.3.5...v1.3.6
 [1.3.5]: https://github.com/tylergraydev/claude-code-tool-manager/compare/v1.3.4...v1.3.5
