@@ -7,6 +7,7 @@ mod services;
 mod utils;
 
 use db::Database;
+use services::mcp_session::McpSessionManager;
 
 pub fn run() {
     env_logger::init();
@@ -39,6 +40,9 @@ pub fn run() {
             }
 
             app.manage(Mutex::new(database));
+
+            // Initialize session manager for MCP execution
+            app.manage(Mutex::new(McpSessionManager::new()));
 
             // Run startup scan
             let app_handle = app.handle().clone();
@@ -180,6 +184,15 @@ pub fn run() {
             // MCP Test Commands
             commands::mcp_test::test_mcp,
             commands::mcp_test::test_mcp_config,
+
+            // MCP Session Commands
+            commands::mcp_session::start_mcp_session,
+            commands::mcp_session::execute_tool,
+            commands::mcp_session::end_mcp_session,
+            commands::mcp_session::list_mcp_sessions,
+            commands::mcp_session::get_mcp_session,
+            commands::mcp_session::get_session_tools,
+            commands::mcp_session::cleanup_idle_sessions,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

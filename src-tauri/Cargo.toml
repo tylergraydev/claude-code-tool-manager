@@ -61,6 +61,9 @@ regex = "1"
 # URL encoding for API queries
 urlencoding = "2"
 
+# UUID generation for session IDs
+uuid = { version = "1", features = ["v4"] }
+
 [features]
 default = ["custom-protocol"]
 custom-protocol = ["tauri/custom-protocol"]

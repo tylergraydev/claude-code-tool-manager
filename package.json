@@ -12,7 +12,16 @@
     "test:ui": "vitest --ui",
     "test:run": "vitest run",
     "tauri": "tauri",
-    "sync-version": "node -e \"const fs=require('fs');const pkg=require('./package.json');const tauri=require('./src-tauri/tauri.conf.json');if(pkg.version!==tauri.version){tauri.version=pkg.version;fs.writeFileSync('./src-tauri/tauri.conf.json',JSON.stringify(tauri,null,2)+'\\n');console.log('✅ Synced tauri.conf.json to version',pkg.version)}else{console.log('✅ Versions already in sync')}\""
+    "sync-version": "node -e \"const fs=require('fs');const pkg=require('./package.json');const tauri=require('./src-tauri/tauri.conf.json');if(pkg.version!==tauri.version){tauri.version=pkg.version;fs.writeFileSync('./src-tauri/tauri.conf.json',JSON.stringify(tauri,null,2)+'\\n');console.log('✅ Synced tauri.conf.json to version',pkg.version)}else{console.log('✅ Versions already in sync')}\"",
+    "coverage:rust": "cd src-tauri && cargo llvm-cov --html --output-dir target/coverage && start target/coverage/html/index.html",
+    "coverage:rust:text": "cd src-tauri && cargo llvm-cov",
+    "coverage:svelte": "vitest run --coverage && start coverage/index.html",
+    "coverage:svelte:text": "vitest run --coverage",
+    "coverage:ui": "vitest --coverage --ui",
+    "coverage:all": "npm run coverage:svelte:text && cd src-tauri && cargo llvm-cov --html --output-dir target/coverage && start ..\\coverage\\index.html && start target\\coverage\\html\\index.html",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:all": "npm run test:run && npm run test:e2e"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",
@@ -26,6 +35,7 @@
     "lucide-svelte": "^0.562.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.57.0",
     "@sveltejs/adapter-static": "^3.0.6",
     "@sveltejs/kit": "^2.9.0",
     "@sveltejs/vite-plugin-svelte": "^6.2.1",
@@ -34,6 +44,7 @@
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/svelte": "^5.2.9",
     "@types/node": "^25.0.3",
+    "@vitest/coverage-v8": "^4.0.16",
     "@vitest/ui": "^4.0.16",
     "autoprefixer": "^10.4.20",
     "jsdom": "^27.3.0",

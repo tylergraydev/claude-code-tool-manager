@@ -31,3 +31,12 @@ npm-debug.log*
 
 # Claude Code local settings (may contain tokens)
 .claude/
+
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+
+# Coverage
+/coverage/

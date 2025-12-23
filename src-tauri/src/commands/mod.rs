@@ -4,6 +4,7 @@ pub mod debug;
 pub mod hooks;
 pub mod mcp;
 pub mod mcp_registry;
+pub mod mcp_session;
 pub mod mcp_test;
 pub mod projects;
 pub mod repos;

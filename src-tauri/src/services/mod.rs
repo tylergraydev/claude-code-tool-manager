@@ -6,6 +6,7 @@ pub mod github_client;
 pub mod hook_writer;
 pub mod mcp_client;
 pub mod mcp_registry;
+pub mod mcp_session;
 pub mod opencode_config;
 pub mod repo_parser;
 pub mod repo_sync;

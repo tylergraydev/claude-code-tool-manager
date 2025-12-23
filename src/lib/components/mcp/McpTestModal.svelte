@@ -2,7 +2,8 @@
 	import { invoke } from '@tauri-apps/api/core';
 	import { onMount } from 'svelte';
 	import type { Mcp, McpTestResult } from '$lib/types';
-	import { CheckCircle, XCircle, X, RefreshCw, ChevronDown, ChevronRight, Wrench, Database, MessageSquare, Clock } from 'lucide-svelte';
+	import { CheckCircle, XCircle, X, RefreshCw, ChevronDown, ChevronRight, Wrench, Database, MessageSquare, Clock, Play } from 'lucide-svelte';
+	import McpExecutionModal from './McpExecutionModal.svelte';
 
 	type Props = {
 		mcp: Mcp;
@@ -14,6 +15,7 @@
 	let isLoading = $state(true);
 	let result = $state<McpTestResult | null>(null);
 	let expandedTools = $state<Set<string>>(new Set());
+	let showExecutionModal = $state(false);
 
 	onMount(() => {
 		runTest();
@@ -238,12 +240,27 @@
 				<RefreshCw class="w-4 h-4 {isLoading ? 'animate-spin' : ''}" />
 				{isLoading ? 'Testing...' : 'Re-run Test'}
 			</button>
-			<button
-				onclick={onClose}
-				class="btn btn-secondary"
-			>
-				Close
-			</button>
+			<div class="flex items-center gap-2">
+				{#if result?.success && result.tools.length > 0}
+					<button
+						onclick={() => showExecutionModal = true}
+						class="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700"
+					>
+						<Play class="w-4 h-4" />
+						Execute Tools
+					</button>
+				{/if}
+				<button
+					onclick={onClose}
+					class="btn btn-secondary"
+				>
+					Close
+				</button>
+			</div>
 		</div>
 	</div>
 </div>
+
+{#if showExecutionModal}
+	<McpExecutionModal {mcp} onClose={() => showExecutionModal = false} />
+{/if}

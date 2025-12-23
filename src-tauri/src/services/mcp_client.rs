@@ -37,6 +37,41 @@ pub struct McpTool {
     pub input_schema: Option<Value>,
 }
 
+// ============================================================================
+// Tool Execution Types
+// ============================================================================
+
+/// Content types returned by MCP tool calls
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "camelCase")]
+pub enum ToolContent {
+    #[serde(rename = "text")]
+    Text { text: String },
+    #[serde(rename = "image")]
+    Image { data: String, mime_type: String },
+    #[serde(rename = "resource")]
+    Resource {
+        uri: String,
+        #[serde(default)]
+        mime_type: Option<String>,
+        #[serde(default)]
+        text: Option<String>,
+    },
+}
+
+/// Result of executing a tool via MCP
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ToolCallResult {
+    pub success: bool,
+    pub content: Vec<ToolContent>,
+    #[serde(default)]
+    pub is_error: bool,
+    #[serde(default)]
+    pub error: Option<String>,
+    pub execution_time_ms: u64,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct McpServerInfo {
@@ -134,13 +169,18 @@ struct JsonRpcError {
 // STDIO MCP Client
 // ============================================================================
 
-struct StdioMcpClient {
+/// Client for communicating with stdio-based MCP servers
+pub struct StdioMcpClient {
     child: Child,
     timeout: Duration,
+    server_info: Option<McpServerInfo>,
+    tools: Vec<McpTool>,
+    resources_supported: bool,
+    prompts_supported: bool,
 }
 
 impl StdioMcpClient {
-    fn spawn(
+    fn spawn_process(
         command: &str,
         args: &[String],
         env: Option<&HashMap<String, String>>,
@@ -204,6 +244,148 @@ impl StdioMcpClient {
         Ok(Self {
             child,
             timeout: Duration::from_secs(timeout_secs),
+            server_info: None,
+            tools: vec![],
+            resources_supported: false,
+            prompts_supported: false,
+        })
+    }
+
+    /// Spawn and initialize an MCP client, returning a fully connected session
+    pub fn spawn(
+        command: &str,
+        args: &[String],
+        env: Option<&HashMap<String, String>>,
+        timeout_secs: u64,
+    ) -> Result<Self> {
+        let mut client = Self::spawn_process(command, args, env, timeout_secs)?;
+        client.initialize()?;
+        Ok(client)
+    }
+
+    /// Perform MCP protocol handshake
+    fn initialize(&mut self) -> Result<()> {
+        info!("[MCP Client] Sending initialize request...");
+        let init_params = json!({
+            "protocolVersion": "2024-11-05",
+            "capabilities": {},
+            "clientInfo": {
+                "name": "claude-code-tool-manager",
+                "version": env!("CARGO_PKG_VERSION")
+            }
+        });
+
+        let init_result = self.send_request("initialize", Some(init_params))?;
+
+        // Parse server info and capabilities
+        self.server_info = if let Some(info) = init_result.get("serverInfo") {
+            Some(McpServerInfo {
+                name: info
+                    .get("name")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("unknown")
+                    .to_string(),
+                version: info
+                    .get("version")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string()),
+            })
+        } else {
+            None
+        };
+
+        let capabilities = init_result.get("capabilities");
+        self.resources_supported = capabilities.and_then(|c| c.get("resources")).is_some();
+        self.prompts_supported = capabilities.and_then(|c| c.get("prompts")).is_some();
+
+        info!(
+            "[MCP Client] Server: {:?}",
+            self.server_info
+        );
+
+        // Send initialized notification
+        info!("[MCP Client] Sending initialized notification...");
+        self.send_notification("initialized")?;
+
+        // List tools
+        info!("[MCP Client] Requesting tools list...");
+        let tools_result = self.send_request("tools/list", Some(json!({})))?;
+
+        self.tools = if let Some(tools_array) = tools_result.get("tools") {
+            serde_json::from_value(tools_array.clone()).unwrap_or_default()
+        } else {
+            vec![]
+        };
+
+        info!("[MCP Client] Found {} tools", self.tools.len());
+
+        Ok(())
+    }
+
+    /// Get server info
+    pub fn server_info(&self) -> Option<&McpServerInfo> {
+        self.server_info.as_ref()
+    }
+
+    /// Get available tools
+    pub fn tools(&self) -> &[McpTool] {
+        &self.tools
+    }
+
+    /// Check if resources are supported
+    pub fn resources_supported(&self) -> bool {
+        self.resources_supported
+    }
+
+    /// Check if prompts are supported
+    pub fn prompts_supported(&self) -> bool {
+        self.prompts_supported
+    }
+
+    /// Call a tool with the given arguments
+    pub fn call_tool(&mut self, name: &str, arguments: Value) -> Result<ToolCallResult> {
+        info!("[MCP Client] Calling tool: {} with args: {}", name, arguments);
+
+        let params = json!({
+            "name": name,
+            "arguments": arguments
+        });
+
+        let start = Instant::now();
+        let result = self.send_request("tools/call", Some(params));
+        let elapsed = start.elapsed().as_millis() as u64;
+
+        match result {
+            Ok(response) => Self::parse_tool_result(response, elapsed),
+            Err(e) => Ok(ToolCallResult {
+                success: false,
+                content: vec![],
+                is_error: true,
+                error: Some(e.to_string()),
+                execution_time_ms: elapsed,
+            }),
+        }
+    }
+
+    /// Parse the result of a tool call
+    fn parse_tool_result(result: Value, elapsed: u64) -> Result<ToolCallResult> {
+        // Parse content array from result
+        let content: Vec<ToolContent> = result
+            .get("content")
+            .and_then(|c| serde_json::from_value(c.clone()).ok())
+            .unwrap_or_default();
+
+        let is_error = result
+            .get("isError")
+            .and_then(|e| e.as_bool())
+            .unwrap_or(false);
+
+        Ok(ToolCallResult {
+            success: !is_error,
+            content,
+            is_error,
+            error: None,
+            execution_time_ms: elapsed,
         })
     }
 
@@ -326,9 +508,596 @@ impl StdioMcpClient {
         }
     }
 
-    fn close(mut self) {
+    /// Close the client and terminate the process
+    pub fn close(mut self) {
         let _ = self.child.kill();
         let _ = self.child.wait();
+    }
+}
+
+// ============================================================================
+// HTTP MCP Client (for persistent sessions)
+// ============================================================================
+
+/// Client for communicating with HTTP-based MCP servers
+pub struct HttpMcpClient {
+    client: reqwest::blocking::Client,
+    url: String,
+    session_id: Option<String>,
+    headers: Option<HashMap<String, String>>,
+    server_info: Option<McpServerInfo>,
+    tools: Vec<McpTool>,
+    resources_supported: bool,
+    prompts_supported: bool,
+}
+
+impl HttpMcpClient {
+    /// Connect to an HTTP MCP server and initialize the session
+    pub fn connect(
+        url: &str,
+        headers: Option<&HashMap<String, String>>,
+        timeout_secs: u64,
+    ) -> Result<Self> {
+        info!("[HTTP MCP Client] Connecting to: {}", url);
+
+        let client = reqwest::blocking::Client::builder()
+            .timeout(Duration::from_secs(timeout_secs))
+            .build()?;
+
+        let mut instance = Self {
+            client,
+            url: url.to_string(),
+            session_id: None,
+            headers: headers.cloned(),
+            server_info: None,
+            tools: vec![],
+            resources_supported: false,
+            prompts_supported: false,
+        };
+
+        instance.initialize()?;
+        Ok(instance)
+    }
+
+    fn initialize(&mut self) -> Result<()> {
+        info!("[HTTP MCP Client] Sending initialize request...");
+
+        let init_request = json!({
+            "jsonrpc": "2.0",
+            "id": next_request_id(),
+            "method": "initialize",
+            "params": {
+                "protocolVersion": "2024-11-05",
+                "capabilities": {},
+                "clientInfo": {
+                    "name": "claude-code-tool-manager",
+                    "version": env!("CARGO_PKG_VERSION")
+                }
+            }
+        });
+
+        let response = self.send_request(&init_request)?;
+
+        // Extract session ID if provided
+        if let Some(sid) = response.headers.get("mcp-session-id") {
+            self.session_id = sid.to_str().ok().map(|s| s.to_string());
+            info!("[HTTP MCP Client] Got session ID: {:?}", self.session_id);
+        }
+
+        // Parse server info
+        if let Some(info) = response.body.get("serverInfo") {
+            self.server_info = Some(McpServerInfo {
+                name: info.get("name").and_then(|v| v.as_str()).unwrap_or("unknown").to_string(),
+                version: info.get("version").and_then(|v| v.as_str()).map(|s| s.to_string()),
+            });
+        }
+
+        // Parse capabilities
+        if let Some(caps) = response.body.get("capabilities") {
+            self.resources_supported = caps.get("resources").is_some();
+            self.prompts_supported = caps.get("prompts").is_some();
+        }
+
+        info!("[HTTP MCP Client] Server: {:?}", self.server_info);
+
+        // Send initialized notification
+        let _ = self.send_notification("initialized");
+
+        // List tools
+        info!("[HTTP MCP Client] Requesting tools list...");
+        let tools_request = json!({
+            "jsonrpc": "2.0",
+            "id": next_request_id(),
+            "method": "tools/list",
+            "params": {}
+        });
+
+        let tools_response = self.send_request(&tools_request)?;
+        if let Some(tools_array) = tools_response.body.get("tools") {
+            self.tools = serde_json::from_value(tools_array.clone()).unwrap_or_default();
+        }
+
+        info!("[HTTP MCP Client] Found {} tools", self.tools.len());
+        Ok(())
+    }
+
+    /// Get server info
+    pub fn server_info(&self) -> Option<&McpServerInfo> {
+        self.server_info.as_ref()
+    }
+
+    /// Get available tools
+    pub fn tools(&self) -> &[McpTool] {
+        &self.tools
+    }
+
+    /// Check if resources are supported
+    pub fn resources_supported(&self) -> bool {
+        self.resources_supported
+    }
+
+    /// Check if prompts are supported
+    pub fn prompts_supported(&self) -> bool {
+        self.prompts_supported
+    }
+
+    /// Call a tool with the given arguments
+    pub fn call_tool(&mut self, name: &str, arguments: Value) -> Result<ToolCallResult> {
+        info!("[HTTP MCP Client] Calling tool: {} with args: {}", name, arguments);
+
+        let request = json!({
+            "jsonrpc": "2.0",
+            "id": next_request_id(),
+            "method": "tools/call",
+            "params": {
+                "name": name,
+                "arguments": arguments
+            }
+        });
+
+        let start = Instant::now();
+        let result = self.send_request(&request);
+        let elapsed = start.elapsed().as_millis() as u64;
+
+        match result {
+            Ok(response) => StdioMcpClient::parse_tool_result(response.body, elapsed),
+            Err(e) => Ok(ToolCallResult {
+                success: false,
+                content: vec![],
+                is_error: true,
+                error: Some(e.to_string()),
+                execution_time_ms: elapsed,
+            }),
+        }
+    }
+
+    fn send_request(&self, request: &Value) -> Result<HttpResponse> {
+        let body = serde_json::to_string(request)?;
+        info!("[HTTP MCP Client] Sending: {}", &body[..body.len().min(200)]);
+
+        let mut builder = self.client.post(&self.url)
+            .header("Content-Type", "application/json")
+            .header("Accept", "application/json, text/event-stream")
+            .body(body);
+
+        if let Some(sid) = &self.session_id {
+            builder = builder.header("mcp-session-id", sid);
+        }
+
+        if let Some(hdrs) = &self.headers {
+            for (key, value) in hdrs {
+                builder = builder.header(key, value);
+            }
+        }
+
+        let response = builder.send().map_err(|e| anyhow!("HTTP request failed: {}", e))?;
+        let headers = response.headers().clone();
+        let status = response.status();
+
+        if !status.is_success() {
+            let body = response.text().unwrap_or_default();
+            return Err(anyhow!("HTTP error {}: {}", status, body));
+        }
+
+        let content_type = headers
+            .get("content-type")
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("")
+            .to_string();
+
+        let text = response.text()?;
+        info!("[HTTP MCP Client] Response: {}", &text[..text.len().min(200)]);
+
+        let json_response: JsonRpcResponse = if content_type.contains("text/event-stream") {
+            parse_sse_response(&text)?
+        } else {
+            serde_json::from_str(&text)?
+        };
+
+        if let Some(error) = json_response.error {
+            return Err(anyhow!("MCP error: {}", error.message));
+        }
+
+        Ok(HttpResponse {
+            headers,
+            body: json_response.result.unwrap_or(Value::Null),
+        })
+    }
+
+    fn send_notification(&self, method: &str) -> Result<()> {
+        let notification = json!({
+            "jsonrpc": "2.0",
+            "method": method
+        });
+
+        let body = serde_json::to_string(&notification)?;
+
+        let mut builder = self.client.post(&self.url)
+            .header("Content-Type", "application/json")
+            .body(body);
+
+        if let Some(sid) = &self.session_id {
+            builder = builder.header("mcp-session-id", sid);
+        }
+
+        if let Some(hdrs) = &self.headers {
+            for (key, value) in hdrs {
+                builder = builder.header(key, value);
+            }
+        }
+
+        let _ = builder.send();
+        Ok(())
+    }
+
+    /// Close the client (HTTP clients don't need explicit cleanup)
+    pub fn close(self) {
+        info!("[HTTP MCP Client] Session closed");
+    }
+}
+
+struct HttpResponse {
+    headers: reqwest::header::HeaderMap,
+    body: Value,
+}
+
+// ============================================================================
+// SSE MCP Client (for persistent sessions)
+// ============================================================================
+
+/// Client for communicating with SSE-based MCP servers
+pub struct SseMcpClient {
+    client: reqwest::blocking::Client,
+    messages_endpoint: String,
+    headers: Option<HashMap<String, String>>,
+    server_info: Option<McpServerInfo>,
+    tools: Vec<McpTool>,
+    resources_supported: bool,
+    prompts_supported: bool,
+}
+
+impl SseMcpClient {
+    /// Connect to an SSE MCP server and initialize the session
+    pub fn connect(
+        url: &str,
+        headers: Option<&HashMap<String, String>>,
+        timeout_secs: u64,
+    ) -> Result<Self> {
+        info!("[SSE MCP Client] Connecting to: {}", url);
+
+        // Use a short timeout for the initial connection since we'll read incrementally
+        let client = reqwest::blocking::Client::builder()
+            .connect_timeout(Duration::from_secs(timeout_secs))
+            .build()?;
+
+        // Step 1: Connect via GET to get the messages endpoint
+        let mut request_builder = client.get(url)
+            .header("Accept", "text/event-stream");
+
+        if let Some(hdrs) = headers {
+            for (key, value) in hdrs {
+                request_builder = request_builder.header(key, value);
+            }
+        }
+
+        info!("[SSE MCP Client] Connecting to SSE endpoint via GET...");
+        let response = request_builder.send()
+            .map_err(|e| anyhow!("SSE connection failed: {}", e))?;
+
+        let status = response.status();
+        if !status.is_success() {
+            return Err(anyhow!("SSE connection failed with status {}", status));
+        }
+
+        let content_type = response
+            .headers()
+            .get("content-type")
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("");
+
+        if !content_type.contains("text/event-stream") {
+            return Err(anyhow!("Server did not return SSE content-type. Got: {}", content_type));
+        }
+
+        // Read SSE stream incrementally to find the endpoint event
+        // SSE connections stay open, so we can't use response.text() which would block forever
+        info!("[SSE MCP Client] Reading SSE stream for endpoint event...");
+
+        let mut messages_endpoint: Option<String> = None;
+        let mut current_event = SseEvent { event_type: None, data: None };
+        let mut buffer = String::new();
+        let start_time = Instant::now();
+        let read_timeout = Duration::from_secs(10);
+
+        // Use the response body as a reader
+        use std::io::{BufRead, BufReader};
+        let mut reader = BufReader::new(response);
+
+        while start_time.elapsed() < read_timeout {
+            let mut line = String::new();
+            match reader.read_line(&mut line) {
+                Ok(0) => break, // EOF
+                Ok(_) => {
+                    buffer.push_str(&line);
+                    let trimmed = line.trim();
+                    info!("[SSE MCP Client] SSE line: {}", trimmed);
+
+                    if let Some(event) = parse_sse_line(trimmed, &mut current_event) {
+                        info!("[SSE MCP Client] Parsed event: {:?}", event);
+                        if event.event_type.as_deref() == Some("endpoint") {
+                            if let Some(data) = &event.data {
+                                // Parse the endpoint URL - may be JSON-encoded
+                                let endpoint_str = serde_json::from_str::<String>(data)
+                                    .unwrap_or_else(|_| data.clone());
+                                messages_endpoint = Some(endpoint_str);
+                                info!("[SSE MCP Client] Found endpoint: {:?}", messages_endpoint);
+                                break;
+                            }
+                        }
+                    }
+                }
+                Err(e) => {
+                    // Check if it's a timeout-like error (WouldBlock)
+                    if e.kind() == std::io::ErrorKind::WouldBlock {
+                        std::thread::sleep(Duration::from_millis(50));
+                        continue;
+                    }
+                    return Err(anyhow!("Error reading SSE stream: {}", e));
+                }
+            }
+        }
+
+        // Check for any pending event data
+        if messages_endpoint.is_none() {
+            if let Some(event) = parse_sse_line("", &mut current_event) {
+                if event.event_type.as_deref() == Some("endpoint") {
+                    if let Some(data) = &event.data {
+                        let endpoint_str = serde_json::from_str::<String>(data)
+                            .unwrap_or_else(|_| data.clone());
+                        messages_endpoint = Some(endpoint_str);
+                    }
+                }
+            }
+        }
+
+        let endpoint_url = messages_endpoint
+            .ok_or_else(|| anyhow!("SSE server did not provide a message endpoint. Buffer: {}", buffer))?;
+
+        // Build full URL for the messages endpoint
+        let full_endpoint_url = if endpoint_url.starts_with("http://") || endpoint_url.starts_with("https://") {
+            endpoint_url
+        } else {
+            let base_url = reqwest::Url::parse(url)?;
+            base_url.join(&endpoint_url)?.to_string()
+        };
+
+        info!("[SSE MCP Client] Using messages endpoint: {}", full_endpoint_url);
+
+        // Create a new client for the session (the reader consumed the response)
+        let session_client = reqwest::blocking::Client::builder()
+            .timeout(Duration::from_secs(timeout_secs))
+            .build()?;
+
+        let mut instance = Self {
+            client: session_client,
+            messages_endpoint: full_endpoint_url,
+            headers: headers.cloned(),
+            server_info: None,
+            tools: vec![],
+            resources_supported: false,
+            prompts_supported: false,
+        };
+
+        instance.initialize()?;
+        Ok(instance)
+    }
+
+    fn initialize(&mut self) -> Result<()> {
+        info!("[SSE MCP Client] Sending initialize request...");
+
+        let init_request = json!({
+            "jsonrpc": "2.0",
+            "id": next_request_id(),
+            "method": "initialize",
+            "params": {
+                "protocolVersion": "2024-11-05",
+                "capabilities": {},
+                "clientInfo": {
+                    "name": "claude-code-tool-manager",
+                    "version": env!("CARGO_PKG_VERSION")
+                }
+            }
+        });
+
+        // For SSE, we POST to the messages endpoint and responses come back via SSE
+        // In blocking mode, we'll use synchronous POST and read the direct response
+        let response = self.send_request(&init_request)?;
+
+        // Parse server info
+        if let Some(info) = response.get("serverInfo") {
+            self.server_info = Some(McpServerInfo {
+                name: info.get("name").and_then(|v| v.as_str()).unwrap_or("unknown").to_string(),
+                version: info.get("version").and_then(|v| v.as_str()).map(|s| s.to_string()),
+            });
+        }
+
+        // Parse capabilities
+        if let Some(caps) = response.get("capabilities") {
+            self.resources_supported = caps.get("resources").is_some();
+            self.prompts_supported = caps.get("prompts").is_some();
+        }
+
+        info!("[SSE MCP Client] Server: {:?}", self.server_info);
+
+        // Send initialized notification
+        let _ = self.send_notification("initialized");
+
+        // List tools
+        info!("[SSE MCP Client] Requesting tools list...");
+        let tools_request = json!({
+            "jsonrpc": "2.0",
+            "id": next_request_id(),
+            "method": "tools/list",
+            "params": {}
+        });
+
+        let tools_response = self.send_request(&tools_request)?;
+        if let Some(tools_array) = tools_response.get("tools") {
+            self.tools = serde_json::from_value(tools_array.clone()).unwrap_or_default();
+        }
+
+        info!("[SSE MCP Client] Found {} tools", self.tools.len());
+        Ok(())
+    }
+
+    /// Get server info
+    pub fn server_info(&self) -> Option<&McpServerInfo> {
+        self.server_info.as_ref()
+    }
+
+    /// Get available tools
+    pub fn tools(&self) -> &[McpTool] {
+        &self.tools
+    }
+
+    /// Check if resources are supported
+    pub fn resources_supported(&self) -> bool {
+        self.resources_supported
+    }
+
+    /// Check if prompts are supported
+    pub fn prompts_supported(&self) -> bool {
+        self.prompts_supported
+    }
+
+    /// Call a tool with the given arguments
+    pub fn call_tool(&mut self, name: &str, arguments: Value) -> Result<ToolCallResult> {
+        info!("[SSE MCP Client] Calling tool: {} with args: {}", name, arguments);
+
+        let request = json!({
+            "jsonrpc": "2.0",
+            "id": next_request_id(),
+            "method": "tools/call",
+            "params": {
+                "name": name,
+                "arguments": arguments
+            }
+        });
+
+        let start = Instant::now();
+        let result = self.send_request(&request);
+        let elapsed = start.elapsed().as_millis() as u64;
+
+        match result {
+            Ok(response) => StdioMcpClient::parse_tool_result(response, elapsed),
+            Err(e) => Ok(ToolCallResult {
+                success: false,
+                content: vec![],
+                is_error: true,
+                error: Some(e.to_string()),
+                execution_time_ms: elapsed,
+            }),
+        }
+    }
+
+    fn send_request(&self, request: &Value) -> Result<Value> {
+        let body = serde_json::to_string(request)?;
+        info!("[SSE MCP Client] Sending to {}: {}", self.messages_endpoint, &body[..body.len().min(200)]);
+
+        let mut builder = self.client.post(&self.messages_endpoint)
+            .header("Content-Type", "application/json");
+
+        if let Some(hdrs) = &self.headers {
+            for (key, value) in hdrs {
+                builder = builder.header(key, value);
+            }
+        }
+
+        let response = builder.body(body).send()
+            .map_err(|e| anyhow!("SSE POST request failed: {}", e))?;
+
+        let status = response.status();
+
+        // SSE servers may return 202 Accepted for async processing
+        // In that case, we need to wait for the response via SSE stream
+        // For simplicity in blocking mode, we'll accept both 200 and 202
+        if !status.is_success() && status.as_u16() != 202 {
+            let body = response.text().unwrap_or_default();
+            return Err(anyhow!("SSE POST error {}: {}", status, body));
+        }
+
+        // Read the response body
+        let text = response.text()?;
+        info!("[SSE MCP Client] Response: {}", &text[..text.len().min(200)]);
+
+        // Check for empty or 202-style responses (notifications)
+        if text.trim().is_empty() {
+            return Ok(Value::Null);
+        }
+
+        // Check if it's just a status acknowledgment (no actual response)
+        if let Ok(status_obj) = serde_json::from_str::<serde_json::Value>(&text) {
+            if status_obj.get("status").and_then(|s| s.as_str()) == Some("accepted") {
+                return Ok(Value::Null);
+            }
+        }
+
+        // Try to parse as JSON-RPC response
+        let json_response: JsonRpcResponse = serde_json::from_str(&text)
+            .map_err(|e| anyhow!("Invalid JSON response: {}", e))?;
+
+        if let Some(error) = json_response.error {
+            return Err(anyhow!("MCP error: {}", error.message));
+        }
+
+        Ok(json_response.result.unwrap_or(Value::Null))
+    }
+
+    fn send_notification(&self, method: &str) -> Result<()> {
+        let notification = json!({
+            "jsonrpc": "2.0",
+            "method": method
+        });
+
+        let body = serde_json::to_string(&notification)?;
+
+        let mut builder = self.client.post(&self.messages_endpoint)
+            .header("Content-Type", "application/json")
+            .body(body);
+
+        if let Some(hdrs) = &self.headers {
+            for (key, value) in hdrs {
+                builder = builder.header(key, value);
+            }
+        }
+
+        let _ = builder.send();
+        Ok(())
+    }
+
+    /// Close the client
+    pub fn close(self) {
+        info!("[SSE MCP Client] Session closed");
     }
 }
 
@@ -408,69 +1177,19 @@ fn test_stdio_mcp_internal(
     env: Option<&HashMap<String, String>>,
     timeout_secs: u64,
 ) -> Result<(McpServerInfo, Vec<McpTool>, bool, bool)> {
-    let mut client = StdioMcpClient::spawn(command, args, env, timeout_secs)?;
+    // Use the new spawn method which handles initialize + tools/list
+    let client = StdioMcpClient::spawn(command, args, env, timeout_secs)?;
 
-    // Step 1: Send initialize request
-    info!("[MCP Client] Sending initialize request...");
-    let init_params = json!({
-        "protocolVersion": "2024-11-05",
-        "capabilities": {},
-        "clientInfo": {
-            "name": "claude-code-tool-manager",
-            "version": env!("CARGO_PKG_VERSION")
-        }
-    });
-
-    let init_result = client.send_request("initialize", Some(init_params))?;
-
-    // Parse server info and capabilities
-    let server_info = if let Some(info) = init_result.get("serverInfo") {
-        McpServerInfo {
-            name: info
-                .get("name")
-                .and_then(|v| v.as_str())
-                .unwrap_or("unknown")
-                .to_string(),
-            version: info
-                .get("version")
-                .and_then(|v| v.as_str())
-                .map(|s| s.to_string()),
-        }
-    } else {
-        McpServerInfo {
+    let server_info = client
+        .server_info()
+        .cloned()
+        .unwrap_or_else(|| McpServerInfo {
             name: "unknown".to_string(),
             version: None,
-        }
-    };
-
-    let capabilities = init_result.get("capabilities");
-    let resources_supported = capabilities
-        .and_then(|c| c.get("resources"))
-        .is_some();
-    let prompts_supported = capabilities
-        .and_then(|c| c.get("prompts"))
-        .is_some();
-
-    info!(
-        "[MCP Client] Server: {} v{:?}",
-        server_info.name, server_info.version
-    );
-
-    // Step 2: Send initialized notification
-    info!("[MCP Client] Sending initialized notification...");
-    client.send_notification("initialized")?;
-
-    // Step 3: List tools
-    info!("[MCP Client] Requesting tools list...");
-    let tools_result = client.send_request("tools/list", Some(json!({})))?;
-
-    let tools: Vec<McpTool> = if let Some(tools_array) = tools_result.get("tools") {
-        serde_json::from_value(tools_array.clone()).unwrap_or_default()
-    } else {
-        vec![]
-    };
-
-    info!("[MCP Client] Found {} tools", tools.len());
+        });
+    let tools = client.tools().to_vec();
+    let resources_supported = client.resources_supported();
+    let prompts_supported = client.prompts_supported();
 
     // Clean up
     client.close();

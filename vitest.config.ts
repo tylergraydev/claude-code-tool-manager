@@ -12,6 +12,18 @@ export default defineConfig({
 		alias: {
 			$lib: resolve('./src/lib'),
 			$app: resolve('./src/tests/mocks/app')
+		},
+		coverage: {
+			provider: 'v8',
+			reporter: ['text', 'html', 'lcov'],
+			reportsDirectory: './coverage',
+			include: ['src/lib/**/*.{ts,svelte}'],
+			exclude: [
+				'src/lib/types/**',
+				'src/**/*.test.ts',
+				'src/**/*.spec.ts',
+				'src/tests/**'
+			]
 		}
 	},
 	resolve: {

@@ -65,3 +65,46 @@ export interface McpTestResult {
 	error: string | null;
 	responseTimeMs: number;
 }
+
+// MCP Session types for interactive execution
+export interface SessionInfo {
+	id: string;
+	mcpId: number;
+	mcpName: string;
+	mcpType: string;
+	serverInfo: McpServerInfo | null;
+	toolCount: number;
+	createdAt: string;
+	lastUsedAt: string;
+}
+
+export interface StartSessionResult {
+	sessionId: string;
+	serverInfo: McpServerInfo | null;
+	tools: McpTool[];
+	resourcesSupported: boolean;
+	promptsSupported: boolean;
+}
+
+// Tool execution types
+export type ToolContent =
+	| { type: 'text'; text: string }
+	| { type: 'image'; data: string; mimeType: string }
+	| { type: 'resource'; uri: string; mimeType?: string; text?: string };
+
+export interface ToolCallResult {
+	success: boolean;
+	content: ToolContent[];
+	isError: boolean;
+	error: string | null;
+	executionTimeMs: number;
+}
+
+// Execution history entry
+export interface ExecutionHistoryEntry {
+	id: string;
+	toolName: string;
+	arguments: Record<string, unknown>;
+	result: ToolCallResult;
+	timestamp: Date;
+}
