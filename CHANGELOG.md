@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.0] - 2025-12-23
+
+### Added
+- **Built-in MCP Server**: Expose Tool Manager functionality as an MCP server
+  - 31 tools for programmatic management of MCPs, Skills, Sub-Agents, Hooks, and Projects
+  - Streamable HTTP transport on configurable port (default: 23847)
+  - Enable/disable and configure from Settings page
+  - Automatically adds itself to MCP library when enabled
+  - Tools include: `list_mcps`, `create_mcp`, `update_mcp`, `delete_mcp`, `assign_mcp_to_project`, `list_skills`, `create_skill`, `list_subagents`, `create_subagent`, `list_hooks`, `create_hook`, and more
+- **MCP Gateway Server**: Aggregate multiple MCP servers into a single endpoint
+  - Combines tools from multiple backend MCP servers
+  - Tool names prefixed with source MCP (e.g., `filesystem__read_file`)
+  - Streamable HTTP transport on configurable port (default: 23848)
+  - Add/remove backend MCPs dynamically from Settings
+- **Settings UI Enhancements**: New sections for managing built-in servers
+  - Start/stop controls for both MCP Server and Gateway
+  - Port configuration with validation
+  - Connection config display for easy setup
+  - Backend MCP management for Gateway
+
+### Fixed
+- Built-in MCP Server now properly exposes tools via `tools/list` (added missing `#[tool_handler]` macro)
+
+### Changed
+- Extended `mcp_client` service with Streamable HTTP protocol support
+- Added comprehensive unit tests for all database operations
+- Refactored Tauri commands to use testable helper functions
+
 ## [1.4.0] - 2025-12-22
 
 ### Added
@@ -194,7 +222,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Dark mode
   - Search and filter
 
-[Unreleased]: https://github.com/tylergraydev/claude-code-tool-manager/compare/v1.4.0...HEAD
+[Unreleased]: https://github.com/tylergraydev/claude-code-tool-manager/compare/v1.5.0...HEAD
+[1.5.0]: https://github.com/tylergraydev/claude-code-tool-manager/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/tylergraydev/claude-code-tool-manager/compare/v1.3.10...v1.4.0
 [1.3.10]: https://github.com/tylergraydev/claude-code-tool-manager/compare/v1.3.9...v1.3.10
 [1.3.9]: https://github.com/tylergraydev/claude-code-tool-manager/compare/v1.3.8...v1.3.9
