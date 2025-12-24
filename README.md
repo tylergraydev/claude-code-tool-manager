@@ -19,7 +19,7 @@ Claude Code configuration is scattered across your filesystem—`~/.claude.json`
 
 **MCP Testing** — Connect to any MCP server and execute its tools directly from the app. Validate your configurations actually work before assigning them to projects.
 
-![MCP Testing](imgs/mcp-testing.gif)
+![MCP Testing](imgs/mcp-testing-12s.gif)
 
 **AI-Controllable** — Ships with its own MCP server, so Claude Code (or any MCP client) can manage your tool configurations programmatically. Ask Claude to "add this MCP to my project" and it just works.
 
