@@ -58,6 +58,37 @@ Interactively execute MCP tools directly from the Tool Manager to understand wha
 
 ![Execution History](imgs/executionhistory.png)
 
+### Built-in MCP Server
+
+Expose Tool Manager as an MCP server that Claude Code can connect to for programmatic management.
+
+- **31 management tools**: Create, update, delete, and manage MCPs, Skills, Sub-Agents, Hooks, and Projects
+- **Streamable HTTP transport**: Modern MCP protocol support
+- **Configurable port**: Default 23847, change in Settings
+- **Auto-library integration**: Automatically adds connection config to your MCP library when enabled
+- **Available tools include**:
+  - `list_mcps`, `create_mcp`, `update_mcp`, `delete_mcp`
+  - `assign_mcp_to_project`, `remove_mcp_from_project`
+  - `list_skills`, `create_skill`, `delete_skill`
+  - `list_subagents`, `create_subagent`, `delete_subagent`
+  - `list_hooks`, `create_hook`, `delete_hook`
+  - `list_projects`, `get_project`
+  - Global enable/disable for all tool types
+
+Enable from **Settings > Built-in MCP Server**.
+
+### MCP Gateway
+
+Aggregate multiple MCP servers into a single unified endpoint.
+
+- **Tool aggregation**: Combine tools from multiple backend MCPs into one connection
+- **Namespaced tools**: Tool names prefixed with source MCP (e.g., `filesystem__read_file`)
+- **Dynamic backends**: Add/remove backend MCPs from Settings without restarting
+- **Streamable HTTP transport**: Configurable port (default: 23848)
+- **Use case**: Reduce the number of MCP connections Claude Code needs to manage
+
+Enable from **Settings > MCP Gateway**.
+
 ### Skills (Slash Commands & Agent Skills)
 
 Define custom slash commands and agent skills with full control over tool access and model behavior.
