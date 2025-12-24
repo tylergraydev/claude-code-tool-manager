@@ -5,7 +5,7 @@ use crate::db::schema::Database;
 use crate::services::skill_writer;
 use rusqlite::params;
 use std::path::Path;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use tauri::State;
 
 fn parse_json_array(s: Option<String>) -> Option<Vec<String>> {
@@ -51,7 +51,7 @@ fn row_to_skill_with_offset(row: &rusqlite::Row, offset: usize) -> rusqlite::Res
 }
 
 #[tauri::command]
-pub fn get_all_skills(db: State<'_, Mutex<Database>>) -> Result<Vec<Skill>, String> {
+pub fn get_all_skills(db: State<'_, Arc<Mutex<Database>>>) -> Result<Vec<Skill>, String> {
     let db = db.lock().map_err(|e| e.to_string())?;
     let query = format!("SELECT {} FROM skills ORDER BY name", SKILL_SELECT_FIELDS);
     let mut stmt = db.conn().prepare(&query).map_err(|e| e.to_string())?;
@@ -67,7 +67,7 @@ pub fn get_all_skills(db: State<'_, Mutex<Database>>) -> Result<Vec<Skill>, Stri
 
 #[tauri::command]
 pub fn create_skill(
-    db: State<'_, Mutex<Database>>,
+    db: State<'_, Arc<Mutex<Database>>>,
     skill: CreateSkillRequest,
 ) -> Result<Skill, String> {
     let db_guard = db.lock().map_err(|e| e.to_string())?;
@@ -101,7 +101,7 @@ pub fn create_skill(
 
 #[tauri::command]
 pub fn update_skill(
-    db: State<'_, Mutex<Database>>,
+    db: State<'_, Arc<Mutex<Database>>>,
     id: i64,
     skill: CreateSkillRequest,
 ) -> Result<Skill, String> {
@@ -133,7 +133,7 @@ pub fn update_skill(
 }
 
 #[tauri::command]
-pub fn delete_skill(db: State<'_, Mutex<Database>>, id: i64) -> Result<(), String> {
+pub fn delete_skill(db: State<'_, Arc<Mutex<Database>>>, id: i64) -> Result<(), String> {
     let db = db.lock().map_err(|e| e.to_string())?;
 
     // Reset is_imported flag in repo_items for this skill
@@ -152,7 +152,7 @@ pub fn delete_skill(db: State<'_, Mutex<Database>>, id: i64) -> Result<(), Strin
 
 // Global Skills
 #[tauri::command]
-pub fn get_global_skills(db: State<'_, Mutex<Database>>) -> Result<Vec<GlobalSkill>, String> {
+pub fn get_global_skills(db: State<'_, Arc<Mutex<Database>>>) -> Result<Vec<GlobalSkill>, String> {
     let db = db.lock().map_err(|e| e.to_string())?;
     let query = format!(
         "SELECT gs.id, gs.skill_id, gs.is_enabled,
@@ -180,7 +180,7 @@ pub fn get_global_skills(db: State<'_, Mutex<Database>>) -> Result<Vec<GlobalSki
 }
 
 #[tauri::command]
-pub fn add_global_skill(db: State<'_, Mutex<Database>>, skill_id: i64) -> Result<(), String> {
+pub fn add_global_skill(db: State<'_, Arc<Mutex<Database>>>, skill_id: i64) -> Result<(), String> {
     let db_guard = db.lock().map_err(|e| e.to_string())?;
 
     // Get the skill details for file writing
@@ -206,7 +206,7 @@ pub fn add_global_skill(db: State<'_, Mutex<Database>>, skill_id: i64) -> Result
 }
 
 #[tauri::command]
-pub fn remove_global_skill(db: State<'_, Mutex<Database>>, skill_id: i64) -> Result<(), String> {
+pub fn remove_global_skill(db: State<'_, Arc<Mutex<Database>>>, skill_id: i64) -> Result<(), String> {
     let db_guard = db.lock().map_err(|e| e.to_string())?;
 
     // Get the skill for file deletion
@@ -230,7 +230,7 @@ pub fn remove_global_skill(db: State<'_, Mutex<Database>>, skill_id: i64) -> Res
 
 #[tauri::command]
 pub fn toggle_global_skill(
-    db: State<'_, Mutex<Database>>,
+    db: State<'_, Arc<Mutex<Database>>>,
     id: i64,
     enabled: bool,
 ) -> Result<(), String> {
@@ -270,7 +270,7 @@ pub fn toggle_global_skill(
 // Project Skills
 #[tauri::command]
 pub fn assign_skill_to_project(
-    db: State<'_, Mutex<Database>>,
+    db: State<'_, Arc<Mutex<Database>>>,
     project_id: i64,
     skill_id: i64,
 ) -> Result<(), String> {
@@ -310,7 +310,7 @@ pub fn assign_skill_to_project(
 
 #[tauri::command]
 pub fn remove_skill_from_project(
-    db: State<'_, Mutex<Database>>,
+    db: State<'_, Arc<Mutex<Database>>>,
     project_id: i64,
     skill_id: i64,
 ) -> Result<(), String> {
@@ -350,7 +350,7 @@ pub fn remove_skill_from_project(
 
 #[tauri::command]
 pub fn toggle_project_skill(
-    db: State<'_, Mutex<Database>>,
+    db: State<'_, Arc<Mutex<Database>>>,
     assignment_id: i64,
     enabled: bool,
 ) -> Result<(), String> {
@@ -394,7 +394,7 @@ pub fn toggle_project_skill(
 
 #[tauri::command]
 pub fn get_project_skills(
-    db: State<'_, Mutex<Database>>,
+    db: State<'_, Arc<Mutex<Database>>>,
     project_id: i64,
 ) -> Result<Vec<ProjectSkill>, String> {
     let db = db.lock().map_err(|e| e.to_string())?;
@@ -440,7 +440,7 @@ fn row_to_skill_file(row: &rusqlite::Row) -> rusqlite::Result<SkillFile> {
 
 #[tauri::command]
 pub fn get_skill_files(
-    db: State<'_, Mutex<Database>>,
+    db: State<'_, Arc<Mutex<Database>>>,
     skill_id: i64,
 ) -> Result<Vec<SkillFile>, String> {
     let db = db.lock().map_err(|e| e.to_string())?;
@@ -463,7 +463,7 @@ pub fn get_skill_files(
 
 #[tauri::command]
 pub fn create_skill_file(
-    db: State<'_, Mutex<Database>>,
+    db: State<'_, Arc<Mutex<Database>>>,
     file: CreateSkillFileRequest,
 ) -> Result<SkillFile, String> {
     let db_guard = db.lock().map_err(|e| e.to_string())?;
@@ -493,7 +493,7 @@ pub fn create_skill_file(
 
 #[tauri::command]
 pub fn update_skill_file(
-    db: State<'_, Mutex<Database>>,
+    db: State<'_, Arc<Mutex<Database>>>,
     id: i64,
     name: String,
     content: String,
@@ -520,7 +520,7 @@ pub fn update_skill_file(
 }
 
 #[tauri::command]
-pub fn delete_skill_file(db: State<'_, Mutex<Database>>, id: i64) -> Result<(), String> {
+pub fn delete_skill_file(db: State<'_, Arc<Mutex<Database>>>, id: i64) -> Result<(), String> {
     let db = db.lock().map_err(|e| e.to_string())?;
 
     db.conn()

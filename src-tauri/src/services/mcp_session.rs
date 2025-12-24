@@ -13,7 +13,8 @@ use std::time::Instant;
 use uuid::Uuid;
 
 use super::mcp_client::{
-    HttpMcpClient, McpServerInfo, McpTool, SseMcpClient, StdioMcpClient, ToolCallResult,
+    HttpMcpClient, McpServerInfo, McpTool, SseMcpClient, StdioMcpClient, StreamableHttpMcpClient,
+    ToolCallResult,
 };
 
 // ============================================================================
@@ -54,6 +55,7 @@ enum McpSession {
     Stdio(StdioSession),
     Http(HttpSession),
     Sse(SseSession),
+    StreamableHttp(StreamableHttpSession),
 }
 
 struct StdioSession {
@@ -80,12 +82,21 @@ struct SseSession {
     last_used_at: Instant,
 }
 
+struct StreamableHttpSession {
+    mcp_id: i64,
+    mcp_name: String,
+    client: StreamableHttpMcpClient,
+    created_at: Instant,
+    last_used_at: Instant,
+}
+
 impl McpSession {
     fn mcp_id(&self) -> i64 {
         match self {
             McpSession::Stdio(s) => s.mcp_id,
             McpSession::Http(s) => s.mcp_id,
             McpSession::Sse(s) => s.mcp_id,
+            McpSession::StreamableHttp(s) => s.mcp_id,
         }
     }
 
@@ -94,6 +105,7 @@ impl McpSession {
             McpSession::Stdio(s) => &s.mcp_name,
             McpSession::Http(s) => &s.mcp_name,
             McpSession::Sse(s) => &s.mcp_name,
+            McpSession::StreamableHttp(s) => &s.mcp_name,
         }
     }
 
@@ -102,6 +114,7 @@ impl McpSession {
             McpSession::Stdio(_) => "stdio",
             McpSession::Http(_) => "http",
             McpSession::Sse(_) => "sse",
+            McpSession::StreamableHttp(_) => "streamable_http",
         }
     }
 
@@ -110,6 +123,7 @@ impl McpSession {
             McpSession::Stdio(s) => s.client.server_info(),
             McpSession::Http(s) => s.client.server_info(),
             McpSession::Sse(s) => s.client.server_info(),
+            McpSession::StreamableHttp(s) => s.client.server_info(),
         }
     }
 
@@ -118,6 +132,7 @@ impl McpSession {
             McpSession::Stdio(s) => s.client.tools(),
             McpSession::Http(s) => s.client.tools(),
             McpSession::Sse(s) => s.client.tools(),
+            McpSession::StreamableHttp(s) => s.client.tools(),
         }
     }
 
@@ -126,6 +141,7 @@ impl McpSession {
             McpSession::Stdio(s) => s.client.resources_supported(),
             McpSession::Http(s) => s.client.resources_supported(),
             McpSession::Sse(s) => s.client.resources_supported(),
+            McpSession::StreamableHttp(s) => s.client.resources_supported(),
         }
     }
 
@@ -134,6 +150,7 @@ impl McpSession {
             McpSession::Stdio(s) => s.client.prompts_supported(),
             McpSession::Http(s) => s.client.prompts_supported(),
             McpSession::Sse(s) => s.client.prompts_supported(),
+            McpSession::StreamableHttp(s) => s.client.prompts_supported(),
         }
     }
 
@@ -151,6 +168,10 @@ impl McpSession {
                 s.last_used_at = Instant::now();
                 s.client.call_tool(name, arguments)
             }
+            McpSession::StreamableHttp(s) => {
+                s.last_used_at = Instant::now();
+                s.client.call_tool(name, arguments)
+            }
         }
     }
 
@@ -159,6 +180,7 @@ impl McpSession {
             McpSession::Stdio(s) => s.created_at,
             McpSession::Http(s) => s.created_at,
             McpSession::Sse(s) => s.created_at,
+            McpSession::StreamableHttp(s) => s.created_at,
         }
     }
 
@@ -167,6 +189,7 @@ impl McpSession {
             McpSession::Stdio(s) => s.last_used_at,
             McpSession::Http(s) => s.last_used_at,
             McpSession::Sse(s) => s.last_used_at,
+            McpSession::StreamableHttp(s) => s.last_used_at,
         }
     }
 
@@ -175,6 +198,7 @@ impl McpSession {
             McpSession::Stdio(s) => s.client.close(),
             McpSession::Http(s) => s.client.close(),
             McpSession::Sse(s) => s.client.close(),
+            McpSession::StreamableHttp(s) => s.client.close(),
         }
     }
 }
@@ -339,6 +363,56 @@ impl McpSessionManager {
 
         info!(
             "[Session Manager] SSE session {} started with {} tools",
+            session_id,
+            result.tools.len()
+        );
+
+        Ok(result)
+    }
+
+    /// Start a new Streamable HTTP-based MCP session (for system MCPs like Tool Manager and Gateway)
+    pub fn start_streamable_http_session(
+        &self,
+        mcp_id: i64,
+        mcp_name: &str,
+        url: &str,
+        headers: Option<&HashMap<String, String>>,
+        timeout_secs: u64,
+    ) -> Result<StartSessionResult> {
+        info!(
+            "[Session Manager] Starting Streamable HTTP session for MCP {} ({})",
+            mcp_id, mcp_name
+        );
+
+        // Connect and initialize the client
+        let client = StreamableHttpMcpClient::connect(url, headers, timeout_secs)?;
+
+        let session_id = Uuid::new_v4().to_string();
+        let now = Instant::now();
+
+        let result = StartSessionResult {
+            session_id: session_id.clone(),
+            server_info: client.server_info().cloned(),
+            tools: client.tools().to_vec(),
+            resources_supported: client.resources_supported(),
+            prompts_supported: client.prompts_supported(),
+        };
+
+        let session = McpSession::StreamableHttp(StreamableHttpSession {
+            mcp_id,
+            mcp_name: mcp_name.to_string(),
+            client,
+            created_at: now,
+            last_used_at: now,
+        });
+
+        self.sessions
+            .lock()
+            .unwrap()
+            .insert(session_id.clone(), session);
+
+        info!(
+            "[Session Manager] Streamable HTTP session {} started with {} tools",
             session_id,
             result.tools.len()
         );

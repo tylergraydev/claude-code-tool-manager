@@ -6,16 +6,16 @@ use crate::db::Database;
 use crate::services::mcp_client::{self, McpTestResult};
 use log::{error, info};
 use std::collections::HashMap;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use tauri::State;
 
 /// Test an MCP by its database ID
 #[tauri::command]
-pub fn test_mcp(db: State<'_, Mutex<Database>>, mcp_id: i64) -> Result<McpTestResult, String> {
+pub fn test_mcp(db: State<'_, Arc<Mutex<Database>>>, mcp_id: i64) -> Result<McpTestResult, String> {
     info!("[MCP Test] Testing MCP id={}", mcp_id);
 
     // Extract MCP data from database in a separate scope to release the lock
-    let (mcp_type, command, args, headers, env, url) = {
+    let (mcp_type, command, args, headers, env, url, source) = {
         let db = db.lock().map_err(|e| {
             error!("[MCP Test] Failed to acquire database lock: {}", e);
             e.to_string()
@@ -23,7 +23,7 @@ pub fn test_mcp(db: State<'_, Mutex<Database>>, mcp_id: i64) -> Result<McpTestRe
 
         let mut stmt = db
             .conn()
-            .prepare("SELECT type, command, args, url, headers, env FROM mcps WHERE id = ?")
+            .prepare("SELECT type, command, args, url, headers, env, source FROM mcps WHERE id = ?")
             .map_err(|e| e.to_string())?;
 
         let mcp_data: (
@@ -33,6 +33,7 @@ pub fn test_mcp(db: State<'_, Mutex<Database>>, mcp_id: i64) -> Result<McpTestRe
             Option<String>,
             Option<String>,
             Option<String>,
+            String,
         ) = stmt
             .query_row([mcp_id], |row| {
                 Ok((
@@ -42,6 +43,7 @@ pub fn test_mcp(db: State<'_, Mutex<Database>>, mcp_id: i64) -> Result<McpTestRe
                     row.get(3)?,
                     row.get(4)?,
                     row.get(5)?,
+                    row.get(6)?,
                 ))
             })
             .map_err(|e| {
@@ -49,7 +51,7 @@ pub fn test_mcp(db: State<'_, Mutex<Database>>, mcp_id: i64) -> Result<McpTestRe
                 format!("MCP not found: {}", e)
             })?;
 
-        let (mcp_type, command, args_json, url, headers_json, env_json) = mcp_data;
+        let (mcp_type, command, args_json, url, headers_json, env_json, source) = mcp_data;
 
         // Parse JSON fields
         let args: Vec<String> = args_json
@@ -62,8 +64,16 @@ pub fn test_mcp(db: State<'_, Mutex<Database>>, mcp_id: i64) -> Result<McpTestRe
         let env: Option<HashMap<String, String>> =
             env_json.and_then(|s| serde_json::from_str(&s).ok());
 
-        (mcp_type, command, args, headers, env, url)
+        (mcp_type, command, args, headers, env, url, source)
     };
+
+    // System MCPs (Tool Manager and Gateway) use Streamable HTTP which requires
+    // async SSE handling for full protocol test
+    if source == "system" {
+        let mcp_url = url.ok_or_else(|| "System MCP requires a URL".to_string())?;
+        info!("[MCP Test] Testing system MCP with Streamable HTTP: {}", mcp_url);
+        return Ok(mcp_client::test_streamable_http_mcp(&mcp_url, headers.as_ref(), 30));
+    }
 
     // Now the database lock is released, perform the test
     let result = match mcp_type.as_str() {

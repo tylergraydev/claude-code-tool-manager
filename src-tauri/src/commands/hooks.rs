@@ -4,7 +4,7 @@ use crate::services::hook_writer;
 use log::{error, info};
 use rusqlite::params;
 use std::path::Path;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use tauri::State;
 
 fn parse_json_array(s: Option<String>) -> Option<Vec<String>> {
@@ -98,7 +98,7 @@ fn sync_project_hooks(db: &Database, project_path: &str) -> Result<(), String> {
 // CRUD Operations
 
 #[tauri::command]
-pub fn get_all_hooks(db: State<'_, Mutex<Database>>) -> Result<Vec<Hook>, String> {
+pub fn get_all_hooks(db: State<'_, Arc<Mutex<Database>>>) -> Result<Vec<Hook>, String> {
     info!("[Hooks] Loading all hooks");
     let db = db.lock().map_err(|e| {
         error!("[Hooks] Failed to acquire database lock: {}", e);
@@ -126,7 +126,7 @@ pub fn get_all_hooks(db: State<'_, Mutex<Database>>) -> Result<Vec<Hook>, String
 }
 
 #[tauri::command]
-pub fn get_hook_templates(db: State<'_, Mutex<Database>>) -> Result<Vec<Hook>, String> {
+pub fn get_hook_templates(db: State<'_, Arc<Mutex<Database>>>) -> Result<Vec<Hook>, String> {
     let db = db.lock().map_err(|e| e.to_string())?;
     let mut stmt = db
         .conn()
@@ -147,7 +147,7 @@ pub fn get_hook_templates(db: State<'_, Mutex<Database>>) -> Result<Vec<Hook>, S
 
 #[tauri::command]
 pub fn create_hook(
-    db: State<'_, Mutex<Database>>,
+    db: State<'_, Arc<Mutex<Database>>>,
     hook: CreateHookRequest,
 ) -> Result<Hook, String> {
     let db_guard = db.lock().map_err(|e| e.to_string())?;
@@ -191,7 +191,7 @@ pub fn create_hook(
 
 #[tauri::command]
 pub fn create_hook_from_template(
-    db: State<'_, Mutex<Database>>,
+    db: State<'_, Arc<Mutex<Database>>>,
     template_id: i64,
     name: String,
 ) -> Result<Hook, String> {
@@ -245,7 +245,7 @@ pub fn create_hook_from_template(
 
 #[tauri::command]
 pub fn update_hook(
-    db: State<'_, Mutex<Database>>,
+    db: State<'_, Arc<Mutex<Database>>>,
     id: i64,
     hook: CreateHookRequest,
 ) -> Result<Hook, String> {
@@ -318,7 +318,7 @@ pub fn update_hook(
 }
 
 #[tauri::command]
-pub fn delete_hook(db: State<'_, Mutex<Database>>, id: i64) -> Result<(), String> {
+pub fn delete_hook(db: State<'_, Arc<Mutex<Database>>>, id: i64) -> Result<(), String> {
     let db_guard = db.lock().map_err(|e| e.to_string())?;
 
     // Check if hook is assigned globally
@@ -365,7 +365,7 @@ pub fn delete_hook(db: State<'_, Mutex<Database>>, id: i64) -> Result<(), String
 // Global Hooks
 
 #[tauri::command]
-pub fn get_global_hooks(db: State<'_, Mutex<Database>>) -> Result<Vec<GlobalHook>, String> {
+pub fn get_global_hooks(db: State<'_, Arc<Mutex<Database>>>) -> Result<Vec<GlobalHook>, String> {
     info!("[Hooks] Loading global hooks");
     let db = db.lock().map_err(|e| {
         error!("[Hooks] Failed to acquire database lock: {}", e);
@@ -403,7 +403,7 @@ pub fn get_global_hooks(db: State<'_, Mutex<Database>>) -> Result<Vec<GlobalHook
 }
 
 #[tauri::command]
-pub fn add_global_hook(db: State<'_, Mutex<Database>>, hook_id: i64) -> Result<(), String> {
+pub fn add_global_hook(db: State<'_, Arc<Mutex<Database>>>, hook_id: i64) -> Result<(), String> {
     info!("[Hooks] Adding global hook id={}", hook_id);
     let db_guard = db.lock().map_err(|e| e.to_string())?;
 
@@ -419,7 +419,7 @@ pub fn add_global_hook(db: State<'_, Mutex<Database>>, hook_id: i64) -> Result<(
 }
 
 #[tauri::command]
-pub fn remove_global_hook(db: State<'_, Mutex<Database>>, hook_id: i64) -> Result<(), String> {
+pub fn remove_global_hook(db: State<'_, Arc<Mutex<Database>>>, hook_id: i64) -> Result<(), String> {
     let db_guard = db.lock().map_err(|e| e.to_string())?;
 
     db_guard
@@ -432,7 +432,7 @@ pub fn remove_global_hook(db: State<'_, Mutex<Database>>, hook_id: i64) -> Resul
 
 #[tauri::command]
 pub fn toggle_global_hook(
-    db: State<'_, Mutex<Database>>,
+    db: State<'_, Arc<Mutex<Database>>>,
     id: i64,
     enabled: bool,
 ) -> Result<(), String> {
@@ -453,7 +453,7 @@ pub fn toggle_global_hook(
 
 #[tauri::command]
 pub fn get_project_hooks(
-    db: State<'_, Mutex<Database>>,
+    db: State<'_, Arc<Mutex<Database>>>,
     project_id: i64,
 ) -> Result<Vec<ProjectHook>, String> {
     info!(
@@ -497,7 +497,7 @@ pub fn get_project_hooks(
 
 #[tauri::command]
 pub fn assign_hook_to_project(
-    db: State<'_, Mutex<Database>>,
+    db: State<'_, Arc<Mutex<Database>>>,
     project_id: i64,
     hook_id: i64,
 ) -> Result<(), String> {
@@ -526,7 +526,7 @@ pub fn assign_hook_to_project(
 
 #[tauri::command]
 pub fn remove_hook_from_project(
-    db: State<'_, Mutex<Database>>,
+    db: State<'_, Arc<Mutex<Database>>>,
     project_id: i64,
     hook_id: i64,
 ) -> Result<(), String> {
@@ -555,7 +555,7 @@ pub fn remove_hook_from_project(
 
 #[tauri::command]
 pub fn toggle_project_hook(
-    db: State<'_, Mutex<Database>>,
+    db: State<'_, Arc<Mutex<Database>>>,
     assignment_id: i64,
     enabled: bool,
 ) -> Result<(), String> {
@@ -584,7 +584,7 @@ pub fn toggle_project_hook(
 
 // Seed default templates
 #[tauri::command]
-pub fn seed_hook_templates(db: State<'_, Mutex<Database>>) -> Result<(), String> {
+pub fn seed_hook_templates(db: State<'_, Arc<Mutex<Database>>>) -> Result<(), String> {
     let db_guard = db.lock().map_err(|e| e.to_string())?;
 
     // Check if templates already exist

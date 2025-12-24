@@ -6,12 +6,12 @@ use crate::services::repo_parser::parse_frontmatter;
 use crate::services::repo_sync;
 use chrono::Utc;
 use rusqlite::params;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use tauri::State;
 
 /// Get all repositories
 #[tauri::command]
-pub fn get_all_repos(db: State<'_, Mutex<Database>>) -> Result<Vec<Repo>, String> {
+pub fn get_all_repos(db: State<'_, Arc<Mutex<Database>>>) -> Result<Vec<Repo>, String> {
     let db = db.lock().map_err(|e| e.to_string())?;
     repo_sync::get_all_repos(&db).map_err(|e| e.to_string())
 }
@@ -19,7 +19,7 @@ pub fn get_all_repos(db: State<'_, Mutex<Database>>) -> Result<Vec<Repo>, String
 /// Add a new repository
 #[tauri::command]
 pub fn add_repo(
-    db: State<'_, Mutex<Database>>,
+    db: State<'_, Arc<Mutex<Database>>>,
     request: CreateRepoRequest,
 ) -> Result<Repo, String> {
     let db = db.lock().map_err(|e| e.to_string())?;
@@ -80,7 +80,7 @@ pub fn add_repo(
 
 /// Remove a repository (only non-default repos can be removed)
 #[tauri::command]
-pub fn remove_repo(db: State<'_, Mutex<Database>>, id: i64) -> Result<(), String> {
+pub fn remove_repo(db: State<'_, Arc<Mutex<Database>>>, id: i64) -> Result<(), String> {
     let db = db.lock().map_err(|e| e.to_string())?;
 
     // Check if it's a default repo
@@ -108,7 +108,7 @@ pub fn remove_repo(db: State<'_, Mutex<Database>>, id: i64) -> Result<(), String
 
 /// Toggle repository enabled status
 #[tauri::command]
-pub fn toggle_repo(db: State<'_, Mutex<Database>>, id: i64, enabled: bool) -> Result<(), String> {
+pub fn toggle_repo(db: State<'_, Arc<Mutex<Database>>>, id: i64, enabled: bool) -> Result<(), String> {
     let db = db.lock().map_err(|e| e.to_string())?;
 
     db.conn()
@@ -124,7 +124,7 @@ pub fn toggle_repo(db: State<'_, Mutex<Database>>, id: i64, enabled: bool) -> Re
 /// Get items from a specific repository
 #[tauri::command]
 pub fn get_repo_items(
-    db: State<'_, Mutex<Database>>,
+    db: State<'_, Arc<Mutex<Database>>>,
     repo_id: i64,
 ) -> Result<Vec<RepoItem>, String> {
     let db = db.lock().map_err(|e| e.to_string())?;
@@ -134,7 +134,7 @@ pub fn get_repo_items(
 /// Get all repository items, optionally filtered by type
 #[tauri::command]
 pub fn get_all_repo_items(
-    db: State<'_, Mutex<Database>>,
+    db: State<'_, Arc<Mutex<Database>>>,
     item_type: Option<String>,
 ) -> Result<Vec<RepoItem>, String> {
     let db = db.lock().map_err(|e| e.to_string())?;
@@ -143,7 +143,7 @@ pub fn get_all_repo_items(
 
 /// Sync a single repository
 #[tauri::command]
-pub async fn sync_repo(db: State<'_, Mutex<Database>>, id: i64) -> Result<SyncResult, String> {
+pub async fn sync_repo(db: State<'_, Arc<Mutex<Database>>>, id: i64) -> Result<SyncResult, String> {
     // Get repo info first (need to release lock before async)
     let repo = {
         let db = db.lock().map_err(|e| e.to_string())?;
@@ -187,7 +187,7 @@ pub async fn sync_repo(db: State<'_, Mutex<Database>>, id: i64) -> Result<SyncRe
 
 /// Sync all enabled repositories
 #[tauri::command]
-pub async fn sync_all_repos(db: State<'_, Mutex<Database>>) -> Result<SyncResult, String> {
+pub async fn sync_all_repos(db: State<'_, Arc<Mutex<Database>>>) -> Result<SyncResult, String> {
     let repos = {
         let db = db.lock().map_err(|e| e.to_string())?;
         repo_sync::get_all_repos(&db)
@@ -269,7 +269,7 @@ async fn fetch_content_from_url(url: &str) -> Result<String, String> {
 /// Import a repository item to the local library
 #[tauri::command]
 pub async fn import_repo_item(
-    db: State<'_, Mutex<Database>>,
+    db: State<'_, Arc<Mutex<Database>>>,
     item_id: i64,
 ) -> Result<ImportResult, String> {
     // Get the repo item (scope the lock)
@@ -444,14 +444,14 @@ pub async fn get_github_rate_limit() -> Result<RateLimitInfo, String> {
 
 /// Seed default repositories on first run
 #[tauri::command]
-pub fn seed_default_repos(db: State<'_, Mutex<Database>>) -> Result<(), String> {
+pub fn seed_default_repos(db: State<'_, Arc<Mutex<Database>>>) -> Result<(), String> {
     let db = db.lock().map_err(|e| e.to_string())?;
     repo_sync::seed_default_repos(&db).map_err(|e| e.to_string())
 }
 
 /// Reset repos to defaults (removes all repos and items, then re-seeds)
 #[tauri::command]
-pub fn reset_repos_to_defaults(db: State<'_, Mutex<Database>>) -> Result<(), String> {
+pub fn reset_repos_to_defaults(db: State<'_, Arc<Mutex<Database>>>) -> Result<(), String> {
     let db = db.lock().map_err(|e| e.to_string())?;
 
     // Delete all repo items

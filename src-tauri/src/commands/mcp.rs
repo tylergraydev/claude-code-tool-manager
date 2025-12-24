@@ -1,7 +1,7 @@
 use crate::db::{CreateMcpRequest, Database, Mcp};
 use log::{error, info};
 use rusqlite::params;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use tauri::State;
 
 fn parse_json_array(s: Option<String>) -> Option<Vec<String>> {
@@ -34,7 +34,7 @@ fn row_to_mcp(row: &rusqlite::Row) -> rusqlite::Result<Mcp> {
 }
 
 #[tauri::command]
-pub fn get_all_mcps(db: State<'_, Mutex<Database>>) -> Result<Vec<Mcp>, String> {
+pub fn get_all_mcps(db: State<'_, Arc<Mutex<Database>>>) -> Result<Vec<Mcp>, String> {
     info!("[MCP] Loading all MCPs from database");
     let db = db.lock().map_err(|e| {
         error!("[MCP] Failed to acquire database lock: {}", e);
@@ -63,7 +63,7 @@ pub fn get_all_mcps(db: State<'_, Mutex<Database>>) -> Result<Vec<Mcp>, String> 
 }
 
 #[tauri::command]
-pub fn get_mcp(db: State<'_, Mutex<Database>>, id: i64) -> Result<Mcp, String> {
+pub fn get_mcp(db: State<'_, Arc<Mutex<Database>>>, id: i64) -> Result<Mcp, String> {
     let db = db.lock().map_err(|e| e.to_string())?;
     let mut stmt = db
         .conn()
@@ -78,7 +78,7 @@ pub fn get_mcp(db: State<'_, Mutex<Database>>, id: i64) -> Result<Mcp, String> {
 }
 
 #[tauri::command]
-pub fn create_mcp(db: State<'_, Mutex<Database>>, mcp: CreateMcpRequest) -> Result<Mcp, String> {
+pub fn create_mcp(db: State<'_, Arc<Mutex<Database>>>, mcp: CreateMcpRequest) -> Result<Mcp, String> {
     info!("[MCP] Creating new MCP: {}", mcp.name);
     let db_guard = db.lock().map_err(|e| {
         error!("[MCP] Failed to acquire database lock: {}", e);
@@ -133,7 +133,7 @@ pub fn create_mcp(db: State<'_, Mutex<Database>>, mcp: CreateMcpRequest) -> Resu
 
 #[tauri::command]
 pub fn update_mcp(
-    db: State<'_, Mutex<Database>>,
+    db: State<'_, Arc<Mutex<Database>>>,
     id: i64,
     mcp: CreateMcpRequest,
 ) -> Result<Mcp, String> {
@@ -183,7 +183,7 @@ pub fn update_mcp(
 }
 
 #[tauri::command]
-pub fn delete_mcp(db: State<'_, Mutex<Database>>, id: i64) -> Result<(), String> {
+pub fn delete_mcp(db: State<'_, Arc<Mutex<Database>>>, id: i64) -> Result<(), String> {
     info!("[MCP] Deleting MCP id={}", id);
     let db = db.lock().map_err(|e| e.to_string())?;
     db.conn()
@@ -197,7 +197,7 @@ pub fn delete_mcp(db: State<'_, Mutex<Database>>, id: i64) -> Result<(), String>
 }
 
 #[tauri::command]
-pub fn duplicate_mcp(db: State<'_, Mutex<Database>>, id: i64) -> Result<Mcp, String> {
+pub fn duplicate_mcp(db: State<'_, Arc<Mutex<Database>>>, id: i64) -> Result<Mcp, String> {
     info!("[MCP] Duplicating MCP id={}", id);
     let db = db.lock().map_err(|e| e.to_string())?;
 
@@ -266,7 +266,7 @@ pub fn duplicate_mcp(db: State<'_, Mutex<Database>>, id: i64) -> Result<Mcp, Str
 
 #[tauri::command]
 pub fn toggle_global_mcp(
-    db: State<'_, Mutex<Database>>,
+    db: State<'_, Arc<Mutex<Database>>>,
     id: i64,
     enabled: bool,
 ) -> Result<(), String> {

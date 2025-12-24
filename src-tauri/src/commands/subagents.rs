@@ -3,7 +3,7 @@ use crate::db::schema::Database;
 use crate::services::subagent_writer;
 use rusqlite::params;
 use std::path::Path;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use tauri::State;
 
 fn parse_json_array(s: Option<String>) -> Option<Vec<String>> {
@@ -45,7 +45,7 @@ fn row_to_subagent_with_offset(row: &rusqlite::Row, offset: usize) -> rusqlite::
 }
 
 #[tauri::command]
-pub fn get_all_subagents(db: State<'_, Mutex<Database>>) -> Result<Vec<SubAgent>, String> {
+pub fn get_all_subagents(db: State<'_, Arc<Mutex<Database>>>) -> Result<Vec<SubAgent>, String> {
     let db = db.lock().map_err(|e| e.to_string())?;
     let mut stmt = db
         .conn()
@@ -66,7 +66,7 @@ pub fn get_all_subagents(db: State<'_, Mutex<Database>>) -> Result<Vec<SubAgent>
 
 #[tauri::command]
 pub fn create_subagent(
-    db: State<'_, Mutex<Database>>,
+    db: State<'_, Arc<Mutex<Database>>>,
     subagent: CreateSubAgentRequest,
 ) -> Result<SubAgent, String> {
     let db_guard = db.lock().map_err(|e| e.to_string())?;
@@ -108,7 +108,7 @@ pub fn create_subagent(
 
 #[tauri::command]
 pub fn update_subagent(
-    db: State<'_, Mutex<Database>>,
+    db: State<'_, Arc<Mutex<Database>>>,
     id: i64,
     subagent: CreateSubAgentRequest,
 ) -> Result<SubAgent, String> {
@@ -148,7 +148,7 @@ pub fn update_subagent(
 }
 
 #[tauri::command]
-pub fn delete_subagent(db: State<'_, Mutex<Database>>, id: i64) -> Result<(), String> {
+pub fn delete_subagent(db: State<'_, Arc<Mutex<Database>>>, id: i64) -> Result<(), String> {
     let db = db.lock().map_err(|e| e.to_string())?;
 
     // Reset is_imported flag in repo_items for this subagent
@@ -167,7 +167,7 @@ pub fn delete_subagent(db: State<'_, Mutex<Database>>, id: i64) -> Result<(), St
 
 // Global Sub-Agents
 #[tauri::command]
-pub fn get_global_subagents(db: State<'_, Mutex<Database>>) -> Result<Vec<GlobalSubAgent>, String> {
+pub fn get_global_subagents(db: State<'_, Arc<Mutex<Database>>>) -> Result<Vec<GlobalSubAgent>, String> {
     let db = db.lock().map_err(|e| e.to_string())?;
     let mut stmt = db
         .conn()
@@ -197,7 +197,7 @@ pub fn get_global_subagents(db: State<'_, Mutex<Database>>) -> Result<Vec<Global
 }
 
 #[tauri::command]
-pub fn add_global_subagent(db: State<'_, Mutex<Database>>, subagent_id: i64) -> Result<(), String> {
+pub fn add_global_subagent(db: State<'_, Arc<Mutex<Database>>>, subagent_id: i64) -> Result<(), String> {
     let db_guard = db.lock().map_err(|e| e.to_string())?;
 
     // Get the subagent details for file writing
@@ -225,7 +225,7 @@ pub fn add_global_subagent(db: State<'_, Mutex<Database>>, subagent_id: i64) -> 
 
 #[tauri::command]
 pub fn remove_global_subagent(
-    db: State<'_, Mutex<Database>>,
+    db: State<'_, Arc<Mutex<Database>>>,
     subagent_id: i64,
 ) -> Result<(), String> {
     let db_guard = db.lock().map_err(|e| e.to_string())?;
@@ -256,7 +256,7 @@ pub fn remove_global_subagent(
 
 #[tauri::command]
 pub fn toggle_global_subagent(
-    db: State<'_, Mutex<Database>>,
+    db: State<'_, Arc<Mutex<Database>>>,
     id: i64,
     enabled: bool,
 ) -> Result<(), String> {
@@ -297,7 +297,7 @@ pub fn toggle_global_subagent(
 // Project Sub-Agents
 #[tauri::command]
 pub fn assign_subagent_to_project(
-    db: State<'_, Mutex<Database>>,
+    db: State<'_, Arc<Mutex<Database>>>,
     project_id: i64,
     subagent_id: i64,
 ) -> Result<(), String> {
@@ -338,7 +338,7 @@ pub fn assign_subagent_to_project(
 
 #[tauri::command]
 pub fn remove_subagent_from_project(
-    db: State<'_, Mutex<Database>>,
+    db: State<'_, Arc<Mutex<Database>>>,
     project_id: i64,
     subagent_id: i64,
 ) -> Result<(), String> {
@@ -380,7 +380,7 @@ pub fn remove_subagent_from_project(
 
 #[tauri::command]
 pub fn toggle_project_subagent(
-    db: State<'_, Mutex<Database>>,
+    db: State<'_, Arc<Mutex<Database>>>,
     assignment_id: i64,
     enabled: bool,
 ) -> Result<(), String> {
@@ -425,7 +425,7 @@ pub fn toggle_project_subagent(
 
 #[tauri::command]
 pub fn get_project_subagents(
-    db: State<'_, Mutex<Database>>,
+    db: State<'_, Arc<Mutex<Database>>>,
     project_id: i64,
 ) -> Result<Vec<ProjectSubAgent>, String> {
     let db = db

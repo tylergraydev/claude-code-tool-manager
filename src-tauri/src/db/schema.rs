@@ -205,6 +205,17 @@ impl Database {
                 FOREIGN KEY (hook_id) REFERENCES hooks(id) ON DELETE CASCADE
             );
 
+            -- Gateway MCP Assignments (MCPs included in the gateway)
+            CREATE TABLE IF NOT EXISTS gateway_mcps (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                mcp_id INTEGER NOT NULL UNIQUE,
+                is_enabled INTEGER DEFAULT 1,
+                auto_restart INTEGER DEFAULT 1,
+                display_order INTEGER DEFAULT 0,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (mcp_id) REFERENCES mcps(id) ON DELETE CASCADE
+            );
+
             -- Repository sources (awesome lists, skill repos, etc.)
             CREATE TABLE IF NOT EXISTS repos (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -271,6 +282,8 @@ impl Database {
             CREATE INDEX IF NOT EXISTS idx_repo_items_repo ON repo_items(repo_id);
             CREATE INDEX IF NOT EXISTS idx_repo_items_type ON repo_items(item_type);
             CREATE INDEX IF NOT EXISTS idx_repo_items_imported ON repo_items(is_imported);
+            CREATE INDEX IF NOT EXISTS idx_gateway_mcps_mcp ON gateway_mcps(mcp_id);
+            CREATE INDEX IF NOT EXISTS idx_gateway_mcps_enabled ON gateway_mcps(is_enabled);
             "#,
         )?;
 
@@ -401,6 +414,11 @@ impl Database {
 
             -- Insert default editor setting if not exists
             INSERT OR IGNORE INTO app_settings (key, value) VALUES ('default_editor', 'claude_code');
+
+            -- Insert default gateway settings if not exists
+            INSERT OR IGNORE INTO app_settings (key, value) VALUES ('gateway_enabled', 'false');
+            INSERT OR IGNORE INTO app_settings (key, value) VALUES ('gateway_port', '23848');
+            INSERT OR IGNORE INTO app_settings (key, value) VALUES ('gateway_auto_start', 'false');
             "#,
         )?;
 
@@ -423,6 +441,825 @@ impl Database {
             "INSERT OR REPLACE INTO app_settings (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)",
             [key, value],
         )?;
+        Ok(())
+    }
+
+    // ========================================================================
+    // MCP Methods
+    // ========================================================================
+
+    pub fn get_all_mcps(&self) -> Result<Vec<crate::db::models::Mcp>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, name, description, type, command, args, url, headers, env,
+                    icon, tags, source, source_path, is_enabled_global, created_at, updated_at
+             FROM mcps ORDER BY name"
+        )?;
+
+        let mcps = stmt
+            .query_map([], |row| {
+                Ok(crate::db::models::Mcp {
+                    id: row.get(0)?,
+                    name: row.get(1)?,
+                    description: row.get(2)?,
+                    mcp_type: row.get(3)?,
+                    command: row.get(4)?,
+                    args: row.get::<_, Option<String>>(5)?.and_then(|s| serde_json::from_str(&s).ok()),
+                    url: row.get(6)?,
+                    headers: row.get::<_, Option<String>>(7)?.and_then(|s| serde_json::from_str(&s).ok()),
+                    env: row.get::<_, Option<String>>(8)?.and_then(|s| serde_json::from_str(&s).ok()),
+                    icon: row.get(9)?,
+                    tags: row.get::<_, Option<String>>(10)?.and_then(|s| serde_json::from_str(&s).ok()),
+                    source: row.get(11)?,
+                    source_path: row.get(12)?,
+                    is_enabled_global: row.get::<_, i32>(13)? != 0,
+                    created_at: row.get(14)?,
+                    updated_at: row.get(15)?,
+                })
+            })?
+            .filter_map(|r| r.ok())
+            .collect();
+
+        Ok(mcps)
+    }
+
+    pub fn get_mcp_by_id(&self, id: i64) -> Result<Option<crate::db::models::Mcp>> {
+        let result = self.conn.query_row(
+            "SELECT id, name, description, type, command, args, url, headers, env,
+                    icon, tags, source, source_path, is_enabled_global, created_at, updated_at
+             FROM mcps WHERE id = ?",
+            [id],
+            |row| {
+                Ok(crate::db::models::Mcp {
+                    id: row.get(0)?,
+                    name: row.get(1)?,
+                    description: row.get(2)?,
+                    mcp_type: row.get(3)?,
+                    command: row.get(4)?,
+                    args: row.get::<_, Option<String>>(5)?.and_then(|s| serde_json::from_str(&s).ok()),
+                    url: row.get(6)?,
+                    headers: row.get::<_, Option<String>>(7)?.and_then(|s| serde_json::from_str(&s).ok()),
+                    env: row.get::<_, Option<String>>(8)?.and_then(|s| serde_json::from_str(&s).ok()),
+                    icon: row.get(9)?,
+                    tags: row.get::<_, Option<String>>(10)?.and_then(|s| serde_json::from_str(&s).ok()),
+                    source: row.get(11)?,
+                    source_path: row.get(12)?,
+                    is_enabled_global: row.get::<_, i32>(13)? != 0,
+                    created_at: row.get(14)?,
+                    updated_at: row.get(15)?,
+                })
+            },
+        );
+
+        match result {
+            Ok(mcp) => Ok(Some(mcp)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(e.into()),
+        }
+    }
+
+    pub fn get_mcp_by_name(&self, name: &str) -> Result<Option<crate::db::models::Mcp>> {
+        let result = self.conn.query_row(
+            "SELECT id, name, description, type, command, args, url, headers, env,
+                    icon, tags, source, source_path, is_enabled_global, created_at, updated_at
+             FROM mcps WHERE name = ?",
+            [name],
+            |row| {
+                Ok(crate::db::models::Mcp {
+                    id: row.get(0)?,
+                    name: row.get(1)?,
+                    description: row.get(2)?,
+                    mcp_type: row.get(3)?,
+                    command: row.get(4)?,
+                    args: row.get::<_, Option<String>>(5)?.and_then(|s| serde_json::from_str(&s).ok()),
+                    url: row.get(6)?,
+                    headers: row.get::<_, Option<String>>(7)?.and_then(|s| serde_json::from_str(&s).ok()),
+                    env: row.get::<_, Option<String>>(8)?.and_then(|s| serde_json::from_str(&s).ok()),
+                    icon: row.get(9)?,
+                    tags: row.get::<_, Option<String>>(10)?.and_then(|s| serde_json::from_str(&s).ok()),
+                    source: row.get(11)?,
+                    source_path: row.get(12)?,
+                    is_enabled_global: row.get::<_, i32>(13)? != 0,
+                    created_at: row.get(14)?,
+                    updated_at: row.get(15)?,
+                })
+            },
+        );
+
+        match result {
+            Ok(mcp) => Ok(Some(mcp)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(e.into()),
+        }
+    }
+
+    pub fn create_mcp(&self, req: &crate::db::models::CreateMcpRequest) -> Result<crate::db::models::Mcp> {
+        self.create_mcp_with_source(req, "manual")
+    }
+
+    /// Create a system MCP that cannot be edited by users
+    pub fn create_system_mcp(&self, req: &crate::db::models::CreateMcpRequest) -> Result<crate::db::models::Mcp> {
+        self.create_mcp_with_source(req, "system")
+    }
+
+    fn create_mcp_with_source(&self, req: &crate::db::models::CreateMcpRequest, source: &str) -> Result<crate::db::models::Mcp> {
+        let args_json = req.args.as_ref().map(|a| serde_json::to_string(a).unwrap());
+        let headers_json = req.headers.as_ref().map(|h| serde_json::to_string(h).unwrap());
+        let env_json = req.env.as_ref().map(|e| serde_json::to_string(e).unwrap());
+        let tags_json = req.tags.as_ref().map(|t| serde_json::to_string(t).unwrap());
+
+        self.conn.execute(
+            "INSERT INTO mcps (name, description, type, command, args, url, headers, env, icon, tags, source)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            rusqlite::params![
+                req.name, req.description, req.mcp_type, req.command,
+                args_json, req.url, headers_json, env_json, req.icon, tags_json, source
+            ],
+        )?;
+
+        let id = self.conn.last_insert_rowid();
+        self.get_mcp_by_id(id)?.ok_or_else(|| anyhow::anyhow!("Failed to retrieve created MCP"))
+    }
+
+    pub fn update_mcp(&self, mcp: &crate::db::models::Mcp) -> Result<crate::db::models::Mcp> {
+        let args_json = mcp.args.as_ref().map(|a| serde_json::to_string(a).unwrap());
+        let headers_json = mcp.headers.as_ref().map(|h| serde_json::to_string(h).unwrap());
+        let env_json = mcp.env.as_ref().map(|e| serde_json::to_string(e).unwrap());
+        let tags_json = mcp.tags.as_ref().map(|t| serde_json::to_string(t).unwrap());
+
+        self.conn.execute(
+            "UPDATE mcps SET name = ?, description = ?, type = ?, command = ?, args = ?,
+             url = ?, headers = ?, env = ?, icon = ?, tags = ?, source = ?, updated_at = CURRENT_TIMESTAMP
+             WHERE id = ?",
+            rusqlite::params![
+                mcp.name, mcp.description, mcp.mcp_type, mcp.command, args_json,
+                mcp.url, headers_json, env_json, mcp.icon, tags_json, mcp.source, mcp.id
+            ],
+        )?;
+
+        self.get_mcp_by_id(mcp.id)?.ok_or_else(|| anyhow::anyhow!("Failed to retrieve updated MCP"))
+    }
+
+    pub fn delete_mcp(&self, id: i64) -> Result<()> {
+        self.conn.execute("DELETE FROM mcps WHERE id = ?", [id])?;
+        Ok(())
+    }
+
+    // ========================================================================
+    // Project Methods
+    // ========================================================================
+
+    pub fn get_all_projects(&self) -> Result<Vec<crate::db::models::Project>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, name, path, has_mcp_file, has_settings_file, last_scanned_at,
+                    editor_type, created_at, updated_at
+             FROM projects ORDER BY name"
+        )?;
+
+        let projects: Vec<crate::db::models::Project> = stmt
+            .query_map([], |row| {
+                Ok(crate::db::models::Project {
+                    id: row.get(0)?,
+                    name: row.get(1)?,
+                    path: row.get(2)?,
+                    has_mcp_file: row.get::<_, i32>(3)? != 0,
+                    has_settings_file: row.get::<_, i32>(4)? != 0,
+                    last_scanned_at: row.get(5)?,
+                    editor_type: row.get::<_, Option<String>>(6)?.unwrap_or_else(|| "claude_code".to_string()),
+                    created_at: row.get(7)?,
+                    updated_at: row.get(8)?,
+                    assigned_mcps: vec![],
+                })
+            })?
+            .filter_map(|r| r.ok())
+            .collect();
+
+        Ok(projects)
+    }
+
+    pub fn get_project_by_id(&self, id: i64) -> Result<Option<crate::db::models::Project>> {
+        let result = self.conn.query_row(
+            "SELECT id, name, path, has_mcp_file, has_settings_file, last_scanned_at,
+                    editor_type, created_at, updated_at
+             FROM projects WHERE id = ?",
+            [id],
+            |row| {
+                Ok(crate::db::models::Project {
+                    id: row.get(0)?,
+                    name: row.get(1)?,
+                    path: row.get(2)?,
+                    has_mcp_file: row.get::<_, i32>(3)? != 0,
+                    has_settings_file: row.get::<_, i32>(4)? != 0,
+                    last_scanned_at: row.get(5)?,
+                    editor_type: row.get::<_, Option<String>>(6)?.unwrap_or_else(|| "claude_code".to_string()),
+                    created_at: row.get(7)?,
+                    updated_at: row.get(8)?,
+                    assigned_mcps: vec![],
+                })
+            },
+        );
+
+        match result {
+            Ok(project) => Ok(Some(project)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(e.into()),
+        }
+    }
+
+    pub fn assign_mcp_to_project(&self, project_id: i64, mcp_id: i64) -> Result<()> {
+        self.conn.execute(
+            "INSERT OR IGNORE INTO project_mcps (project_id, mcp_id) VALUES (?, ?)",
+            [project_id, mcp_id],
+        )?;
+        Ok(())
+    }
+
+    pub fn remove_mcp_from_project(&self, project_id: i64, mcp_id: i64) -> Result<()> {
+        self.conn.execute(
+            "DELETE FROM project_mcps WHERE project_id = ? AND mcp_id = ?",
+            [project_id, mcp_id],
+        )?;
+        Ok(())
+    }
+
+    pub fn get_project_mcps_for_config(&self, project_id: i64) -> Result<Vec<(crate::db::models::Mcp, Option<std::collections::HashMap<String, String>>)>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT m.id, m.name, m.description, m.type, m.command, m.args, m.url, m.headers, m.env,
+                    m.icon, m.tags, m.source, m.source_path, m.is_enabled_global, m.created_at, m.updated_at,
+                    pm.env_overrides
+             FROM mcps m
+             JOIN project_mcps pm ON m.id = pm.mcp_id
+             WHERE pm.project_id = ? AND pm.is_enabled = 1
+             ORDER BY pm.display_order"
+        )?;
+
+        let results = stmt
+            .query_map([project_id], |row| {
+                let mcp = crate::db::models::Mcp {
+                    id: row.get(0)?,
+                    name: row.get(1)?,
+                    description: row.get(2)?,
+                    mcp_type: row.get(3)?,
+                    command: row.get(4)?,
+                    args: row.get::<_, Option<String>>(5)?.and_then(|s| serde_json::from_str(&s).ok()),
+                    url: row.get(6)?,
+                    headers: row.get::<_, Option<String>>(7)?.and_then(|s| serde_json::from_str(&s).ok()),
+                    env: row.get::<_, Option<String>>(8)?.and_then(|s| serde_json::from_str(&s).ok()),
+                    icon: row.get(9)?,
+                    tags: row.get::<_, Option<String>>(10)?.and_then(|s| serde_json::from_str(&s).ok()),
+                    source: row.get(11)?,
+                    source_path: row.get(12)?,
+                    is_enabled_global: row.get::<_, i32>(13)? != 0,
+                    created_at: row.get(14)?,
+                    updated_at: row.get(15)?,
+                };
+                let env_overrides: Option<std::collections::HashMap<String, String>> =
+                    row.get::<_, Option<String>>(16)?.and_then(|s| serde_json::from_str(&s).ok());
+                Ok((mcp, env_overrides))
+            })?
+            .filter_map(|r| r.ok())
+            .collect();
+
+        Ok(results)
+    }
+
+    // ========================================================================
+    // Global MCP Methods
+    // ========================================================================
+
+    pub fn get_global_mcps(&self) -> Result<Vec<crate::db::models::GlobalMcp>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT gm.id, gm.mcp_id, gm.is_enabled, gm.env_overrides,
+                    m.id, m.name, m.description, m.type, m.command, m.args, m.url, m.headers, m.env,
+                    m.icon, m.tags, m.source, m.source_path, m.is_enabled_global, m.created_at, m.updated_at
+             FROM global_mcps gm
+             JOIN mcps m ON gm.mcp_id = m.id
+             ORDER BY gm.display_order"
+        )?;
+
+        let results = stmt
+            .query_map([], |row| {
+                let mcp = crate::db::models::Mcp {
+                    id: row.get(4)?,
+                    name: row.get(5)?,
+                    description: row.get(6)?,
+                    mcp_type: row.get(7)?,
+                    command: row.get(8)?,
+                    args: row.get::<_, Option<String>>(9)?.and_then(|s| serde_json::from_str(&s).ok()),
+                    url: row.get(10)?,
+                    headers: row.get::<_, Option<String>>(11)?.and_then(|s| serde_json::from_str(&s).ok()),
+                    env: row.get::<_, Option<String>>(12)?.and_then(|s| serde_json::from_str(&s).ok()),
+                    icon: row.get(13)?,
+                    tags: row.get::<_, Option<String>>(14)?.and_then(|s| serde_json::from_str(&s).ok()),
+                    source: row.get(15)?,
+                    source_path: row.get(16)?,
+                    is_enabled_global: row.get::<_, i32>(17)? != 0,
+                    created_at: row.get(18)?,
+                    updated_at: row.get(19)?,
+                };
+
+                Ok(crate::db::models::GlobalMcp {
+                    id: row.get(0)?,
+                    mcp_id: row.get(1)?,
+                    mcp,
+                    is_enabled: row.get::<_, i32>(2)? != 0,
+                    env_overrides: row.get::<_, Option<String>>(3)?.and_then(|s| serde_json::from_str(&s).ok()),
+                })
+            })?
+            .filter_map(|r| r.ok())
+            .collect();
+
+        Ok(results)
+    }
+
+    pub fn add_global_mcp(&self, mcp_id: i64) -> Result<()> {
+        self.conn.execute(
+            "INSERT OR IGNORE INTO global_mcps (mcp_id) VALUES (?)",
+            [mcp_id],
+        )?;
+        Ok(())
+    }
+
+    pub fn remove_global_mcp(&self, mcp_id: i64) -> Result<()> {
+        self.conn.execute("DELETE FROM global_mcps WHERE mcp_id = ?", [mcp_id])?;
+        Ok(())
+    }
+
+    pub fn get_global_mcps_for_config(&self) -> Result<Vec<(crate::db::models::Mcp, Option<std::collections::HashMap<String, String>>)>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT m.id, m.name, m.description, m.type, m.command, m.args, m.url, m.headers, m.env,
+                    m.icon, m.tags, m.source, m.source_path, m.is_enabled_global, m.created_at, m.updated_at,
+                    gm.env_overrides
+             FROM mcps m
+             JOIN global_mcps gm ON m.id = gm.mcp_id
+             WHERE gm.is_enabled = 1
+             ORDER BY gm.display_order"
+        )?;
+
+        let results = stmt
+            .query_map([], |row| {
+                let mcp = crate::db::models::Mcp {
+                    id: row.get(0)?,
+                    name: row.get(1)?,
+                    description: row.get(2)?,
+                    mcp_type: row.get(3)?,
+                    command: row.get(4)?,
+                    args: row.get::<_, Option<String>>(5)?.and_then(|s| serde_json::from_str(&s).ok()),
+                    url: row.get(6)?,
+                    headers: row.get::<_, Option<String>>(7)?.and_then(|s| serde_json::from_str(&s).ok()),
+                    env: row.get::<_, Option<String>>(8)?.and_then(|s| serde_json::from_str(&s).ok()),
+                    icon: row.get(9)?,
+                    tags: row.get::<_, Option<String>>(10)?.and_then(|s| serde_json::from_str(&s).ok()),
+                    source: row.get(11)?,
+                    source_path: row.get(12)?,
+                    is_enabled_global: row.get::<_, i32>(13)? != 0,
+                    created_at: row.get(14)?,
+                    updated_at: row.get(15)?,
+                };
+                let env_overrides: Option<std::collections::HashMap<String, String>> =
+                    row.get::<_, Option<String>>(16)?.and_then(|s| serde_json::from_str(&s).ok());
+                Ok((mcp, env_overrides))
+            })?
+            .filter_map(|r| r.ok())
+            .collect();
+
+        Ok(results)
+    }
+
+    // ========================================================================
+    // Gateway MCP Methods
+    // ========================================================================
+
+    pub fn get_gateway_mcps(&self) -> Result<Vec<crate::db::models::GatewayMcp>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT gm.id, gm.mcp_id, gm.is_enabled, gm.auto_restart, gm.display_order, gm.created_at,
+                    m.id, m.name, m.description, m.type, m.command, m.args, m.url, m.headers, m.env,
+                    m.icon, m.tags, m.source, m.source_path, m.is_enabled_global, m.created_at, m.updated_at
+             FROM gateway_mcps gm
+             JOIN mcps m ON gm.mcp_id = m.id
+             ORDER BY gm.display_order, m.name"
+        )?;
+
+        let results = stmt
+            .query_map([], |row| {
+                let mcp = crate::db::models::Mcp {
+                    id: row.get(6)?,
+                    name: row.get(7)?,
+                    description: row.get(8)?,
+                    mcp_type: row.get(9)?,
+                    command: row.get(10)?,
+                    args: row.get::<_, Option<String>>(11)?.and_then(|s| serde_json::from_str(&s).ok()),
+                    url: row.get(12)?,
+                    headers: row.get::<_, Option<String>>(13)?.and_then(|s| serde_json::from_str(&s).ok()),
+                    env: row.get::<_, Option<String>>(14)?.and_then(|s| serde_json::from_str(&s).ok()),
+                    icon: row.get(15)?,
+                    tags: row.get::<_, Option<String>>(16)?.and_then(|s| serde_json::from_str(&s).ok()),
+                    source: row.get(17)?,
+                    source_path: row.get(18)?,
+                    is_enabled_global: row.get::<_, i32>(19)? != 0,
+                    created_at: row.get(20)?,
+                    updated_at: row.get(21)?,
+                };
+                Ok(crate::db::models::GatewayMcp {
+                    id: row.get(0)?,
+                    mcp_id: row.get(1)?,
+                    mcp,
+                    is_enabled: row.get::<_, i32>(2)? != 0,
+                    auto_restart: row.get::<_, i32>(3)? != 0,
+                    display_order: row.get(4)?,
+                    created_at: row.get(5)?,
+                })
+            })?
+            .filter_map(|r| r.ok())
+            .collect();
+
+        Ok(results)
+    }
+
+    pub fn get_enabled_gateway_mcps(&self) -> Result<Vec<crate::db::models::GatewayMcp>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT gm.id, gm.mcp_id, gm.is_enabled, gm.auto_restart, gm.display_order, gm.created_at,
+                    m.id, m.name, m.description, m.type, m.command, m.args, m.url, m.headers, m.env,
+                    m.icon, m.tags, m.source, m.source_path, m.is_enabled_global, m.created_at, m.updated_at
+             FROM gateway_mcps gm
+             JOIN mcps m ON gm.mcp_id = m.id
+             WHERE gm.is_enabled = 1
+             ORDER BY gm.display_order, m.name"
+        )?;
+
+        let results = stmt
+            .query_map([], |row| {
+                let mcp = crate::db::models::Mcp {
+                    id: row.get(6)?,
+                    name: row.get(7)?,
+                    description: row.get(8)?,
+                    mcp_type: row.get(9)?,
+                    command: row.get(10)?,
+                    args: row.get::<_, Option<String>>(11)?.and_then(|s| serde_json::from_str(&s).ok()),
+                    url: row.get(12)?,
+                    headers: row.get::<_, Option<String>>(13)?.and_then(|s| serde_json::from_str(&s).ok()),
+                    env: row.get::<_, Option<String>>(14)?.and_then(|s| serde_json::from_str(&s).ok()),
+                    icon: row.get(15)?,
+                    tags: row.get::<_, Option<String>>(16)?.and_then(|s| serde_json::from_str(&s).ok()),
+                    source: row.get(17)?,
+                    source_path: row.get(18)?,
+                    is_enabled_global: row.get::<_, i32>(19)? != 0,
+                    created_at: row.get(20)?,
+                    updated_at: row.get(21)?,
+                };
+                Ok(crate::db::models::GatewayMcp {
+                    id: row.get(0)?,
+                    mcp_id: row.get(1)?,
+                    mcp,
+                    is_enabled: row.get::<_, i32>(2)? != 0,
+                    auto_restart: row.get::<_, i32>(3)? != 0,
+                    display_order: row.get(4)?,
+                    created_at: row.get(5)?,
+                })
+            })?
+            .filter_map(|r| r.ok())
+            .collect();
+
+        Ok(results)
+    }
+
+    pub fn add_gateway_mcp(&self, mcp_id: i64) -> Result<()> {
+        self.conn.execute(
+            "INSERT OR IGNORE INTO gateway_mcps (mcp_id) VALUES (?)",
+            [mcp_id],
+        )?;
+        Ok(())
+    }
+
+    pub fn remove_gateway_mcp(&self, mcp_id: i64) -> Result<()> {
+        self.conn.execute("DELETE FROM gateway_mcps WHERE mcp_id = ?", [mcp_id])?;
+        Ok(())
+    }
+
+    pub fn toggle_gateway_mcp(&self, id: i64, enabled: bool) -> Result<()> {
+        self.conn.execute(
+            "UPDATE gateway_mcps SET is_enabled = ? WHERE id = ?",
+            rusqlite::params![if enabled { 1 } else { 0 }, id],
+        )?;
+        Ok(())
+    }
+
+    pub fn set_gateway_mcp_auto_restart(&self, id: i64, auto_restart: bool) -> Result<()> {
+        self.conn.execute(
+            "UPDATE gateway_mcps SET auto_restart = ? WHERE id = ?",
+            rusqlite::params![if auto_restart { 1 } else { 0 }, id],
+        )?;
+        Ok(())
+    }
+
+    pub fn is_mcp_in_gateway(&self, mcp_id: i64) -> Result<bool> {
+        let count: i64 = self.conn.query_row(
+            "SELECT COUNT(*) FROM gateway_mcps WHERE mcp_id = ?",
+            [mcp_id],
+            |row| row.get(0),
+        )?;
+        Ok(count > 0)
+    }
+
+    // ========================================================================
+    // Skills Methods
+    // ========================================================================
+
+    pub fn get_all_skills(&self) -> Result<Vec<crate::db::models::Skill>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, name, description, content, skill_type, allowed_tools,
+                    argument_hint, model, disable_model_invocation, tags, source, created_at, updated_at
+             FROM skills WHERE is_template = 0 ORDER BY name"
+        )?;
+
+        let skills = stmt
+            .query_map([], |row| {
+                Ok(crate::db::models::Skill {
+                    id: row.get(0)?,
+                    name: row.get(1)?,
+                    description: row.get(2)?,
+                    content: row.get(3)?,
+                    skill_type: row.get(4)?,
+                    allowed_tools: row.get::<_, Option<String>>(5)?.and_then(|s| serde_json::from_str(&s).ok()),
+                    argument_hint: row.get(6)?,
+                    model: row.get(7)?,
+                    disable_model_invocation: row.get::<_, i32>(8)? != 0,
+                    tags: row.get::<_, Option<String>>(9)?.and_then(|s| serde_json::from_str(&s).ok()),
+                    source: row.get(10)?,
+                    created_at: row.get(11)?,
+                    updated_at: row.get(12)?,
+                })
+            })?
+            .filter_map(|r| r.ok())
+            .collect();
+
+        Ok(skills)
+    }
+
+    pub fn get_skill_by_id(&self, id: i64) -> Result<Option<crate::db::models::Skill>> {
+        let result = self.conn.query_row(
+            "SELECT id, name, description, content, skill_type, allowed_tools,
+                    argument_hint, model, disable_model_invocation, tags, source, created_at, updated_at
+             FROM skills WHERE id = ?",
+            [id],
+            |row| {
+                Ok(crate::db::models::Skill {
+                    id: row.get(0)?,
+                    name: row.get(1)?,
+                    description: row.get(2)?,
+                    content: row.get(3)?,
+                    skill_type: row.get(4)?,
+                    allowed_tools: row.get::<_, Option<String>>(5)?.and_then(|s| serde_json::from_str(&s).ok()),
+                    argument_hint: row.get(6)?,
+                    model: row.get(7)?,
+                    disable_model_invocation: row.get::<_, i32>(8)? != 0,
+                    tags: row.get::<_, Option<String>>(9)?.and_then(|s| serde_json::from_str(&s).ok()),
+                    source: row.get(10)?,
+                    created_at: row.get(11)?,
+                    updated_at: row.get(12)?,
+                })
+            },
+        );
+
+        match result {
+            Ok(skill) => Ok(Some(skill)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(e.into()),
+        }
+    }
+
+    pub fn create_skill(&self, req: &crate::db::models::CreateSkillRequest) -> Result<crate::db::models::Skill> {
+        let allowed_tools_json = req.allowed_tools.as_ref().map(|a| serde_json::to_string(a).unwrap());
+        let tags_json = req.tags.as_ref().map(|t| serde_json::to_string(t).unwrap());
+        let disable_model_invocation = req.disable_model_invocation.unwrap_or(false) as i32;
+
+        self.conn.execute(
+            "INSERT INTO skills (name, description, content, skill_type, allowed_tools, argument_hint, model, disable_model_invocation, tags, source)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'manual')",
+            rusqlite::params![
+                req.name, req.description, req.content, req.skill_type,
+                allowed_tools_json, req.argument_hint, req.model, disable_model_invocation, tags_json
+            ],
+        )?;
+
+        let id = self.conn.last_insert_rowid();
+        self.get_skill_by_id(id)?.ok_or_else(|| anyhow::anyhow!("Failed to retrieve created skill"))
+    }
+
+    pub fn delete_skill(&self, id: i64) -> Result<()> {
+        self.conn.execute("DELETE FROM skills WHERE id = ?", [id])?;
+        Ok(())
+    }
+
+    pub fn add_global_skill(&self, skill_id: i64) -> Result<()> {
+        self.conn.execute(
+            "INSERT OR IGNORE INTO global_skills (skill_id) VALUES (?)",
+            [skill_id],
+        )?;
+        Ok(())
+    }
+
+    pub fn remove_global_skill(&self, skill_id: i64) -> Result<()> {
+        self.conn.execute("DELETE FROM global_skills WHERE skill_id = ?", [skill_id])?;
+        Ok(())
+    }
+
+    // ========================================================================
+    // SubAgent Methods
+    // ========================================================================
+
+    pub fn get_all_subagents(&self) -> Result<Vec<crate::db::models::SubAgent>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, name, description, content, tools, model, permission_mode, skills, tags, source, created_at, updated_at
+             FROM subagents ORDER BY name"
+        )?;
+
+        let subagents = stmt
+            .query_map([], |row| {
+                Ok(crate::db::models::SubAgent {
+                    id: row.get(0)?,
+                    name: row.get(1)?,
+                    description: row.get(2)?,
+                    content: row.get(3)?,
+                    tools: row.get::<_, Option<String>>(4)?.and_then(|s| serde_json::from_str(&s).ok()),
+                    model: row.get(5)?,
+                    permission_mode: row.get(6)?,
+                    skills: row.get::<_, Option<String>>(7)?.and_then(|s| serde_json::from_str(&s).ok()),
+                    tags: row.get::<_, Option<String>>(8)?.and_then(|s| serde_json::from_str(&s).ok()),
+                    source: row.get(9)?,
+                    created_at: row.get(10)?,
+                    updated_at: row.get(11)?,
+                })
+            })?
+            .filter_map(|r| r.ok())
+            .collect();
+
+        Ok(subagents)
+    }
+
+    pub fn get_subagent_by_id(&self, id: i64) -> Result<Option<crate::db::models::SubAgent>> {
+        let result = self.conn.query_row(
+            "SELECT id, name, description, content, tools, model, permission_mode, skills, tags, source, created_at, updated_at
+             FROM subagents WHERE id = ?",
+            [id],
+            |row| {
+                Ok(crate::db::models::SubAgent {
+                    id: row.get(0)?,
+                    name: row.get(1)?,
+                    description: row.get(2)?,
+                    content: row.get(3)?,
+                    tools: row.get::<_, Option<String>>(4)?.and_then(|s| serde_json::from_str(&s).ok()),
+                    model: row.get(5)?,
+                    permission_mode: row.get(6)?,
+                    skills: row.get::<_, Option<String>>(7)?.and_then(|s| serde_json::from_str(&s).ok()),
+                    tags: row.get::<_, Option<String>>(8)?.and_then(|s| serde_json::from_str(&s).ok()),
+                    source: row.get(9)?,
+                    created_at: row.get(10)?,
+                    updated_at: row.get(11)?,
+                })
+            },
+        );
+
+        match result {
+            Ok(subagent) => Ok(Some(subagent)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(e.into()),
+        }
+    }
+
+    pub fn create_subagent(&self, req: &crate::db::models::CreateSubAgentRequest) -> Result<crate::db::models::SubAgent> {
+        let tools_json = req.tools.as_ref().map(|t| serde_json::to_string(t).unwrap());
+        let skills_json = req.skills.as_ref().map(|s| serde_json::to_string(s).unwrap());
+        let tags_json = req.tags.as_ref().map(|t| serde_json::to_string(t).unwrap());
+
+        self.conn.execute(
+            "INSERT INTO subagents (name, description, content, tools, model, permission_mode, skills, tags, source)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'manual')",
+            rusqlite::params![
+                req.name, req.description, req.content, tools_json,
+                req.model, req.permission_mode, skills_json, tags_json
+            ],
+        )?;
+
+        let id = self.conn.last_insert_rowid();
+        self.get_subagent_by_id(id)?.ok_or_else(|| anyhow::anyhow!("Failed to retrieve created subagent"))
+    }
+
+    pub fn delete_subagent(&self, id: i64) -> Result<()> {
+        self.conn.execute("DELETE FROM subagents WHERE id = ?", [id])?;
+        Ok(())
+    }
+
+    pub fn add_global_subagent(&self, subagent_id: i64) -> Result<()> {
+        self.conn.execute(
+            "INSERT OR IGNORE INTO global_subagents (subagent_id) VALUES (?)",
+            [subagent_id],
+        )?;
+        Ok(())
+    }
+
+    pub fn remove_global_subagent(&self, subagent_id: i64) -> Result<()> {
+        self.conn.execute("DELETE FROM global_subagents WHERE subagent_id = ?", [subagent_id])?;
+        Ok(())
+    }
+
+    // ========================================================================
+    // Hook Methods
+    // ========================================================================
+
+    pub fn get_all_hooks(&self) -> Result<Vec<crate::db::models::Hook>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, name, description, event_type, matcher, hook_type, command, prompt, timeout, tags, source, is_template, created_at, updated_at
+             FROM hooks WHERE is_template = 0 ORDER BY name"
+        )?;
+
+        let hooks = stmt
+            .query_map([], |row| {
+                Ok(crate::db::models::Hook {
+                    id: row.get(0)?,
+                    name: row.get(1)?,
+                    description: row.get(2)?,
+                    event_type: row.get(3)?,
+                    matcher: row.get(4)?,
+                    hook_type: row.get(5)?,
+                    command: row.get(6)?,
+                    prompt: row.get(7)?,
+                    timeout: row.get(8)?,
+                    tags: row.get::<_, Option<String>>(9)?.and_then(|s| serde_json::from_str(&s).ok()),
+                    source: row.get(10)?,
+                    is_template: row.get::<_, i32>(11)? != 0,
+                    created_at: row.get(12)?,
+                    updated_at: row.get(13)?,
+                })
+            })?
+            .filter_map(|r| r.ok())
+            .collect();
+
+        Ok(hooks)
+    }
+
+    pub fn get_hook_by_id(&self, id: i64) -> Result<Option<crate::db::models::Hook>> {
+        let result = self.conn.query_row(
+            "SELECT id, name, description, event_type, matcher, hook_type, command, prompt, timeout, tags, source, is_template, created_at, updated_at
+             FROM hooks WHERE id = ?",
+            [id],
+            |row| {
+                Ok(crate::db::models::Hook {
+                    id: row.get(0)?,
+                    name: row.get(1)?,
+                    description: row.get(2)?,
+                    event_type: row.get(3)?,
+                    matcher: row.get(4)?,
+                    hook_type: row.get(5)?,
+                    command: row.get(6)?,
+                    prompt: row.get(7)?,
+                    timeout: row.get(8)?,
+                    tags: row.get::<_, Option<String>>(9)?.and_then(|s| serde_json::from_str(&s).ok()),
+                    source: row.get(10)?,
+                    is_template: row.get::<_, i32>(11)? != 0,
+                    created_at: row.get(12)?,
+                    updated_at: row.get(13)?,
+                })
+            },
+        );
+
+        match result {
+            Ok(hook) => Ok(Some(hook)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(e.into()),
+        }
+    }
+
+    pub fn create_hook(&self, req: &crate::db::models::CreateHookRequest) -> Result<crate::db::models::Hook> {
+        let tags_json = req.tags.as_ref().map(|t| serde_json::to_string(t).unwrap());
+
+        self.conn.execute(
+            "INSERT INTO hooks (name, description, event_type, matcher, hook_type, command, prompt, timeout, tags, source)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'manual')",
+            rusqlite::params![
+                req.name, req.description, req.event_type, req.matcher,
+                req.hook_type, req.command, req.prompt, req.timeout, tags_json
+            ],
+        )?;
+
+        let id = self.conn.last_insert_rowid();
+        self.get_hook_by_id(id)?.ok_or_else(|| anyhow::anyhow!("Failed to retrieve created hook"))
+    }
+
+    pub fn delete_hook(&self, id: i64) -> Result<()> {
+        self.conn.execute("DELETE FROM hooks WHERE id = ?", [id])?;
+        Ok(())
+    }
+
+    pub fn add_global_hook(&self, hook_id: i64) -> Result<()> {
+        self.conn.execute(
+            "INSERT OR IGNORE INTO global_hooks (hook_id) VALUES (?)",
+            [hook_id],
+        )?;
+        Ok(())
+    }
+
+    pub fn remove_global_hook(&self, hook_id: i64) -> Result<()> {
+        self.conn.execute("DELETE FROM global_hooks WHERE hook_id = ?", [hook_id])?;
         Ok(())
     }
 }

@@ -10,9 +10,12 @@
 		onDelete?: (mcp: Mcp) => void;
 		onDuplicate?: (mcp: Mcp) => void;
 		onTest?: (mcp: Mcp) => void;
+		showGatewayToggle?: boolean;
+		gatewayMcpIds?: Set<number>;
+		onGatewayToggle?: (mcp: Mcp, enabled: boolean) => void;
 	};
 
-	let { onEdit, onDelete, onDuplicate, onTest }: Props = $props();
+	let { onEdit, onDelete, onDuplicate, onTest, showGatewayToggle = false, gatewayMcpIds = new Set(), onGatewayToggle }: Props = $props();
 
 	const typeFilters: { value: 'all' | 'stdio' | 'sse' | 'http'; label: string; icon: typeof Package }[] = [
 		{ value: 'all', label: 'All', icon: Package },
@@ -80,6 +83,9 @@
 					{onDelete}
 					{onDuplicate}
 					{onTest}
+					{showGatewayToggle}
+					isInGateway={gatewayMcpIds.has(mcp.id)}
+					{onGatewayToggle}
 				/>
 			{/each}
 		</div>

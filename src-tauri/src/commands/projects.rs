@@ -3,7 +3,7 @@ use crate::services::config_writer;
 use log::{error, info};
 use rusqlite::params;
 use std::path::PathBuf;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use tauri::State;
 use tauri_plugin_dialog::DialogExt;
 
@@ -37,7 +37,7 @@ fn row_to_mcp(row: &rusqlite::Row, offset: usize) -> rusqlite::Result<Mcp> {
 }
 
 #[tauri::command]
-pub fn get_all_projects(db: State<'_, Mutex<Database>>) -> Result<Vec<Project>, String> {
+pub fn get_all_projects(db: State<'_, Arc<Mutex<Database>>>) -> Result<Vec<Project>, String> {
     info!("[Projects] Loading all projects");
     let db = db.lock().map_err(|e| {
         error!("[Projects] Failed to acquire database lock: {}", e);
@@ -114,7 +114,7 @@ pub fn get_all_projects(db: State<'_, Mutex<Database>>) -> Result<Vec<Project>, 
 
 #[tauri::command]
 pub fn add_project(
-    db: State<'_, Mutex<Database>>,
+    db: State<'_, Arc<Mutex<Database>>>,
     project: CreateProjectRequest,
 ) -> Result<Project, String> {
     use crate::utils::paths::get_claude_paths;
@@ -169,7 +169,7 @@ pub fn add_project(
 }
 
 #[tauri::command]
-pub fn remove_project(db: State<'_, Mutex<Database>>, id: i64) -> Result<(), String> {
+pub fn remove_project(db: State<'_, Arc<Mutex<Database>>>, id: i64) -> Result<(), String> {
     info!("[Projects] Removing project id={}", id);
     let db = db.lock().map_err(|e| e.to_string())?;
     db.conn()
@@ -200,7 +200,7 @@ pub async fn browse_for_project(app: tauri::AppHandle) -> Result<Option<String>,
 
 #[tauri::command]
 pub fn assign_mcp_to_project(
-    db: State<'_, Mutex<Database>>,
+    db: State<'_, Arc<Mutex<Database>>>,
     project_id: i64,
     mcp_id: i64,
 ) -> Result<(), String> {
@@ -228,7 +228,7 @@ pub fn assign_mcp_to_project(
 
 #[tauri::command]
 pub fn remove_mcp_from_project(
-    db: State<'_, Mutex<Database>>,
+    db: State<'_, Arc<Mutex<Database>>>,
     project_id: i64,
     mcp_id: i64,
 ) -> Result<(), String> {
@@ -244,7 +244,7 @@ pub fn remove_mcp_from_project(
 
 #[tauri::command]
 pub fn toggle_project_mcp(
-    db: State<'_, Mutex<Database>>,
+    db: State<'_, Arc<Mutex<Database>>>,
     assignment_id: i64,
     enabled: bool,
 ) -> Result<(), String> {
@@ -259,7 +259,7 @@ pub fn toggle_project_mcp(
 }
 
 #[tauri::command]
-pub fn sync_project_config(db: State<'_, Mutex<Database>>, project_id: i64) -> Result<(), String> {
+pub fn sync_project_config(db: State<'_, Arc<Mutex<Database>>>, project_id: i64) -> Result<(), String> {
     use crate::services::opencode_config;
     use crate::utils::paths::get_claude_paths;
 

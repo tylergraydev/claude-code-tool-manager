@@ -1163,6 +1163,365 @@ impl SseMcpClient {
 }
 
 // ============================================================================
+// Streamable HTTP MCP Client (for system MCPs like Tool Manager and Gateway)
+// ============================================================================
+
+/// Client for communicating with Streamable HTTP-based MCP servers
+/// This is used for rmcp-based servers that use SSE responses
+pub struct StreamableHttpMcpClient {
+    url: String,
+    session_id: Option<String>,
+    headers: Option<HashMap<String, String>>,
+    server_info: Option<McpServerInfo>,
+    tools: Vec<McpTool>,
+    resources_supported: bool,
+    prompts_supported: bool,
+    timeout_secs: u64,
+}
+
+impl StreamableHttpMcpClient {
+    /// Connect to a Streamable HTTP MCP server and initialize the session
+    pub fn connect(
+        url: &str,
+        headers: Option<&HashMap<String, String>>,
+        timeout_secs: u64,
+    ) -> Result<Self> {
+        info!("[Streamable HTTP Client] Connecting to: {}", url);
+
+        let mut instance = Self {
+            url: url.to_string(),
+            session_id: None,
+            headers: headers.cloned(),
+            server_info: None,
+            tools: vec![],
+            resources_supported: false,
+            prompts_supported: false,
+            timeout_secs,
+        };
+
+        // Use tokio runtime to run async initialization
+        let rt = tokio::runtime::Runtime::new()
+            .map_err(|e| anyhow!("Failed to create async runtime: {}", e))?;
+
+        rt.block_on(instance.initialize_async())?;
+
+        Ok(instance)
+    }
+
+    async fn initialize_async(&mut self) -> Result<()> {
+        let client = reqwest::Client::builder().build()?;
+        let timeout = Duration::from_secs(self.timeout_secs);
+
+        // Step 1: Send initialize request
+        let init_request = json!({
+            "jsonrpc": "2.0",
+            "id": next_request_id(),
+            "method": "initialize",
+            "params": {
+                "protocolVersion": "2024-11-05",
+                "capabilities": {},
+                "clientInfo": {
+                    "name": "claude-code-tool-manager",
+                    "version": env!("CARGO_PKG_VERSION")
+                }
+            }
+        });
+
+        let mut request_builder = client
+            .post(&self.url)
+            .header("Content-Type", "application/json")
+            .header("Accept", "application/json, text/event-stream")
+            .body(serde_json::to_string(&init_request)?);
+
+        if let Some(hdrs) = &self.headers {
+            for (key, value) in hdrs {
+                request_builder = request_builder.header(key, value);
+            }
+        }
+
+        info!("[Streamable HTTP Client] Sending initialize request...");
+        let response = tokio::time::timeout(timeout, request_builder.send())
+            .await
+            .map_err(|_| anyhow!("Connection timeout after {}s", self.timeout_secs))?
+            .map_err(|e| anyhow!("HTTP request failed: {}", e))?;
+
+        let status = response.status();
+        if !status.is_success() {
+            let body = response.text().await.unwrap_or_default();
+            return Err(anyhow!("HTTP error {}: {}", status, body));
+        }
+
+        // Extract session ID
+        self.session_id = response
+            .headers()
+            .get("mcp-session-id")
+            .and_then(|v| v.to_str().ok())
+            .map(|s| s.to_string());
+
+        if let Some(ref sid) = self.session_id {
+            info!("[Streamable HTTP Client] Got session ID: {}", sid);
+        }
+
+        // Read SSE response
+        let init_response = Self::read_sse_response_static(response).await?;
+
+        if let Some(error) = init_response.error {
+            return Err(anyhow!("MCP initialize error: {}", error.message));
+        }
+
+        let init_result = init_response
+            .result
+            .ok_or_else(|| anyhow!("Empty initialize result"))?;
+
+        // Parse server info
+        self.server_info = if let Some(info) = init_result.get("serverInfo") {
+            Some(McpServerInfo {
+                name: info
+                    .get("name")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("unknown")
+                    .to_string(),
+                version: info
+                    .get("version")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string()),
+            })
+        } else {
+            None
+        };
+
+        let capabilities = init_result.get("capabilities");
+        self.resources_supported = capabilities.and_then(|c| c.get("resources")).is_some();
+        self.prompts_supported = capabilities.and_then(|c| c.get("prompts")).is_some();
+
+        // Step 2: Send initialized notification
+        let notify_request = json!({
+            "jsonrpc": "2.0",
+            "method": "notifications/initialized"
+        });
+
+        let mut notify_builder = client
+            .post(&self.url)
+            .header("Content-Type", "application/json")
+            .header("Accept", "application/json, text/event-stream");
+
+        if let Some(ref sid) = self.session_id {
+            notify_builder = notify_builder.header("mcp-session-id", sid);
+        }
+
+        notify_builder = notify_builder.body(serde_json::to_string(&notify_request)?);
+
+        if let Err(e) = notify_builder.send().await {
+            error!("[Streamable HTTP Client] Failed to send initialized notification: {}", e);
+        }
+
+        // Small delay to ensure notification is processed
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
+        // Step 3: List tools
+        let tools_request = json!({
+            "jsonrpc": "2.0",
+            "id": next_request_id(),
+            "method": "tools/list",
+            "params": {}
+        });
+
+        let mut tools_builder = client
+            .post(&self.url)
+            .header("Content-Type", "application/json")
+            .header("Accept", "application/json, text/event-stream")
+            .body(serde_json::to_string(&tools_request)?);
+
+        if let Some(ref sid) = self.session_id {
+            tools_builder = tools_builder.header("mcp-session-id", sid);
+        }
+
+        info!("[Streamable HTTP Client] Sending tools/list request...");
+        let tools_response = tokio::time::timeout(timeout, tools_builder.send())
+            .await
+            .map_err(|_| anyhow!("Tools request timeout"))?
+            .map_err(|e| anyhow!("Tools request failed: {}", e))?;
+
+        if !tools_response.status().is_success() {
+            let body = tools_response.text().await.unwrap_or_default();
+            return Err(anyhow!("Tools request error: {}", body));
+        }
+
+        let tools_json = Self::read_sse_response_static(tools_response).await?;
+
+        if let Some(error) = tools_json.error {
+            return Err(anyhow!("MCP tools/list error: {}", error.message));
+        }
+
+        let tools_result = tools_json
+            .result
+            .ok_or_else(|| anyhow!("Empty tools/list result"))?;
+
+        self.tools = if let Some(tools_array) = tools_result.get("tools") {
+            serde_json::from_value::<Vec<McpTool>>(tools_array.clone()).unwrap_or_default()
+        } else {
+            vec![]
+        };
+
+        info!("[Streamable HTTP Client] Connected with {} tools", self.tools.len());
+        Ok(())
+    }
+
+    /// Get server info
+    pub fn server_info(&self) -> Option<&McpServerInfo> {
+        self.server_info.as_ref()
+    }
+
+    /// Get available tools
+    pub fn tools(&self) -> &[McpTool] {
+        &self.tools
+    }
+
+    /// Check if resources are supported
+    pub fn resources_supported(&self) -> bool {
+        self.resources_supported
+    }
+
+    /// Check if prompts are supported
+    pub fn prompts_supported(&self) -> bool {
+        self.prompts_supported
+    }
+
+    /// Call a tool with the given arguments
+    pub fn call_tool(&mut self, name: &str, arguments: Value) -> Result<ToolCallResult> {
+        info!(
+            "[Streamable HTTP Client] Calling tool: {} with args: {}",
+            name, arguments
+        );
+
+        let rt = tokio::runtime::Runtime::new()
+            .map_err(|e| anyhow!("Failed to create async runtime: {}", e))?;
+
+        rt.block_on(self.call_tool_async(name, arguments))
+    }
+
+    async fn call_tool_async(&self, name: &str, arguments: Value) -> Result<ToolCallResult> {
+        let client = reqwest::Client::builder().build()?;
+        let timeout = Duration::from_secs(self.timeout_secs);
+
+        let request = json!({
+            "jsonrpc": "2.0",
+            "id": next_request_id(),
+            "method": "tools/call",
+            "params": {
+                "name": name,
+                "arguments": arguments
+            }
+        });
+
+        let start = Instant::now();
+
+        let mut request_builder = client
+            .post(&self.url)
+            .header("Content-Type", "application/json")
+            .header("Accept", "application/json, text/event-stream")
+            .body(serde_json::to_string(&request)?);
+
+        if let Some(ref sid) = self.session_id {
+            request_builder = request_builder.header("mcp-session-id", sid);
+        }
+
+        if let Some(ref hdrs) = self.headers {
+            for (key, value) in hdrs {
+                request_builder = request_builder.header(key, value);
+            }
+        }
+
+        let response = tokio::time::timeout(timeout, request_builder.send())
+            .await
+            .map_err(|_| anyhow!("Tool call timeout"))?
+            .map_err(|e| anyhow!("Tool call failed: {}", e))?;
+
+        let elapsed = start.elapsed().as_millis() as u64;
+
+        if !response.status().is_success() {
+            let body = response.text().await.unwrap_or_default();
+            return Ok(ToolCallResult {
+                success: false,
+                content: vec![],
+                is_error: true,
+                error: Some(format!("HTTP error: {}", body)),
+                execution_time_ms: elapsed,
+            });
+        }
+
+        let json_response = Self::read_sse_response_static(response).await;
+
+        match json_response {
+            Ok(resp) => {
+                if let Some(error) = resp.error {
+                    return Ok(ToolCallResult {
+                        success: false,
+                        content: vec![],
+                        is_error: true,
+                        error: Some(error.message),
+                        execution_time_ms: elapsed,
+                    });
+                }
+
+                let result = resp.result.unwrap_or(Value::Null);
+                StdioMcpClient::parse_tool_result(result, elapsed)
+            }
+            Err(e) => Ok(ToolCallResult {
+                success: false,
+                content: vec![],
+                is_error: true,
+                error: Some(e.to_string()),
+                execution_time_ms: elapsed,
+            }),
+        }
+    }
+
+    /// Static helper to read SSE response (used in async contexts)
+    async fn read_sse_response_static(response: reqwest::Response) -> Result<JsonRpcResponse> {
+        let body_text = response.text().await.unwrap_or_else(|e| {
+            info!("[Streamable HTTP Client] Failed to read body as text: {}", e);
+            String::new()
+        });
+
+        info!(
+            "[Streamable HTTP Client] Response body ({} bytes): {}",
+            body_text.len(),
+            &body_text[..body_text.len().min(500)]
+        );
+
+        if body_text.is_empty() {
+            return Err(anyhow!("Empty response body from server"));
+        }
+
+        // Check if this looks like SSE (has data: lines)
+        if body_text.contains("data:") {
+            for line in body_text.lines() {
+                let line = line.trim();
+                if line.starts_with("data:") {
+                    let json_str = line.strip_prefix("data:").unwrap().trim();
+                    if !json_str.is_empty() && json_str != "[DONE]" {
+                        info!("[Streamable HTTP Client] Found SSE data: {}", &json_str[..json_str.len().min(200)]);
+                        if let Ok(response) = serde_json::from_str::<JsonRpcResponse>(json_str) {
+                            return Ok(response);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Try parsing the whole body as JSON directly
+        serde_json::from_str(&body_text)
+            .map_err(|e| anyhow!("Could not parse response: {}. Body: {}", e, &body_text[..body_text.len().min(200)]))
+    }
+
+    /// Close the client
+    pub fn close(self) {
+        info!("[Streamable HTTP Client] Session closed");
+    }
+}
+
+// ============================================================================
 // SSE Response Parsing
 // ============================================================================
 
@@ -1741,6 +2100,308 @@ pub fn test_http_mcp(
             McpTestResult::error(e.to_string(), elapsed_ms)
         }
     }
+}
+
+/// Test a Streamable HTTP MCP server (async version with proper SSE handling)
+/// Streamable HTTP uses POST requests with SSE responses
+pub async fn test_streamable_http_mcp_async(
+    url: &str,
+    headers: Option<&HashMap<String, String>>,
+    timeout_secs: u64,
+) -> McpTestResult {
+    let start = Instant::now();
+
+    let result = test_streamable_http_internal_async(url, headers, timeout_secs).await;
+
+    let elapsed_ms = start.elapsed().as_millis() as u64;
+
+    match result {
+        Ok((server_info, tools, resources, prompts)) => {
+            info!(
+                "[MCP Client] Streamable HTTP test successful: {} tools found in {}ms",
+                tools.len(),
+                elapsed_ms
+            );
+            McpTestResult::success(server_info, tools, resources, prompts, elapsed_ms)
+        }
+        Err(e) => {
+            error!("[MCP Client] Streamable HTTP test failed: {}", e);
+            McpTestResult::error(e.to_string(), elapsed_ms)
+        }
+    }
+}
+
+/// Synchronous wrapper for async Streamable HTTP test
+pub fn test_streamable_http_mcp(
+    url: &str,
+    headers: Option<&HashMap<String, String>>,
+    timeout_secs: u64,
+) -> McpTestResult {
+    let rt = match tokio::runtime::Runtime::new() {
+        Ok(rt) => rt,
+        Err(e) => {
+            return McpTestResult::error(format!("Failed to create async runtime: {}", e), 0);
+        }
+    };
+
+    rt.block_on(test_streamable_http_mcp_async(url, headers, timeout_secs))
+}
+
+/// Internal async implementation for Streamable HTTP
+async fn test_streamable_http_internal_async(
+    url: &str,
+    headers: Option<&HashMap<String, String>>,
+    timeout_secs: u64,
+) -> Result<(McpServerInfo, Vec<McpTool>, bool, bool)> {
+    info!("[MCP Client] Testing Streamable HTTP MCP at: {}", url);
+
+    let client = reqwest::Client::builder().build()?;
+
+    // Step 1: Send initialize request
+    let init_request = json!({
+        "jsonrpc": "2.0",
+        "id": next_request_id(),
+        "method": "initialize",
+        "params": {
+            "protocolVersion": "2024-11-05",
+            "capabilities": {},
+            "clientInfo": {
+                "name": "claude-code-tool-manager",
+                "version": env!("CARGO_PKG_VERSION")
+            }
+        }
+    });
+
+    let mut request_builder = client
+        .post(url)
+        .header("Content-Type", "application/json")
+        .header("Accept", "application/json, text/event-stream")
+        .body(serde_json::to_string(&init_request)?);
+
+    if let Some(hdrs) = headers {
+        for (key, value) in hdrs {
+            request_builder = request_builder.header(key, value);
+        }
+    }
+
+    info!("[MCP Client] Sending Streamable HTTP initialize request...");
+    let response = timeout(Duration::from_secs(timeout_secs), request_builder.send())
+        .await
+        .map_err(|_| anyhow!("Connection timeout after {}s", timeout_secs))?
+        .map_err(|e| anyhow!("HTTP request failed: {}", e))?;
+
+    let status = response.status();
+    if !status.is_success() {
+        let body = response.text().await.unwrap_or_default();
+        return Err(anyhow!("HTTP error {}: {}", status, body));
+    }
+
+    // Extract session ID from headers
+    let session_id: Option<String> = response
+        .headers()
+        .get("mcp-session-id")
+        .and_then(|v| v.to_str().ok())
+        .map(|s| s.to_string());
+
+    if let Some(ref sid) = session_id {
+        info!("[MCP Client] Got session ID: {}", sid);
+    }
+
+    // Read SSE response for initialize
+    let init_response = read_sse_response(response).await?;
+    info!("[MCP Client] Initialize response received");
+
+    if let Some(error) = init_response.error {
+        return Err(anyhow!("MCP initialize error: {}", error.message));
+    }
+
+    let init_result = init_response
+        .result
+        .ok_or_else(|| anyhow!("Empty initialize result"))?;
+
+    // Parse server info
+    let server_info = if let Some(info) = init_result.get("serverInfo") {
+        McpServerInfo {
+            name: info
+                .get("name")
+                .and_then(|v| v.as_str())
+                .unwrap_or("unknown")
+                .to_string(),
+            version: info
+                .get("version")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string()),
+        }
+    } else {
+        McpServerInfo {
+            name: "unknown".to_string(),
+            version: None,
+        }
+    };
+
+    let capabilities = init_result.get("capabilities");
+    let resources_supported = capabilities.and_then(|c| c.get("resources")).is_some();
+    let prompts_supported = capabilities.and_then(|c| c.get("prompts")).is_some();
+
+    info!("[MCP Client] Session ID for notifications: {:?}", session_id);
+
+    // Step 2: Send initialized notification
+    // Note: rmcp expects "notifications/initialized" with no id (notification, not request)
+    let notify_request = json!({
+        "jsonrpc": "2.0",
+        "method": "notifications/initialized"
+    });
+
+    let mut notify_builder = client
+        .post(url)
+        .header("Content-Type", "application/json")
+        .header("Accept", "application/json, text/event-stream");
+
+    if let Some(ref sid) = session_id {
+        info!("[MCP Client] Adding session ID to notification: {}", sid);
+        notify_builder = notify_builder.header("mcp-session-id", sid);
+    } else {
+        info!("[MCP Client] WARNING: No session ID for notification!");
+    }
+
+    notify_builder = notify_builder.body(serde_json::to_string(&notify_request)?);
+
+    // Send notification and wait for it to complete (don't ignore errors)
+    match notify_builder.send().await {
+        Ok(resp) => {
+            let notify_status = resp.status();
+            info!("[MCP Client] Initialized notification response status: {}", notify_status);
+            // Read and log the response body
+            if let Ok(body) = resp.text().await {
+                if !body.is_empty() {
+                    info!("[MCP Client] Notification response: {}", &body[..body.len().min(200)]);
+                }
+            }
+        }
+        Err(e) => {
+            error!("[MCP Client] Failed to send initialized notification: {}", e);
+        }
+    }
+
+    // Small delay to ensure notification is processed
+    tokio::time::sleep(Duration::from_millis(100)).await;
+
+    // Step 3: List tools
+    let tools_request = json!({
+        "jsonrpc": "2.0",
+        "id": next_request_id(),
+        "method": "tools/list",
+        "params": {}
+    });
+
+    let mut tools_builder = client
+        .post(url)
+        .header("Content-Type", "application/json")
+        .header("Accept", "application/json, text/event-stream")
+        .body(serde_json::to_string(&tools_request)?);
+
+    if let Some(ref sid) = session_id {
+        tools_builder = tools_builder.header("mcp-session-id", sid);
+    }
+
+    info!("[MCP Client] Sending tools/list request...");
+    let tools_response = timeout(Duration::from_secs(timeout_secs), tools_builder.send())
+        .await
+        .map_err(|_| anyhow!("Tools request timeout"))?
+        .map_err(|e| anyhow!("Tools request failed: {}", e))?;
+
+    if !tools_response.status().is_success() {
+        let body = tools_response.text().await.unwrap_or_default();
+        return Err(anyhow!("Tools request error: {}", body));
+    }
+
+    let tools_json = read_sse_response(tools_response).await?;
+
+    if let Some(error) = tools_json.error {
+        return Err(anyhow!("MCP tools/list error: {}", error.message));
+    }
+
+    let tools_result = tools_json
+        .result
+        .ok_or_else(|| anyhow!("Empty tools/list result"))?;
+
+    let tools: Vec<McpTool> = if let Some(tools_array) = tools_result.get("tools") {
+        serde_json::from_value::<Vec<McpTool>>(tools_array.clone()).unwrap_or_default()
+    } else {
+        vec![]
+    };
+
+    info!(
+        "[MCP Client] Streamable HTTP test complete: {} tools found",
+        tools.len()
+    );
+
+    Ok((server_info, tools, resources_supported, prompts_supported))
+}
+
+/// Read SSE response from a Streamable HTTP response
+async fn read_sse_response(response: reqwest::Response) -> Result<JsonRpcResponse> {
+    let status = response.status();
+    let headers = response.headers().clone();
+
+    let content_type = headers
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("")
+        .to_string();
+
+    let content_length = headers
+        .get("content-length")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("unknown");
+
+    info!(
+        "[MCP Client] Response - status: {}, content-type: {}, content-length: {}",
+        status, content_type, content_length
+    );
+
+    // Log all headers for debugging
+    for (name, value) in headers.iter() {
+        info!("[MCP Client] Header: {} = {:?}", name, value);
+    }
+
+    // First, try reading the entire body as text regardless of content-type
+    // This helps us see what the server is actually returning
+    let body_text = response.text().await.unwrap_or_else(|e| {
+        info!("[MCP Client] Failed to read body as text: {}", e);
+        String::new()
+    });
+
+    info!(
+        "[MCP Client] Response body ({} bytes): {}",
+        body_text.len(),
+        &body_text[..body_text.len().min(1000)]
+    );
+
+    if body_text.is_empty() {
+        return Err(anyhow!("Empty response body from server"));
+    }
+
+    // Check if this looks like SSE (has data: lines)
+    if body_text.contains("data:") {
+        // Parse SSE data lines
+        for line in body_text.lines() {
+            let line = line.trim();
+            if line.starts_with("data:") {
+                let json_str = line.strip_prefix("data:").unwrap().trim();
+                if !json_str.is_empty() && json_str != "[DONE]" {
+                    info!("[MCP Client] Found SSE data: {}", &json_str[..json_str.len().min(200)]);
+                    if let Ok(response) = serde_json::from_str::<JsonRpcResponse>(json_str) {
+                        return Ok(response);
+                    }
+                }
+            }
+        }
+    }
+
+    // Try parsing the whole body as JSON directly
+    serde_json::from_str(&body_text)
+        .map_err(|e| anyhow!("Could not parse response: {}. Body: {}", e, &body_text[..body_text.len().min(200)]))
 }
 
 /// Helper to build an HTTP request with common headers

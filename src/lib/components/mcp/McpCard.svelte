@@ -1,26 +1,35 @@
 <script lang="ts">
 	import type { Mcp } from '$lib/types';
-	import { Plug, Globe, Server, MoreVertical, Edit, Copy, Trash2, Play } from 'lucide-svelte';
+	import { Plug, Globe, Server, MoreVertical, Edit, Copy, Trash2, Play, Lock, Radio } from 'lucide-svelte';
 
 	type Props = {
 		mcp: Mcp;
 		showActions?: boolean;
+		showGatewayToggle?: boolean;
+		isInGateway?: boolean;
 		onEdit?: (mcp: Mcp) => void;
 		onDelete?: (mcp: Mcp) => void;
 		onDuplicate?: (mcp: Mcp) => void;
 		onTest?: (mcp: Mcp) => void;
+		onGatewayToggle?: (mcp: Mcp, enabled: boolean) => void;
 	};
 
 	let {
 		mcp,
 		showActions = true,
+		showGatewayToggle = false,
+		isInGateway = false,
 		onEdit,
 		onDelete,
 		onDuplicate,
-		onTest
+		onTest,
+		onGatewayToggle
 	}: Props = $props();
 
 	let showMenu = $state(false);
+
+	// System MCPs are readonly
+	const isSystemMcp = mcp.source === 'system';
 
 	const typeIcons = {
 		stdio: Plug,
@@ -52,7 +61,12 @@
 				<h3 class="font-medium text-gray-900 dark:text-white truncate">
 					{mcp.name}
 				</h3>
-				{#if mcp.source === 'auto-detected'}
+				{#if isSystemMcp}
+					<span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300">
+						<Lock class="w-2.5 h-2.5" />
+						System
+					</span>
+				{:else if mcp.source === 'auto-detected'}
 					<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300">
 						Auto
 					</span>
@@ -79,7 +93,33 @@
 						{new URL(mcp.url).hostname}
 					</span>
 				{/if}
+
+				{#if showGatewayToggle && isInGateway}
+					<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300">
+						<Radio class="w-3 h-3" />
+						Gateway
+					</span>
+				{/if}
 			</div>
+
+			{#if showGatewayToggle}
+				<div class="flex items-center gap-2 mt-3 pt-3 border-t border-gray-100 dark:border-gray-700">
+					<button
+						onclick={(e) => {
+							e.stopPropagation();
+							onGatewayToggle?.(mcp, !isInGateway);
+						}}
+						class="flex items-center gap-2 text-xs font-medium transition-colors
+							{isInGateway
+								? 'text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300'
+								: 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}"
+						title={isInGateway ? 'Remove from Gateway' : 'Add to Gateway'}
+					>
+						<Radio class="w-4 h-4" />
+						{isInGateway ? 'In Gateway' : 'Add to Gateway'}
+					</button>
+				</div>
+			{/if}
 		</div>
 
 		{#if showActions}
@@ -111,7 +151,7 @@
 								Test
 							</button>
 						{/if}
-						{#if onEdit}
+						{#if onEdit && !isSystemMcp}
 							<button
 								onclick={() => {
 									onEdit(mcp);
@@ -123,7 +163,7 @@
 								Edit
 							</button>
 						{/if}
-						{#if onDuplicate}
+						{#if onDuplicate && !isSystemMcp}
 							<button
 								onclick={() => {
 									onDuplicate(mcp);
@@ -135,7 +175,7 @@
 								Duplicate
 							</button>
 						{/if}
-						{#if onDelete}
+						{#if onDelete && !isSystemMcp}
 							<button
 								onclick={() => {
 									onDelete(mcp);

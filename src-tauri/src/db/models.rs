@@ -83,6 +83,18 @@ pub struct GlobalMcp {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct GatewayMcp {
+    pub id: i64,
+    pub mcp_id: i64,
+    pub mcp: Mcp,
+    pub is_enabled: bool,
+    pub auto_restart: bool,
+    pub display_order: i32,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CreateProjectRequest {
     pub name: String,
     pub path: String,

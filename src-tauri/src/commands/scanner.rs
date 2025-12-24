@@ -1,10 +1,10 @@
 use crate::db::Database;
 use crate::services::scanner as scanner_service;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use tauri::State;
 
 #[tauri::command]
-pub fn scan_claude_directory(db: State<'_, Mutex<Database>>) -> Result<usize, String> {
+pub fn scan_claude_directory(db: State<'_, Arc<Mutex<Database>>>) -> Result<usize, String> {
     let db = db.lock().map_err(|e| e.to_string())?;
 
     // Scan claude.json for projects and MCPs

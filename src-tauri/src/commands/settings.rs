@@ -3,12 +3,12 @@ use crate::utils::opencode_paths::{get_opencode_paths, is_opencode_installed};
 use crate::utils::paths::get_claude_paths;
 use log::info;
 use rusqlite::params;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use tauri::State;
 
 /// Get application settings
 #[tauri::command]
-pub fn get_app_settings(db: State<'_, Mutex<Database>>) -> Result<AppSettings, String> {
+pub fn get_app_settings(db: State<'_, Arc<Mutex<Database>>>) -> Result<AppSettings, String> {
     info!("[Settings] Getting app settings");
     let db = db.lock().map_err(|e| e.to_string())?;
 
@@ -22,7 +22,7 @@ pub fn get_app_settings(db: State<'_, Mutex<Database>>) -> Result<AppSettings, S
 /// Update application settings
 #[tauri::command]
 pub fn update_app_settings(
-    db: State<'_, Mutex<Database>>,
+    db: State<'_, Arc<Mutex<Database>>>,
     settings: AppSettings,
 ) -> Result<(), String> {
     info!(
@@ -88,7 +88,7 @@ pub fn get_opencode_paths_cmd() -> Result<OpenCodePaths, String> {
 /// Update project editor type
 #[tauri::command]
 pub fn update_project_editor_type(
-    db: State<'_, Mutex<Database>>,
+    db: State<'_, Arc<Mutex<Database>>>,
     project_id: i64,
     editor_type: String,
 ) -> Result<(), String> {

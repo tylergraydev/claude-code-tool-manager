@@ -2,7 +2,7 @@ use crate::db::{ClaudePaths, Database, GlobalMcp, Mcp};
 use crate::services::config_writer;
 use crate::utils::paths;
 use rusqlite::params;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use tauri::State;
 
 fn parse_json_array(s: Option<String>) -> Option<Vec<String>> {
@@ -35,7 +35,7 @@ fn row_to_mcp(row: &rusqlite::Row, offset: usize) -> rusqlite::Result<Mcp> {
 }
 
 #[tauri::command]
-pub fn get_global_mcps(db: State<'_, Mutex<Database>>) -> Result<Vec<GlobalMcp>, String> {
+pub fn get_global_mcps(db: State<'_, Arc<Mutex<Database>>>) -> Result<Vec<GlobalMcp>, String> {
     let db = db.lock().map_err(|e| e.to_string())?;
 
     let mut stmt = db
@@ -68,7 +68,7 @@ pub fn get_global_mcps(db: State<'_, Mutex<Database>>) -> Result<Vec<GlobalMcp>,
 }
 
 #[tauri::command]
-pub fn add_global_mcp(db: State<'_, Mutex<Database>>, mcp_id: i64) -> Result<(), String> {
+pub fn add_global_mcp(db: State<'_, Arc<Mutex<Database>>>, mcp_id: i64) -> Result<(), String> {
     let db = db.lock().map_err(|e| e.to_string())?;
 
     let order: i32 = db
@@ -91,7 +91,7 @@ pub fn add_global_mcp(db: State<'_, Mutex<Database>>, mcp_id: i64) -> Result<(),
 }
 
 #[tauri::command]
-pub fn remove_global_mcp(db: State<'_, Mutex<Database>>, mcp_id: i64) -> Result<(), String> {
+pub fn remove_global_mcp(db: State<'_, Arc<Mutex<Database>>>, mcp_id: i64) -> Result<(), String> {
     let db = db.lock().map_err(|e| e.to_string())?;
     db.conn()
         .execute("DELETE FROM global_mcps WHERE mcp_id = ?", [mcp_id])
@@ -101,7 +101,7 @@ pub fn remove_global_mcp(db: State<'_, Mutex<Database>>, mcp_id: i64) -> Result<
 
 #[tauri::command]
 pub fn toggle_global_mcp_assignment(
-    db: State<'_, Mutex<Database>>,
+    db: State<'_, Arc<Mutex<Database>>>,
     id: i64,
     enabled: bool,
 ) -> Result<(), String> {
@@ -116,7 +116,7 @@ pub fn toggle_global_mcp_assignment(
 }
 
 #[tauri::command]
-pub fn sync_global_config(db: State<'_, Mutex<Database>>) -> Result<(), String> {
+pub fn sync_global_config(db: State<'_, Arc<Mutex<Database>>>) -> Result<(), String> {
     let db = db.lock().map_err(|e| e.to_string())?;
 
     // Get enabled global MCPs

@@ -12,7 +12,7 @@ use tauri::Manager;
 use walkdir::WalkDir;
 
 pub async fn run_startup_scan(app: &tauri::AppHandle) -> Result<()> {
-    let db = app.state::<std::sync::Mutex<Database>>();
+    let db = app.state::<std::sync::Arc<std::sync::Mutex<Database>>>();
     let db = db.lock().map_err(|e| anyhow::anyhow!("{}", e))?;
 
     // First scan global MCPs from claude.json

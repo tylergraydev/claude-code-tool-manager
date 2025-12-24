@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { Header } from '$lib/components/layout';
-	import { McpLibrary, McpForm } from '$lib/components/mcp';
+	import { McpLibrary, McpForm, McpTestModal } from '$lib/components/mcp';
 	import { ProjectList } from '$lib/components/projects';
 	import { GlobalSettings } from '$lib/components/global';
 	import { ConfirmDialog } from '$lib/components/shared';
@@ -14,6 +14,7 @@
 	let editingMcp = $state<Mcp | null>(null);
 	let deletingMcp = $state<Mcp | null>(null);
 	let deletingProject = $state<Project | null>(null);
+	let testingMcp = $state<Mcp | null>(null);
 
 	async function handleCreateMcp(values: any) {
 		try {
@@ -116,6 +117,7 @@
 			onEdit={(mcp) => (editingMcp = mcp)}
 			onDelete={(mcp) => (deletingMcp = mcp)}
 			onDuplicate={handleDuplicateMcp}
+			onTest={(mcp) => (testingMcp = mcp)}
 		/>
 	</section>
 
@@ -181,3 +183,8 @@
 	onConfirm={handleRemoveProject}
 	onCancel={() => (deletingProject = null)}
 />
+
+<!-- Test MCP Modal -->
+{#if testingMcp}
+	<McpTestModal mcp={testingMcp} onClose={() => (testingMcp = null)} />
+{/if}

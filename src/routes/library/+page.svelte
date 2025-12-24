@@ -1,15 +1,50 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
+	import { invoke } from '@tauri-apps/api/core';
 	import { Header } from '$lib/components/layout';
 	import { McpLibrary, McpForm, McpTestModal } from '$lib/components/mcp';
 	import { ConfirmDialog } from '$lib/components/shared';
 	import { mcpLibrary, notifications } from '$lib/stores';
-	import type { Mcp } from '$lib/types';
+	import type { Mcp, GatewayMcp } from '$lib/types';
 	import { Plus } from 'lucide-svelte';
 
 	let showAddMcp = $state(false);
 	let editingMcp = $state<Mcp | null>(null);
 	let deletingMcp = $state<Mcp | null>(null);
 	let testingMcp = $state<Mcp | null>(null);
+	let gatewayMcpIds = $state<Set<number>>(new Set());
+
+	onMount(async () => {
+		await loadGatewayMcps();
+	});
+
+	async function loadGatewayMcps() {
+		try {
+			const gatewayMcps = await invoke<GatewayMcp[]>('get_gateway_mcps');
+			gatewayMcpIds = new Set(gatewayMcps.map(gm => gm.mcpId));
+		} catch (err) {
+			console.error('Failed to load gateway MCPs:', err);
+		}
+	}
+
+	async function handleGatewayToggle(mcp: Mcp, enabled: boolean) {
+		try {
+			if (enabled) {
+				await invoke('add_mcp_to_gateway', { mcpId: mcp.id });
+				gatewayMcpIds = new Set([...gatewayMcpIds, mcp.id]);
+				notifications.success(`Added "${mcp.name}" to Gateway`);
+			} else {
+				await invoke('remove_mcp_from_gateway', { mcpId: mcp.id });
+				const newIds = new Set(gatewayMcpIds);
+				newIds.delete(mcp.id);
+				gatewayMcpIds = newIds;
+				notifications.success(`Removed "${mcp.name}" from Gateway`);
+			}
+		} catch (err) {
+			notifications.error(enabled ? 'Failed to add to Gateway' : 'Failed to remove from Gateway');
+			console.error('Gateway toggle error:', err);
+		}
+	}
 
 	async function handleCreateMcp(values: any) {
 		try {
@@ -72,6 +107,9 @@
 		onDelete={(mcp) => (deletingMcp = mcp)}
 		onDuplicate={handleDuplicateMcp}
 		onTest={(mcp) => (testingMcp = mcp)}
+		showGatewayToggle={true}
+		{gatewayMcpIds}
+		onGatewayToggle={handleGatewayToggle}
 	/>
 </div>
 

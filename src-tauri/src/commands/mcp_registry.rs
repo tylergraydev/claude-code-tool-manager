@@ -2,7 +2,7 @@ use crate::db::Database;
 use crate::services::mcp_registry::{RegistryClient, RegistryMcpEntry};
 use rusqlite::params;
 use serde::{Deserialize, Serialize};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use tauri::State;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -74,7 +74,7 @@ pub async fn get_mcp_from_registry(server_id: String) -> Result<RegistryMcpEntry
 /// Import an MCP from the registry to the local library
 #[tauri::command]
 pub fn import_mcp_from_registry(
-    db: State<'_, Mutex<Database>>,
+    db: State<'_, Arc<Mutex<Database>>>,
     entry: RegistryMcpEntry,
 ) -> Result<i64, String> {
     let db = db.lock().map_err(|e| e.to_string())?;

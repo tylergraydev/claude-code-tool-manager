@@ -1,12 +1,16 @@
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use tauri::Manager;
 
 mod commands;
 mod db;
+mod mcp_gateway;
+mod mcp_server;
 mod services;
 mod utils;
 
 use db::Database;
+use mcp_gateway::server::{GatewayServerConfig, GatewayServerState, DEFAULT_GATEWAY_PORT};
+use mcp_server::server::{McpServerConfig, McpServerState, DEFAULT_MCP_SERVER_PORT};
 use services::mcp_session::McpSessionManager;
 
 pub fn run() {
@@ -39,10 +43,48 @@ pub fn run() {
                 log::error!("Failed to seed default repos: {}", e);
             }
 
-            app.manage(Mutex::new(database));
+            // Wrap database in Arc<Mutex> for sharing with MCP server
+            let database_arc = Arc::new(Mutex::new(database));
+            app.manage(database_arc.clone());
 
             // Initialize session manager for MCP execution
             app.manage(Mutex::new(McpSessionManager::new()));
+
+            // Initialize MCP server state with config from database
+            let mcp_server_config = {
+                let db = database_arc.lock().unwrap();
+                let enabled = db.get_setting("mcp_server_enabled")
+                    .and_then(|s| s.parse().ok())
+                    .unwrap_or(true);
+                let port = db.get_setting("mcp_server_port")
+                    .and_then(|s| s.parse().ok())
+                    .unwrap_or(DEFAULT_MCP_SERVER_PORT);
+                let auto_start = db.get_setting("mcp_server_auto_start")
+                    .and_then(|s| s.parse().ok())
+                    .unwrap_or(true);
+                McpServerConfig { enabled, port, auto_start }
+            };
+
+            let mcp_server_state = Arc::new(McpServerState::with_config(mcp_server_config.clone()));
+            app.manage(mcp_server_state.clone());
+
+            // Initialize Gateway server state with config from database
+            let gateway_config = {
+                let db = database_arc.lock().unwrap();
+                let enabled = db.get_setting("gateway_enabled")
+                    .and_then(|s| s.parse().ok())
+                    .unwrap_or(false);
+                let port = db.get_setting("gateway_port")
+                    .and_then(|s| s.parse().ok())
+                    .unwrap_or(DEFAULT_GATEWAY_PORT);
+                let auto_start = db.get_setting("gateway_auto_start")
+                    .and_then(|s| s.parse().ok())
+                    .unwrap_or(false);
+                GatewayServerConfig { enabled, port, auto_start }
+            };
+
+            let gateway_state = Arc::new(GatewayServerState::with_config(gateway_config.clone(), database_arc.clone()));
+            app.manage(gateway_state.clone());
 
             // Run startup scan
             let app_handle = app.handle().clone();
@@ -51,6 +93,99 @@ pub fn run() {
                     log::error!("Startup scan failed: {}", e);
                 }
             });
+
+            // Auto-start MCP server if configured
+            if mcp_server_config.enabled && mcp_server_config.auto_start {
+                let server_state = mcp_server_state.clone();
+                let db_for_server = database_arc.clone();
+                let db_for_library = database_arc.clone();
+                tauri::async_runtime::spawn(async move {
+                    // Small delay to let the app fully initialize
+                    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+                    if let Err(e) = server_state.start(db_for_server).await {
+                        log::error!("[McpServer] Auto-start failed: {}", e);
+                    } else {
+                        log::info!("[McpServer] Auto-started successfully on port {}", server_state.get_port());
+
+                        // Auto-add the Tool Manager MCP to the library
+                        if let Ok(db) = db_for_library.lock() {
+                            let entry = mcp_server::server::generate_self_mcp_entry(server_state.get_port());
+                            match db.get_mcp_by_name(&entry.name) {
+                                Ok(Some(existing)) => {
+                                    // Update URL, type, and source to ensure consistency
+                                    let mut updated = existing.clone();
+                                    updated.url = entry.url;
+                                    updated.mcp_type = entry.mcp_type;
+                                    updated.source = "system".to_string();
+                                    if let Err(e) = db.update_mcp(&updated) {
+                                        log::error!("[McpServer] Failed to update self MCP in library: {}", e);
+                                    }
+                                }
+                                Ok(None) => {
+                                    // Add new entry as a system MCP (readonly)
+                                    if let Err(e) = db.create_system_mcp(&entry) {
+                                        log::error!("[McpServer] Failed to add self MCP to library: {}", e);
+                                    } else {
+                                        log::info!("[McpServer] Tool Manager MCP added to library");
+                                    }
+                                }
+                                Err(e) => {
+                                    log::error!("[McpServer] Failed to check for existing self MCP: {}", e);
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+
+            // Auto-start Gateway server if configured
+            if gateway_config.enabled && gateway_config.auto_start {
+                let gw_state = gateway_state.clone();
+                let db_for_gateway = database_arc.clone();
+                tauri::async_runtime::spawn(async move {
+                    // Delay a bit more than MCP server to avoid port conflicts during startup
+                    tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
+                    if let Err(e) = gw_state.start().await {
+                        log::error!("[Gateway] Auto-start failed: {}", e);
+                    } else {
+                        let status = gw_state.get_status().await;
+                        log::info!(
+                            "[Gateway] Auto-started successfully on port {} with {} backends and {} tools",
+                            gw_state.get_port(),
+                            status.connected_backends.len(),
+                            status.total_tools
+                        );
+
+                        // Auto-add the Gateway MCP to the library as a system MCP
+                        if let Ok(db) = db_for_gateway.lock() {
+                            let entry = mcp_gateway::server::generate_gateway_mcp_entry(gw_state.get_port());
+                            match db.get_mcp_by_name(&entry.name) {
+                                Ok(Some(existing)) => {
+                                    // Update URL, type, and source to ensure consistency
+                                    let mut updated = existing.clone();
+                                    updated.url = entry.url;
+                                    updated.mcp_type = entry.mcp_type;
+                                    updated.source = "system".to_string();
+                                    if let Err(e) = db.update_mcp(&updated) {
+                                        log::error!("[Gateway] Failed to update Gateway MCP in library: {}", e);
+                                    }
+                                }
+                                Ok(None) => {
+                                    // Add new entry as a system MCP (readonly)
+                                    if let Err(e) = db.create_system_mcp(&entry) {
+                                        log::error!("[Gateway] Failed to add Gateway MCP to library: {}", e);
+                                    } else {
+                                        log::info!("[Gateway] MCP Gateway added to library");
+                                    }
+                                }
+                                Err(e) => {
+                                    log::error!("[Gateway] Failed to check for existing Gateway MCP: {}", e);
+                                }
+                            }
+                        }
+                    }
+                });
+            }
 
             Ok(())
         })
@@ -180,6 +315,31 @@ pub fn run() {
             commands::mcp_session::get_mcp_session,
             commands::mcp_session::get_session_tools,
             commands::mcp_session::cleanup_idle_sessions,
+            // MCP Server Commands
+            commands::mcp_server::get_mcp_server_status,
+            commands::mcp_server::get_mcp_server_config,
+            commands::mcp_server::update_mcp_server_config,
+            commands::mcp_server::start_mcp_server,
+            commands::mcp_server::stop_mcp_server,
+            commands::mcp_server::get_mcp_server_connection_config,
+            commands::mcp_server::add_self_mcp_to_library,
+            commands::mcp_server::remove_self_mcp_from_library,
+            commands::mcp_server::is_self_mcp_in_library,
+            // MCP Gateway Commands
+            commands::mcp_gateway::get_gateway_status,
+            commands::mcp_gateway::get_gateway_config,
+            commands::mcp_gateway::update_gateway_config,
+            commands::mcp_gateway::start_gateway,
+            commands::mcp_gateway::stop_gateway,
+            commands::mcp_gateway::get_gateway_connection_config,
+            commands::mcp_gateway::get_gateway_mcps,
+            commands::mcp_gateway::add_mcp_to_gateway,
+            commands::mcp_gateway::remove_mcp_from_gateway,
+            commands::mcp_gateway::toggle_gateway_mcp,
+            commands::mcp_gateway::set_gateway_mcp_auto_restart,
+            commands::mcp_gateway::is_mcp_in_gateway,
+            commands::mcp_gateway::get_gateway_backends,
+            commands::mcp_gateway::restart_gateway_backend,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

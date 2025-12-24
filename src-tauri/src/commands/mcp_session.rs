@@ -8,20 +8,20 @@ use crate::services::mcp_session::{McpSessionManager, SessionInfo, StartSessionR
 use log::{error, info};
 use serde_json::Value;
 use std::collections::HashMap;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use tauri::State;
 
 /// Start a new MCP execution session
 #[tauri::command]
 pub fn start_mcp_session(
-    db: State<'_, Mutex<Database>>,
+    db: State<'_, Arc<Mutex<Database>>>,
     session_manager: State<'_, Mutex<McpSessionManager>>,
     mcp_id: i64,
 ) -> Result<StartSessionResult, String> {
     info!("[MCP Session] Starting session for MCP id={}", mcp_id);
 
     // Extract MCP data from database
-    let (name, mcp_type, command, args, env, url, headers) = {
+    let (name, mcp_type, command, args, env, url, headers, source) = {
         let db = db.lock().map_err(|e| {
             error!("[MCP Session] Failed to acquire database lock: {}", e);
             e.to_string()
@@ -29,7 +29,7 @@ pub fn start_mcp_session(
 
         let mut stmt = db
             .conn()
-            .prepare("SELECT name, type, command, args, env, url, headers FROM mcps WHERE id = ?")
+            .prepare("SELECT name, type, command, args, env, url, headers, source FROM mcps WHERE id = ?")
             .map_err(|e| e.to_string())?;
 
         let mcp_data: (
@@ -40,6 +40,7 @@ pub fn start_mcp_session(
             Option<String>,
             Option<String>,
             Option<String>,
+            String,
         ) = stmt
             .query_row([mcp_id], |row| {
                 Ok((
@@ -50,6 +51,7 @@ pub fn start_mcp_session(
                     row.get(4)?,
                     row.get(5)?,
                     row.get(6)?,
+                    row.get(7)?,
                 ))
             })
             .map_err(|e| {
@@ -57,7 +59,7 @@ pub fn start_mcp_session(
                 format!("MCP not found: {}", e)
             })?;
 
-        let (name, mcp_type, command, args_json, env_json, url, headers_json) = mcp_data;
+        let (name, mcp_type, command, args_json, env_json, url, headers_json, source) = mcp_data;
 
         let args: Vec<String> = args_json
             .and_then(|s| serde_json::from_str(&s).ok())
@@ -69,7 +71,7 @@ pub fn start_mcp_session(
         let headers: Option<HashMap<String, String>> =
             headers_json.and_then(|s| serde_json::from_str(&s).ok());
 
-        (name, mcp_type, command, args, env, url, headers)
+        (name, mcp_type, command, args, env, url, headers, source)
     };
 
     // Start session based on MCP type
@@ -80,6 +82,15 @@ pub fn start_mcp_session(
         );
         e.to_string()
     })?;
+
+    // System MCPs (Tool Manager and Gateway) use Streamable HTTP transport
+    if source == "system" {
+        let mcp_url = url.ok_or_else(|| "System MCP requires a URL".to_string())?;
+        info!("[MCP Session] Starting Streamable HTTP session for system MCP: {}", name);
+        return manager
+            .start_streamable_http_session(mcp_id, &name, &mcp_url, headers.as_ref(), 60)
+            .map_err(|e| e.to_string());
+    }
 
     match mcp_type.as_str() {
         "stdio" => {

@@ -1,5 +1,5 @@
 export type McpType = 'stdio' | 'sse' | 'http';
-export type McpSource = 'manual' | 'auto-detected' | 'imported';
+export type McpSource = 'manual' | 'auto-detected' | 'imported' | 'system';
 
 export interface Mcp {
 	id: number;
