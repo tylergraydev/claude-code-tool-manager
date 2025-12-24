@@ -71,8 +71,15 @@ pub fn test_mcp(db: State<'_, Arc<Mutex<Database>>>, mcp_id: i64) -> Result<McpT
     // async SSE handling for full protocol test
     if source == "system" {
         let mcp_url = url.ok_or_else(|| "System MCP requires a URL".to_string())?;
-        info!("[MCP Test] Testing system MCP with Streamable HTTP: {}", mcp_url);
-        return Ok(mcp_client::test_streamable_http_mcp(&mcp_url, headers.as_ref(), 30));
+        info!(
+            "[MCP Test] Testing system MCP with Streamable HTTP: {}",
+            mcp_url
+        );
+        return Ok(mcp_client::test_streamable_http_mcp(
+            &mcp_url,
+            headers.as_ref(),
+            30,
+        ));
     }
 
     // Now the database lock is released, perform the test

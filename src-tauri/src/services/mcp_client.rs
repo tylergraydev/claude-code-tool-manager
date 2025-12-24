@@ -1312,7 +1312,10 @@ impl StreamableHttpMcpClient {
         notify_builder = notify_builder.body(serde_json::to_string(&notify_request)?);
 
         if let Err(e) = notify_builder.send().await {
-            error!("[Streamable HTTP Client] Failed to send initialized notification: {}", e);
+            error!(
+                "[Streamable HTTP Client] Failed to send initialized notification: {}",
+                e
+            );
         }
 
         // Small delay to ensure notification is processed
@@ -1363,7 +1366,10 @@ impl StreamableHttpMcpClient {
             vec![]
         };
 
-        info!("[Streamable HTTP Client] Connected with {} tools", self.tools.len());
+        info!(
+            "[Streamable HTTP Client] Connected with {} tools",
+            self.tools.len()
+        );
         Ok(())
     }
 
@@ -1480,7 +1486,10 @@ impl StreamableHttpMcpClient {
     /// Static helper to read SSE response (used in async contexts)
     async fn read_sse_response_static(response: reqwest::Response) -> Result<JsonRpcResponse> {
         let body_text = response.text().await.unwrap_or_else(|e| {
-            info!("[Streamable HTTP Client] Failed to read body as text: {}", e);
+            info!(
+                "[Streamable HTTP Client] Failed to read body as text: {}",
+                e
+            );
             String::new()
         });
 
@@ -1501,7 +1510,10 @@ impl StreamableHttpMcpClient {
                 if line.starts_with("data:") {
                     let json_str = line.strip_prefix("data:").unwrap().trim();
                     if !json_str.is_empty() && json_str != "[DONE]" {
-                        info!("[Streamable HTTP Client] Found SSE data: {}", &json_str[..json_str.len().min(200)]);
+                        info!(
+                            "[Streamable HTTP Client] Found SSE data: {}",
+                            &json_str[..json_str.len().min(200)]
+                        );
                         if let Ok(response) = serde_json::from_str::<JsonRpcResponse>(json_str) {
                             return Ok(response);
                         }
@@ -1511,8 +1523,13 @@ impl StreamableHttpMcpClient {
         }
 
         // Try parsing the whole body as JSON directly
-        serde_json::from_str(&body_text)
-            .map_err(|e| anyhow!("Could not parse response: {}. Body: {}", e, &body_text[..body_text.len().min(200)]))
+        serde_json::from_str(&body_text).map_err(|e| {
+            anyhow!(
+                "Could not parse response: {}. Body: {}",
+                e,
+                &body_text[..body_text.len().min(200)]
+            )
+        })
     }
 
     /// Close the client
@@ -2243,7 +2260,10 @@ async fn test_streamable_http_internal_async(
     let resources_supported = capabilities.and_then(|c| c.get("resources")).is_some();
     let prompts_supported = capabilities.and_then(|c| c.get("prompts")).is_some();
 
-    info!("[MCP Client] Session ID for notifications: {:?}", session_id);
+    info!(
+        "[MCP Client] Session ID for notifications: {:?}",
+        session_id
+    );
 
     // Step 2: Send initialized notification
     // Note: rmcp expects "notifications/initialized" with no id (notification, not request)
@@ -2270,16 +2290,25 @@ async fn test_streamable_http_internal_async(
     match notify_builder.send().await {
         Ok(resp) => {
             let notify_status = resp.status();
-            info!("[MCP Client] Initialized notification response status: {}", notify_status);
+            info!(
+                "[MCP Client] Initialized notification response status: {}",
+                notify_status
+            );
             // Read and log the response body
             if let Ok(body) = resp.text().await {
                 if !body.is_empty() {
-                    info!("[MCP Client] Notification response: {}", &body[..body.len().min(200)]);
+                    info!(
+                        "[MCP Client] Notification response: {}",
+                        &body[..body.len().min(200)]
+                    );
                 }
             }
         }
         Err(e) => {
-            error!("[MCP Client] Failed to send initialized notification: {}", e);
+            error!(
+                "[MCP Client] Failed to send initialized notification: {}",
+                e
+            );
         }
     }
 
@@ -2390,7 +2419,10 @@ async fn read_sse_response(response: reqwest::Response) -> Result<JsonRpcRespons
             if line.starts_with("data:") {
                 let json_str = line.strip_prefix("data:").unwrap().trim();
                 if !json_str.is_empty() && json_str != "[DONE]" {
-                    info!("[MCP Client] Found SSE data: {}", &json_str[..json_str.len().min(200)]);
+                    info!(
+                        "[MCP Client] Found SSE data: {}",
+                        &json_str[..json_str.len().min(200)]
+                    );
                     if let Ok(response) = serde_json::from_str::<JsonRpcResponse>(json_str) {
                         return Ok(response);
                     }
@@ -2400,8 +2432,13 @@ async fn read_sse_response(response: reqwest::Response) -> Result<JsonRpcRespons
     }
 
     // Try parsing the whole body as JSON directly
-    serde_json::from_str(&body_text)
-        .map_err(|e| anyhow!("Could not parse response: {}. Body: {}", e, &body_text[..body_text.len().min(200)]))
+    serde_json::from_str(&body_text).map_err(|e| {
+        anyhow!(
+            "Could not parse response: {}. Body: {}",
+            e,
+            &body_text[..body_text.len().min(200)]
+        )
+    })
 }
 
 /// Helper to build an HTTP request with common headers

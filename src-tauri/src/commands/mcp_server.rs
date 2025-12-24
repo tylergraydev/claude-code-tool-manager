@@ -120,9 +120,7 @@ pub fn add_self_mcp_to_library(
 
 /// Remove the Tool Manager MCP from the library
 #[tauri::command]
-pub fn remove_self_mcp_from_library(
-    db: State<'_, Arc<Mutex<Database>>>,
-) -> Result<(), String> {
+pub fn remove_self_mcp_from_library(db: State<'_, Arc<Mutex<Database>>>) -> Result<(), String> {
     info!("[McpServerCmd] Removing Tool Manager MCP from library");
 
     let db = db.lock().map_err(|e| e.to_string())?;
@@ -136,11 +134,10 @@ pub fn remove_self_mcp_from_library(
 
 /// Check if the Tool Manager MCP is in the library
 #[tauri::command]
-pub fn is_self_mcp_in_library(
-    db: State<'_, Arc<Mutex<Database>>>,
-) -> Result<bool, String> {
+pub fn is_self_mcp_in_library(db: State<'_, Arc<Mutex<Database>>>) -> Result<bool, String> {
     let db = db.lock().map_err(|e| e.to_string())?;
-    let exists = db.get_mcp_by_name("Tool Manager MCP")
+    let exists = db
+        .get_mcp_by_name("Tool Manager MCP")
         .map(|opt| opt.is_some())
         .unwrap_or(false);
     Ok(exists)

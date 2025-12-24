@@ -259,7 +259,10 @@ pub fn toggle_project_mcp(
 }
 
 #[tauri::command]
-pub fn sync_project_config(db: State<'_, Arc<Mutex<Database>>>, project_id: i64) -> Result<(), String> {
+pub fn sync_project_config(
+    db: State<'_, Arc<Mutex<Database>>>,
+    project_id: i64,
+) -> Result<(), String> {
     use crate::services::opencode_config;
     use crate::utils::paths::get_claude_paths;
 

@@ -4,12 +4,12 @@
 
 use crate::mcp_gateway::backend::GatewayBackendManager;
 use rmcp::{
-    ErrorData,
     model::{
-        CallToolResult, ListToolsResult, PaginatedRequestParam, ServerCapabilities, ServerInfo,
-        Tool, CallToolRequestParam, Content,
+        CallToolRequestParam, CallToolResult, Content, ListToolsResult, PaginatedRequestParam,
+        ServerCapabilities, ServerInfo, Tool,
     },
-    service::RequestContext, RoleServer, ServerHandler,
+    service::RequestContext,
+    ErrorData, RoleServer, ServerHandler,
 };
 use serde_json::Value;
 use std::sync::Arc;
@@ -67,24 +67,28 @@ impl ServerHandler for GatewayServer {
             let tools = backend_manager.get_tools();
 
             // Convert our McpTool type to rmcp's Tool type
-            let rmcp_tools: Vec<Tool> = tools.into_iter().map(|t| {
-                // Build input schema - rmcp expects Arc<Map<String, Value>>
-                let input_schema = t.input_schema
-                    .and_then(|v| v.as_object().cloned())
-                    .map(|m| Arc::new(m))
-                    .unwrap_or_else(|| Arc::new(serde_json::Map::new()));
+            let rmcp_tools: Vec<Tool> = tools
+                .into_iter()
+                .map(|t| {
+                    // Build input schema - rmcp expects Arc<Map<String, Value>>
+                    let input_schema = t
+                        .input_schema
+                        .and_then(|v| v.as_object().cloned())
+                        .map(|m| Arc::new(m))
+                        .unwrap_or_else(|| Arc::new(serde_json::Map::new()));
 
-                Tool {
-                    name: t.name.into(),
-                    title: None,
-                    description: t.description.map(|d| d.into()),
-                    input_schema,
-                    output_schema: None,
-                    annotations: None,
-                    icons: None,
-                    meta: None,
-                }
-            }).collect();
+                    Tool {
+                        name: t.name.into(),
+                        title: None,
+                        description: t.description.map(|d| d.into()),
+                        input_schema,
+                        output_schema: None,
+                        annotations: None,
+                        icons: None,
+                        meta: None,
+                    }
+                })
+                .collect();
 
             log::info!("[Gateway] Listing {} tools", rmcp_tools.len());
 
@@ -116,21 +120,33 @@ impl ServerHandler for GatewayServer {
             match backend_manager.call_tool(tool_name, args_value) {
                 Ok(result) => {
                     // Convert our ToolCallResult to rmcp's CallToolResult
-                    let content: Vec<Content> = result.content.into_iter().map(|c| {
-                        match c {
-                            crate::services::mcp_client::ToolContent::Text { text } => {
-                                Content::text(text)
+                    let content: Vec<Content> = result
+                        .content
+                        .into_iter()
+                        .map(|c| {
+                            match c {
+                                crate::services::mcp_client::ToolContent::Text { text } => {
+                                    Content::text(text)
+                                }
+                                crate::services::mcp_client::ToolContent::Image {
+                                    data,
+                                    mime_type,
+                                } => Content::image(data, mime_type),
+                                crate::services::mcp_client::ToolContent::Resource {
+                                    uri,
+                                    text,
+                                    ..
+                                } => {
+                                    // Create resource content (mime_type not supported in this method)
+                                    use rmcp::model::ResourceContents;
+                                    Content::resource(ResourceContents::text(
+                                        text.unwrap_or_default(),
+                                        uri,
+                                    ))
+                                }
                             }
-                            crate::services::mcp_client::ToolContent::Image { data, mime_type } => {
-                                Content::image(data, mime_type)
-                            }
-                            crate::services::mcp_client::ToolContent::Resource { uri, text, .. } => {
-                                // Create resource content (mime_type not supported in this method)
-                                use rmcp::model::ResourceContents;
-                                Content::resource(ResourceContents::text(text.unwrap_or_default(), uri))
-                            }
-                        }
-                    }).collect();
+                        })
+                        .collect();
 
                     if result.is_error {
                         Ok(CallToolResult::error(content))
@@ -140,7 +156,10 @@ impl ServerHandler for GatewayServer {
                 }
                 Err(e) => {
                     log::error!("[Gateway] Tool call failed: {}", e);
-                    Ok(CallToolResult::error(vec![Content::text(format!("Error: {}", e))]))
+                    Ok(CallToolResult::error(vec![Content::text(format!(
+                        "Error: {}",
+                        e
+                    ))]))
                 }
             }
         }

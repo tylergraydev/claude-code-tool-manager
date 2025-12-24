@@ -112,7 +112,13 @@ impl GatewayBackendManager {
         // Sanitize MCP name: replace non-alphanumeric with underscore
         let safe_mcp_name: String = mcp_name
             .chars()
-            .map(|c| if c.is_alphanumeric() || c == '_' || c == '-' { c } else { '_' })
+            .map(|c| {
+                if c.is_alphanumeric() || c == '_' || c == '-' {
+                    c
+                } else {
+                    '_'
+                }
+            })
             .collect();
         format!("{}__{}", safe_mcp_name, tool_name)
     }
@@ -125,7 +131,10 @@ impl GatewayBackendManager {
     /// Load gateway MCPs from database and connect to them
     pub async fn load_and_connect(&mut self) -> Result<()> {
         let gateway_mcps = {
-            let db = self.db.lock().map_err(|e| anyhow!("Failed to lock database: {}", e))?;
+            let db = self
+                .db
+                .lock()
+                .map_err(|e| anyhow!("Failed to lock database: {}", e))?;
             db.get_enabled_gateway_mcps()?
         };
 
@@ -137,9 +146,13 @@ impl GatewayBackendManager {
 
         self.build_tool_index();
 
-        info!("[Gateway] Loaded {} tools from {} backends",
+        info!(
+            "[Gateway] Loaded {} tools from {} backends",
             self.tool_index.len(),
-            self.backends.values().filter(|b| matches!(b.status, BackendStatus::Connected)).count()
+            self.backends
+                .values()
+                .filter(|b| matches!(b.status, BackendStatus::Connected))
+                .count()
         );
 
         Ok(())
@@ -161,7 +174,11 @@ impl GatewayBackendManager {
 
             match self.connect_stdio_backend(&gateway_mcp.mcp).await {
                 Ok((client, server_info, tools)) => {
-                    info!("[Gateway] Connected to {} with {} tools", mcp_name, tools.len());
+                    info!(
+                        "[Gateway] Connected to {} with {} tools",
+                        mcp_name,
+                        tools.len()
+                    );
                     backend.client = Some(client);
                     backend.server_info = Some(server_info);
                     backend.tools = tools;
@@ -174,16 +191,26 @@ impl GatewayBackendManager {
             }
         } else {
             // HTTP/SSE MCPs are not supported for gateway proxying yet
-            warn!("[Gateway] Skipping {} - only stdio MCPs are supported for gateway", mcp_name);
-            backend.status = BackendStatus::Failed("Only stdio MCPs are supported for gateway proxying".to_string());
+            warn!(
+                "[Gateway] Skipping {} - only stdio MCPs are supported for gateway",
+                mcp_name
+            );
+            backend.status = BackendStatus::Failed(
+                "Only stdio MCPs are supported for gateway proxying".to_string(),
+            );
         }
 
         self.backends.insert(mcp_id, backend);
     }
 
     /// Connect to a stdio-based MCP
-    async fn connect_stdio_backend(&self, mcp: &Mcp) -> Result<(StdioMcpClient, McpServerInfo, Vec<McpTool>)> {
-        let command = mcp.command.as_ref()
+    async fn connect_stdio_backend(
+        &self,
+        mcp: &Mcp,
+    ) -> Result<(StdioMcpClient, McpServerInfo, Vec<McpTool>)> {
+        let command = mcp
+            .command
+            .as_ref()
             .ok_or_else(|| anyhow!("STDIO MCP requires a command"))?;
 
         let args: Vec<String> = mcp.args.clone().unwrap_or_default();
@@ -195,7 +222,8 @@ impl GatewayBackendManager {
         let client = StdioMcpClient::spawn(command, &args, env.as_ref(), 30)?;
 
         // Get server info and tools from the initialized client
-        let server_info = client.server_info()
+        let server_info = client
+            .server_info()
             .cloned()
             .unwrap_or_else(|| McpServerInfo {
                 name: mcp.name.clone(),
@@ -214,12 +242,15 @@ impl GatewayBackendManager {
             if matches!(backend.status, BackendStatus::Connected) {
                 for tool in &backend.tools {
                     let namespaced = Self::namespace_tool(&backend.mcp.name, &tool.name);
-                    self.tool_index.insert(namespaced, ToolMapping {
-                        mcp_id: *mcp_id,
-                        mcp_name: backend.mcp.name.clone(),
-                        original_name: tool.name.clone(),
-                        tool: tool.clone(),
-                    });
+                    self.tool_index.insert(
+                        namespaced,
+                        ToolMapping {
+                            mcp_id: *mcp_id,
+                            mcp_name: backend.mcp.name.clone(),
+                            original_name: tool.name.clone(),
+                            tool: tool.clone(),
+                        },
+                    );
                 }
             }
         }
@@ -227,38 +258,57 @@ impl GatewayBackendManager {
 
     /// Get all aggregated tools with namespaced names
     pub fn get_tools(&self) -> Vec<McpTool> {
-        self.tool_index.values().map(|mapping| {
-            let mut tool = mapping.tool.clone();
-            // Update the name to the namespaced version
-            tool.name = Self::namespace_tool(&mapping.mcp_name, &mapping.original_name);
-            // Prepend MCP name to description
-            if let Some(desc) = &tool.description {
-                tool.description = Some(format!("[{}] {}", mapping.mcp_name, desc));
-            } else {
-                tool.description = Some(format!("[{}]", mapping.mcp_name));
-            }
-            tool
-        }).collect()
+        self.tool_index
+            .values()
+            .map(|mapping| {
+                let mut tool = mapping.tool.clone();
+                // Update the name to the namespaced version
+                tool.name = Self::namespace_tool(&mapping.mcp_name, &mapping.original_name);
+                // Prepend MCP name to description
+                if let Some(desc) = &tool.description {
+                    tool.description = Some(format!("[{}] {}", mapping.mcp_name, desc));
+                } else {
+                    tool.description = Some(format!("[{}]", mapping.mcp_name));
+                }
+                tool
+            })
+            .collect()
     }
 
     /// Call a tool on the appropriate backend
-    pub fn call_tool(&mut self, namespaced_name: &str, arguments: serde_json::Value) -> Result<ToolCallResult> {
-        let mapping = self.tool_index.get(namespaced_name)
+    pub fn call_tool(
+        &mut self,
+        namespaced_name: &str,
+        arguments: serde_json::Value,
+    ) -> Result<ToolCallResult> {
+        let mapping = self
+            .tool_index
+            .get(namespaced_name)
             .ok_or_else(|| anyhow!("Unknown tool: {}", namespaced_name))?
             .clone();
 
-        let backend = self.backends.get_mut(&mapping.mcp_id)
+        let backend = self
+            .backends
+            .get_mut(&mapping.mcp_id)
             .ok_or_else(|| anyhow!("Backend not found for MCP {}", mapping.mcp_name))?;
 
         if !matches!(backend.status, BackendStatus::Connected) {
-            return Err(anyhow!("Backend {} is not connected (status: {:?})",
-                mapping.mcp_name, backend.status));
+            return Err(anyhow!(
+                "Backend {} is not connected (status: {:?})",
+                mapping.mcp_name,
+                backend.status
+            ));
         }
 
-        let client = backend.client.as_mut()
+        let client = backend
+            .client
+            .as_mut()
             .ok_or_else(|| anyhow!("Backend {} has no active client", mapping.mcp_name))?;
 
-        info!("[Gateway] Calling tool {} on backend {}", mapping.original_name, mapping.mcp_name);
+        info!(
+            "[Gateway] Calling tool {} on backend {}",
+            mapping.original_name, mapping.mcp_name
+        );
 
         client.call_tool(&mapping.original_name, arguments)
     }
@@ -289,7 +339,10 @@ impl GatewayBackendManager {
     /// Restart a specific backend
     pub async fn restart_backend(&mut self, mcp_id: i64) -> Result<BackendInfo> {
         let gateway_mcp = {
-            let db = self.db.lock().map_err(|e| anyhow!("Failed to lock database: {}", e))?;
+            let db = self
+                .db
+                .lock()
+                .map_err(|e| anyhow!("Failed to lock database: {}", e))?;
             db.get_gateway_mcps()?
                 .into_iter()
                 .find(|gm| gm.mcp_id == mcp_id)
@@ -307,7 +360,8 @@ impl GatewayBackendManager {
         self.add_backend(gateway_mcp).await;
         self.build_tool_index();
 
-        self.backends.get(&mcp_id)
+        self.backends
+            .get(&mcp_id)
             .map(|b| b.to_info())
             .ok_or_else(|| anyhow!("Failed to restart backend"))
     }

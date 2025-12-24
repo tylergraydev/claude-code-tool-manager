@@ -12,7 +12,9 @@ use serde::Deserialize;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
-use crate::db::models::{CreateHookRequest, CreateMcpRequest, CreateSkillRequest, CreateSubAgentRequest};
+use crate::db::models::{
+    CreateHookRequest, CreateMcpRequest, CreateSkillRequest, CreateSubAgentRequest,
+};
 use crate::db::Database;
 
 /// The Tool Manager MCP Server handler
@@ -30,7 +32,9 @@ impl std::fmt::Debug for ToolManagerServer {
 
 impl ToolManagerServer {
     fn get_db(&self) -> Result<std::sync::MutexGuard<'_, Database>, String> {
-        self.db.lock().map_err(|e| format!("Failed to lock database: {}", e))
+        self.db
+            .lock()
+            .map_err(|e| format!("Failed to lock database: {}", e))
     }
 }
 
@@ -194,7 +198,9 @@ pub struct CreateHookParams {
     #[schemars(description = "Unique name for the hook")]
     pub name: String,
     /// Event type
-    #[schemars(description = "Event type: PreToolUse, PostToolUse, Notification, Stop, SubAgentStop")]
+    #[schemars(
+        description = "Event type: PreToolUse, PostToolUse, Notification, Stop, SubAgentStop"
+    )]
     pub event_type: String,
     /// Hook type
     #[schemars(description = "Hook type: 'command' or 'prompt'")]
@@ -251,11 +257,10 @@ impl ToolManagerServer {
     // ========================================================================
 
     /// List all MCPs in the library
-    #[tool(description = "List all MCPs in the library with optional filtering by type or search term")]
-    fn list_mcps(
-        &self,
-        Parameters(params): Parameters<ListMcpsParams>,
-    ) -> Result<String, String> {
+    #[tool(
+        description = "List all MCPs in the library with optional filtering by type or search term"
+    )]
+    fn list_mcps(&self, Parameters(params): Parameters<ListMcpsParams>) -> Result<String, String> {
         let db = self.get_db()?;
         let mcps = db.get_all_mcps().map_err(|e| e.to_string())?;
 
@@ -289,10 +294,7 @@ impl ToolManagerServer {
 
     /// Get details of a specific MCP
     #[tool(description = "Get details of a specific MCP by its ID")]
-    fn get_mcp(
-        &self,
-        Parameters(params): Parameters<GetByIdParams>,
-    ) -> Result<String, String> {
+    fn get_mcp(&self, Parameters(params): Parameters<GetByIdParams>) -> Result<String, String> {
         let db = self.get_db()?;
         let mcp = db
             .get_mcp_by_id(params.id)
@@ -325,7 +327,10 @@ impl ToolManagerServer {
         let mcp = db.create_mcp(&request).map_err(|e| e.to_string())?;
 
         let json = serde_json::to_string_pretty(&mcp).map_err(|e| e.to_string())?;
-        Ok(format!("MCP '{}' created successfully:\n{}", mcp.name, json))
+        Ok(format!(
+            "MCP '{}' created successfully:\n{}",
+            mcp.name, json
+        ))
     }
 
     /// Update an existing MCP
@@ -377,15 +382,15 @@ impl ToolManagerServer {
         let updated = db.update_mcp(&mcp).map_err(|e| e.to_string())?;
 
         let json = serde_json::to_string_pretty(&updated).map_err(|e| e.to_string())?;
-        Ok(format!("MCP '{}' updated successfully:\n{}", updated.name, json))
+        Ok(format!(
+            "MCP '{}' updated successfully:\n{}",
+            updated.name, json
+        ))
     }
 
     /// Delete an MCP
     #[tool(description = "Delete an MCP from the library by its ID")]
-    fn delete_mcp(
-        &self,
-        Parameters(params): Parameters<GetByIdParams>,
-    ) -> Result<String, String> {
+    fn delete_mcp(&self, Parameters(params): Parameters<GetByIdParams>) -> Result<String, String> {
         let db = self.get_db()?;
 
         // Get MCP name for confirmation message
@@ -396,7 +401,10 @@ impl ToolManagerServer {
 
         db.delete_mcp(params.id).map_err(|e| e.to_string())?;
 
-        Ok(format!("MCP '{}' (ID: {}) deleted successfully", mcp.name, params.id))
+        Ok(format!(
+            "MCP '{}' (ID: {}) deleted successfully",
+            mcp.name, params.id
+        ))
     }
 
     // ========================================================================
@@ -413,10 +421,7 @@ impl ToolManagerServer {
 
     /// Get project details
     #[tool(description = "Get project details including assigned MCPs by project ID")]
-    fn get_project(
-        &self,
-        Parameters(params): Parameters<GetByIdParams>,
-    ) -> Result<String, String> {
+    fn get_project(&self, Parameters(params): Parameters<GetByIdParams>) -> Result<String, String> {
         let db = self.get_db()?;
         let project = db
             .get_project_by_id(params.id)
@@ -435,7 +440,10 @@ impl ToolManagerServer {
         let db = self.get_db()?;
         db.assign_mcp_to_project(params.project_id, params.mcp_id)
             .map_err(|e| e.to_string())?;
-        Ok(format!("MCP {} assigned to project {}", params.mcp_id, params.project_id))
+        Ok(format!(
+            "MCP {} assigned to project {}",
+            params.mcp_id, params.project_id
+        ))
     }
 
     /// Remove an MCP from a project
@@ -447,7 +455,10 @@ impl ToolManagerServer {
         let db = self.get_db()?;
         db.remove_mcp_from_project(params.project_id, params.mcp_id)
             .map_err(|e| e.to_string())?;
-        Ok(format!("MCP {} removed from project {}", params.mcp_id, params.project_id))
+        Ok(format!(
+            "MCP {} removed from project {}",
+            params.mcp_id, params.project_id
+        ))
     }
 
     // ========================================================================
@@ -469,7 +480,8 @@ impl ToolManagerServer {
         Parameters(params): Parameters<GlobalMcpParams>,
     ) -> Result<String, String> {
         let db = self.get_db()?;
-        db.add_global_mcp(params.mcp_id).map_err(|e| e.to_string())?;
+        db.add_global_mcp(params.mcp_id)
+            .map_err(|e| e.to_string())?;
         Ok(format!("MCP {} enabled globally", params.mcp_id))
     }
 
@@ -480,7 +492,8 @@ impl ToolManagerServer {
         Parameters(params): Parameters<GlobalMcpParams>,
     ) -> Result<String, String> {
         let db = self.get_db()?;
-        db.remove_global_mcp(params.mcp_id).map_err(|e| e.to_string())?;
+        db.remove_global_mcp(params.mcp_id)
+            .map_err(|e| e.to_string())?;
         Ok(format!("MCP {} disabled globally", params.mcp_id))
     }
 
@@ -498,10 +511,7 @@ impl ToolManagerServer {
 
     /// Get a specific skill
     #[tool(description = "Get details of a specific skill by its ID")]
-    fn get_skill(
-        &self,
-        Parameters(params): Parameters<GetByIdParams>,
-    ) -> Result<String, String> {
+    fn get_skill(&self, Parameters(params): Parameters<GetByIdParams>) -> Result<String, String> {
         let db = self.get_db()?;
         let skill = db
             .get_skill_by_id(params.id)
@@ -533,7 +543,10 @@ impl ToolManagerServer {
         let skill = db.create_skill(&request).map_err(|e| e.to_string())?;
 
         let json = serde_json::to_string_pretty(&skill).map_err(|e| e.to_string())?;
-        Ok(format!("Skill '{}' created successfully:\n{}", skill.name, json))
+        Ok(format!(
+            "Skill '{}' created successfully:\n{}",
+            skill.name, json
+        ))
     }
 
     /// Delete a skill
@@ -561,7 +574,8 @@ impl ToolManagerServer {
         Parameters(params): Parameters<GlobalItemParams>,
     ) -> Result<String, String> {
         let db = self.get_db()?;
-        db.add_global_skill(params.item_id).map_err(|e| e.to_string())?;
+        db.add_global_skill(params.item_id)
+            .map_err(|e| e.to_string())?;
         Ok(format!("Skill {} enabled globally", params.item_id))
     }
 
@@ -572,7 +586,8 @@ impl ToolManagerServer {
         Parameters(params): Parameters<GlobalItemParams>,
     ) -> Result<String, String> {
         let db = self.get_db()?;
-        db.remove_global_skill(params.item_id).map_err(|e| e.to_string())?;
+        db.remove_global_skill(params.item_id)
+            .map_err(|e| e.to_string())?;
         Ok(format!("Skill {} disabled globally", params.item_id))
     }
 
@@ -624,7 +639,10 @@ impl ToolManagerServer {
         let subagent = db.create_subagent(&request).map_err(|e| e.to_string())?;
 
         let json = serde_json::to_string_pretty(&subagent).map_err(|e| e.to_string())?;
-        Ok(format!("SubAgent '{}' created successfully:\n{}", subagent.name, json))
+        Ok(format!(
+            "SubAgent '{}' created successfully:\n{}",
+            subagent.name, json
+        ))
     }
 
     /// Delete a sub-agent
@@ -652,7 +670,8 @@ impl ToolManagerServer {
         Parameters(params): Parameters<GlobalItemParams>,
     ) -> Result<String, String> {
         let db = self.get_db()?;
-        db.add_global_subagent(params.item_id).map_err(|e| e.to_string())?;
+        db.add_global_subagent(params.item_id)
+            .map_err(|e| e.to_string())?;
         Ok(format!("SubAgent {} enabled globally", params.item_id))
     }
 
@@ -663,7 +682,8 @@ impl ToolManagerServer {
         Parameters(params): Parameters<GlobalItemParams>,
     ) -> Result<String, String> {
         let db = self.get_db()?;
-        db.remove_global_subagent(params.item_id).map_err(|e| e.to_string())?;
+        db.remove_global_subagent(params.item_id)
+            .map_err(|e| e.to_string())?;
         Ok(format!("SubAgent {} disabled globally", params.item_id))
     }
 
@@ -681,10 +701,7 @@ impl ToolManagerServer {
 
     /// Get a specific hook
     #[tool(description = "Get details of a specific hook by its ID")]
-    fn get_hook(
-        &self,
-        Parameters(params): Parameters<GetByIdParams>,
-    ) -> Result<String, String> {
+    fn get_hook(&self, Parameters(params): Parameters<GetByIdParams>) -> Result<String, String> {
         let db = self.get_db()?;
         let hook = db
             .get_hook_by_id(params.id)
@@ -716,15 +733,15 @@ impl ToolManagerServer {
         let hook = db.create_hook(&request).map_err(|e| e.to_string())?;
 
         let json = serde_json::to_string_pretty(&hook).map_err(|e| e.to_string())?;
-        Ok(format!("Hook '{}' created successfully:\n{}", hook.name, json))
+        Ok(format!(
+            "Hook '{}' created successfully:\n{}",
+            hook.name, json
+        ))
     }
 
     /// Delete a hook
     #[tool(description = "Delete a hook from the library by its ID")]
-    fn delete_hook(
-        &self,
-        Parameters(params): Parameters<GetByIdParams>,
-    ) -> Result<String, String> {
+    fn delete_hook(&self, Parameters(params): Parameters<GetByIdParams>) -> Result<String, String> {
         let db = self.get_db()?;
 
         let hook = db
@@ -744,7 +761,8 @@ impl ToolManagerServer {
         Parameters(params): Parameters<GlobalItemParams>,
     ) -> Result<String, String> {
         let db = self.get_db()?;
-        db.add_global_hook(params.item_id).map_err(|e| e.to_string())?;
+        db.add_global_hook(params.item_id)
+            .map_err(|e| e.to_string())?;
         Ok(format!("Hook {} enabled globally", params.item_id))
     }
 
@@ -755,7 +773,8 @@ impl ToolManagerServer {
         Parameters(params): Parameters<GlobalItemParams>,
     ) -> Result<String, String> {
         let db = self.get_db()?;
-        db.remove_global_hook(params.item_id).map_err(|e| e.to_string())?;
+        db.remove_global_hook(params.item_id)
+            .map_err(|e| e.to_string())?;
         Ok(format!("Hook {} disabled globally", params.item_id))
     }
 }

@@ -5,7 +5,9 @@
 use crate::db::Database;
 use crate::mcp_server::tools::ToolManagerServer;
 use axum::Router;
-use rmcp::transport::streamable_http_server::{session::local::LocalSessionManager, StreamableHttpService};
+use rmcp::transport::streamable_http_server::{
+    session::local::LocalSessionManager, StreamableHttpService,
+};
 use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -161,9 +163,7 @@ impl McpServerState {
             .allow_headers(Any);
 
         // Build the router
-        let router = Router::new()
-            .nest_service("/mcp", service)
-            .layer(cors);
+        let router = Router::new().nest_service("/mcp", service).layer(cors);
 
         // Create shutdown channel
         let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
@@ -184,11 +184,10 @@ impl McpServerState {
         // Spawn the server
         let is_running = self.is_running.clone();
         tokio::spawn(async move {
-            let server = axum::serve(listener, router)
-                .with_graceful_shutdown(async {
-                    let _ = shutdown_rx.await;
-                    log::info!("[McpServer] Shutdown signal received");
-                });
+            let server = axum::serve(listener, router).with_graceful_shutdown(async {
+                let _ = shutdown_rx.await;
+                log::info!("[McpServer] Shutdown signal received");
+            });
 
             if let Err(e) = server.await {
                 log::error!("[McpServer] Server error: {}", e);
@@ -198,7 +197,10 @@ impl McpServerState {
             log::info!("[McpServer] Server stopped");
         });
 
-        log::info!("[McpServer] MCP server started successfully on port {}", port);
+        log::info!(
+            "[McpServer] MCP server started successfully on port {}",
+            port
+        );
         Ok(())
     }
 
@@ -283,8 +285,14 @@ mod tests {
     #[test]
     fn test_get_urls() {
         let state = McpServerState::new();
-        assert_eq!(state.get_url(), format!("http://127.0.0.1:{}", DEFAULT_MCP_SERVER_PORT));
-        assert_eq!(state.get_mcp_endpoint(), format!("http://127.0.0.1:{}/mcp", DEFAULT_MCP_SERVER_PORT));
+        assert_eq!(
+            state.get_url(),
+            format!("http://127.0.0.1:{}", DEFAULT_MCP_SERVER_PORT)
+        );
+        assert_eq!(
+            state.get_mcp_endpoint(),
+            format!("http://127.0.0.1:{}/mcp", DEFAULT_MCP_SERVER_PORT)
+        );
     }
 
     #[test]

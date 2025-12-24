@@ -120,9 +120,7 @@ pub fn get_gateway_connection_config(
 
 /// Get all MCPs configured for the gateway
 #[tauri::command]
-pub fn get_gateway_mcps(
-    db: State<'_, Arc<Mutex<Database>>>,
-) -> Result<Vec<GatewayMcp>, String> {
+pub fn get_gateway_mcps(db: State<'_, Arc<Mutex<Database>>>) -> Result<Vec<GatewayMcp>, String> {
     info!("[GatewayCmd] Getting gateway MCPs");
     let db = db.lock().map_err(|e| e.to_string())?;
     db.get_gateway_mcps().map_err(|e| e.to_string())
@@ -130,10 +128,7 @@ pub fn get_gateway_mcps(
 
 /// Add an MCP to the gateway
 #[tauri::command]
-pub fn add_mcp_to_gateway(
-    db: State<'_, Arc<Mutex<Database>>>,
-    mcp_id: i64,
-) -> Result<(), String> {
+pub fn add_mcp_to_gateway(db: State<'_, Arc<Mutex<Database>>>, mcp_id: i64) -> Result<(), String> {
     info!("[GatewayCmd] Adding MCP {} to gateway", mcp_id);
     let db = db.lock().map_err(|e| e.to_string())?;
     db.add_gateway_mcp(mcp_id).map_err(|e| e.to_string())
@@ -157,9 +152,13 @@ pub fn toggle_gateway_mcp(
     mcp_id: i64,
     enabled: bool,
 ) -> Result<(), String> {
-    info!("[GatewayCmd] Toggling gateway MCP {} to {}", mcp_id, enabled);
+    info!(
+        "[GatewayCmd] Toggling gateway MCP {} to {}",
+        mcp_id, enabled
+    );
     let db = db.lock().map_err(|e| e.to_string())?;
-    db.toggle_gateway_mcp(mcp_id, enabled).map_err(|e| e.to_string())
+    db.toggle_gateway_mcp(mcp_id, enabled)
+        .map_err(|e| e.to_string())
 }
 
 /// Set auto-restart for a gateway MCP
@@ -169,17 +168,18 @@ pub fn set_gateway_mcp_auto_restart(
     mcp_id: i64,
     auto_restart: bool,
 ) -> Result<(), String> {
-    info!("[GatewayCmd] Setting gateway MCP {} auto_restart to {}", mcp_id, auto_restart);
+    info!(
+        "[GatewayCmd] Setting gateway MCP {} auto_restart to {}",
+        mcp_id, auto_restart
+    );
     let db = db.lock().map_err(|e| e.to_string())?;
-    db.set_gateway_mcp_auto_restart(mcp_id, auto_restart).map_err(|e| e.to_string())
+    db.set_gateway_mcp_auto_restart(mcp_id, auto_restart)
+        .map_err(|e| e.to_string())
 }
 
 /// Check if an MCP is in the gateway
 #[tauri::command]
-pub fn is_mcp_in_gateway(
-    db: State<'_, Arc<Mutex<Database>>>,
-    mcp_id: i64,
-) -> Result<bool, String> {
+pub fn is_mcp_in_gateway(db: State<'_, Arc<Mutex<Database>>>, mcp_id: i64) -> Result<bool, String> {
     let db = db.lock().map_err(|e| e.to_string())?;
     db.is_mcp_in_gateway(mcp_id).map_err(|e| e.to_string())
 }

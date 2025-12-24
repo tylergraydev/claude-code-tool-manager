@@ -86,7 +86,10 @@ pub fn start_mcp_session(
     // System MCPs (Tool Manager and Gateway) use Streamable HTTP transport
     if source == "system" {
         let mcp_url = url.ok_or_else(|| "System MCP requires a URL".to_string())?;
-        info!("[MCP Session] Starting Streamable HTTP session for system MCP: {}", name);
+        info!(
+            "[MCP Session] Starting Streamable HTTP session for system MCP: {}",
+            name
+        );
         return manager
             .start_streamable_http_session(mcp_id, &name, &mcp_url, headers.as_ref(), 60)
             .map_err(|e| e.to_string());

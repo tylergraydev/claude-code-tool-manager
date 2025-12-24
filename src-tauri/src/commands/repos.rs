@@ -108,7 +108,11 @@ pub fn remove_repo(db: State<'_, Arc<Mutex<Database>>>, id: i64) -> Result<(), S
 
 /// Toggle repository enabled status
 #[tauri::command]
-pub fn toggle_repo(db: State<'_, Arc<Mutex<Database>>>, id: i64, enabled: bool) -> Result<(), String> {
+pub fn toggle_repo(
+    db: State<'_, Arc<Mutex<Database>>>,
+    id: i64,
+    enabled: bool,
+) -> Result<(), String> {
     let db = db.lock().map_err(|e| e.to_string())?;
 
     db.conn()

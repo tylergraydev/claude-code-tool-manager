@@ -78,7 +78,10 @@ pub fn get_mcp(db: State<'_, Arc<Mutex<Database>>>, id: i64) -> Result<Mcp, Stri
 }
 
 #[tauri::command]
-pub fn create_mcp(db: State<'_, Arc<Mutex<Database>>>, mcp: CreateMcpRequest) -> Result<Mcp, String> {
+pub fn create_mcp(
+    db: State<'_, Arc<Mutex<Database>>>,
+    mcp: CreateMcpRequest,
+) -> Result<Mcp, String> {
     info!("[MCP] Creating new MCP: {}", mcp.name);
     let db_guard = db.lock().map_err(|e| {
         error!("[MCP] Failed to acquire database lock: {}", e);

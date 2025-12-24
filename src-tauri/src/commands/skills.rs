@@ -206,7 +206,10 @@ pub fn add_global_skill(db: State<'_, Arc<Mutex<Database>>>, skill_id: i64) -> R
 }
 
 #[tauri::command]
-pub fn remove_global_skill(db: State<'_, Arc<Mutex<Database>>>, skill_id: i64) -> Result<(), String> {
+pub fn remove_global_skill(
+    db: State<'_, Arc<Mutex<Database>>>,
+    skill_id: i64,
+) -> Result<(), String> {
     let db_guard = db.lock().map_err(|e| e.to_string())?;
 
     // Get the skill for file deletion

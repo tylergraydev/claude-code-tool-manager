@@ -167,7 +167,9 @@ pub fn delete_subagent(db: State<'_, Arc<Mutex<Database>>>, id: i64) -> Result<(
 
 // Global Sub-Agents
 #[tauri::command]
-pub fn get_global_subagents(db: State<'_, Arc<Mutex<Database>>>) -> Result<Vec<GlobalSubAgent>, String> {
+pub fn get_global_subagents(
+    db: State<'_, Arc<Mutex<Database>>>,
+) -> Result<Vec<GlobalSubAgent>, String> {
     let db = db.lock().map_err(|e| e.to_string())?;
     let mut stmt = db
         .conn()
@@ -197,7 +199,10 @@ pub fn get_global_subagents(db: State<'_, Arc<Mutex<Database>>>) -> Result<Vec<G
 }
 
 #[tauri::command]
-pub fn add_global_subagent(db: State<'_, Arc<Mutex<Database>>>, subagent_id: i64) -> Result<(), String> {
+pub fn add_global_subagent(
+    db: State<'_, Arc<Mutex<Database>>>,
+    subagent_id: i64,
+) -> Result<(), String> {
     let db_guard = db.lock().map_err(|e| e.to_string())?;
 
     // Get the subagent details for file writing

@@ -452,7 +452,7 @@ impl Database {
         let mut stmt = self.conn.prepare(
             "SELECT id, name, description, type, command, args, url, headers, env,
                     icon, tags, source, source_path, is_enabled_global, created_at, updated_at
-             FROM mcps ORDER BY name"
+             FROM mcps ORDER BY name",
         )?;
 
         let mcps = stmt
@@ -463,12 +463,20 @@ impl Database {
                     description: row.get(2)?,
                     mcp_type: row.get(3)?,
                     command: row.get(4)?,
-                    args: row.get::<_, Option<String>>(5)?.and_then(|s| serde_json::from_str(&s).ok()),
+                    args: row
+                        .get::<_, Option<String>>(5)?
+                        .and_then(|s| serde_json::from_str(&s).ok()),
                     url: row.get(6)?,
-                    headers: row.get::<_, Option<String>>(7)?.and_then(|s| serde_json::from_str(&s).ok()),
-                    env: row.get::<_, Option<String>>(8)?.and_then(|s| serde_json::from_str(&s).ok()),
+                    headers: row
+                        .get::<_, Option<String>>(7)?
+                        .and_then(|s| serde_json::from_str(&s).ok()),
+                    env: row
+                        .get::<_, Option<String>>(8)?
+                        .and_then(|s| serde_json::from_str(&s).ok()),
                     icon: row.get(9)?,
-                    tags: row.get::<_, Option<String>>(10)?.and_then(|s| serde_json::from_str(&s).ok()),
+                    tags: row
+                        .get::<_, Option<String>>(10)?
+                        .and_then(|s| serde_json::from_str(&s).ok()),
                     source: row.get(11)?,
                     source_path: row.get(12)?,
                     is_enabled_global: row.get::<_, i32>(13)? != 0,
@@ -495,12 +503,20 @@ impl Database {
                     description: row.get(2)?,
                     mcp_type: row.get(3)?,
                     command: row.get(4)?,
-                    args: row.get::<_, Option<String>>(5)?.and_then(|s| serde_json::from_str(&s).ok()),
+                    args: row
+                        .get::<_, Option<String>>(5)?
+                        .and_then(|s| serde_json::from_str(&s).ok()),
                     url: row.get(6)?,
-                    headers: row.get::<_, Option<String>>(7)?.and_then(|s| serde_json::from_str(&s).ok()),
-                    env: row.get::<_, Option<String>>(8)?.and_then(|s| serde_json::from_str(&s).ok()),
+                    headers: row
+                        .get::<_, Option<String>>(7)?
+                        .and_then(|s| serde_json::from_str(&s).ok()),
+                    env: row
+                        .get::<_, Option<String>>(8)?
+                        .and_then(|s| serde_json::from_str(&s).ok()),
                     icon: row.get(9)?,
-                    tags: row.get::<_, Option<String>>(10)?.and_then(|s| serde_json::from_str(&s).ok()),
+                    tags: row
+                        .get::<_, Option<String>>(10)?
+                        .and_then(|s| serde_json::from_str(&s).ok()),
                     source: row.get(11)?,
                     source_path: row.get(12)?,
                     is_enabled_global: row.get::<_, i32>(13)? != 0,
@@ -530,12 +546,20 @@ impl Database {
                     description: row.get(2)?,
                     mcp_type: row.get(3)?,
                     command: row.get(4)?,
-                    args: row.get::<_, Option<String>>(5)?.and_then(|s| serde_json::from_str(&s).ok()),
+                    args: row
+                        .get::<_, Option<String>>(5)?
+                        .and_then(|s| serde_json::from_str(&s).ok()),
                     url: row.get(6)?,
-                    headers: row.get::<_, Option<String>>(7)?.and_then(|s| serde_json::from_str(&s).ok()),
-                    env: row.get::<_, Option<String>>(8)?.and_then(|s| serde_json::from_str(&s).ok()),
+                    headers: row
+                        .get::<_, Option<String>>(7)?
+                        .and_then(|s| serde_json::from_str(&s).ok()),
+                    env: row
+                        .get::<_, Option<String>>(8)?
+                        .and_then(|s| serde_json::from_str(&s).ok()),
                     icon: row.get(9)?,
-                    tags: row.get::<_, Option<String>>(10)?.and_then(|s| serde_json::from_str(&s).ok()),
+                    tags: row
+                        .get::<_, Option<String>>(10)?
+                        .and_then(|s| serde_json::from_str(&s).ok()),
                     source: row.get(11)?,
                     source_path: row.get(12)?,
                     is_enabled_global: row.get::<_, i32>(13)? != 0,
@@ -552,18 +576,31 @@ impl Database {
         }
     }
 
-    pub fn create_mcp(&self, req: &crate::db::models::CreateMcpRequest) -> Result<crate::db::models::Mcp> {
+    pub fn create_mcp(
+        &self,
+        req: &crate::db::models::CreateMcpRequest,
+    ) -> Result<crate::db::models::Mcp> {
         self.create_mcp_with_source(req, "manual")
     }
 
     /// Create a system MCP that cannot be edited by users
-    pub fn create_system_mcp(&self, req: &crate::db::models::CreateMcpRequest) -> Result<crate::db::models::Mcp> {
+    pub fn create_system_mcp(
+        &self,
+        req: &crate::db::models::CreateMcpRequest,
+    ) -> Result<crate::db::models::Mcp> {
         self.create_mcp_with_source(req, "system")
     }
 
-    fn create_mcp_with_source(&self, req: &crate::db::models::CreateMcpRequest, source: &str) -> Result<crate::db::models::Mcp> {
+    fn create_mcp_with_source(
+        &self,
+        req: &crate::db::models::CreateMcpRequest,
+        source: &str,
+    ) -> Result<crate::db::models::Mcp> {
         let args_json = req.args.as_ref().map(|a| serde_json::to_string(a).unwrap());
-        let headers_json = req.headers.as_ref().map(|h| serde_json::to_string(h).unwrap());
+        let headers_json = req
+            .headers
+            .as_ref()
+            .map(|h| serde_json::to_string(h).unwrap());
         let env_json = req.env.as_ref().map(|e| serde_json::to_string(e).unwrap());
         let tags_json = req.tags.as_ref().map(|t| serde_json::to_string(t).unwrap());
 
@@ -577,12 +614,16 @@ impl Database {
         )?;
 
         let id = self.conn.last_insert_rowid();
-        self.get_mcp_by_id(id)?.ok_or_else(|| anyhow::anyhow!("Failed to retrieve created MCP"))
+        self.get_mcp_by_id(id)?
+            .ok_or_else(|| anyhow::anyhow!("Failed to retrieve created MCP"))
     }
 
     pub fn update_mcp(&self, mcp: &crate::db::models::Mcp) -> Result<crate::db::models::Mcp> {
         let args_json = mcp.args.as_ref().map(|a| serde_json::to_string(a).unwrap());
-        let headers_json = mcp.headers.as_ref().map(|h| serde_json::to_string(h).unwrap());
+        let headers_json = mcp
+            .headers
+            .as_ref()
+            .map(|h| serde_json::to_string(h).unwrap());
         let env_json = mcp.env.as_ref().map(|e| serde_json::to_string(e).unwrap());
         let tags_json = mcp.tags.as_ref().map(|t| serde_json::to_string(t).unwrap());
 
@@ -596,7 +637,8 @@ impl Database {
             ],
         )?;
 
-        self.get_mcp_by_id(mcp.id)?.ok_or_else(|| anyhow::anyhow!("Failed to retrieve updated MCP"))
+        self.get_mcp_by_id(mcp.id)?
+            .ok_or_else(|| anyhow::anyhow!("Failed to retrieve updated MCP"))
     }
 
     pub fn delete_mcp(&self, id: i64) -> Result<()> {
@@ -612,7 +654,7 @@ impl Database {
         let mut stmt = self.conn.prepare(
             "SELECT id, name, path, has_mcp_file, has_settings_file, last_scanned_at,
                     editor_type, created_at, updated_at
-             FROM projects ORDER BY name"
+             FROM projects ORDER BY name",
         )?;
 
         let projects: Vec<crate::db::models::Project> = stmt
@@ -624,7 +666,9 @@ impl Database {
                     has_mcp_file: row.get::<_, i32>(3)? != 0,
                     has_settings_file: row.get::<_, i32>(4)? != 0,
                     last_scanned_at: row.get(5)?,
-                    editor_type: row.get::<_, Option<String>>(6)?.unwrap_or_else(|| "claude_code".to_string()),
+                    editor_type: row
+                        .get::<_, Option<String>>(6)?
+                        .unwrap_or_else(|| "claude_code".to_string()),
                     created_at: row.get(7)?,
                     updated_at: row.get(8)?,
                     assigned_mcps: vec![],
@@ -650,7 +694,9 @@ impl Database {
                     has_mcp_file: row.get::<_, i32>(3)? != 0,
                     has_settings_file: row.get::<_, i32>(4)? != 0,
                     last_scanned_at: row.get(5)?,
-                    editor_type: row.get::<_, Option<String>>(6)?.unwrap_or_else(|| "claude_code".to_string()),
+                    editor_type: row
+                        .get::<_, Option<String>>(6)?
+                        .unwrap_or_else(|| "claude_code".to_string()),
                     created_at: row.get(7)?,
                     updated_at: row.get(8)?,
                     assigned_mcps: vec![],
@@ -681,7 +727,15 @@ impl Database {
         Ok(())
     }
 
-    pub fn get_project_mcps_for_config(&self, project_id: i64) -> Result<Vec<(crate::db::models::Mcp, Option<std::collections::HashMap<String, String>>)>> {
+    pub fn get_project_mcps_for_config(
+        &self,
+        project_id: i64,
+    ) -> Result<
+        Vec<(
+            crate::db::models::Mcp,
+            Option<std::collections::HashMap<String, String>>,
+        )>,
+    > {
         let mut stmt = self.conn.prepare(
             "SELECT m.id, m.name, m.description, m.type, m.command, m.args, m.url, m.headers, m.env,
                     m.icon, m.tags, m.source, m.source_path, m.is_enabled_global, m.created_at, m.updated_at,
@@ -700,20 +754,29 @@ impl Database {
                     description: row.get(2)?,
                     mcp_type: row.get(3)?,
                     command: row.get(4)?,
-                    args: row.get::<_, Option<String>>(5)?.and_then(|s| serde_json::from_str(&s).ok()),
+                    args: row
+                        .get::<_, Option<String>>(5)?
+                        .and_then(|s| serde_json::from_str(&s).ok()),
                     url: row.get(6)?,
-                    headers: row.get::<_, Option<String>>(7)?.and_then(|s| serde_json::from_str(&s).ok()),
-                    env: row.get::<_, Option<String>>(8)?.and_then(|s| serde_json::from_str(&s).ok()),
+                    headers: row
+                        .get::<_, Option<String>>(7)?
+                        .and_then(|s| serde_json::from_str(&s).ok()),
+                    env: row
+                        .get::<_, Option<String>>(8)?
+                        .and_then(|s| serde_json::from_str(&s).ok()),
                     icon: row.get(9)?,
-                    tags: row.get::<_, Option<String>>(10)?.and_then(|s| serde_json::from_str(&s).ok()),
+                    tags: row
+                        .get::<_, Option<String>>(10)?
+                        .and_then(|s| serde_json::from_str(&s).ok()),
                     source: row.get(11)?,
                     source_path: row.get(12)?,
                     is_enabled_global: row.get::<_, i32>(13)? != 0,
                     created_at: row.get(14)?,
                     updated_at: row.get(15)?,
                 };
-                let env_overrides: Option<std::collections::HashMap<String, String>> =
-                    row.get::<_, Option<String>>(16)?.and_then(|s| serde_json::from_str(&s).ok());
+                let env_overrides: Option<std::collections::HashMap<String, String>> = row
+                    .get::<_, Option<String>>(16)?
+                    .and_then(|s| serde_json::from_str(&s).ok());
                 Ok((mcp, env_overrides))
             })?
             .filter_map(|r| r.ok())
@@ -744,12 +807,20 @@ impl Database {
                     description: row.get(6)?,
                     mcp_type: row.get(7)?,
                     command: row.get(8)?,
-                    args: row.get::<_, Option<String>>(9)?.and_then(|s| serde_json::from_str(&s).ok()),
+                    args: row
+                        .get::<_, Option<String>>(9)?
+                        .and_then(|s| serde_json::from_str(&s).ok()),
                     url: row.get(10)?,
-                    headers: row.get::<_, Option<String>>(11)?.and_then(|s| serde_json::from_str(&s).ok()),
-                    env: row.get::<_, Option<String>>(12)?.and_then(|s| serde_json::from_str(&s).ok()),
+                    headers: row
+                        .get::<_, Option<String>>(11)?
+                        .and_then(|s| serde_json::from_str(&s).ok()),
+                    env: row
+                        .get::<_, Option<String>>(12)?
+                        .and_then(|s| serde_json::from_str(&s).ok()),
                     icon: row.get(13)?,
-                    tags: row.get::<_, Option<String>>(14)?.and_then(|s| serde_json::from_str(&s).ok()),
+                    tags: row
+                        .get::<_, Option<String>>(14)?
+                        .and_then(|s| serde_json::from_str(&s).ok()),
                     source: row.get(15)?,
                     source_path: row.get(16)?,
                     is_enabled_global: row.get::<_, i32>(17)? != 0,
@@ -762,7 +833,9 @@ impl Database {
                     mcp_id: row.get(1)?,
                     mcp,
                     is_enabled: row.get::<_, i32>(2)? != 0,
-                    env_overrides: row.get::<_, Option<String>>(3)?.and_then(|s| serde_json::from_str(&s).ok()),
+                    env_overrides: row
+                        .get::<_, Option<String>>(3)?
+                        .and_then(|s| serde_json::from_str(&s).ok()),
                 })
             })?
             .filter_map(|r| r.ok())
@@ -780,11 +853,19 @@ impl Database {
     }
 
     pub fn remove_global_mcp(&self, mcp_id: i64) -> Result<()> {
-        self.conn.execute("DELETE FROM global_mcps WHERE mcp_id = ?", [mcp_id])?;
+        self.conn
+            .execute("DELETE FROM global_mcps WHERE mcp_id = ?", [mcp_id])?;
         Ok(())
     }
 
-    pub fn get_global_mcps_for_config(&self) -> Result<Vec<(crate::db::models::Mcp, Option<std::collections::HashMap<String, String>>)>> {
+    pub fn get_global_mcps_for_config(
+        &self,
+    ) -> Result<
+        Vec<(
+            crate::db::models::Mcp,
+            Option<std::collections::HashMap<String, String>>,
+        )>,
+    > {
         let mut stmt = self.conn.prepare(
             "SELECT m.id, m.name, m.description, m.type, m.command, m.args, m.url, m.headers, m.env,
                     m.icon, m.tags, m.source, m.source_path, m.is_enabled_global, m.created_at, m.updated_at,
@@ -803,20 +884,29 @@ impl Database {
                     description: row.get(2)?,
                     mcp_type: row.get(3)?,
                     command: row.get(4)?,
-                    args: row.get::<_, Option<String>>(5)?.and_then(|s| serde_json::from_str(&s).ok()),
+                    args: row
+                        .get::<_, Option<String>>(5)?
+                        .and_then(|s| serde_json::from_str(&s).ok()),
                     url: row.get(6)?,
-                    headers: row.get::<_, Option<String>>(7)?.and_then(|s| serde_json::from_str(&s).ok()),
-                    env: row.get::<_, Option<String>>(8)?.and_then(|s| serde_json::from_str(&s).ok()),
+                    headers: row
+                        .get::<_, Option<String>>(7)?
+                        .and_then(|s| serde_json::from_str(&s).ok()),
+                    env: row
+                        .get::<_, Option<String>>(8)?
+                        .and_then(|s| serde_json::from_str(&s).ok()),
                     icon: row.get(9)?,
-                    tags: row.get::<_, Option<String>>(10)?.and_then(|s| serde_json::from_str(&s).ok()),
+                    tags: row
+                        .get::<_, Option<String>>(10)?
+                        .and_then(|s| serde_json::from_str(&s).ok()),
                     source: row.get(11)?,
                     source_path: row.get(12)?,
                     is_enabled_global: row.get::<_, i32>(13)? != 0,
                     created_at: row.get(14)?,
                     updated_at: row.get(15)?,
                 };
-                let env_overrides: Option<std::collections::HashMap<String, String>> =
-                    row.get::<_, Option<String>>(16)?.and_then(|s| serde_json::from_str(&s).ok());
+                let env_overrides: Option<std::collections::HashMap<String, String>> = row
+                    .get::<_, Option<String>>(16)?
+                    .and_then(|s| serde_json::from_str(&s).ok());
                 Ok((mcp, env_overrides))
             })?
             .filter_map(|r| r.ok())
@@ -847,12 +937,20 @@ impl Database {
                     description: row.get(8)?,
                     mcp_type: row.get(9)?,
                     command: row.get(10)?,
-                    args: row.get::<_, Option<String>>(11)?.and_then(|s| serde_json::from_str(&s).ok()),
+                    args: row
+                        .get::<_, Option<String>>(11)?
+                        .and_then(|s| serde_json::from_str(&s).ok()),
                     url: row.get(12)?,
-                    headers: row.get::<_, Option<String>>(13)?.and_then(|s| serde_json::from_str(&s).ok()),
-                    env: row.get::<_, Option<String>>(14)?.and_then(|s| serde_json::from_str(&s).ok()),
+                    headers: row
+                        .get::<_, Option<String>>(13)?
+                        .and_then(|s| serde_json::from_str(&s).ok()),
+                    env: row
+                        .get::<_, Option<String>>(14)?
+                        .and_then(|s| serde_json::from_str(&s).ok()),
                     icon: row.get(15)?,
-                    tags: row.get::<_, Option<String>>(16)?.and_then(|s| serde_json::from_str(&s).ok()),
+                    tags: row
+                        .get::<_, Option<String>>(16)?
+                        .and_then(|s| serde_json::from_str(&s).ok()),
                     source: row.get(17)?,
                     source_path: row.get(18)?,
                     is_enabled_global: row.get::<_, i32>(19)? != 0,
@@ -894,12 +992,20 @@ impl Database {
                     description: row.get(8)?,
                     mcp_type: row.get(9)?,
                     command: row.get(10)?,
-                    args: row.get::<_, Option<String>>(11)?.and_then(|s| serde_json::from_str(&s).ok()),
+                    args: row
+                        .get::<_, Option<String>>(11)?
+                        .and_then(|s| serde_json::from_str(&s).ok()),
                     url: row.get(12)?,
-                    headers: row.get::<_, Option<String>>(13)?.and_then(|s| serde_json::from_str(&s).ok()),
-                    env: row.get::<_, Option<String>>(14)?.and_then(|s| serde_json::from_str(&s).ok()),
+                    headers: row
+                        .get::<_, Option<String>>(13)?
+                        .and_then(|s| serde_json::from_str(&s).ok()),
+                    env: row
+                        .get::<_, Option<String>>(14)?
+                        .and_then(|s| serde_json::from_str(&s).ok()),
                     icon: row.get(15)?,
-                    tags: row.get::<_, Option<String>>(16)?.and_then(|s| serde_json::from_str(&s).ok()),
+                    tags: row
+                        .get::<_, Option<String>>(16)?
+                        .and_then(|s| serde_json::from_str(&s).ok()),
                     source: row.get(17)?,
                     source_path: row.get(18)?,
                     is_enabled_global: row.get::<_, i32>(19)? != 0,
@@ -931,7 +1037,8 @@ impl Database {
     }
 
     pub fn remove_gateway_mcp(&self, mcp_id: i64) -> Result<()> {
-        self.conn.execute("DELETE FROM gateway_mcps WHERE mcp_id = ?", [mcp_id])?;
+        self.conn
+            .execute("DELETE FROM gateway_mcps WHERE mcp_id = ?", [mcp_id])?;
         Ok(())
     }
 
@@ -979,11 +1086,15 @@ impl Database {
                     description: row.get(2)?,
                     content: row.get(3)?,
                     skill_type: row.get(4)?,
-                    allowed_tools: row.get::<_, Option<String>>(5)?.and_then(|s| serde_json::from_str(&s).ok()),
+                    allowed_tools: row
+                        .get::<_, Option<String>>(5)?
+                        .and_then(|s| serde_json::from_str(&s).ok()),
                     argument_hint: row.get(6)?,
                     model: row.get(7)?,
                     disable_model_invocation: row.get::<_, i32>(8)? != 0,
-                    tags: row.get::<_, Option<String>>(9)?.and_then(|s| serde_json::from_str(&s).ok()),
+                    tags: row
+                        .get::<_, Option<String>>(9)?
+                        .and_then(|s| serde_json::from_str(&s).ok()),
                     source: row.get(10)?,
                     created_at: row.get(11)?,
                     updated_at: row.get(12)?,
@@ -1027,8 +1138,14 @@ impl Database {
         }
     }
 
-    pub fn create_skill(&self, req: &crate::db::models::CreateSkillRequest) -> Result<crate::db::models::Skill> {
-        let allowed_tools_json = req.allowed_tools.as_ref().map(|a| serde_json::to_string(a).unwrap());
+    pub fn create_skill(
+        &self,
+        req: &crate::db::models::CreateSkillRequest,
+    ) -> Result<crate::db::models::Skill> {
+        let allowed_tools_json = req
+            .allowed_tools
+            .as_ref()
+            .map(|a| serde_json::to_string(a).unwrap());
         let tags_json = req.tags.as_ref().map(|t| serde_json::to_string(t).unwrap());
         let disable_model_invocation = req.disable_model_invocation.unwrap_or(false) as i32;
 
@@ -1042,7 +1159,8 @@ impl Database {
         )?;
 
         let id = self.conn.last_insert_rowid();
-        self.get_skill_by_id(id)?.ok_or_else(|| anyhow::anyhow!("Failed to retrieve created skill"))
+        self.get_skill_by_id(id)?
+            .ok_or_else(|| anyhow::anyhow!("Failed to retrieve created skill"))
     }
 
     pub fn delete_skill(&self, id: i64) -> Result<()> {
@@ -1059,7 +1177,8 @@ impl Database {
     }
 
     pub fn remove_global_skill(&self, skill_id: i64) -> Result<()> {
-        self.conn.execute("DELETE FROM global_skills WHERE skill_id = ?", [skill_id])?;
+        self.conn
+            .execute("DELETE FROM global_skills WHERE skill_id = ?", [skill_id])?;
         Ok(())
     }
 
@@ -1080,11 +1199,17 @@ impl Database {
                     name: row.get(1)?,
                     description: row.get(2)?,
                     content: row.get(3)?,
-                    tools: row.get::<_, Option<String>>(4)?.and_then(|s| serde_json::from_str(&s).ok()),
+                    tools: row
+                        .get::<_, Option<String>>(4)?
+                        .and_then(|s| serde_json::from_str(&s).ok()),
                     model: row.get(5)?,
                     permission_mode: row.get(6)?,
-                    skills: row.get::<_, Option<String>>(7)?.and_then(|s| serde_json::from_str(&s).ok()),
-                    tags: row.get::<_, Option<String>>(8)?.and_then(|s| serde_json::from_str(&s).ok()),
+                    skills: row
+                        .get::<_, Option<String>>(7)?
+                        .and_then(|s| serde_json::from_str(&s).ok()),
+                    tags: row
+                        .get::<_, Option<String>>(8)?
+                        .and_then(|s| serde_json::from_str(&s).ok()),
                     source: row.get(9)?,
                     created_at: row.get(10)?,
                     updated_at: row.get(11)?,
@@ -1126,9 +1251,18 @@ impl Database {
         }
     }
 
-    pub fn create_subagent(&self, req: &crate::db::models::CreateSubAgentRequest) -> Result<crate::db::models::SubAgent> {
-        let tools_json = req.tools.as_ref().map(|t| serde_json::to_string(t).unwrap());
-        let skills_json = req.skills.as_ref().map(|s| serde_json::to_string(s).unwrap());
+    pub fn create_subagent(
+        &self,
+        req: &crate::db::models::CreateSubAgentRequest,
+    ) -> Result<crate::db::models::SubAgent> {
+        let tools_json = req
+            .tools
+            .as_ref()
+            .map(|t| serde_json::to_string(t).unwrap());
+        let skills_json = req
+            .skills
+            .as_ref()
+            .map(|s| serde_json::to_string(s).unwrap());
         let tags_json = req.tags.as_ref().map(|t| serde_json::to_string(t).unwrap());
 
         self.conn.execute(
@@ -1141,11 +1275,13 @@ impl Database {
         )?;
 
         let id = self.conn.last_insert_rowid();
-        self.get_subagent_by_id(id)?.ok_or_else(|| anyhow::anyhow!("Failed to retrieve created subagent"))
+        self.get_subagent_by_id(id)?
+            .ok_or_else(|| anyhow::anyhow!("Failed to retrieve created subagent"))
     }
 
     pub fn delete_subagent(&self, id: i64) -> Result<()> {
-        self.conn.execute("DELETE FROM subagents WHERE id = ?", [id])?;
+        self.conn
+            .execute("DELETE FROM subagents WHERE id = ?", [id])?;
         Ok(())
     }
 
@@ -1158,7 +1294,10 @@ impl Database {
     }
 
     pub fn remove_global_subagent(&self, subagent_id: i64) -> Result<()> {
-        self.conn.execute("DELETE FROM global_subagents WHERE subagent_id = ?", [subagent_id])?;
+        self.conn.execute(
+            "DELETE FROM global_subagents WHERE subagent_id = ?",
+            [subagent_id],
+        )?;
         Ok(())
     }
 
@@ -1184,7 +1323,9 @@ impl Database {
                     command: row.get(6)?,
                     prompt: row.get(7)?,
                     timeout: row.get(8)?,
-                    tags: row.get::<_, Option<String>>(9)?.and_then(|s| serde_json::from_str(&s).ok()),
+                    tags: row
+                        .get::<_, Option<String>>(9)?
+                        .and_then(|s| serde_json::from_str(&s).ok()),
                     source: row.get(10)?,
                     is_template: row.get::<_, i32>(11)? != 0,
                     created_at: row.get(12)?,
@@ -1229,7 +1370,10 @@ impl Database {
         }
     }
 
-    pub fn create_hook(&self, req: &crate::db::models::CreateHookRequest) -> Result<crate::db::models::Hook> {
+    pub fn create_hook(
+        &self,
+        req: &crate::db::models::CreateHookRequest,
+    ) -> Result<crate::db::models::Hook> {
         let tags_json = req.tags.as_ref().map(|t| serde_json::to_string(t).unwrap());
 
         self.conn.execute(
@@ -1242,7 +1386,8 @@ impl Database {
         )?;
 
         let id = self.conn.last_insert_rowid();
-        self.get_hook_by_id(id)?.ok_or_else(|| anyhow::anyhow!("Failed to retrieve created hook"))
+        self.get_hook_by_id(id)?
+            .ok_or_else(|| anyhow::anyhow!("Failed to retrieve created hook"))
     }
 
     pub fn delete_hook(&self, id: i64) -> Result<()> {
@@ -1259,7 +1404,8 @@ impl Database {
     }
 
     pub fn remove_global_hook(&self, hook_id: i64) -> Result<()> {
-        self.conn.execute("DELETE FROM global_hooks WHERE hook_id = ?", [hook_id])?;
+        self.conn
+            .execute("DELETE FROM global_hooks WHERE hook_id = ?", [hook_id])?;
         Ok(())
     }
 }

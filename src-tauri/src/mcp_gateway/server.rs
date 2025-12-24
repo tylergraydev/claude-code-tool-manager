@@ -6,7 +6,9 @@ use crate::db::Database;
 use crate::mcp_gateway::backend::{BackendInfo, GatewayBackendManager};
 use crate::mcp_gateway::tools::GatewayServer;
 use axum::Router;
-use rmcp::transport::streamable_http_server::{session::local::LocalSessionManager, StreamableHttpService};
+use rmcp::transport::streamable_http_server::{
+    session::local::LocalSessionManager, StreamableHttpService,
+};
 use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -144,7 +146,10 @@ impl GatewayServerState {
         // Load and connect to all gateway MCPs
         {
             let mut backend_manager = self.backend_manager.lock().await;
-            backend_manager.load_and_connect().await.map_err(|e| e.to_string())?;
+            backend_manager
+                .load_and_connect()
+                .await
+                .map_err(|e| e.to_string())?;
         }
 
         // Try to bind to the port
@@ -170,9 +175,7 @@ impl GatewayServerState {
             .allow_headers(Any);
 
         // Build the router
-        let router = Router::new()
-            .nest_service("/mcp", service)
-            .layer(cors);
+        let router = Router::new().nest_service("/mcp", service).layer(cors);
 
         // Create shutdown channel
         let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
@@ -194,11 +197,10 @@ impl GatewayServerState {
         let is_running = self.is_running.clone();
         let backend_manager_shutdown = self.backend_manager.clone();
         tokio::spawn(async move {
-            let server = axum::serve(listener, router)
-                .with_graceful_shutdown(async {
-                    let _ = shutdown_rx.await;
-                    log::info!("[Gateway] Shutdown signal received");
-                });
+            let server = axum::serve(listener, router).with_graceful_shutdown(async {
+                let _ = shutdown_rx.await;
+                log::info!("[Gateway] Shutdown signal received");
+            });
 
             if let Err(e) = server.await {
                 log::error!("[Gateway] Server error: {}", e);
@@ -259,7 +261,10 @@ impl GatewayServerState {
     /// Restart a specific backend
     pub async fn restart_backend(&self, mcp_id: i64) -> Result<BackendInfo, String> {
         let mut backend_manager = self.backend_manager.lock().await;
-        backend_manager.restart_backend(mcp_id).await.map_err(|e| e.to_string())
+        backend_manager
+            .restart_backend(mcp_id)
+            .await
+            .map_err(|e| e.to_string())
     }
 
     /// Get connection config JSON for users to add to their Claude config
