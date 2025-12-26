@@ -37,7 +37,7 @@ directories = "6"
 walkdir = "2"
 
 # SQLite
-rusqlite = { version = "0.37", features = ["bundled"] }
+rusqlite = { version = "0.38", features = ["bundled"] }
 
 # Time
 chrono = { version = "0.4", features = ["serde"] }
