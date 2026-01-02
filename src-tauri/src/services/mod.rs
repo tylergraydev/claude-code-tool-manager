@@ -12,4 +12,5 @@ pub mod repo_parser;
 pub mod repo_sync;
 pub mod scanner;
 pub mod skill_writer;
+pub mod sound_player;
 pub mod subagent_writer;

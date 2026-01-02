@@ -622,6 +622,7 @@ dependencies = [
  "base64 0.22.1",
  "chrono",
  "directories",
+ "dirs",
  "env_logger",
  "fern",
  "futures",
