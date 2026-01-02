@@ -27,6 +27,8 @@ Claude Code configuration is scattered across your filesystem—`~/.claude.json`
 
 **Skills & Sub-Agents** — Manage slash commands, agent skills, and custom sub-agents. Auto-discovers from `~/.claude/commands/` and `~/.claude/agents/`.
 
+**Hooks** — Create and manage Claude Code hooks that run on events like task completion, notifications, and tool use. Includes a sound notification wizard to play sounds when Claude needs your attention or finishes a task.
+
 **Projects** — Scan for existing projects, assign tools globally or per-project, and keep everything in sync with Claude's config files.
 
 ## Installation
@@ -82,10 +84,10 @@ claude mcp add filesystem -- npx -y @modelcontextprotocol/server-filesystem ~/Do
 
 ## Configuration Locations
 
-| Scope | MCPs | Skills | Sub-Agents |
-|-------|------|--------|------------|
-| Global | `~/.claude.json` | `~/.claude/commands/` | `~/.claude/agents/` |
-| Project | `.claude/.mcp.json` | `.claude/commands/` | `.claude/agents/` |
+| Scope | MCPs | Skills | Sub-Agents | Hooks |
+|-------|------|--------|------------|-------|
+| Global | `~/.claude.json` | `~/.claude/commands/` | `~/.claude/agents/` | `~/.claude/settings.json` |
+| Project | `.claude/.mcp.json` | `.claude/commands/` | `.claude/agents/` | `.claude/settings.json` |
 
 ## What's Next
 

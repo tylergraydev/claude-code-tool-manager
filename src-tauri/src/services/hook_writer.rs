@@ -147,6 +147,14 @@ pub fn clear_project_hooks(project_path: &Path) -> Result<()> {
     write_project_hooks(project_path, &[])
 }
 
+/// Convert hooks to Claude Code settings.json format for export
+/// This returns a serde_json::Value that can be serialized for export
+pub fn hooks_to_settings_format(hooks: &[Hook]) -> Value {
+    json!({
+        "hooks": generate_hooks_config(hooks)
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

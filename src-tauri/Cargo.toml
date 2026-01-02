@@ -34,6 +34,7 @@ fern = "0.7"
 
 # Path handling
 directories = "6"
+dirs = "6"
 walkdir = "2"
 
 # SQLite

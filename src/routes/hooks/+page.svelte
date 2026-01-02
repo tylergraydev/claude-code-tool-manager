@@ -1,15 +1,19 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { Header } from '$lib/components/layout';
-	import { HookLibrary, HookForm } from '$lib/components/hooks';
+	import { HookLibrary, HookForm, HookExportModal, SoundHookWizard } from '$lib/components/hooks';
+	import { SoundBrowser } from '$lib/components/sounds';
 	import { ConfirmDialog } from '$lib/components/shared';
-	import { hookLibrary, notifications } from '$lib/stores';
+	import { hookLibrary, soundLibrary, notifications } from '$lib/stores';
 	import type { Hook, CreateHookRequest } from '$lib/types';
-	import { Plus } from 'lucide-svelte';
+	import { Plus, Volume2, Download, Music } from 'lucide-svelte';
 
 	let showAddHook = $state(false);
 	let editingHook = $state<Hook | null>(null);
 	let deletingHook = $state<Hook | null>(null);
+	let showSoundWizard = $state(false);
+	let showExportModal = $state(false);
+	let showSoundBrowser = $state(false);
 
 	onMount(async () => {
 		await hookLibrary.load();
@@ -17,6 +21,8 @@
 		await hookLibrary.seedTemplates();
 		await hookLibrary.loadGlobalHooks();
 		await hookLibrary.loadAllProjectHooks();
+		// Pre-load sounds for the wizard
+		await soundLibrary.load();
 	});
 
 	async function handleCreateHook(values: CreateHookRequest) {
@@ -79,7 +85,19 @@
 />
 
 <div class="flex-1 overflow-auto p-6">
-	<div class="flex justify-end mb-6">
+	<div class="flex flex-wrap gap-3 justify-end mb-6">
+		<button onclick={() => (showSoundWizard = true)} class="btn btn-secondary">
+			<Volume2 class="w-4 h-4 mr-2" />
+			Sound Notifications
+		</button>
+		<button onclick={() => (showExportModal = true)} class="btn btn-secondary">
+			<Download class="w-4 h-4 mr-2" />
+			Export
+		</button>
+		<button onclick={() => (showSoundBrowser = true)} class="btn btn-secondary">
+			<Music class="w-4 h-4 mr-2" />
+			Manage Sounds
+		</button>
 		<button onclick={() => (showAddHook = true)} class="btn btn-primary">
 			<Plus class="w-4 h-4 mr-2" />
 			Add Hook
@@ -138,3 +156,28 @@
 	onConfirm={handleDeleteHook}
 	onCancel={() => (deletingHook = null)}
 />
+
+<!-- Sound Hook Wizard -->
+{#if showSoundWizard}
+	<SoundHookWizard
+		onClose={() => (showSoundWizard = false)}
+		onComplete={async () => {
+			await hookLibrary.load();
+			await hookLibrary.loadGlobalHooks();
+		}}
+	/>
+{/if}
+
+<!-- Export Modal -->
+{#if showExportModal}
+	<HookExportModal onClose={() => (showExportModal = false)} />
+{/if}
+
+<!-- Sound Browser Modal -->
+{#if showSoundBrowser}
+	<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+		<div class="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-2xl w-full mx-4 max-h-[80vh] overflow-hidden">
+			<SoundBrowser onClose={() => (showSoundBrowser = false)} />
+		</div>
+	</div>
+{/if}

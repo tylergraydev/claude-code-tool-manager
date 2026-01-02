@@ -13,4 +13,5 @@ pub mod repos;
 pub mod scanner;
 pub mod settings;
 pub mod skills;
+pub mod sounds;
 pub mod subagents;
