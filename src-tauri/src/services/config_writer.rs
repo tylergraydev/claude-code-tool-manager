@@ -43,6 +43,14 @@ pub fn generate_mcp_config(mcps: &[McpTuple]) -> Value {
                 if let Some(u) = url {
                     obj.insert("url".to_string(), json!(u));
                 }
+                // SSE supports headers per official spec
+                if let Some(headers_json) = headers {
+                    if let Ok(headers_val) =
+                        serde_json::from_str::<Map<String, Value>>(headers_json)
+                    {
+                        obj.insert("headers".to_string(), Value::Object(headers_val));
+                    }
+                }
                 Value::Object(obj)
             }
             "http" => {
@@ -70,10 +78,8 @@ pub fn generate_mcp_config(mcps: &[McpTuple]) -> Value {
 }
 
 pub fn write_project_config(project_path: &Path, mcps: &[McpTuple]) -> Result<()> {
-    let claude_dir = project_path.join(".claude");
-    std::fs::create_dir_all(&claude_dir)?;
-
-    let config_path = claude_dir.join(".mcp.json");
+    // Write .mcp.json to project root (per official Claude Code spec)
+    let config_path = project_path.join(".mcp.json");
     let config = generate_mcp_config(mcps);
     let content = serde_json::to_string_pretty(&config)?;
 
@@ -178,8 +184,8 @@ pub fn write_project_to_claude_json(
     for (name, mcp_type, command, args, url, headers, env, is_enabled) in mcps {
         let config = match mcp_type.as_str() {
             "stdio" => {
+                // stdio servers don't have explicit type field per official spec
                 let mut obj = Map::new();
-                obj.insert("type".to_string(), json!("stdio"));
                 if let Some(cmd) = command {
                     obj.insert("command".to_string(), json!(cmd));
                 }
@@ -200,6 +206,14 @@ pub fn write_project_to_claude_json(
                 obj.insert("type".to_string(), json!("sse"));
                 if let Some(u) = url {
                     obj.insert("url".to_string(), json!(u));
+                }
+                // SSE supports headers per official spec
+                if let Some(headers_json) = headers {
+                    if let Ok(headers_val) =
+                        serde_json::from_str::<Map<String, Value>>(headers_json)
+                    {
+                        obj.insert("headers".to_string(), Value::Object(headers_val));
+                    }
                 }
                 Some(Value::Object(obj))
             }
@@ -268,7 +282,19 @@ mod tests {
             None,
             None,
             Some("https://mcp.example.com/sse".to_string()),
+            None, // no headers for basic test
             None,
+        )
+    }
+
+    fn sample_sse_mcp_with_headers() -> McpTuple {
+        (
+            "remote-sse-auth".to_string(),
+            "sse".to_string(),
+            None,
+            None,
+            Some("https://mcp.example.com/sse".to_string()),
+            Some(r#"{"Authorization": "Bearer sse-token"}"#.to_string()),
             None,
         )
     }
@@ -301,6 +327,21 @@ mod tests {
         let mcps = vec![sample_sse_mcp()];
         let config = generate_mcp_config(&mcps);
         assert_json_snapshot!(config);
+    }
+
+    #[test]
+    fn test_generate_mcp_config_sse_with_headers() {
+        let mcps = vec![sample_sse_mcp_with_headers()];
+        let config = generate_mcp_config(&mcps);
+
+        let servers = config.get("mcpServers").unwrap().as_object().unwrap();
+        let mcp = servers.get("remote-sse-auth").unwrap();
+
+        assert_eq!(mcp.get("type").unwrap(), "sse");
+        assert_eq!(mcp.get("url").unwrap(), "https://mcp.example.com/sse");
+        assert!(mcp.get("headers").is_some());
+        let headers = mcp.get("headers").unwrap().as_object().unwrap();
+        assert_eq!(headers.get("Authorization").unwrap(), "Bearer sse-token");
     }
 
     #[test]
@@ -365,25 +406,14 @@ mod tests {
     // =========================================================================
 
     #[test]
-    fn test_write_project_config_creates_directory() {
+    fn test_write_project_config_creates_file_in_project_root() {
         let temp_dir = TempDir::new().unwrap();
         let mcps = vec![sample_stdio_mcp()];
 
         write_project_config(temp_dir.path(), &mcps).unwrap();
 
-        let claude_dir = temp_dir.path().join(".claude");
-        assert!(claude_dir.exists());
-        assert!(claude_dir.is_dir());
-    }
-
-    #[test]
-    fn test_write_project_config_creates_file() {
-        let temp_dir = TempDir::new().unwrap();
-        let mcps = vec![sample_stdio_mcp()];
-
-        write_project_config(temp_dir.path(), &mcps).unwrap();
-
-        let config_path = temp_dir.path().join(".claude").join(".mcp.json");
+        // Per official spec, .mcp.json should be in project root, not .claude/
+        let config_path = temp_dir.path().join(".mcp.json");
         assert!(config_path.exists());
     }
 
@@ -394,7 +424,7 @@ mod tests {
 
         write_project_config(temp_dir.path(), &mcps).unwrap();
 
-        let config_path = temp_dir.path().join(".claude").join(".mcp.json");
+        let config_path = temp_dir.path().join(".mcp.json");
         let content = std::fs::read_to_string(config_path).unwrap();
         let parsed: Value = serde_json::from_str(&content).unwrap();
 
@@ -414,7 +444,7 @@ mod tests {
         write_project_config(temp_dir.path(), &mcps2).unwrap();
 
         // Verify second config is written
-        let config_path = temp_dir.path().join(".claude").join(".mcp.json");
+        let config_path = temp_dir.path().join(".mcp.json");
         let content = std::fs::read_to_string(config_path).unwrap();
         let parsed: Value = serde_json::from_str(&content).unwrap();
         let servers = parsed.get("mcpServers").unwrap().as_object().unwrap();

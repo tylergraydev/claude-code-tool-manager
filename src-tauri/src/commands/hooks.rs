@@ -601,14 +601,19 @@ pub fn seed_hook_templates(db: State<'_, Arc<Mutex<Database>>>) -> Result<(), St
         return Ok(());
     }
 
+    // Note: Hook commands receive input via stdin as JSON, not environment variables.
+    // Available env vars: CLAUDE_PROJECT_DIR, CLAUDE_CODE_REMOTE, CLAUDE_ENV_FILE (SessionStart only)
+    // stdin JSON contains: session_id, transcript_path, cwd, hook_event_name, and event-specific fields
+    // For PreToolUse/PostToolUse: tool_name, tool_input, tool_use_id (and tool_response for PostToolUse)
     let templates = vec![
         (
             "Auto-format Prettier",
-            "Run Prettier after file changes",
+            "Run Prettier after file changes (reads file path from stdin JSON)",
             "PostToolUse",
             Some("Write|Edit"),
             "command",
-            Some("npx prettier --write \"$CLAUDE_FILE_PATHS\""),
+            // Read the file path from stdin JSON tool_input
+            Some("FILE=$(cat | jq -r '.tool_input.file_path // empty') && [ -n \"$FILE\" ] && npx prettier --write \"$FILE\""),
             None::<&str>,
             Some(30),
         ),
@@ -618,7 +623,8 @@ pub fn seed_hook_templates(db: State<'_, Arc<Mutex<Database>>>) -> Result<(), St
             "PreToolUse",
             Some("Write|Edit"),
             "command",
-            Some("if echo \"$CLAUDE_TOOL_INPUT\" | grep -q '\\.env'; then echo 'BLOCK: Cannot modify .env files'; exit 2; fi"),
+            // Read tool_input from stdin and check for .env files
+            Some("INPUT=$(cat) && FILE=$(echo \"$INPUT\" | jq -r '.tool_input.file_path // empty') && if echo \"$FILE\" | grep -q '\\.env'; then echo 'Cannot modify .env files' >&2; exit 2; fi"),
             None,
             Some(5),
         ),
@@ -628,15 +634,16 @@ pub fn seed_hook_templates(db: State<'_, Arc<Mutex<Database>>>) -> Result<(), St
             "PostToolUse",
             None::<&str>,
             "command",
-            Some("echo \"$(date): $CLAUDE_TOOL_NAME\" >> ~/.claude/tool-log.txt"),
+            // Read tool_name from stdin JSON
+            Some("TOOL=$(cat | jq -r '.tool_name') && echo \"$(date): $TOOL\" >> ~/.claude/tool-log.txt"),
             None,
             Some(5),
         ),
         (
             "Session greeting",
             "Show a custom greeting at session start",
-            "Notification",
-            Some("session_start"),
+            "SessionStart",
+            Some("startup"),
             "command",
             Some("echo 'Welcome! Type /help for available commands.'"),
             None,
@@ -648,7 +655,8 @@ pub fn seed_hook_templates(db: State<'_, Arc<Mutex<Database>>>) -> Result<(), St
             "PostToolUse",
             Some("Write|Edit"),
             "command",
-            Some("if echo \"$CLAUDE_FILE_PATHS\" | grep -qE '\\.(js|ts|jsx|tsx)$'; then npx eslint --fix \"$CLAUDE_FILE_PATHS\"; fi"),
+            // Read file path from stdin JSON and check extension
+            Some("FILE=$(cat | jq -r '.tool_input.file_path // empty') && if echo \"$FILE\" | grep -qE '\\.(js|ts|jsx|tsx)$'; then npx eslint --fix \"$FILE\"; fi"),
             None,
             Some(60),
         ),

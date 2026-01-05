@@ -1,7 +1,14 @@
 <script lang="ts">
 	import type { CreateSkillRequest, Skill, SkillType } from '$lib/types';
 	import { parseSkillMarkdown, type ParsedSkill } from '$lib/utils/markdownParser';
-	import { Clipboard, Check, AlertCircle, FileUp, Terminal, Sparkles } from 'lucide-svelte';
+	import { Clipboard, Check, AlertCircle, FileUp, Terminal, Sparkles, TriangleAlert } from 'lucide-svelte';
+
+	// Validation constants (matching official Claude Code documentation)
+	const MAX_NAME_LENGTH = 64;
+	const MAX_DESCRIPTION_LENGTH = 1024;
+	const RECOMMENDED_MAX_CONTENT_LINES = 500;
+	const RESERVED_WORDS = ['anthropic', 'claude'];
+	const NAME_PATTERN = /^[a-z0-9-]+$/;
 
 	type Props = {
 		initialValues?: Partial<Skill>;
@@ -24,6 +31,7 @@
 
 	let isSubmitting = $state(false);
 	let errors = $state<Record<string, string>>({});
+	let warnings = $state<Record<string, string>>({});
 
 	// Import state
 	let importStatus = $state<'idle' | 'success' | 'error'>('idle');
@@ -125,15 +133,49 @@
 
 	function validate(): boolean {
 		errors = {};
+		warnings = {};
+		const trimmedName = name.trim();
+		const trimmedDescription = description.trim();
+		const trimmedContent = content.trim();
 
-		if (!name.trim()) {
+		// Validate name
+		if (!trimmedName) {
 			errors.name = 'Name is required';
-		} else if (!/^[a-zA-Z0-9_-]+$/.test(name.trim())) {
-			errors.name = 'Name can only contain letters, numbers, hyphens, and underscores';
+		} else if (trimmedName.length > MAX_NAME_LENGTH) {
+			errors.name = `Name must be ${MAX_NAME_LENGTH} characters or less (currently ${trimmedName.length})`;
+		} else if (!NAME_PATTERN.test(trimmedName)) {
+			errors.name = 'Name must contain only lowercase letters, numbers, and hyphens';
+		} else if (trimmedName.includes('<') || trimmedName.includes('>')) {
+			errors.name = 'Name cannot contain XML tags (< or >)';
+		} else {
+			// Check for reserved words
+			const nameLower = trimmedName.toLowerCase();
+			for (const reserved of RESERVED_WORDS) {
+				if (nameLower.includes(reserved)) {
+					errors.name = `Name cannot contain reserved word "${reserved}"`;
+					break;
+				}
+			}
 		}
 
-		if (!content.trim()) {
+		// Validate description
+		if (trimmedDescription) {
+			if (trimmedDescription.length > MAX_DESCRIPTION_LENGTH) {
+				errors.description = `Description must be ${MAX_DESCRIPTION_LENGTH} characters or less (currently ${trimmedDescription.length})`;
+			} else if (trimmedDescription.includes('<') || trimmedDescription.includes('>')) {
+				errors.description = 'Description cannot contain XML tags (< or >)';
+			}
+		}
+
+		// Validate content
+		if (!trimmedContent) {
 			errors.content = 'Content is required';
+		} else {
+			// Check line count and warn if exceeding recommendation
+			const lineCount = trimmedContent.split('\n').length;
+			if (lineCount > RECOMMENDED_MAX_CONTENT_LINES) {
+				warnings.content = `Content has ${lineCount} lines, exceeding the recommended ${RECOMMENDED_MAX_CONTENT_LINES} lines. Consider splitting into separate reference files.`;
+			}
 		}
 
 		return Object.keys(errors).length === 0;
@@ -285,10 +327,12 @@
 		{:else if skillType === 'command'}
 			<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
 				This will create the command <code class="px-1 bg-gray-100 dark:bg-gray-700 rounded">/{name || 'name'}</code>
+				<span class="text-gray-400 dark:text-gray-500">&nbsp;·&nbsp;Lowercase letters, numbers, and hyphens only (max {MAX_NAME_LENGTH} chars)</span>
 			</p>
 		{:else}
 			<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
 				Will be saved to <code class="px-1 bg-gray-100 dark:bg-gray-700 rounded">.claude/skills/{name || 'name'}/SKILL.md</code>
+				<span class="text-gray-400 dark:text-gray-500">&nbsp;·&nbsp;Lowercase letters, numbers, and hyphens only</span>
 			</p>
 		{/if}
 	</div>
@@ -303,11 +347,16 @@
 			id="description"
 			bind:value={description}
 			class="input mt-1"
+			class:border-red-500={errors.description}
 			placeholder={skillType === 'command' ? 'Brief description of what this command does' : 'When Claude should invoke this skill'}
 		/>
-		<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-			{skillType === 'command' ? 'Shown in command hints' : 'Claude uses this to decide when to invoke the skill'}
-		</p>
+		{#if errors.description}
+			<p class="mt-1 text-sm text-red-500">{errors.description}</p>
+		{:else}
+			<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+				{skillType === 'command' ? 'Shown in command hints' : 'Claude uses this to decide when to invoke the skill'} (max {MAX_DESCRIPTION_LENGTH} chars)
+			</p>
+		{/if}
 	</div>
 
 	<!-- Allowed Tools -->
@@ -422,14 +471,24 @@ Instructions for Claude when this skill is invoked.
 		></textarea>
 		{#if errors.content}
 			<p class="mt-1 text-sm text-red-500">{errors.content}</p>
-		{:else if skillType === 'command'}
-			<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-				Use <code class="px-1 bg-gray-100 dark:bg-gray-700 rounded">$ARGUMENTS</code> to include user-provided arguments
-			</p>
 		{:else}
-			<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-				Instructions that tell Claude how to execute this skill
-			</p>
+			{#if warnings.content}
+				<div class="mt-2 p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
+					<div class="flex items-start gap-2">
+						<TriangleAlert class="w-4 h-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+						<p class="text-sm text-amber-700 dark:text-amber-300">{warnings.content}</p>
+					</div>
+				</div>
+			{/if}
+			{#if skillType === 'command'}
+				<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+					Use <code class="px-1 bg-gray-100 dark:bg-gray-700 rounded">$ARGUMENTS</code> to include user-provided arguments
+				</p>
+			{:else}
+				<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+					Instructions that tell Claude how to execute this skill (recommended: under {RECOMMENDED_MAX_CONTENT_LINES} lines)
+				</p>
+			{/if}
 		{/if}
 	</div>
 

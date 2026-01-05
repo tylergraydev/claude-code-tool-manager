@@ -10,6 +10,7 @@
     "frontendDist": "../build"
   },
   "app": {
+    "withGlobalTauri": true,
     "windows": [
       {
         "title": "Claude Code Tool Manager",

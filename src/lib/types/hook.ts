@@ -2,10 +2,12 @@ export type HookEventType =
 	| 'SessionStart'
 	| 'UserPromptSubmit'
 	| 'PreToolUse'
+	| 'PermissionRequest'
 	| 'PostToolUse'
 	| 'Notification'
 	| 'Stop'
 	| 'SubagentStop'
+	| 'PreCompact'
 	| 'SessionEnd';
 
 export type HookType = 'command' | 'prompt';
@@ -63,44 +65,57 @@ export const HOOK_EVENT_TYPES: {
 	{
 		value: 'SessionStart',
 		label: 'Session Start',
-		description: 'Runs when a new Claude Code session starts'
+		description: 'Runs when a new Claude Code session starts or resumes',
+		matcherHint: 'Source type: startup, resume, clear, compact'
 	},
 	{
 		value: 'UserPromptSubmit',
 		label: 'User Prompt Submit',
-		description: 'Runs when the user submits a prompt'
+		description: 'Runs when the user submits a prompt, before Claude processes it'
 	},
 	{
 		value: 'PreToolUse',
 		label: 'Pre Tool Use',
-		description: 'Runs before a tool is executed',
+		description: 'Runs before a tool is executed. Can block or modify tool input.',
+		matcherHint: 'Tool name pattern (e.g., Bash, Write|Edit, mcp__server__tool)'
+	},
+	{
+		value: 'PermissionRequest',
+		label: 'Permission Request',
+		description: 'Runs when a permission dialog is shown. Can allow/deny on behalf of user.',
 		matcherHint: 'Tool name pattern (e.g., Bash, Write|Edit)'
 	},
 	{
 		value: 'PostToolUse',
 		label: 'Post Tool Use',
-		description: 'Runs after a tool is executed',
-		matcherHint: 'Tool name pattern (e.g., Bash, Write|Edit)'
+		description: 'Runs after a tool completes successfully. Can provide feedback to Claude.',
+		matcherHint: 'Tool name pattern (e.g., Bash, Write|Edit, mcp__server__tool)'
 	},
 	{
 		value: 'Notification',
 		label: 'Notification',
-		description: 'Runs on system notifications',
-		matcherHint: 'Notification type pattern'
+		description: 'Runs when Claude Code sends notifications',
+		matcherHint: 'Type: permission_prompt, idle_prompt, auth_success, elicitation_dialog'
 	},
 	{
 		value: 'Stop',
 		label: 'Stop',
-		description: 'Runs when the main agent stops'
+		description: 'Runs when the main agent finishes responding. Can prevent stopping.',
 	},
 	{
 		value: 'SubagentStop',
 		label: 'Subagent Stop',
-		description: 'Runs when a sub-agent stops'
+		description: 'Runs when a subagent task finishes. Can prevent stopping.',
+	},
+	{
+		value: 'PreCompact',
+		label: 'Pre Compact',
+		description: 'Runs before a compact operation. Informational only, cannot block.',
+		matcherHint: 'Trigger type: manual, auto'
 	},
 	{
 		value: 'SessionEnd',
 		label: 'Session End',
-		description: 'Runs when the Claude Code session ends'
+		description: 'Runs when the session ends. Cannot block, for cleanup tasks only.'
 	}
 ];

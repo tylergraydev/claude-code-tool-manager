@@ -133,8 +133,10 @@
 		{ value: '', label: 'Default (standard permission prompting)' },
 		{ value: 'default', label: 'Default' },
 		{ value: 'acceptEdits', label: 'Accept Edits (auto-accepts file edits)' },
+		{ value: 'dontAsk', label: "Don't Ask (skip permission prompts)" },
 		{ value: 'bypassPermissions', label: 'Bypass Permissions (use with caution)' },
-		{ value: 'plan', label: 'Plan (read-only exploration)' }
+		{ value: 'plan', label: 'Plan (read-only exploration)' },
+		{ value: 'ignore', label: 'Ignore (skip this permission mode)' }
 	];
 
 	function validate(): boolean {
@@ -142,8 +144,8 @@
 
 		if (!name.trim()) {
 			errors.name = 'Name is required';
-		} else if (!/^[a-zA-Z0-9_-]+$/.test(name.trim())) {
-			errors.name = 'Name can only contain letters, numbers, hyphens, and underscores';
+		} else if (!/^[a-z][a-z0-9-]*$/.test(name.trim())) {
+			errors.name = 'Name must start with a lowercase letter and contain only lowercase letters, numbers, and hyphens';
 		}
 
 		if (!description.trim()) {
@@ -259,7 +261,7 @@
 			bind:value={name}
 			class="input mt-1"
 			class:border-red-500={errors.name}
-			placeholder="my-subagent"
+			placeholder="my-sub-agent"
 		/>
 		{#if errors.name}
 			<p class="mt-1 text-sm text-red-500">{errors.name}</p>

@@ -66,15 +66,17 @@ class HookLibraryState {
 			}
 			groups[hook.eventType].push(hook);
 		}
-		// Sort event types in a logical order
+		// Sort event types in a logical order (matches session lifecycle)
 		const eventOrder = [
 			'SessionStart',
 			'UserPromptSubmit',
 			'PreToolUse',
+			'PermissionRequest',
 			'PostToolUse',
 			'Notification',
 			'Stop',
 			'SubagentStop',
+			'PreCompact',
 			'SessionEnd'
 		];
 		return eventOrder

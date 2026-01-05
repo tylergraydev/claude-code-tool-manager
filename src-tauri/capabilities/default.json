@@ -5,6 +5,7 @@
   "windows": ["main"],
   "permissions": [
     "core:default",
+    "mcp-bridge:default",
     {
       "identifier": "shell:allow-open",
       "allow": [

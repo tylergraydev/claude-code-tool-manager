@@ -9,10 +9,12 @@ describe('Hook Types', () => {
 			expect(eventValues).toContain('SessionStart');
 			expect(eventValues).toContain('UserPromptSubmit');
 			expect(eventValues).toContain('PreToolUse');
+			expect(eventValues).toContain('PermissionRequest');
 			expect(eventValues).toContain('PostToolUse');
 			expect(eventValues).toContain('Notification');
 			expect(eventValues).toContain('Stop');
 			expect(eventValues).toContain('SubagentStop');
+			expect(eventValues).toContain('PreCompact');
 			expect(eventValues).toContain('SessionEnd');
 		});
 
@@ -45,8 +47,23 @@ describe('Hook Types', () => {
 			expect(notification?.matcherHint).toBeDefined();
 		});
 
-		it('should have 8 event types total', () => {
-			expect(HOOK_EVENT_TYPES.length).toBe(8);
+		it('should have matcher hint for PermissionRequest event', () => {
+			const permissionRequest = HOOK_EVENT_TYPES.find((e) => e.value === 'PermissionRequest');
+			expect(permissionRequest?.matcherHint).toBeDefined();
+		});
+
+		it('should have matcher hint for PreCompact event', () => {
+			const preCompact = HOOK_EVENT_TYPES.find((e) => e.value === 'PreCompact');
+			expect(preCompact?.matcherHint).toBeDefined();
+		});
+
+		it('should have matcher hint for SessionStart event', () => {
+			const sessionStart = HOOK_EVENT_TYPES.find((e) => e.value === 'SessionStart');
+			expect(sessionStart?.matcherHint).toBeDefined();
+		});
+
+		it('should have 10 event types total', () => {
+			expect(HOOK_EVENT_TYPES.length).toBe(10);
 		});
 	});
 
@@ -56,15 +73,17 @@ describe('Hook Types', () => {
 				'SessionStart',
 				'UserPromptSubmit',
 				'PreToolUse',
+				'PermissionRequest',
 				'PostToolUse',
 				'Notification',
 				'Stop',
 				'SubagentStop',
+				'PreCompact',
 				'SessionEnd'
 			];
 
 			// TypeScript compile-time check - if this compiles, the types are correct
-			expect(validEventTypes).toHaveLength(8);
+			expect(validEventTypes).toHaveLength(10);
 		});
 
 		it('should define valid HookType values', () => {
