@@ -1,6 +1,6 @@
 use crate::db::{AppSettings, Database, EditorInfo, OpenCodePaths};
-use crate::utils::opencode_paths::{get_opencode_paths, is_opencode_installed};
-use crate::utils::paths::get_claude_paths;
+use crate::services::editor::EditorRegistry;
+use crate::utils::opencode_paths::get_opencode_paths;
 use log::info;
 use rusqlite::params;
 use std::sync::{Arc, Mutex};
@@ -39,30 +39,25 @@ pub fn update_app_settings(
 
 /// Get info about available editors
 #[tauri::command]
-pub fn get_available_editors() -> Result<Vec<EditorInfo>, String> {
+pub fn get_available_editors(
+    registry: State<'_, Arc<EditorRegistry>>,
+) -> Result<Vec<EditorInfo>, String> {
     info!("[Settings] Getting available editors");
 
-    let mut editors = Vec::new();
-
-    // Claude Code
-    if let Ok(paths) = get_claude_paths() {
-        editors.push(EditorInfo {
-            id: "claude_code".to_string(),
-            name: "Claude Code".to_string(),
-            is_installed: paths.claude_dir.exists(),
-            config_path: paths.claude_json.to_string_lossy().to_string(),
-        });
-    }
-
-    // OpenCode
-    if let Ok(paths) = get_opencode_paths() {
-        editors.push(EditorInfo {
-            id: "opencode".to_string(),
-            name: "OpenCode".to_string(),
-            is_installed: is_opencode_installed(),
-            config_path: paths.config_file.to_string_lossy().to_string(),
-        });
-    }
+    // Get info from all registered editors via the registry
+    let editors = registry
+        .list_all()
+        .iter()
+        .map(|adapter| {
+            let info = adapter.info();
+            EditorInfo {
+                id: info.id,
+                name: info.name,
+                is_installed: info.is_installed,
+                config_path: info.config_path.unwrap_or_default(),
+            }
+        })
+        .collect();
 
     Ok(editors)
 }
@@ -120,6 +115,21 @@ pub fn update_app_settings_in_db(db: &Database, settings: &AppSettings) -> Resul
         .map_err(|e| e.to_string())
 }
 
+/// Valid editor type IDs
+const VALID_EDITOR_TYPES: &[&str] = &[
+    "claude_code",
+    "opencode",
+    "codex",
+    "copilot",
+    "cursor",
+    "gemini",
+];
+
+/// Check if an editor type is valid
+pub fn is_valid_editor_type(editor_type: &str) -> bool {
+    VALID_EDITOR_TYPES.contains(&editor_type)
+}
+
 /// Update project editor type directly in the database (for testing)
 pub fn update_project_editor_type_in_db(
     db: &Database,
@@ -127,7 +137,7 @@ pub fn update_project_editor_type_in_db(
     editor_type: &str,
 ) -> Result<(), String> {
     // Validate editor type
-    if editor_type != "claude_code" && editor_type != "opencode" {
+    if !is_valid_editor_type(editor_type) {
         return Err(format!("Invalid editor type: {}", editor_type));
     }
 
@@ -271,6 +281,35 @@ mod tests {
 
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("Invalid editor type"));
+    }
+
+    #[test]
+    fn test_update_project_editor_type_all_valid_types() {
+        let db = Database::in_memory().unwrap();
+        let project_id = create_test_project(&db);
+
+        // Test all 6 valid editor types
+        for editor_type in &["claude_code", "opencode", "codex", "copilot", "cursor", "gemini"] {
+            update_project_editor_type_in_db(&db, project_id, editor_type).unwrap();
+            let result = get_project_editor_type_from_db(&db, project_id).unwrap();
+            assert_eq!(result, *editor_type);
+        }
+    }
+
+    #[test]
+    fn test_is_valid_editor_type() {
+        // Valid types
+        assert!(is_valid_editor_type("claude_code"));
+        assert!(is_valid_editor_type("opencode"));
+        assert!(is_valid_editor_type("codex"));
+        assert!(is_valid_editor_type("copilot"));
+        assert!(is_valid_editor_type("cursor"));
+        assert!(is_valid_editor_type("gemini"));
+
+        // Invalid types
+        assert!(!is_valid_editor_type("invalid"));
+        assert!(!is_valid_editor_type("vscode"));
+        assert!(!is_valid_editor_type(""));
     }
 
     #[test]

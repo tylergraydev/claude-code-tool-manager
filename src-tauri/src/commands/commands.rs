@@ -1,7 +1,9 @@
 use crate::db::models::{Command, CreateCommandRequest, GlobalCommand, ProjectCommand};
 use crate::db::schema::Database;
+use crate::services::editor::EditorRegistry;
 use regex::Regex;
 use rusqlite::params;
+use std::path::Path;
 use std::sync::{Arc, Mutex};
 use tauri::State;
 
@@ -349,6 +351,7 @@ pub fn get_global_commands(
 #[tauri::command]
 pub fn add_global_command(
     db: State<'_, Arc<Mutex<Database>>>,
+    registry: State<'_, Arc<EditorRegistry>>,
     command_id: i64,
 ) -> Result<(), String> {
     let db_guard = db.lock().map_err(|e| e.to_string())?;
@@ -372,8 +375,18 @@ pub fn add_global_command(
         )
         .map_err(|e| e.to_string())?;
 
-    // Write the command file to global config
-    crate::services::command_writer::write_global_command(&command).map_err(|e| e.to_string())?;
+    // Get the default editor and write through adapter
+    let default_editor = db_guard
+        .get_setting("default_editor")
+        .unwrap_or_else(|| "claude_code".to_string());
+
+    let adapter = registry
+        .get_or_default(&default_editor)
+        .ok_or_else(|| format!("Editor '{}' not found in registry", default_editor))?;
+
+    adapter
+        .write_global_command(&command)
+        .map_err(|e| e.to_string())?;
 
     Ok(())
 }
@@ -381,6 +394,7 @@ pub fn add_global_command(
 #[tauri::command]
 pub fn remove_global_command(
     db: State<'_, Arc<Mutex<Database>>>,
+    registry: State<'_, Arc<EditorRegistry>>,
     command_id: i64,
 ) -> Result<(), String> {
     let db_guard = db.lock().map_err(|e| e.to_string())?;
@@ -404,8 +418,18 @@ pub fn remove_global_command(
         )
         .map_err(|e| e.to_string())?;
 
-    // Delete the command file from global config
-    crate::services::command_writer::delete_global_command(&command).map_err(|e| e.to_string())?;
+    // Get the default editor and delete through adapter
+    let default_editor = db_guard
+        .get_setting("default_editor")
+        .unwrap_or_else(|| "claude_code".to_string());
+
+    let adapter = registry
+        .get_or_default(&default_editor)
+        .ok_or_else(|| format!("Editor '{}' not found in registry", default_editor))?;
+
+    adapter
+        .delete_global_command(&command)
+        .map_err(|e| e.to_string())?;
 
     Ok(())
 }
@@ -413,6 +437,7 @@ pub fn remove_global_command(
 #[tauri::command]
 pub fn toggle_global_command(
     db: State<'_, Arc<Mutex<Database>>>,
+    registry: State<'_, Arc<EditorRegistry>>,
     id: i64,
     enabled: bool,
 ) -> Result<(), String> {
@@ -439,12 +464,23 @@ pub fn toggle_global_command(
         .query_row([id], row_to_command)
         .map_err(|e| e.to_string())?;
 
+    // Get the default editor and dispatch through adapter
+    let default_editor = db_guard
+        .get_setting("default_editor")
+        .unwrap_or_else(|| "claude_code".to_string());
+
+    let adapter = registry
+        .get_or_default(&default_editor)
+        .ok_or_else(|| format!("Editor '{}' not found in registry", default_editor))?;
+
     // Write or delete the file based on enabled state
     if enabled {
-        crate::services::command_writer::write_global_command(&command)
+        adapter
+            .write_global_command(&command)
             .map_err(|e| e.to_string())?;
     } else {
-        crate::services::command_writer::delete_global_command(&command)
+        adapter
+            .delete_global_command(&command)
             .map_err(|e| e.to_string())?;
     }
 
@@ -458,18 +494,19 @@ pub fn toggle_global_command(
 #[tauri::command]
 pub fn assign_command_to_project(
     db: State<'_, Arc<Mutex<Database>>>,
+    registry: State<'_, Arc<EditorRegistry>>,
     project_id: i64,
     command_id: i64,
 ) -> Result<(), String> {
     let db_guard = db.lock().map_err(|e| e.to_string())?;
 
-    // Get project path and command details
-    let project_path: String = db_guard
+    // Get project path and editor_type
+    let (project_path, editor_type): (String, String) = db_guard
         .conn()
         .query_row(
-            "SELECT path FROM projects WHERE id = ?",
+            "SELECT path, COALESCE(editor_type, 'claude_code') FROM projects WHERE id = ?",
             [project_id],
-            |row| row.get(0),
+            |row| Ok((row.get(0)?, row.get(1)?)),
         )
         .map_err(|e| e.to_string())?;
 
@@ -491,12 +528,14 @@ pub fn assign_command_to_project(
         )
         .map_err(|e| e.to_string())?;
 
-    // Write the command file to project config
-    crate::services::command_writer::write_project_command(
-        std::path::Path::new(&project_path),
-        &command,
-    )
-    .map_err(|e| e.to_string())?;
+    // Get the project's editor adapter and write command
+    let adapter = registry
+        .get_or_default(&editor_type)
+        .ok_or_else(|| format!("Editor '{}' not found in registry", editor_type))?;
+
+    adapter
+        .write_project_command(Path::new(&project_path), &command)
+        .map_err(|e| e.to_string())?;
 
     Ok(())
 }
@@ -504,18 +543,19 @@ pub fn assign_command_to_project(
 #[tauri::command]
 pub fn remove_command_from_project(
     db: State<'_, Arc<Mutex<Database>>>,
+    registry: State<'_, Arc<EditorRegistry>>,
     project_id: i64,
     command_id: i64,
 ) -> Result<(), String> {
     let db_guard = db.lock().map_err(|e| e.to_string())?;
 
-    // Get project path and command details
-    let project_path: String = db_guard
+    // Get project path and editor_type
+    let (project_path, editor_type): (String, String) = db_guard
         .conn()
         .query_row(
-            "SELECT path FROM projects WHERE id = ?",
+            "SELECT path, COALESCE(editor_type, 'claude_code') FROM projects WHERE id = ?",
             [project_id],
-            |row| row.get(0),
+            |row| Ok((row.get(0)?, row.get(1)?)),
         )
         .map_err(|e| e.to_string())?;
 
@@ -537,12 +577,14 @@ pub fn remove_command_from_project(
         )
         .map_err(|e| e.to_string())?;
 
-    // Delete the command file from project config
-    crate::services::command_writer::delete_project_command(
-        std::path::Path::new(&project_path),
-        &command,
-    )
-    .map_err(|e| e.to_string())?;
+    // Get the project's editor adapter and delete command
+    let adapter = registry
+        .get_or_default(&editor_type)
+        .ok_or_else(|| format!("Editor '{}' not found in registry", editor_type))?;
+
+    adapter
+        .delete_project_command(Path::new(&project_path), &command)
+        .map_err(|e| e.to_string())?;
 
     Ok(())
 }
@@ -550,6 +592,7 @@ pub fn remove_command_from_project(
 #[tauri::command]
 pub fn toggle_project_command(
     db: State<'_, Arc<Mutex<Database>>>,
+    registry: State<'_, Arc<EditorRegistry>>,
     id: i64,
     enabled: bool,
 ) -> Result<(), String> {
@@ -563,9 +606,9 @@ pub fn toggle_project_command(
         )
         .map_err(|e| e.to_string())?;
 
-    // Get the command and project details
+    // Get the command, project path, and editor_type
     let query = format!(
-        "SELECT c.id, c.name, c.description, c.content, c.allowed_tools, c.argument_hint, c.model, c.tags, c.source, c.created_at, c.updated_at, p.path
+        "SELECT c.id, c.name, c.description, c.content, c.allowed_tools, c.argument_hint, c.model, c.tags, c.source, c.created_at, c.updated_at, p.path, COALESCE(p.editor_type, 'claude_code')
          FROM project_commands pc
          JOIN commands c ON pc.command_id = c.id
          JOIN projects p ON pc.project_id = p.id
@@ -573,23 +616,24 @@ pub fn toggle_project_command(
     );
     let mut stmt = db_guard.conn().prepare(&query).map_err(|e| e.to_string())?;
 
-    let (command, project_path): (Command, String) = stmt
-        .query_row([id], |row| Ok((row_to_command(row)?, row.get(11)?)))
+    let (command, project_path, editor_type): (Command, String, String) = stmt
+        .query_row([id], |row| Ok((row_to_command(row)?, row.get(11)?, row.get(12)?)))
         .map_err(|e| e.to_string())?;
+
+    // Get the project's editor adapter
+    let adapter = registry
+        .get_or_default(&editor_type)
+        .ok_or_else(|| format!("Editor '{}' not found in registry", editor_type))?;
 
     // Write or delete the file based on enabled state
     if enabled {
-        crate::services::command_writer::write_project_command(
-            std::path::Path::new(&project_path),
-            &command,
-        )
-        .map_err(|e| e.to_string())?;
+        adapter
+            .write_project_command(Path::new(&project_path), &command)
+            .map_err(|e| e.to_string())?;
     } else {
-        crate::services::command_writer::delete_project_command(
-            std::path::Path::new(&project_path),
-            &command,
-        )
-        .map_err(|e| e.to_string())?;
+        adapter
+            .delete_project_command(Path::new(&project_path), &command)
+            .map_err(|e| e.to_string())?;
     }
 
     Ok(())

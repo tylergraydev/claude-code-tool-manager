@@ -2,7 +2,7 @@ use crate::db::models::{
     CreateSkillFileRequest, CreateSkillRequest, GlobalSkill, ProjectSkill, Skill, SkillFile,
 };
 use crate::db::schema::Database;
-use crate::services::skill_writer;
+use crate::services::editor::EditorRegistry;
 use regex::Regex;
 use rusqlite::params;
 use std::path::Path;
@@ -350,7 +350,11 @@ pub fn get_global_skills(db: State<'_, Arc<Mutex<Database>>>) -> Result<Vec<Glob
 }
 
 #[tauri::command]
-pub fn add_global_skill(db: State<'_, Arc<Mutex<Database>>>, skill_id: i64) -> Result<(), String> {
+pub fn add_global_skill(
+    db: State<'_, Arc<Mutex<Database>>>,
+    registry: State<'_, Arc<EditorRegistry>>,
+    skill_id: i64,
+) -> Result<(), String> {
     let db_guard = db.lock().map_err(|e| e.to_string())?;
 
     // Get the skill details for file writing
@@ -369,8 +373,18 @@ pub fn add_global_skill(db: State<'_, Arc<Mutex<Database>>>, skill_id: i64) -> R
         )
         .map_err(|e| e.to_string())?;
 
-    // Write the skill file to global config
-    skill_writer::write_global_skill(&skill).map_err(|e| e.to_string())?;
+    // Get the default editor and write through adapter
+    let default_editor = db_guard
+        .get_setting("default_editor")
+        .unwrap_or_else(|| "claude_code".to_string());
+
+    let adapter = registry
+        .get_or_default(&default_editor)
+        .ok_or_else(|| format!("Editor '{}' not found in registry", default_editor))?;
+
+    adapter
+        .write_global_skill(&skill)
+        .map_err(|e| e.to_string())?;
 
     Ok(())
 }
@@ -378,6 +392,7 @@ pub fn add_global_skill(db: State<'_, Arc<Mutex<Database>>>, skill_id: i64) -> R
 #[tauri::command]
 pub fn remove_global_skill(
     db: State<'_, Arc<Mutex<Database>>>,
+    registry: State<'_, Arc<EditorRegistry>>,
     skill_id: i64,
 ) -> Result<(), String> {
     let db_guard = db.lock().map_err(|e| e.to_string())?;
@@ -395,8 +410,18 @@ pub fn remove_global_skill(
         .execute("DELETE FROM global_skills WHERE skill_id = ?", [skill_id])
         .map_err(|e| e.to_string())?;
 
-    // Delete the skill file from global config
-    skill_writer::delete_global_skill(&skill).map_err(|e| e.to_string())?;
+    // Get the default editor and delete through adapter
+    let default_editor = db_guard
+        .get_setting("default_editor")
+        .unwrap_or_else(|| "claude_code".to_string());
+
+    let adapter = registry
+        .get_or_default(&default_editor)
+        .ok_or_else(|| format!("Editor '{}' not found in registry", default_editor))?;
+
+    adapter
+        .delete_global_skill(&skill)
+        .map_err(|e| e.to_string())?;
 
     Ok(())
 }
@@ -404,6 +429,7 @@ pub fn remove_global_skill(
 #[tauri::command]
 pub fn toggle_global_skill(
     db: State<'_, Arc<Mutex<Database>>>,
+    registry: State<'_, Arc<EditorRegistry>>,
     id: i64,
     enabled: bool,
 ) -> Result<(), String> {
@@ -430,11 +456,24 @@ pub fn toggle_global_skill(
         .query_row([id], row_to_skill)
         .map_err(|e| e.to_string())?;
 
+    // Get the default editor and dispatch through adapter
+    let default_editor = db_guard
+        .get_setting("default_editor")
+        .unwrap_or_else(|| "claude_code".to_string());
+
+    let adapter = registry
+        .get_or_default(&default_editor)
+        .ok_or_else(|| format!("Editor '{}' not found in registry", default_editor))?;
+
     // Write or delete the file based on enabled state
     if enabled {
-        skill_writer::write_global_skill(&skill).map_err(|e| e.to_string())?;
+        adapter
+            .write_global_skill(&skill)
+            .map_err(|e| e.to_string())?;
     } else {
-        skill_writer::delete_global_skill(&skill).map_err(|e| e.to_string())?;
+        adapter
+            .delete_global_skill(&skill)
+            .map_err(|e| e.to_string())?;
     }
 
     Ok(())
@@ -444,18 +483,19 @@ pub fn toggle_global_skill(
 #[tauri::command]
 pub fn assign_skill_to_project(
     db: State<'_, Arc<Mutex<Database>>>,
+    registry: State<'_, Arc<EditorRegistry>>,
     project_id: i64,
     skill_id: i64,
 ) -> Result<(), String> {
     let db_guard = db.lock().map_err(|e| e.to_string())?;
 
-    // Get project path and skill details
-    let project_path: String = db_guard
+    // Get project path and editor_type
+    let (project_path, editor_type): (String, String) = db_guard
         .conn()
         .query_row(
-            "SELECT path FROM projects WHERE id = ?",
+            "SELECT path, COALESCE(editor_type, 'claude_code') FROM projects WHERE id = ?",
             [project_id],
-            |row| row.get(0),
+            |row| Ok((row.get(0)?, row.get(1)?)),
         )
         .map_err(|e| e.to_string())?;
 
@@ -474,8 +514,13 @@ pub fn assign_skill_to_project(
         )
         .map_err(|e| e.to_string())?;
 
-    // Write the skill file to project config
-    skill_writer::write_project_skill(Path::new(&project_path), &skill)
+    // Get the project's editor adapter and write skill
+    let adapter = registry
+        .get_or_default(&editor_type)
+        .ok_or_else(|| format!("Editor '{}' not found in registry", editor_type))?;
+
+    adapter
+        .write_project_skill(Path::new(&project_path), &skill)
         .map_err(|e| e.to_string())?;
 
     Ok(())
@@ -484,18 +529,19 @@ pub fn assign_skill_to_project(
 #[tauri::command]
 pub fn remove_skill_from_project(
     db: State<'_, Arc<Mutex<Database>>>,
+    registry: State<'_, Arc<EditorRegistry>>,
     project_id: i64,
     skill_id: i64,
 ) -> Result<(), String> {
     let db_guard = db.lock().map_err(|e| e.to_string())?;
 
-    // Get project path and skill details
-    let project_path: String = db_guard
+    // Get project path and editor_type
+    let (project_path, editor_type): (String, String) = db_guard
         .conn()
         .query_row(
-            "SELECT path FROM projects WHERE id = ?",
+            "SELECT path, COALESCE(editor_type, 'claude_code') FROM projects WHERE id = ?",
             [project_id],
-            |row| row.get(0),
+            |row| Ok((row.get(0)?, row.get(1)?)),
         )
         .map_err(|e| e.to_string())?;
 
@@ -514,8 +560,13 @@ pub fn remove_skill_from_project(
         )
         .map_err(|e| e.to_string())?;
 
-    // Delete the skill file from project config
-    skill_writer::delete_project_skill(Path::new(&project_path), &skill)
+    // Get the project's editor adapter and delete skill
+    let adapter = registry
+        .get_or_default(&editor_type)
+        .ok_or_else(|| format!("Editor '{}' not found in registry", editor_type))?;
+
+    adapter
+        .delete_project_skill(Path::new(&project_path), &skill)
         .map_err(|e| e.to_string())?;
 
     Ok(())
@@ -524,6 +575,7 @@ pub fn remove_skill_from_project(
 #[tauri::command]
 pub fn toggle_project_skill(
     db: State<'_, Arc<Mutex<Database>>>,
+    registry: State<'_, Arc<EditorRegistry>>,
     assignment_id: i64,
     enabled: bool,
 ) -> Result<(), String> {
@@ -537,9 +589,9 @@ pub fn toggle_project_skill(
         )
         .map_err(|e| e.to_string())?;
 
-    // Get project path and skill details
+    // Get project path, editor_type, and skill details
     let query = format!(
-        "SELECT p.path, s.id, s.name, s.description, s.content, s.allowed_tools, s.model, s.disable_model_invocation, s.tags, s.source, s.created_at, s.updated_at
+        "SELECT p.path, COALESCE(p.editor_type, 'claude_code'), s.id, s.name, s.description, s.content, s.allowed_tools, s.model, s.disable_model_invocation, s.tags, s.source, s.created_at, s.updated_at
          FROM project_skills ps
          JOIN projects p ON ps.project_id = p.id
          JOIN skills s ON ps.skill_id = s.id
@@ -547,18 +599,25 @@ pub fn toggle_project_skill(
     );
     let mut stmt = db_guard.conn().prepare(&query).map_err(|e| e.to_string())?;
 
-    let (project_path, skill): (String, Skill) = stmt
+    let (project_path, editor_type, skill): (String, String, Skill) = stmt
         .query_row([assignment_id], |row| {
-            Ok((row.get(0)?, row_to_skill_with_offset(row, 1)?))
+            Ok((row.get(0)?, row.get(1)?, row_to_skill_with_offset(row, 2)?))
         })
         .map_err(|e| e.to_string())?;
 
+    // Get the project's editor adapter
+    let adapter = registry
+        .get_or_default(&editor_type)
+        .ok_or_else(|| format!("Editor '{}' not found in registry", editor_type))?;
+
     // Write or delete the file based on enabled state
     if enabled {
-        skill_writer::write_project_skill(Path::new(&project_path), &skill)
+        adapter
+            .write_project_skill(Path::new(&project_path), &skill)
             .map_err(|e| e.to_string())?;
     } else {
-        skill_writer::delete_project_skill(Path::new(&project_path), &skill)
+        adapter
+            .delete_project_skill(Path::new(&project_path), &skill)
             .map_err(|e| e.to_string())?;
     }
 

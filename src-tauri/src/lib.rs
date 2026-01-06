@@ -11,6 +11,8 @@ mod utils;
 use db::Database;
 use mcp_gateway::server::{GatewayServerConfig, GatewayServerState, DEFAULT_GATEWAY_PORT};
 use mcp_server::server::{McpServerConfig, McpServerState, DEFAULT_MCP_SERVER_PORT};
+use services::editor::adapters::create_default_registry;
+use services::editor::EditorRegistry;
 use services::mcp_session::McpSessionManager;
 
 pub fn run() {
@@ -57,6 +59,10 @@ pub fn run() {
 
             // Initialize session manager for MCP execution
             app.manage(Mutex::new(McpSessionManager::new()));
+
+            // Initialize editor registry with all supported editors
+            let editor_registry = Arc::new(create_default_registry());
+            app.manage(editor_registry);
 
             // Initialize MCP server state with config from database
             let mcp_server_config = {

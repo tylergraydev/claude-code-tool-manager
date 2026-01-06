@@ -6,6 +6,9 @@
 pub mod adapters;
 pub mod registry;
 
+// Re-export main types for convenience
+pub use registry::EditorRegistry;
+
 use anyhow::Result;
 use std::path::{Path, PathBuf};
 
