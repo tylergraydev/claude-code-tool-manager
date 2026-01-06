@@ -176,7 +176,10 @@ fn row_to_command(row: &rusqlite::Row) -> Result<Command, rusqlite::Error> {
     })
 }
 
-fn row_to_command_with_offset(row: &rusqlite::Row, offset: usize) -> Result<Command, rusqlite::Error> {
+fn row_to_command_with_offset(
+    row: &rusqlite::Row,
+    offset: usize,
+) -> Result<Command, rusqlite::Error> {
     Ok(Command {
         id: row.get(offset)?,
         name: row.get(offset + 1)?,
@@ -199,7 +202,10 @@ fn row_to_command_with_offset(row: &rusqlite::Row, offset: usize) -> Result<Comm
 #[tauri::command]
 pub fn get_all_commands(db: State<'_, Arc<Mutex<Database>>>) -> Result<Vec<Command>, String> {
     let db = db.lock().map_err(|e| e.to_string())?;
-    let query = format!("SELECT {} FROM commands ORDER BY name", COMMAND_SELECT_FIELDS);
+    let query = format!(
+        "SELECT {} FROM commands ORDER BY name",
+        COMMAND_SELECT_FIELDS
+    );
     let mut stmt = db.conn().prepare(&query).map_err(|e| e.to_string())?;
 
     let commands = stmt
@@ -240,7 +246,10 @@ pub fn create_command(
 
     let id = db_guard.conn().last_insert_rowid();
 
-    let query = format!("SELECT {} FROM commands WHERE id = ?", COMMAND_SELECT_FIELDS);
+    let query = format!(
+        "SELECT {} FROM commands WHERE id = ?",
+        COMMAND_SELECT_FIELDS
+    );
     let mut stmt = db_guard.conn().prepare(&query).map_err(|e| e.to_string())?;
 
     stmt.query_row([id], row_to_command)
@@ -275,7 +284,10 @@ pub fn update_command(
         )
         .map_err(|e| e.to_string())?;
 
-    let query = format!("SELECT {} FROM commands WHERE id = ?", COMMAND_SELECT_FIELDS);
+    let query = format!(
+        "SELECT {} FROM commands WHERE id = ?",
+        COMMAND_SELECT_FIELDS
+    );
     let mut stmt = db.conn().prepare(&query).map_err(|e| e.to_string())?;
 
     stmt.query_row([id], row_to_command)
@@ -305,7 +317,9 @@ pub fn delete_command(db: State<'_, Arc<Mutex<Database>>>, id: i64) -> Result<()
 // ============================================================================
 
 #[tauri::command]
-pub fn get_global_commands(db: State<'_, Arc<Mutex<Database>>>) -> Result<Vec<GlobalCommand>, String> {
+pub fn get_global_commands(
+    db: State<'_, Arc<Mutex<Database>>>,
+) -> Result<Vec<GlobalCommand>, String> {
     let db = db.lock().map_err(|e| e.to_string())?;
     let query = format!(
         "SELECT gc.id, gc.command_id, gc.is_enabled,
@@ -333,11 +347,17 @@ pub fn get_global_commands(db: State<'_, Arc<Mutex<Database>>>) -> Result<Vec<Gl
 }
 
 #[tauri::command]
-pub fn add_global_command(db: State<'_, Arc<Mutex<Database>>>, command_id: i64) -> Result<(), String> {
+pub fn add_global_command(
+    db: State<'_, Arc<Mutex<Database>>>,
+    command_id: i64,
+) -> Result<(), String> {
     let db_guard = db.lock().map_err(|e| e.to_string())?;
 
     // Get the command details for file writing
-    let query = format!("SELECT {} FROM commands WHERE id = ?", COMMAND_SELECT_FIELDS);
+    let query = format!(
+        "SELECT {} FROM commands WHERE id = ?",
+        COMMAND_SELECT_FIELDS
+    );
     let mut stmt = db_guard.conn().prepare(&query).map_err(|e| e.to_string())?;
 
     let command: Command = stmt
@@ -366,7 +386,10 @@ pub fn remove_global_command(
     let db_guard = db.lock().map_err(|e| e.to_string())?;
 
     // Get the command for file deletion
-    let query = format!("SELECT {} FROM commands WHERE id = ?", COMMAND_SELECT_FIELDS);
+    let query = format!(
+        "SELECT {} FROM commands WHERE id = ?",
+        COMMAND_SELECT_FIELDS
+    );
     let mut stmt = db_guard.conn().prepare(&query).map_err(|e| e.to_string())?;
 
     let command: Command = stmt
@@ -375,7 +398,10 @@ pub fn remove_global_command(
 
     db_guard
         .conn()
-        .execute("DELETE FROM global_commands WHERE command_id = ?", [command_id])
+        .execute(
+            "DELETE FROM global_commands WHERE command_id = ?",
+            [command_id],
+        )
         .map_err(|e| e.to_string())?;
 
     // Delete the command file from global config
@@ -415,9 +441,11 @@ pub fn toggle_global_command(
 
     // Write or delete the file based on enabled state
     if enabled {
-        crate::services::command_writer::write_global_command(&command).map_err(|e| e.to_string())?;
+        crate::services::command_writer::write_global_command(&command)
+            .map_err(|e| e.to_string())?;
     } else {
-        crate::services::command_writer::delete_global_command(&command).map_err(|e| e.to_string())?;
+        crate::services::command_writer::delete_global_command(&command)
+            .map_err(|e| e.to_string())?;
     }
 
     Ok(())
@@ -445,7 +473,10 @@ pub fn assign_command_to_project(
         )
         .map_err(|e| e.to_string())?;
 
-    let query = format!("SELECT {} FROM commands WHERE id = ?", COMMAND_SELECT_FIELDS);
+    let query = format!(
+        "SELECT {} FROM commands WHERE id = ?",
+        COMMAND_SELECT_FIELDS
+    );
     let mut stmt = db_guard.conn().prepare(&query).map_err(|e| e.to_string())?;
 
     let command: Command = stmt
@@ -461,8 +492,11 @@ pub fn assign_command_to_project(
         .map_err(|e| e.to_string())?;
 
     // Write the command file to project config
-    crate::services::command_writer::write_project_command(std::path::Path::new(&project_path), &command)
-        .map_err(|e| e.to_string())?;
+    crate::services::command_writer::write_project_command(
+        std::path::Path::new(&project_path),
+        &command,
+    )
+    .map_err(|e| e.to_string())?;
 
     Ok(())
 }
@@ -485,7 +519,10 @@ pub fn remove_command_from_project(
         )
         .map_err(|e| e.to_string())?;
 
-    let query = format!("SELECT {} FROM commands WHERE id = ?", COMMAND_SELECT_FIELDS);
+    let query = format!(
+        "SELECT {} FROM commands WHERE id = ?",
+        COMMAND_SELECT_FIELDS
+    );
     let mut stmt = db_guard.conn().prepare(&query).map_err(|e| e.to_string())?;
 
     let command: Command = stmt
@@ -501,8 +538,11 @@ pub fn remove_command_from_project(
         .map_err(|e| e.to_string())?;
 
     // Delete the command file from project config
-    crate::services::command_writer::delete_project_command(std::path::Path::new(&project_path), &command)
-        .map_err(|e| e.to_string())?;
+    crate::services::command_writer::delete_project_command(
+        std::path::Path::new(&project_path),
+        &command,
+    )
+    .map_err(|e| e.to_string())?;
 
     Ok(())
 }
@@ -534,18 +574,22 @@ pub fn toggle_project_command(
     let mut stmt = db_guard.conn().prepare(&query).map_err(|e| e.to_string())?;
 
     let (command, project_path): (Command, String) = stmt
-        .query_row([id], |row| {
-            Ok((row_to_command(row)?, row.get(11)?))
-        })
+        .query_row([id], |row| Ok((row_to_command(row)?, row.get(11)?)))
         .map_err(|e| e.to_string())?;
 
     // Write or delete the file based on enabled state
     if enabled {
-        crate::services::command_writer::write_project_command(std::path::Path::new(&project_path), &command)
-            .map_err(|e| e.to_string())?;
+        crate::services::command_writer::write_project_command(
+            std::path::Path::new(&project_path),
+            &command,
+        )
+        .map_err(|e| e.to_string())?;
     } else {
-        crate::services::command_writer::delete_project_command(std::path::Path::new(&project_path), &command)
-            .map_err(|e| e.to_string())?;
+        crate::services::command_writer::delete_project_command(
+            std::path::Path::new(&project_path),
+            &command,
+        )
+        .map_err(|e| e.to_string())?;
     }
 
     Ok(())

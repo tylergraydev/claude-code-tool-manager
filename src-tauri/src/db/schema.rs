@@ -1250,12 +1250,18 @@ impl Database {
             .ok_or_else(|| anyhow::anyhow!("Failed to retrieve created command"))
     }
 
-    pub fn update_command(&self, command: &crate::db::models::Command) -> Result<crate::db::models::Command> {
+    pub fn update_command(
+        &self,
+        command: &crate::db::models::Command,
+    ) -> Result<crate::db::models::Command> {
         let allowed_tools_json = command
             .allowed_tools
             .as_ref()
             .map(|a| serde_json::to_string(a).unwrap());
-        let tags_json = command.tags.as_ref().map(|t| serde_json::to_string(t).unwrap());
+        let tags_json = command
+            .tags
+            .as_ref()
+            .map(|t| serde_json::to_string(t).unwrap());
 
         self.conn.execute(
             "UPDATE commands SET name = ?, description = ?, content = ?, allowed_tools = ?, argument_hint = ?, model = ?, tags = ?, updated_at = CURRENT_TIMESTAMP
@@ -1271,7 +1277,8 @@ impl Database {
     }
 
     pub fn delete_command(&self, id: i64) -> Result<()> {
-        self.conn.execute("DELETE FROM commands WHERE id = ?", [id])?;
+        self.conn
+            .execute("DELETE FROM commands WHERE id = ?", [id])?;
         Ok(())
     }
 
@@ -1326,8 +1333,10 @@ impl Database {
     }
 
     pub fn remove_global_command(&self, command_id: i64) -> Result<()> {
-        self.conn
-            .execute("DELETE FROM global_commands WHERE command_id = ?", [command_id])?;
+        self.conn.execute(
+            "DELETE FROM global_commands WHERE command_id = ?",
+            [command_id],
+        )?;
         Ok(())
     }
 
@@ -1339,7 +1348,10 @@ impl Database {
         Ok(())
     }
 
-    pub fn get_project_commands(&self, project_id: i64) -> Result<Vec<crate::db::models::ProjectCommand>> {
+    pub fn get_project_commands(
+        &self,
+        project_id: i64,
+    ) -> Result<Vec<crate::db::models::ProjectCommand>> {
         let mut stmt = self.conn.prepare(
             "SELECT pc.id, pc.command_id, pc.is_enabled,
                     c.id, c.name, c.description, c.content, c.allowed_tools, c.argument_hint, c.model, c.tags, c.source, c.created_at, c.updated_at

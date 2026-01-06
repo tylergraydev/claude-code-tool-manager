@@ -912,10 +912,17 @@ mod tests {
 
         assert_eq!(skill.name, "test-skill");
         assert_eq!(skill.description, Some("A test agent skill".to_string()));
-        assert_eq!(skill.content, "You are an agent that helps with code reviews.");
+        assert_eq!(
+            skill.content,
+            "You are an agent that helps with code reviews."
+        );
         assert_eq!(
             skill.allowed_tools,
-            Some(vec!["Read".to_string(), "Grep".to_string(), "Glob".to_string()])
+            Some(vec![
+                "Read".to_string(),
+                "Grep".to_string(),
+                "Glob".to_string()
+            ])
         );
         assert_eq!(skill.model, Some("opus".to_string()));
         assert!(skill.disable_model_invocation);
