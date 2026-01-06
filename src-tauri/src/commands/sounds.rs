@@ -1,8 +1,6 @@
 //! Sound management commands for Tauri.
 
-use crate::services::sound_player::{
-    self, CustomSound, SystemSound,
-};
+use crate::services::sound_player::{self, CustomSound, SystemSound};
 use log::info;
 
 /// Get all available system sounds for the current OS
@@ -51,7 +49,10 @@ pub fn delete_custom_sound(name: String) -> Result<(), String> {
 /// Generate a shell command for playing a sound
 #[tauri::command]
 pub fn generate_sound_hook_command(sound_path: String, method: String) -> Result<String, String> {
-    info!("[Sounds] Generating hook command for: {} (method: {})", sound_path, method);
+    info!(
+        "[Sounds] Generating hook command for: {} (method: {})",
+        sound_path, method
+    );
     Ok(sound_player::generate_play_command(&sound_path, &method))
 }
 

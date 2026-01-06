@@ -806,7 +806,10 @@ pub fn duplicate_hook(
     id: i64,
     new_name: String,
 ) -> Result<Hook, String> {
-    info!("[Hooks] Duplicating hook id={} with name '{}'", id, new_name);
+    info!(
+        "[Hooks] Duplicating hook id={} with name '{}'",
+        id, new_name
+    );
     let db_guard = db.lock().map_err(|e| e.to_string())?;
 
     // Get the original hook

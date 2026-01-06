@@ -34,10 +34,7 @@ pub fn get_system_sounds_path() -> Option<PathBuf> {
     #[cfg(target_os = "linux")]
     {
         // Try common Linux sound directories
-        let paths = [
-            "/usr/share/sounds/freedesktop/stereo",
-            "/usr/share/sounds",
-        ];
+        let paths = ["/usr/share/sounds/freedesktop/stereo", "/usr/share/sounds"];
         for path in paths {
             if Path::new(path).exists() {
                 return Some(PathBuf::from(path));
@@ -76,14 +73,16 @@ pub fn get_hooks_path() -> PathBuf {
 /// Ensure the custom sounds directory exists
 pub fn ensure_sounds_directory() -> Result<PathBuf, String> {
     let path = get_custom_sounds_path();
-    std::fs::create_dir_all(&path).map_err(|e| format!("Failed to create sounds directory: {}", e))?;
+    std::fs::create_dir_all(&path)
+        .map_err(|e| format!("Failed to create sounds directory: {}", e))?;
     Ok(path)
 }
 
 /// Ensure the hooks directory exists
 pub fn ensure_hooks_directory() -> Result<PathBuf, String> {
     let path = get_hooks_path();
-    std::fs::create_dir_all(&path).map_err(|e| format!("Failed to create hooks directory: {}", e))?;
+    std::fs::create_dir_all(&path)
+        .map_err(|e| format!("Failed to create hooks directory: {}", e))?;
     Ok(path)
 }
 
@@ -185,9 +184,7 @@ pub fn play_sound(path: &str) -> Result<(), String> {
     #[cfg(target_os = "macos")]
     {
         std::thread::spawn(move || {
-            let result = Command::new("afplay")
-                .arg(&path_str)
-                .output();
+            let result = Command::new("afplay").arg(&path_str).output();
             if let Err(e) = result {
                 error!("[SoundPlayer] Failed to play sound: {}", e);
             }
@@ -202,11 +199,7 @@ pub fn play_sound(path: &str) -> Result<(), String> {
             let result = Command::new("paplay")
                 .arg(&path_str)
                 .output()
-                .or_else(|_| {
-                    Command::new("aplay")
-                        .arg(&path_str)
-                        .output()
-                });
+                .or_else(|_| Command::new("aplay").arg(&path_str).output());
             if let Err(e) = result {
                 error!("[SoundPlayer] Failed to play sound: {}", e);
             }
@@ -221,9 +214,7 @@ pub fn play_sound(path: &str) -> Result<(), String> {
                 "(New-Object Media.SoundPlayer '{}').PlaySync()",
                 path_str.replace("'", "''")
             );
-            let result = Command::new("powershell")
-                .args(["-c", &script])
-                .output();
+            let result = Command::new("powershell").args(["-c", &script]).output();
             if let Err(e) = result {
                 error!("[SoundPlayer] Failed to play sound: {}", e);
             }
@@ -250,7 +241,10 @@ pub fn validate_sound_file(path: &str) -> Result<(), String> {
         .map(|e| e.to_string_lossy().to_lowercase())
         .unwrap_or_default();
 
-    if !matches!(extension.as_str(), "aiff" | "wav" | "mp3" | "ogg" | "oga" | "m4a") {
+    if !matches!(
+        extension.as_str(),
+        "aiff" | "wav" | "mp3" | "ogg" | "oga" | "m4a"
+    ) {
         return Err(format!("Unsupported audio format: {}", extension));
     }
 
@@ -285,7 +279,10 @@ pub fn generate_play_command(sound_path: &str, method: &str) -> String {
 
     #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
     {
-        format!("# Sound playback not supported on this platform: {}", sound_path)
+        format!(
+            "# Sound playback not supported on this platform: {}",
+            sound_path
+        )
     }
 }
 
@@ -384,7 +381,10 @@ pub fn deploy_notification_script() -> Result<String, String> {
             .map_err(|e| format!("Failed to set script permissions: {}", e))?;
     }
 
-    info!("[SoundPlayer] Deployed notification script to: {}", script_path.display());
+    info!(
+        "[SoundPlayer] Deployed notification script to: {}",
+        script_path.display()
+    );
     Ok(script_path.to_string_lossy().to_string())
 }
 
@@ -399,12 +399,14 @@ pub fn save_custom_sound(name: &str, data: &[u8]) -> Result<CustomSound, String>
         .map(|e| e.to_string_lossy().to_lowercase())
         .unwrap_or_default();
 
-    if !matches!(extension.as_str(), "aiff" | "wav" | "mp3" | "ogg" | "oga" | "m4a") {
+    if !matches!(
+        extension.as_str(),
+        "aiff" | "wav" | "mp3" | "ogg" | "oga" | "m4a"
+    ) {
         return Err(format!("Unsupported audio format: {}", extension));
     }
 
-    std::fs::write(&file_path, data)
-        .map_err(|e| format!("Failed to write sound file: {}", e))?;
+    std::fs::write(&file_path, data).map_err(|e| format!("Failed to write sound file: {}", e))?;
 
     let metadata = std::fs::metadata(&file_path)
         .map_err(|e| format!("Failed to read file metadata: {}", e))?;
@@ -435,8 +437,7 @@ pub fn delete_custom_sound(name: &str) -> Result<(), String> {
         return Err("Cannot delete files outside sounds directory".to_string());
     }
 
-    std::fs::remove_file(&file_path)
-        .map_err(|e| format!("Failed to delete sound file: {}", e))?;
+    std::fs::remove_file(&file_path).map_err(|e| format!("Failed to delete sound file: {}", e))?;
 
     info!("[SoundPlayer] Deleted custom sound: {}", name);
     Ok(())

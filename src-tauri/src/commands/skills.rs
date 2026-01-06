@@ -121,9 +121,7 @@ fn validate_skill_description(description: Option<&str>) -> ValidationResult {
 
     // Check for XML tags (security requirement)
     if description.contains('<') || description.contains('>') {
-        return ValidationResult::err(
-            "Description cannot contain XML tags (< or >)".to_string(),
-        );
+        return ValidationResult::err("Description cannot contain XML tags (< or >)".to_string());
     }
 
     ValidationResult::ok()
@@ -1399,7 +1397,10 @@ mod tests {
     fn test_validate_name_underscore_rejected() {
         let result = validate_skill_name("my_skill");
         assert!(!result.is_valid);
-        assert!(result.error.unwrap().contains("lowercase letters, numbers, and hyphens"));
+        assert!(result
+            .error
+            .unwrap()
+            .contains("lowercase letters, numbers, and hyphens"));
     }
 
     #[test]
