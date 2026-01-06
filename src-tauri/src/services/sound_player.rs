@@ -228,6 +228,14 @@ pub fn play_sound(path: &str) -> Result<(), String> {
     }
 }
 
+/// Escape shell metacharacters for safe use in double-quoted strings
+fn escape_shell_arg(s: &str) -> String {
+    s.replace('\\', "\\\\")
+        .replace('"', "\\\"")
+        .replace('$', "\\$")
+        .replace('`', "\\`")
+}
+
 /// Validate that a file is a valid audio format
 pub fn validate_sound_file(path: &str) -> Result<(), String> {
     let path = Path::new(path);
@@ -258,15 +266,17 @@ pub fn generate_play_command(sound_path: &str, method: &str) -> String {
         return format!("python3 ~/.claude/hooks/notification-hook.py");
     }
 
-    // Direct shell command approach
+    // Direct shell command approach - escape shell metacharacters
     #[cfg(target_os = "macos")]
     {
-        format!("afplay \"{}\"", sound_path)
+        let escaped = escape_shell_arg(sound_path);
+        format!("afplay \"{}\"", escaped)
     }
 
     #[cfg(target_os = "linux")]
     {
-        format!("paplay \"{}\" || aplay \"{}\"", sound_path, sound_path)
+        let escaped = escape_shell_arg(sound_path);
+        format!("paplay \"{}\" || aplay \"{}\"", escaped, escaped)
     }
 
     #[cfg(target_os = "windows")]
@@ -327,9 +337,11 @@ def play_sound(sound_path: str) -> bool:
             except FileNotFoundError:
                 subprocess.run(["aplay", sound_path], check=True, capture_output=True)
         elif sys.platform == "win32":
+            # Escape single quotes for PowerShell to prevent command injection
+            escaped_path = sound_path.replace("'", "''")
             subprocess.run([
                 "powershell", "-c",
-                f"(New-Object Media.SoundPlayer '{sound_path}').PlaySync()"
+                f"(New-Object Media.SoundPlayer '{escaped_path}').PlaySync()"
             ], check=True, capture_output=True)
         return True
     except (subprocess.CalledProcessError, FileNotFoundError):
@@ -391,7 +403,15 @@ pub fn deploy_notification_script() -> Result<String, String> {
 /// Save a custom sound file
 pub fn save_custom_sound(name: &str, data: &[u8]) -> Result<CustomSound, String> {
     let sounds_dir = ensure_sounds_directory()?;
-    let file_path = sounds_dir.join(name);
+
+    // Extract just the filename to prevent path traversal attacks
+    let safe_filename = Path::new(name)
+        .file_name()
+        .ok_or("Invalid filename")?
+        .to_string_lossy()
+        .to_string();
+
+    let file_path = sounds_dir.join(&safe_filename);
 
     // Validate the filename has a valid extension
     let extension = file_path
@@ -406,6 +426,14 @@ pub fn save_custom_sound(name: &str, data: &[u8]) -> Result<CustomSound, String>
         return Err(format!("Unsupported audio format: {}", extension));
     }
 
+    // Safety check: ensure file path is within sounds directory
+    let canonical_sounds_dir = sounds_dir
+        .canonicalize()
+        .unwrap_or_else(|_| sounds_dir.clone());
+    if !file_path.starts_with(&sounds_dir) {
+        return Err("Cannot save files outside sounds directory".to_string());
+    }
+
     std::fs::write(&file_path, data).map_err(|e| format!("Failed to write sound file: {}", e))?;
 
     let metadata = std::fs::metadata(&file_path)
@@ -416,7 +444,7 @@ pub fn save_custom_sound(name: &str, data: &[u8]) -> Result<CustomSound, String>
     info!("[SoundPlayer] Saved custom sound: {}", file_path.display());
 
     Ok(CustomSound {
-        name: name.to_string(),
+        name: safe_filename,
         path: file_path.to_string_lossy().to_string(),
         size: metadata.len(),
         created_at,

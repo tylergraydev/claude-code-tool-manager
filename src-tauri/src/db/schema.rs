@@ -459,8 +459,17 @@ impl Database {
             )
             .unwrap_or(false);
 
-        // Only run migration if we have the old skill_type column and the new commands table
-        if has_commands_table && has_skill_type_column {
+        let has_argument_hint_column: bool = self
+            .conn
+            .query_row(
+                "SELECT COUNT(*) > 0 FROM pragma_table_info('skills') WHERE name = 'argument_hint'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap_or(false);
+
+        // Only run migration if we have both old columns and the new commands table
+        if has_commands_table && has_skill_type_column && has_argument_hint_column {
             // Migrate commands from skills to commands table
             self.conn.execute_batch(
                 r#"
