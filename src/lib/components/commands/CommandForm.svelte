@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { CreateSkillRequest, Skill } from '$lib/types';
+	import type { CreateCommandRequest, Command } from '$lib/types';
 	import { parseSkillMarkdown } from '$lib/utils/markdownParser';
 	import { Clipboard, Check, AlertCircle, FileUp, TriangleAlert } from 'lucide-svelte';
 
@@ -11,8 +11,8 @@
 	const NAME_PATTERN = /^[a-z0-9-]+$/;
 
 	type Props = {
-		initialValues?: Partial<Skill>;
-		onSubmit: (values: CreateSkillRequest) => void;
+		initialValues?: Partial<Command>;
+		onSubmit: (values: CreateCommandRequest) => void;
 		onCancel: () => void;
 	};
 
@@ -23,8 +23,8 @@
 	let description = $state(initialValues.description ?? '');
 	let content = $state(initialValues.content ?? '');
 	let allowedToolsInput = $state(initialValues.allowedTools?.join(', ') ?? '');
+	let argumentHint = $state(initialValues.argumentHint ?? '');
 	let model = $state(initialValues.model ?? '');
-	let disableModelInvocation = $state(initialValues.disableModelInvocation ?? false);
 	let tagsInput = $state(initialValues.tags?.join(', ') ?? '');
 
 	let isSubmitting = $state(false);
@@ -35,13 +35,13 @@
 	let importStatus = $state<'idle' | 'success' | 'error'>('idle');
 	let importMessage = $state('');
 
-	function applyParsedSkill(parsed: { name?: string; description?: string; content: string; allowedTools?: string[]; model?: string; disableModelInvocation?: boolean; tags?: string[] }) {
+	function applyParsedCommand(parsed: { name?: string; description?: string; content: string; allowedTools?: string[]; argumentHint?: string; model?: string; tags?: string[] }) {
 		if (parsed.name) name = parsed.name;
 		if (parsed.description) description = parsed.description;
 		content = parsed.content;
 		if (parsed.allowedTools) allowedToolsInput = parsed.allowedTools.join(', ');
+		if (parsed.argumentHint) argumentHint = parsed.argumentHint;
 		if (parsed.model) model = parsed.model;
-		if (parsed.disableModelInvocation !== undefined) disableModelInvocation = parsed.disableModelInvocation;
 		if (parsed.tags) tagsInput = parsed.tags.join(', ');
 
 		importStatus = 'success';
@@ -63,7 +63,7 @@
 			// Only prevent default if we successfully parsed frontmatter (has name)
 			if (result.data.name) {
 				e.preventDefault();
-				applyParsedSkill(result.data);
+				applyParsedCommand(result.data);
 			}
 		}
 	}
@@ -74,7 +74,7 @@
 			const result = parseSkillMarkdown(text);
 
 			if (result.success && result.data) {
-				applyParsedSkill(result.data);
+				applyParsedCommand(result.data);
 			} else {
 				importStatus = 'error';
 				importMessage = result.error ?? 'Could not parse clipboard content';
@@ -106,7 +106,7 @@
 				const result = parseSkillMarkdown(text);
 
 				if (result.success && result.data) {
-					applyParsedSkill(result.data);
+					applyParsedCommand(result.data);
 				} else {
 					importStatus = 'error';
 					importMessage = result.error ?? 'Could not parse file';
@@ -170,7 +170,7 @@
 			// Check line count and warn if exceeding recommendation
 			const lineCount = trimmedContent.split('\n').length;
 			if (lineCount > RECOMMENDED_MAX_CONTENT_LINES) {
-				warnings.content = `Content has ${lineCount} lines, exceeding the recommended ${RECOMMENDED_MAX_CONTENT_LINES} lines. Consider splitting into separate reference files.`;
+				warnings.content = `Content has ${lineCount} lines, exceeding the recommended ${RECOMMENDED_MAX_CONTENT_LINES} lines.`;
 			}
 		}
 
@@ -194,13 +194,13 @@
 			.map((t) => t.trim())
 			.filter((t) => t.length > 0);
 
-		const request: CreateSkillRequest = {
+		const request: CreateCommandRequest = {
 			name: name.trim(),
 			description: description.trim() || undefined,
 			content: content.trim(),
 			allowedTools: allowedTools.length > 0 ? allowedTools : undefined,
+			argumentHint: argumentHint.trim() || undefined,
 			model: model.trim() || undefined,
-			disableModelInvocation: disableModelInvocation || undefined,
 			tags: tags.length > 0 ? tags : undefined
 		};
 
@@ -267,20 +267,23 @@
 		<label for="name" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
 			Name <span class="text-red-500">*</span>
 		</label>
-		<input
-			type="text"
-			id="name"
-			bind:value={name}
-			class="input mt-1"
-			class:border-red-500={errors.name}
-			placeholder="my-skill"
-		/>
+		<div class="relative mt-1">
+			<span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">/</span>
+			<input
+				type="text"
+				id="name"
+				bind:value={name}
+				class="input pl-7"
+				class:border-red-500={errors.name}
+				placeholder="my-command"
+			/>
+		</div>
 		{#if errors.name}
 			<p class="mt-1 text-sm text-red-500">{errors.name}</p>
 		{:else}
 			<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-				Will be saved to <code class="px-1 bg-gray-100 dark:bg-gray-700 rounded">.claude/skills/{name || 'name'}/SKILL.md</code>
-				<span class="text-gray-400 dark:text-gray-500">&nbsp;·&nbsp;Lowercase letters, numbers, and hyphens only</span>
+				This will create the command <code class="px-1 bg-gray-100 dark:bg-gray-700 rounded">/{name || 'name'}</code>
+				<span class="text-gray-400 dark:text-gray-500">&nbsp;·&nbsp;Lowercase letters, numbers, and hyphens only (max {MAX_NAME_LENGTH} chars)</span>
 			</p>
 		{/if}
 	</div>
@@ -296,13 +299,13 @@
 			bind:value={description}
 			class="input mt-1"
 			class:border-red-500={errors.description}
-			placeholder="When Claude should invoke this skill"
+			placeholder="Brief description of what this command does"
 		/>
 		{#if errors.description}
 			<p class="mt-1 text-sm text-red-500">{errors.description}</p>
 		{:else}
 			<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-				Claude uses this to decide when to invoke the skill (max {MAX_DESCRIPTION_LENGTH} chars)
+				Shown in command hints (max {MAX_DESCRIPTION_LENGTH} chars)
 			</p>
 		{/if}
 	</div>
@@ -325,6 +328,23 @@
 		</p>
 	</div>
 
+	<!-- Argument Hint -->
+	<div>
+		<label for="argumentHint" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+			Argument Hint
+		</label>
+		<input
+			type="text"
+			id="argumentHint"
+			bind:value={argumentHint}
+			class="input mt-1"
+			placeholder="[file] [--verbose] [--dry-run]"
+		/>
+		<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+			Shows user expected arguments format. Use <code class="px-1 bg-gray-100 dark:bg-gray-700 rounded">$ARGUMENTS</code> in content to receive them.
+		</p>
+	</div>
+
 	<!-- Model Selection -->
 	<div>
 		<label for="model" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -341,32 +361,14 @@
 			<option value="haiku">Haiku (Fast & efficient)</option>
 		</select>
 		<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-			Optionally force a specific model when executing this skill
+			Optionally force a specific model when executing this command
 		</p>
-	</div>
-
-	<!-- Disable Model Invocation -->
-	<div class="flex items-start gap-3">
-		<input
-			type="checkbox"
-			id="disableModelInvocation"
-			bind:checked={disableModelInvocation}
-			class="mt-1 w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-purple-600 focus:ring-purple-500"
-		/>
-		<div>
-			<label for="disableModelInvocation" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-				Disable Model Invocation
-			</label>
-			<p class="text-xs text-gray-500 dark:text-gray-400">
-				Prevent Claude from automatically invoking this skill. Useful for skills that should only be called by other skills.
-			</p>
-		</div>
 	</div>
 
 	<!-- Content -->
 	<div>
 		<label for="content" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-			Skill Instructions <span class="text-red-500">*</span>
+			Command Prompt <span class="text-red-500">*</span>
 		</label>
 		<textarea
 			id="content"
@@ -374,19 +376,13 @@
 			rows={12}
 			class="input mt-1 font-mono text-sm resize-y"
 			class:border-red-500={errors.content}
-			placeholder={`# My Skill
+			placeholder={`# My Command
 
-Instructions for Claude when this skill is invoked.
+This is the prompt content that will be used when the command is invoked.
 
-## When to Use
+You can use markdown formatting here.
 
-- When the user asks about...
-- When working with...
-
-## How to Execute
-
-1. First...
-2. Then...`}
+$ARGUMENTS will be replaced with user input.`}
 		></textarea>
 		{#if errors.content}
 			<p class="mt-1 text-sm text-red-500">{errors.content}</p>
@@ -400,7 +396,7 @@ Instructions for Claude when this skill is invoked.
 				</div>
 			{/if}
 			<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-				Instructions that tell Claude how to execute this skill (recommended: under {RECOMMENDED_MAX_CONTENT_LINES} lines)
+				Use <code class="px-1 bg-gray-100 dark:bg-gray-700 rounded">$ARGUMENTS</code> to include user-provided arguments
 			</p>
 		{/if}
 	</div>
@@ -415,7 +411,7 @@ Instructions for Claude when this skill is invoked.
 			id="tags"
 			bind:value={tagsInput}
 			class="input mt-1"
-			placeholder="code-review, testing, documentation"
+			placeholder="utility, git, deployment"
 		/>
 		<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
 			Comma-separated tags for organization
@@ -428,7 +424,7 @@ Instructions for Claude when this skill is invoked.
 			Cancel
 		</button>
 		<button type="submit" class="btn btn-primary" disabled={isSubmitting}>
-			{initialValues.name ? 'Update Skill' : 'Create Skill'}
+			{initialValues.name ? 'Update Command' : 'Create Command'}
 		</button>
 	</div>
 </form>

@@ -1,190 +1,168 @@
 <script lang="ts">
 	import { Header } from '$lib/components/layout';
-	import { McpLibrary, McpForm, McpTestModal } from '$lib/components/mcp';
-	import { ProjectList } from '$lib/components/projects';
-	import { GlobalSettings } from '$lib/components/global';
-	import { ConfirmDialog } from '$lib/components/shared';
-	import { mcpLibrary, projectsStore, notifications } from '$lib/stores';
-	import type { Mcp, Project } from '$lib/types';
-	import { invoke } from '@tauri-apps/api/core';
-	import { Plus, Scan } from 'lucide-svelte';
+	import { mcpLibrary, projectsStore, subagentLibrary, skillLibrary, hookLibrary, commandLibrary } from '$lib/stores';
+	import { FolderOpen, Plug, Bot, Sparkles, Zap, Globe, ArrowRight, Terminal } from 'lucide-svelte';
+	import { goto } from '$app/navigation';
 
-	// Modal states
-	let showAddMcp = $state(false);
-	let editingMcp = $state<Mcp | null>(null);
-	let deletingMcp = $state<Mcp | null>(null);
-	let deletingProject = $state<Project | null>(null);
-	let testingMcp = $state<Mcp | null>(null);
+	// Derived counts
+	const projectCount = $derived(projectsStore.projects.length);
+	const mcpCount = $derived(mcpLibrary.mcps.length);
+	const globalMcpCount = $derived(projectsStore.globalMcps.length);
+	const subagentCount = $derived(subagentLibrary.subagents.length);
+	const skillCount = $derived(skillLibrary.skills.length);
+	const commandCount = $derived(commandLibrary.commands.length);
+	const globalCommandCount = $derived(commandLibrary.globalCommands.length);
+	const hookCount = $derived(hookLibrary.hooks.length);
+	const globalHookCount = $derived(hookLibrary.globalHooks.length);
 
-	async function handleCreateMcp(values: any) {
-		try {
-			await mcpLibrary.create(values);
-			showAddMcp = false;
-			notifications.success('MCP created successfully');
-		} catch (err) {
-			notifications.error('Failed to create MCP');
+	const stats = $derived([
+		{
+			label: 'Projects',
+			value: projectCount,
+			icon: FolderOpen,
+			color: 'bg-blue-500',
+			href: '/projects'
+		},
+		{
+			label: 'MCPs',
+			value: mcpCount,
+			subtitle: `${globalMcpCount} global`,
+			icon: Plug,
+			color: 'bg-purple-500',
+			href: '/library'
+		},
+		{
+			label: 'Subagents',
+			value: subagentCount,
+			icon: Bot,
+			color: 'bg-green-500',
+			href: '/subagents'
+		},
+		{
+			label: 'Commands',
+			value: commandCount,
+			subtitle: `${globalCommandCount} global`,
+			icon: Terminal,
+			color: 'bg-amber-500',
+			href: '/commands'
+		},
+		{
+			label: 'Skills',
+			value: skillCount,
+			icon: Sparkles,
+			color: 'bg-purple-400',
+			href: '/skills'
+		},
+		{
+			label: 'Hooks',
+			value: hookCount,
+			subtitle: `${globalHookCount} global`,
+			icon: Zap,
+			color: 'bg-rose-500',
+			href: '/hooks'
 		}
-	}
+	]);
 
-	async function handleUpdateMcp(values: any) {
-		if (!editingMcp) return;
-		try {
-			await mcpLibrary.update(editingMcp.id, values);
-			editingMcp = null;
-			notifications.success('MCP updated successfully');
-		} catch (err) {
-			notifications.error('Failed to update MCP');
-		}
-	}
-
-	async function handleDeleteMcp() {
-		if (!deletingMcp) return;
-		try {
-			await mcpLibrary.delete(deletingMcp.id);
-			notifications.success('MCP deleted');
-		} catch (err) {
-			notifications.error('Failed to delete MCP');
-		} finally {
-			deletingMcp = null;
-		}
-	}
-
-	async function handleDuplicateMcp(mcp: Mcp) {
-		try {
-			await mcpLibrary.duplicate(mcp.id);
-			notifications.success('MCP duplicated');
-		} catch (err) {
-			notifications.error('Failed to duplicate MCP');
-		}
-	}
-
-	async function handleAddProject() {
-		try {
-			const path = await projectsStore.browseForProject();
-			if (path) {
-				const name = path.split(/[/\\]/).pop() || 'Project';
-				await projectsStore.addProject({ name, path });
-				notifications.success('Project added');
-			}
-		} catch (err) {
-			notifications.error('Failed to add project');
-		}
-	}
-
-	async function handleRemoveProject() {
-		if (!deletingProject) return;
-		try {
-			await projectsStore.removeProject(deletingProject.id);
-			notifications.success('Project removed');
-		} catch (err) {
-			notifications.error('Failed to remove project');
-		} finally {
-			deletingProject = null;
-		}
-	}
-
-	async function handleScan() {
-		try {
-			notifications.info('Scanning for MCPs...');
-			await invoke('scan_claude_directory');
-			await mcpLibrary.load();
-			notifications.success('Scan complete');
-		} catch (err) {
-			notifications.error('Scan failed');
-		}
-	}
+	// Quick links
+	const quickLinks = [
+		{ label: 'Add MCP', href: '/library', description: 'Add a new MCP server to your library' },
+		{ label: 'Manage Projects', href: '/projects', description: 'Configure MCPs for your projects' },
+		{ label: 'Browse Marketplace', href: '/marketplace', description: 'Discover community MCPs and tools' },
+		{ label: 'Settings', href: '/settings', description: 'Configure application settings' }
+	];
 </script>
 
-<Header title="Dashboard" subtitle="Manage your Claude Code MCPs, Agents, and Skills" />
+<Header title="Dashboard" subtitle="Overview of your Claude Code configuration" />
 
 <div class="flex-1 overflow-auto p-6 space-y-8">
-	<!-- Quick Actions -->
-	<div class="flex items-center gap-3">
-		<button onclick={() => (showAddMcp = true)} class="btn btn-primary">
-			<Plus class="w-4 h-4 mr-2" />
-			Add MCP
-		</button>
-		<button onclick={handleScan} class="btn btn-secondary">
-			<Scan class="w-4 h-4 mr-2" />
-			Scan for MCPs
-		</button>
-	</div>
-
-	<!-- MCP Library -->
+	<!-- Stats Grid -->
 	<section>
-		<h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">MCP Library</h2>
-		<McpLibrary
-			onEdit={(mcp) => (editingMcp = mcp)}
-			onDelete={(mcp) => (deletingMcp = mcp)}
-			onDuplicate={handleDuplicateMcp}
-			onTest={(mcp) => (testingMcp = mcp)}
-		/>
+		<h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Overview</h2>
+		<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+			{#each stats as stat}
+				<button
+					onclick={() => goto(stat.href)}
+					class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 hover:border-gray-300 dark:hover:border-gray-600 hover:shadow-md transition-all text-left group"
+				>
+					<div class="flex items-start justify-between">
+						<div>
+							<p class="text-sm font-medium text-gray-500 dark:text-gray-400">{stat.label}</p>
+							<p class="text-3xl font-bold text-gray-900 dark:text-white mt-1">{stat.value}</p>
+							{#if stat.subtitle}
+								<p class="text-xs text-gray-400 dark:text-gray-500 mt-1">{stat.subtitle}</p>
+							{/if}
+						</div>
+						<div class="{stat.color} p-2.5 rounded-lg">
+							<stat.icon class="w-5 h-5 text-white" />
+						</div>
+					</div>
+					<div class="mt-3 flex items-center text-sm text-gray-500 dark:text-gray-400 group-hover:text-gray-700 dark:group-hover:text-gray-300 transition-colors">
+						<span>View all</span>
+						<ArrowRight class="w-4 h-4 ml-1 group-hover:translate-x-0.5 transition-transform" />
+					</div>
+				</button>
+			{/each}
+		</div>
 	</section>
 
-	<!-- Projects Section -->
+	<!-- Quick Links -->
 	<section>
-		<ProjectList
-			onAddProject={handleAddProject}
-			onRemoveProject={(project) => (deletingProject = project)}
-		/>
+		<h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Quick Actions</h2>
+		<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+			{#each quickLinks as link}
+				<a
+					href={link.href}
+					class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 hover:border-blue-300 dark:hover:border-blue-600 hover:shadow-md transition-all group"
+				>
+					<p class="font-medium text-gray-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+						{link.label}
+					</p>
+					<p class="text-sm text-gray-500 dark:text-gray-400 mt-1">{link.description}</p>
+				</a>
+			{/each}
+		</div>
 	</section>
 
-	<!-- Global Settings -->
+	<!-- Global Configuration Summary -->
 	<section>
-		<GlobalSettings />
+		<h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Global Configuration</h2>
+		<div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5">
+			<div class="flex items-center gap-2 mb-4">
+				<Globe class="w-5 h-5 text-gray-400" />
+				<span class="text-sm text-gray-500 dark:text-gray-400">
+					Items enabled globally apply to all Claude Code sessions
+				</span>
+			</div>
+			<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+				<div class="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+					<Plug class="w-4 h-4 text-purple-500" />
+					<div>
+						<p class="text-sm font-medium text-gray-900 dark:text-white">{globalMcpCount} Global MCPs</p>
+						<p class="text-xs text-gray-500 dark:text-gray-400">MCP servers</p>
+					</div>
+				</div>
+				<div class="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+					<Bot class="w-4 h-4 text-green-500" />
+					<div>
+						<p class="text-sm font-medium text-gray-900 dark:text-white">{subagentLibrary.globalSubAgents.length} Global Subagents</p>
+						<p class="text-xs text-gray-500 dark:text-gray-400">Custom agents</p>
+					</div>
+				</div>
+				<div class="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+					<Terminal class="w-4 h-4 text-amber-500" />
+					<div>
+						<p class="text-sm font-medium text-gray-900 dark:text-white">{globalCommandCount} Global Commands</p>
+						<p class="text-xs text-gray-500 dark:text-gray-400">Slash commands</p>
+					</div>
+				</div>
+				<div class="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+					<Zap class="w-4 h-4 text-rose-500" />
+					<div>
+						<p class="text-sm font-medium text-gray-900 dark:text-white">{globalHookCount} Global Hooks</p>
+						<p class="text-xs text-gray-500 dark:text-gray-400">Event hooks</p>
+					</div>
+				</div>
+			</div>
+		</div>
 	</section>
 </div>
-
-<!-- Add MCP Modal -->
-{#if showAddMcp}
-	<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-		<div class="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-auto">
-			<div class="p-6">
-				<h2 class="text-xl font-semibold text-gray-900 dark:text-white mb-6">Add New MCP</h2>
-				<McpForm onSubmit={handleCreateMcp} onCancel={() => (showAddMcp = false)} />
-			</div>
-		</div>
-	</div>
-{/if}
-
-<!-- Edit MCP Modal -->
-{#if editingMcp}
-	<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-		<div class="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-auto">
-			<div class="p-6">
-				<h2 class="text-xl font-semibold text-gray-900 dark:text-white mb-6">Edit MCP</h2>
-				<McpForm
-					initialValues={editingMcp}
-					onSubmit={handleUpdateMcp}
-					onCancel={() => (editingMcp = null)}
-				/>
-			</div>
-		</div>
-	</div>
-{/if}
-
-<!-- Delete MCP Confirmation -->
-<ConfirmDialog
-	open={!!deletingMcp}
-	title="Delete MCP"
-	message="Are you sure you want to delete '{deletingMcp?.name}'? This will remove it from all projects."
-	confirmText="Delete"
-	onConfirm={handleDeleteMcp}
-	onCancel={() => (deletingMcp = null)}
-/>
-
-<!-- Remove Project Confirmation -->
-<ConfirmDialog
-	open={!!deletingProject}
-	title="Remove Project"
-	message="Are you sure you want to remove '{deletingProject?.name}'? This won't delete any files."
-	confirmText="Remove"
-	variant="warning"
-	onConfirm={handleRemoveProject}
-	onCancel={() => (deletingProject = null)}
-/>
-
-<!-- Test MCP Modal -->
-{#if testingMcp}
-	<McpTestModal mcp={testingMcp} onClose={() => (testingMcp = null)} />
-{/if}

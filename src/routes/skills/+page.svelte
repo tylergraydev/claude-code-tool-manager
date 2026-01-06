@@ -47,8 +47,8 @@
 </script>
 
 <Header
-	title="Skills Library"
-	subtitle="Custom slash commands - drag them to projects or global settings"
+	title="Skills"
+	subtitle="Agent skills Claude invokes automatically based on context"
 />
 
 <div class="flex-1 overflow-auto p-6">
@@ -84,27 +84,25 @@
 			<div class="p-6">
 				<h2 class="text-xl font-semibold text-gray-900 dark:text-white mb-4">Edit Skill</h2>
 
-				<!-- Tabs for Agent Skills -->
-				{#if editingSkill.skillType === 'skill'}
-					<div class="flex border-b border-gray-200 dark:border-gray-700 mb-6">
-						<button
-							type="button"
-							onclick={() => editTab = 'details'}
-							class="px-4 py-2 text-sm font-medium border-b-2 transition-colors {editTab === 'details' ? 'border-primary-500 text-primary-600 dark:text-primary-400' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400'}"
-						>
-							Details
-						</button>
-						<button
-							type="button"
-							onclick={() => editTab = 'files'}
-							class="px-4 py-2 text-sm font-medium border-b-2 transition-colors {editTab === 'files' ? 'border-primary-500 text-primary-600 dark:text-primary-400' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400'}"
-						>
-							Files
-						</button>
-					</div>
-				{/if}
+				<!-- Tabs for editing -->
+				<div class="flex border-b border-gray-200 dark:border-gray-700 mb-6">
+					<button
+						type="button"
+						onclick={() => editTab = 'details'}
+						class="px-4 py-2 text-sm font-medium border-b-2 transition-colors {editTab === 'details' ? 'border-primary-500 text-primary-600 dark:text-primary-400' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400'}"
+					>
+						Details
+					</button>
+					<button
+						type="button"
+						onclick={() => editTab = 'files'}
+						class="px-4 py-2 text-sm font-medium border-b-2 transition-colors {editTab === 'files' ? 'border-primary-500 text-primary-600 dark:text-primary-400' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400'}"
+					>
+						Files
+					</button>
+				</div>
 
-				{#if editTab === 'details' || editingSkill.skillType !== 'skill'}
+				{#if editTab === 'details'}
 					<SkillForm
 						initialValues={editingSkill}
 						onSubmit={handleUpdateSkill}
@@ -130,7 +128,7 @@
 <ConfirmDialog
 	open={!!deletingSkill}
 	title="Delete Skill"
-	message="Are you sure you want to delete '/{deletingSkill?.name}'? This will remove it from all projects."
+	message="Are you sure you want to delete '{deletingSkill?.name}'? This will remove it from all projects."
 	confirmText="Delete"
 	onConfirm={handleDeleteSkill}
 	onCancel={() => (deletingSkill = null)}

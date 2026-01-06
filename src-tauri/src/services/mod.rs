@@ -1,4 +1,5 @@
 pub mod claude_json;
+pub mod command_writer;
 pub mod config_parser;
 pub mod config_writer;
 pub mod debug_logger;

@@ -1,4 +1,5 @@
 pub mod claude_json;
+pub mod commands;
 pub mod config;
 pub mod debug;
 pub mod hooks;

@@ -109,7 +109,54 @@ pub struct ClaudePaths {
     pub plugins_dir: String,
 }
 
-// Skills (Slash Commands and Agent Skills)
+// Commands (Slash Commands - user-invoked)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Command {
+    pub id: i64,
+    pub name: String,
+    pub description: Option<String>,
+    pub content: String,
+    pub allowed_tools: Option<Vec<String>>,
+    pub argument_hint: Option<String>,
+    pub model: Option<String>,
+    pub tags: Option<Vec<String>>,
+    pub source: String,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CreateCommandRequest {
+    pub name: String,
+    pub description: Option<String>,
+    pub content: String,
+    pub allowed_tools: Option<Vec<String>>,
+    pub argument_hint: Option<String>,
+    pub model: Option<String>,
+    pub tags: Option<Vec<String>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProjectCommand {
+    pub id: i64,
+    pub command_id: i64,
+    pub command: Command,
+    pub is_enabled: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GlobalCommand {
+    pub id: i64,
+    pub command_id: i64,
+    pub command: Command,
+    pub is_enabled: bool,
+}
+
+// Skills (Agent Skills - auto-invoked by Claude)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Skill {
@@ -117,9 +164,7 @@ pub struct Skill {
     pub name: String,
     pub description: Option<String>,
     pub content: String,
-    pub skill_type: String, // "command" or "skill"
     pub allowed_tools: Option<Vec<String>>,
-    pub argument_hint: Option<String>,
     pub model: Option<String>,
     pub disable_model_invocation: bool,
     pub tags: Option<Vec<String>>,
@@ -134,9 +179,7 @@ pub struct CreateSkillRequest {
     pub name: String,
     pub description: Option<String>,
     pub content: String,
-    pub skill_type: String,
     pub allowed_tools: Option<Vec<String>>,
-    pub argument_hint: Option<String>,
     pub model: Option<String>,
     pub disable_model_invocation: Option<bool>,
     pub tags: Option<Vec<String>>,
@@ -540,6 +583,49 @@ mod tests {
     }
 
     // =========================================================================
+    // Command serde tests
+    // =========================================================================
+
+    #[test]
+    fn test_command_serde() {
+        let command = Command {
+            id: 1,
+            name: "my-command".to_string(),
+            description: Some("My command".to_string()),
+            content: "Content here".to_string(),
+            allowed_tools: Some(vec!["Read".to_string(), "Write".to_string()]),
+            argument_hint: Some("<filename>".to_string()),
+            model: Some("sonnet".to_string()),
+            tags: Some(vec!["test".to_string()]),
+            source: "manual".to_string(),
+            created_at: "2024-01-01".to_string(),
+            updated_at: "2024-01-01".to_string(),
+        };
+
+        let json = serde_json::to_string(&command).unwrap();
+        let parsed: Command = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(command.name, parsed.name);
+        assert_eq!(command.argument_hint, parsed.argument_hint);
+    }
+
+    #[test]
+    fn test_create_command_request() {
+        let req = CreateCommandRequest {
+            name: "test-command".to_string(),
+            description: None,
+            content: "# Command content".to_string(),
+            allowed_tools: None,
+            argument_hint: Some("<file>".to_string()),
+            model: None,
+            tags: None,
+        };
+
+        let json = serde_json::to_string(&req).unwrap();
+        assert!(json.contains("argumentHint"));
+    }
+
+    // =========================================================================
     // Skill serde tests
     // =========================================================================
 
@@ -550,9 +636,7 @@ mod tests {
             name: "my-skill".to_string(),
             description: Some("My skill".to_string()),
             content: "Content here".to_string(),
-            skill_type: "command".to_string(),
             allowed_tools: Some(vec!["Read".to_string(), "Write".to_string()]),
-            argument_hint: Some("<filename>".to_string()),
             model: Some("sonnet".to_string()),
             disable_model_invocation: false,
             tags: Some(vec!["test".to_string()]),
@@ -565,7 +649,6 @@ mod tests {
         let parsed: Skill = serde_json::from_str(&json).unwrap();
 
         assert_eq!(skill.name, parsed.name);
-        assert_eq!(skill.skill_type, parsed.skill_type);
         assert_eq!(
             skill.disable_model_invocation,
             parsed.disable_model_invocation
@@ -578,9 +661,7 @@ mod tests {
             name: "test-skill".to_string(),
             description: None,
             content: "# Skill content".to_string(),
-            skill_type: "skill".to_string(),
             allowed_tools: None,
-            argument_hint: None,
             model: None,
             disable_model_invocation: Some(true),
             tags: None,

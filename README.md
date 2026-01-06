@@ -5,7 +5,7 @@
 [![Downloads](https://img.shields.io/github/downloads/tylergraydev/claude-code-tool-manager/total)](https://github.com/tylergraydev/claude-code-tool-manager/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-A desktop app for managing MCP servers, Skills, and Sub-Agents for [Claude Code](https://docs.anthropic.com/en/docs/claude-code).
+A desktop app for managing MCP servers, Commands, Skills, Sub-Agents, and Hooks for [Claude Code](https://docs.anthropic.com/en/docs/claude-code).
 
 ![Claude Code Tool Manager](imgs/project-assign.gif)
 
@@ -25,7 +25,11 @@ Claude Code configuration is scattered across your filesystem—`~/.claude.json`
 
 **MCP Servers** — Create, edit, and organize MCP configurations. Supports stdio, HTTP, and SSE transports. Import by pasting JSON or `claude mcp add` commands.
 
-**Skills & Sub-Agents** — Manage slash commands, agent skills, and custom sub-agents. Auto-discovers from `~/.claude/commands/` and `~/.claude/agents/`.
+**Commands** — Create and manage slash commands (invoked via `/command-name`). Stored as single markdown files in `.claude/commands/`.
+
+**Skills** — Build agent skills that Claude can invoke automatically based on context. Stored as directories with `SKILL.md` and supporting files in `.claude/skills/`.
+
+**Sub-Agents** — Define custom sub-agents with specialized capabilities. Auto-discovers from `~/.claude/agents/`.
 
 **Hooks** — Create and manage Claude Code hooks that run on events like task completion, notifications, and tool use. Includes a sound notification wizard to play sounds when Claude needs your attention or finishes a task.
 
@@ -84,10 +88,10 @@ claude mcp add filesystem -- npx -y @modelcontextprotocol/server-filesystem ~/Do
 
 ## Configuration Locations
 
-| Scope | MCPs | Skills | Sub-Agents | Hooks |
-|-------|------|--------|------------|-------|
-| Global | `~/.claude.json` | `~/.claude/commands/` | `~/.claude/agents/` | `~/.claude/settings.json` |
-| Project | `.claude/.mcp.json` | `.claude/commands/` | `.claude/agents/` | `.claude/settings.json` |
+| Scope | MCPs | Commands | Skills | Sub-Agents | Hooks |
+|-------|------|----------|--------|------------|-------|
+| Global | `~/.claude.json` | `~/.claude/commands/` | `~/.claude/skills/` | `~/.claude/agents/` | `~/.claude/settings.json` |
+| Project | `.claude/.mcp.json` | `.claude/commands/` | `.claude/skills/` | `.claude/agents/` | `.claude/settings.json` |
 
 ## What's Next
 

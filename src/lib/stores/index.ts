@@ -1,3 +1,4 @@
+export { commandLibrary } from './commandLibrary.svelte';
 export { debugStore } from './debug.svelte';
 export { hookLibrary } from './hookLibrary.svelte';
 export { mcpLibrary } from './mcpLibrary.svelte';
