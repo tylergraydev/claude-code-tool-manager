@@ -3,7 +3,8 @@ use anyhow::Result;
 use serde_json::{json, Map, Value};
 use std::path::Path;
 
-type McpTuple = (
+/// Tuple representing an MCP server configuration
+pub type McpTuple = (
     String,         // name
     String,         // type
     Option<String>, // command
@@ -78,8 +79,21 @@ pub fn generate_mcp_config(mcps: &[McpTuple]) -> Value {
 }
 
 pub fn write_project_config(project_path: &Path, mcps: &[McpTuple]) -> Result<()> {
+    // Validate and canonicalize the project path to prevent path traversal
+    let normalized_path = project_path
+        .canonicalize()
+        .map_err(|e| anyhow::anyhow!("Invalid project path '{}': {}", project_path.display(), e))?;
+
+    // Ensure it's a real directory
+    if !normalized_path.is_dir() {
+        return Err(anyhow::anyhow!(
+            "Project path must be a directory: {}",
+            normalized_path.display()
+        ));
+    }
+
     // Write .mcp.json to project root (per official Claude Code spec)
-    let config_path = project_path.join(".mcp.json");
+    let config_path = normalized_path.join(".mcp.json");
     let config = generate_mcp_config(mcps);
     let content = serde_json::to_string_pretty(&config)?;
 
