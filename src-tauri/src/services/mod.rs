@@ -1,4 +1,5 @@
 pub mod claude_json;
+pub mod command_writer;
 pub mod config_parser;
 pub mod config_writer;
 pub mod debug_logger;
@@ -12,4 +13,5 @@ pub mod repo_parser;
 pub mod repo_sync;
 pub mod scanner;
 pub mod skill_writer;
+pub mod sound_player;
 pub mod subagent_writer;

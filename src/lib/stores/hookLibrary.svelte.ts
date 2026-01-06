@@ -66,15 +66,17 @@ class HookLibraryState {
 			}
 			groups[hook.eventType].push(hook);
 		}
-		// Sort event types in a logical order
+		// Sort event types in a logical order (matches session lifecycle)
 		const eventOrder = [
 			'SessionStart',
 			'UserPromptSubmit',
 			'PreToolUse',
+			'PermissionRequest',
 			'PostToolUse',
 			'Notification',
 			'Stop',
 			'SubagentStop',
+			'PreCompact',
 			'SessionEnd'
 		];
 		return eventOrder
@@ -233,6 +235,46 @@ class HookLibraryState {
 
 	setEventFilter(eventType: HookEventType | '') {
 		this.eventFilter = eventType;
+	}
+
+	// ============================================================================
+	// Export and Sound Hook Methods
+	// ============================================================================
+
+	async exportToJson(hookIds: number[]): Promise<string> {
+		console.log(`[hookLibrary] Exporting ${hookIds.length} hooks to JSON`);
+		return await invoke<string>('export_hooks_to_json', { hookIds });
+	}
+
+	async exportToClipboard(hookIds: number[]): Promise<void> {
+		const json = await this.exportToJson(hookIds);
+		await navigator.clipboard.writeText(json);
+		console.log(`[hookLibrary] Exported ${hookIds.length} hooks to clipboard`);
+	}
+
+	async createSoundNotificationHooks(
+		events: HookEventType[],
+		soundPath: string,
+		method: 'shell' | 'python'
+	): Promise<Hook[]> {
+		console.log(`[hookLibrary] Creating sound hooks for events: ${events.join(', ')}`);
+		const hooks = await invoke<Hook[]>('create_sound_notification_hooks', {
+			events,
+			soundPath,
+			method
+		});
+		this.hooks = [...this.hooks, ...hooks];
+		await this.loadGlobalHooks();
+		console.log(`[hookLibrary] Created ${hooks.length} sound hooks`);
+		return hooks;
+	}
+
+	async duplicate(id: number, newName: string): Promise<Hook> {
+		console.log(`[hookLibrary] Duplicating hook id=${id} with name '${newName}'`);
+		const hook = await invoke<Hook>('duplicate_hook', { id, newName });
+		this.hooks = [...this.hooks, hook];
+		console.log(`[hookLibrary] Duplicated hook, new id=${hook.id}`);
+		return hook;
 	}
 }
 

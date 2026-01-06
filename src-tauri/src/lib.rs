@@ -16,13 +16,21 @@ use services::mcp_session::McpSessionManager;
 pub fn run() {
     env_logger::init();
 
-    tauri::Builder::default()
+    let mut builder = tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
-        .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_process::init());
+
+    // Enable MCP bridge plugin for development/testing
+    #[cfg(debug_assertions)]
+    {
+        builder = builder.plugin(tauri_plugin_mcp_bridge::init());
+    }
+
+    builder
         .setup(|app| {
             // Initialize database
             let app_data_dir = app.path().app_data_dir()?;
@@ -243,6 +251,19 @@ pub fn run() {
             commands::skills::create_skill_file,
             commands::skills::update_skill_file,
             commands::skills::delete_skill_file,
+            // Slash Command Commands
+            commands::commands::get_all_commands,
+            commands::commands::create_command,
+            commands::commands::update_command,
+            commands::commands::delete_command,
+            commands::commands::get_global_commands,
+            commands::commands::add_global_command,
+            commands::commands::remove_global_command,
+            commands::commands::toggle_global_command,
+            commands::commands::assign_command_to_project,
+            commands::commands::remove_command_from_project,
+            commands::commands::toggle_project_command,
+            commands::commands::get_project_commands,
             // Sub-Agent Commands
             commands::subagents::get_all_subagents,
             commands::subagents::create_subagent,
@@ -272,6 +293,20 @@ pub fn run() {
             commands::hooks::remove_hook_from_project,
             commands::hooks::toggle_project_hook,
             commands::hooks::seed_hook_templates,
+            commands::hooks::export_hooks_to_json,
+            commands::hooks::create_sound_notification_hooks,
+            commands::hooks::duplicate_hook,
+            // Sound Commands
+            commands::sounds::get_system_sounds,
+            commands::sounds::get_custom_sounds,
+            commands::sounds::preview_sound,
+            commands::sounds::ensure_sounds_directory,
+            commands::sounds::upload_custom_sound,
+            commands::sounds::delete_custom_sound,
+            commands::sounds::generate_sound_hook_command,
+            commands::sounds::deploy_notification_script,
+            commands::sounds::get_sounds_directory,
+            commands::sounds::validate_sound_file,
             // Repos (Marketplace) Commands
             commands::repos::get_all_repos,
             commands::repos::add_repo,

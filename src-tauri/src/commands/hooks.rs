@@ -601,14 +601,19 @@ pub fn seed_hook_templates(db: State<'_, Arc<Mutex<Database>>>) -> Result<(), St
         return Ok(());
     }
 
+    // Note: Hook commands receive input via stdin as JSON, not environment variables.
+    // Available env vars: CLAUDE_PROJECT_DIR, CLAUDE_CODE_REMOTE, CLAUDE_ENV_FILE (SessionStart only)
+    // stdin JSON contains: session_id, transcript_path, cwd, hook_event_name, and event-specific fields
+    // For PreToolUse/PostToolUse: tool_name, tool_input, tool_use_id (and tool_response for PostToolUse)
     let templates = vec![
         (
             "Auto-format Prettier",
-            "Run Prettier after file changes",
+            "Run Prettier after file changes (reads file path from stdin JSON)",
             "PostToolUse",
             Some("Write|Edit"),
             "command",
-            Some("npx prettier --write \"$CLAUDE_FILE_PATHS\""),
+            // Read the file path from stdin JSON tool_input
+            Some("FILE=$(cat | jq -r '.tool_input.file_path // empty') && [ -n \"$FILE\" ] && npx prettier --write \"$FILE\""),
             None::<&str>,
             Some(30),
         ),
@@ -618,7 +623,8 @@ pub fn seed_hook_templates(db: State<'_, Arc<Mutex<Database>>>) -> Result<(), St
             "PreToolUse",
             Some("Write|Edit"),
             "command",
-            Some("if echo \"$CLAUDE_TOOL_INPUT\" | grep -q '\\.env'; then echo 'BLOCK: Cannot modify .env files'; exit 2; fi"),
+            // Read tool_input from stdin and check for .env files
+            Some("INPUT=$(cat) && FILE=$(echo \"$INPUT\" | jq -r '.tool_input.file_path // empty') && if echo \"$FILE\" | grep -q '\\.env'; then echo 'Cannot modify .env files' >&2; exit 2; fi"),
             None,
             Some(5),
         ),
@@ -628,15 +634,16 @@ pub fn seed_hook_templates(db: State<'_, Arc<Mutex<Database>>>) -> Result<(), St
             "PostToolUse",
             None::<&str>,
             "command",
-            Some("echo \"$(date): $CLAUDE_TOOL_NAME\" >> ~/.claude/tool-log.txt"),
+            // Read tool_name from stdin JSON
+            Some("TOOL=$(cat | jq -r '.tool_name') && echo \"$(date): $TOOL\" >> ~/.claude/tool-log.txt"),
             None,
             Some(5),
         ),
         (
             "Session greeting",
             "Show a custom greeting at session start",
-            "Notification",
-            Some("session_start"),
+            "SessionStart",
+            Some("startup"),
             "command",
             Some("echo 'Welcome! Type /help for available commands.'"),
             None,
@@ -648,7 +655,8 @@ pub fn seed_hook_templates(db: State<'_, Arc<Mutex<Database>>>) -> Result<(), St
             "PostToolUse",
             Some("Write|Edit"),
             "command",
-            Some("if echo \"$CLAUDE_FILE_PATHS\" | grep -qE '\\.(js|ts|jsx|tsx)$'; then npx eslint --fix \"$CLAUDE_FILE_PATHS\"; fi"),
+            // Read file path from stdin JSON and check extension
+            Some("FILE=$(cat | jq -r '.tool_input.file_path // empty') && if echo \"$FILE\" | grep -qE '\\.(js|ts|jsx|tsx)$'; then npx eslint --fix \"$FILE\"; fi"),
             None,
             Some(60),
         ),
@@ -666,6 +674,189 @@ pub fn seed_hook_templates(db: State<'_, Arc<Mutex<Database>>>) -> Result<(), St
     }
 
     Ok(())
+}
+
+// ============================================================================
+// Hook Export and Sound Hook Creation
+// ============================================================================
+
+/// Export hooks to Claude Code settings.json format
+#[tauri::command]
+pub fn export_hooks_to_json(
+    db: State<'_, Arc<Mutex<Database>>>,
+    hook_ids: Vec<i64>,
+) -> Result<String, String> {
+    info!("[Hooks] Exporting {} hooks to JSON", hook_ids.len());
+    let db_guard = db.lock().map_err(|e| e.to_string())?;
+
+    // Fetch the specified hooks
+    let mut hooks: Vec<Hook> = Vec::new();
+    for id in hook_ids {
+        let mut stmt = db_guard
+            .conn()
+            .prepare(&format!(
+                "SELECT {} FROM hooks WHERE id = ?",
+                HOOK_SELECT_FIELDS
+            ))
+            .map_err(|e| e.to_string())?;
+
+        if let Ok(hook) = stmt.query_row([id], row_to_hook) {
+            hooks.push(hook);
+        }
+    }
+
+    // Convert to Claude Code settings.json format
+    let export = hook_writer::hooks_to_settings_format(&hooks);
+    serde_json::to_string_pretty(&export).map_err(|e| e.to_string())
+}
+
+/// Create sound notification hooks for common events
+#[tauri::command]
+pub fn create_sound_notification_hooks(
+    db: State<'_, Arc<Mutex<Database>>>,
+    events: Vec<String>,
+    sound_path: String,
+    method: String,
+) -> Result<Vec<Hook>, String> {
+    use crate::services::sound_player;
+
+    info!(
+        "[Hooks] Creating sound notification hooks for events: {:?}",
+        events
+    );
+
+    let db_guard = db.lock().map_err(|e| e.to_string())?;
+    let command = sound_player::generate_play_command(&sound_path, &method);
+
+    let mut created_hooks = Vec::new();
+
+    for event in events {
+        // Generate a descriptive name
+        let name = format!("Sound-{}", event);
+        let description = format!("Play notification sound on {} event", event);
+
+        // Check if a hook with this name already exists
+        let existing: Option<i64> = db_guard
+            .conn()
+            .query_row(
+                "SELECT id FROM hooks WHERE name = ? AND is_template = 0",
+                [&name],
+                |row| row.get(0),
+            )
+            .ok();
+
+        if existing.is_some() {
+            info!("[Hooks] Hook '{}' already exists, skipping", name);
+            continue;
+        }
+
+        // Create the hook
+        db_guard
+            .conn()
+            .execute(
+                "INSERT INTO hooks (name, description, event_type, hook_type, command, timeout, tags, source)
+                 VALUES (?, ?, ?, 'command', ?, 5, '[\"sound\",\"notification\"]', 'sound-wizard')",
+                params![name, description, event, command],
+            )
+            .map_err(|e| e.to_string())?;
+
+        let id = db_guard.conn().last_insert_rowid();
+
+        // Fetch the created hook
+        let mut stmt = db_guard
+            .conn()
+            .prepare(&format!(
+                "SELECT {} FROM hooks WHERE id = ?",
+                HOOK_SELECT_FIELDS
+            ))
+            .map_err(|e| e.to_string())?;
+
+        let hook = stmt
+            .query_row([id], row_to_hook)
+            .map_err(|e| e.to_string())?;
+
+        // Add to global hooks and enable
+        db_guard
+            .conn()
+            .execute(
+                "INSERT OR IGNORE INTO global_hooks (hook_id, is_enabled) VALUES (?, 1)",
+                [id],
+            )
+            .map_err(|e| e.to_string())?;
+
+        created_hooks.push(hook);
+    }
+
+    // Sync global hooks to settings.json
+    if !created_hooks.is_empty() {
+        sync_global_hooks(&db_guard)?;
+    }
+
+    info!(
+        "[Hooks] Created {} sound notification hooks",
+        created_hooks.len()
+    );
+    Ok(created_hooks)
+}
+
+/// Duplicate a hook with a new name
+#[tauri::command]
+pub fn duplicate_hook(
+    db: State<'_, Arc<Mutex<Database>>>,
+    id: i64,
+    new_name: String,
+) -> Result<Hook, String> {
+    info!(
+        "[Hooks] Duplicating hook id={} with name '{}'",
+        id, new_name
+    );
+    let db_guard = db.lock().map_err(|e| e.to_string())?;
+
+    // Get the original hook
+    let mut stmt = db_guard
+        .conn()
+        .prepare(&format!(
+            "SELECT {} FROM hooks WHERE id = ?",
+            HOOK_SELECT_FIELDS
+        ))
+        .map_err(|e| e.to_string())?;
+
+    let original: Hook = stmt
+        .query_row([id], row_to_hook)
+        .map_err(|e| e.to_string())?;
+
+    // Create the duplicate
+    db_guard
+        .conn()
+        .execute(
+            "INSERT INTO hooks (name, description, event_type, matcher, hook_type, command, prompt, timeout, tags, source, is_template)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'manual', 0)",
+            params![
+                new_name,
+                original.description,
+                original.event_type,
+                original.matcher,
+                original.hook_type,
+                original.command,
+                original.prompt,
+                original.timeout,
+                original.tags.as_ref().map(|t| serde_json::to_string(t).unwrap())
+            ],
+        )
+        .map_err(|e| e.to_string())?;
+
+    let new_id = db_guard.conn().last_insert_rowid();
+
+    let mut stmt = db_guard
+        .conn()
+        .prepare(&format!(
+            "SELECT {} FROM hooks WHERE id = ?",
+            HOOK_SELECT_FIELDS
+        ))
+        .map_err(|e| e.to_string())?;
+
+    stmt.query_row([new_id], row_to_hook)
+        .map_err(|e| e.to_string())
 }
 
 // ============================================================================

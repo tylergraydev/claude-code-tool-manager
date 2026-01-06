@@ -3,7 +3,7 @@
 	import { skillLibrary } from '$lib/stores';
 	import SkillCard from './SkillCard.svelte';
 	import { SearchBar } from '$lib/components/shared';
-	import { FileCode } from 'lucide-svelte';
+	import { Sparkles } from 'lucide-svelte';
 
 	type Props = {
 		onEdit?: (skill: Skill) => void;
@@ -35,7 +35,7 @@
 		</div>
 	{:else if skillLibrary.filteredSkills.length === 0}
 		<div class="text-center py-12">
-			<FileCode class="w-12 h-12 mx-auto text-gray-300 dark:text-gray-600 mb-4" />
+			<Sparkles class="w-12 h-12 mx-auto text-gray-300 dark:text-gray-600 mb-4" />
 			{#if skillLibrary.searchQuery}
 				<h3 class="text-lg font-medium text-gray-900 dark:text-white">No matching skills</h3>
 				<p class="text-gray-500 dark:text-gray-400 mt-1">
@@ -44,7 +44,7 @@
 			{:else}
 				<h3 class="text-lg font-medium text-gray-900 dark:text-white">No skills in library</h3>
 				<p class="text-gray-500 dark:text-gray-400 mt-1">
-					Add your first skill (slash command) to get started
+					Add your first agent skill to get started
 				</p>
 			{/if}
 		</div>

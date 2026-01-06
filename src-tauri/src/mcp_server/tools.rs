@@ -142,26 +142,23 @@ pub struct GlobalMcpParams {
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct CreateSkillParams {
     /// Name of the skill
-    #[schemars(description = "Unique name for the skill (used as slash command)")]
+    #[schemars(description = "Unique name for the agent skill")]
     pub name: String,
     /// Skill content (markdown)
     #[schemars(description = "The skill content/prompt in markdown")]
     pub content: String,
-    /// Skill type (command or skill)
-    #[schemars(description = "Type: 'command' for slash commands, 'skill' for agent skills")]
-    pub skill_type: String,
     /// Description
-    #[schemars(description = "Description of what the skill does")]
+    #[schemars(description = "Description of what the skill does (used by Claude for invocation)")]
     pub description: Option<String>,
     /// Allowed tools
     #[schemars(description = "List of allowed tools for this skill")]
     pub allowed_tools: Option<Vec<String>>,
-    /// Argument hint
-    #[schemars(description = "Hint for expected arguments")]
-    pub argument_hint: Option<String>,
     /// Model preference
     #[schemars(description = "Preferred model (sonnet, opus, haiku)")]
     pub model: Option<String>,
+    /// Disable model invocation
+    #[schemars(description = "If true, skill must be manually invoked via /skill-name")]
+    pub disable_model_invocation: Option<bool>,
     /// Tags
     #[schemars(description = "Tags for categorization")]
     pub tags: Option<Vec<String>>,
@@ -522,7 +519,7 @@ impl ToolManagerServer {
     }
 
     /// Create a new skill
-    #[tool(description = "Create a new skill (slash command or agent skill)")]
+    #[tool(description = "Create a new agent skill (auto-invoked by Claude based on context)")]
     fn create_skill(
         &self,
         Parameters(params): Parameters<CreateSkillParams>,
@@ -531,11 +528,9 @@ impl ToolManagerServer {
             name: params.name,
             description: params.description,
             content: params.content,
-            skill_type: params.skill_type,
             allowed_tools: params.allowed_tools,
-            argument_hint: params.argument_hint,
             model: params.model,
-            disable_model_invocation: None,
+            disable_model_invocation: params.disable_model_invocation,
             tags: params.tags,
         };
 

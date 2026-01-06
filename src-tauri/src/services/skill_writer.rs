@@ -10,42 +10,6 @@ pub enum EditorType {
     OpenCode,
 }
 
-/// Generate markdown content for a slash command (.claude/commands/name.md)
-pub(crate) fn generate_command_markdown(skill: &Skill) -> String {
-    let mut frontmatter = String::from("---\n");
-
-    if let Some(ref desc) = skill.description {
-        if !desc.is_empty() {
-            frontmatter.push_str(&format!("description: {}\n", desc));
-        }
-    }
-
-    if let Some(ref tools) = skill.allowed_tools {
-        if !tools.is_empty() {
-            frontmatter.push_str(&format!("allowed-tools: {}\n", tools.join(", ")));
-        }
-    }
-
-    if let Some(ref hint) = skill.argument_hint {
-        if !hint.is_empty() {
-            frontmatter.push_str(&format!("argument-hint: {}\n", hint));
-        }
-    }
-
-    if let Some(ref model) = skill.model {
-        if !model.is_empty() {
-            frontmatter.push_str(&format!("model: {}\n", model));
-        }
-    }
-
-    if skill.disable_model_invocation {
-        frontmatter.push_str("disable-model-invocation: true\n");
-    }
-
-    frontmatter.push_str("---\n\n");
-    format!("{}{}", frontmatter, skill.content)
-}
-
 /// Generate markdown content for an agent skill (.claude/skills/name/SKILL.md)
 pub(crate) fn generate_skill_markdown(skill: &Skill) -> String {
     let mut frontmatter = String::from("---\n");
@@ -78,75 +42,24 @@ pub(crate) fn generate_skill_markdown(skill: &Skill) -> String {
     format!("{}{}", frontmatter, skill.content)
 }
 
-/// Write a skill to the appropriate location based on its type
-/// - Commands go to {base_path}/commands/{name}.md
-/// - Skills go to {base_path}/skills/{name}/SKILL.md
+/// Write a skill to the appropriate location
+/// Skills go to {base_path}/.claude/skills/{name}/SKILL.md
 pub fn write_skill_file(base_path: &Path, skill: &Skill) -> Result<()> {
-    let claude_dir = base_path.join(".claude");
+    let skill_dir = base_path.join(".claude").join("skills").join(&skill.name);
+    std::fs::create_dir_all(&skill_dir)?;
 
-    match skill.skill_type.as_str() {
-        "command" => {
-            let commands_dir = claude_dir.join("commands");
-            std::fs::create_dir_all(&commands_dir)?;
-
-            let file_path = commands_dir.join(format!("{}.md", skill.name));
-            let content = generate_command_markdown(skill);
-            std::fs::write(file_path, content)?;
-        }
-        "skill" => {
-            let skill_dir = claude_dir.join("skills").join(&skill.name);
-            std::fs::create_dir_all(&skill_dir)?;
-
-            let file_path = skill_dir.join("SKILL.md");
-            let content = generate_skill_markdown(skill);
-            std::fs::write(file_path, content)?;
-        }
-        _ => {
-            // Default to command type
-            let commands_dir = claude_dir.join("commands");
-            std::fs::create_dir_all(&commands_dir)?;
-
-            let file_path = commands_dir.join(format!("{}.md", skill.name));
-            let content = generate_command_markdown(skill);
-            std::fs::write(file_path, content)?;
-        }
-    }
+    let file_path = skill_dir.join("SKILL.md");
+    let content = generate_skill_markdown(skill);
+    std::fs::write(file_path, content)?;
 
     Ok(())
 }
 
 /// Delete a skill file from the appropriate location
 pub fn delete_skill_file(base_path: &Path, skill: &Skill) -> Result<()> {
-    let claude_dir = base_path.join(".claude");
-
-    match skill.skill_type.as_str() {
-        "command" => {
-            let file_path = claude_dir
-                .join("commands")
-                .join(format!("{}.md", skill.name));
-            if file_path.exists() {
-                std::fs::remove_file(file_path)?;
-            }
-        }
-        "skill" => {
-            let skill_dir = claude_dir.join("skills").join(&skill.name);
-            if skill_dir.exists() {
-                std::fs::remove_dir_all(skill_dir)?;
-            }
-        }
-        _ => {
-            // Try both locations
-            let cmd_path = claude_dir
-                .join("commands")
-                .join(format!("{}.md", skill.name));
-            if cmd_path.exists() {
-                std::fs::remove_file(cmd_path)?;
-            }
-            let skill_dir = claude_dir.join("skills").join(&skill.name);
-            if skill_dir.exists() {
-                std::fs::remove_dir_all(skill_dir)?;
-            }
-        }
+    let skill_dir = base_path.join(".claude").join("skills").join(&skill.name);
+    if skill_dir.exists() {
+        std::fs::remove_dir_all(skill_dir)?;
     }
 
     Ok(())
@@ -191,14 +104,7 @@ pub(crate) fn file_type_to_dir(file_type: &str) -> &str {
 }
 
 /// Write a skill file to the skill directory
-/// Only works for agent skills (type "skill"), not commands
 pub fn write_skill_subfile(base_path: &Path, skill: &Skill, file: &SkillFile) -> Result<()> {
-    if skill.skill_type != "skill" {
-        return Err(anyhow::anyhow!(
-            "Skill files are only supported for agent skills, not commands"
-        ));
-    }
-
     let skill_dir = base_path.join(".claude").join("skills").join(&skill.name);
     let type_dir = skill_dir.join(file_type_to_dir(&file.file_type));
     std::fs::create_dir_all(&type_dir)?;
@@ -211,10 +117,6 @@ pub fn write_skill_subfile(base_path: &Path, skill: &Skill, file: &SkillFile) ->
 
 /// Delete a skill file from the skill directory
 pub fn delete_skill_subfile(base_path: &Path, skill: &Skill, file: &SkillFile) -> Result<()> {
-    if skill.skill_type != "skill" {
-        return Ok(()); // Nothing to delete for commands
-    }
-
     let skill_dir = base_path.join(".claude").join("skills").join(&skill.name);
     let type_dir = skill_dir.join(file_type_to_dir(&file.file_type));
     let file_path = type_dir.join(&file.name);
@@ -282,67 +184,23 @@ pub fn delete_project_skill_file(
 // ============================================================================
 
 /// Write a skill to OpenCode's format
-/// - Commands go to {base_path}/command/{name}.md (note: singular "command")
-/// - Agent skills go to {base_path}/agent/{name}.md (OpenCode uses agent/ not skills/)
+/// Agent skills go to {base_path}/agent/{name}.md (OpenCode uses agent/ not skills/)
 pub fn write_skill_file_opencode(base_path: &Path, skill: &Skill) -> Result<()> {
-    match skill.skill_type.as_str() {
-        "command" => {
-            let commands_dir = base_path.join("command"); // OpenCode uses singular
-            std::fs::create_dir_all(&commands_dir)?;
+    let agent_dir = base_path.join("agent");
+    std::fs::create_dir_all(&agent_dir)?;
 
-            let file_path = commands_dir.join(format!("{}.md", skill.name));
-            let content = generate_command_markdown(skill);
-            std::fs::write(file_path, content)?;
-        }
-        "skill" => {
-            // OpenCode doesn't have the same skills directory structure
-            // It uses agent/ for agent definitions
-            let agent_dir = base_path.join("agent");
-            std::fs::create_dir_all(&agent_dir)?;
-
-            let file_path = agent_dir.join(format!("{}.md", skill.name));
-            let content = generate_skill_markdown(skill);
-            std::fs::write(file_path, content)?;
-        }
-        _ => {
-            let commands_dir = base_path.join("command");
-            std::fs::create_dir_all(&commands_dir)?;
-
-            let file_path = commands_dir.join(format!("{}.md", skill.name));
-            let content = generate_command_markdown(skill);
-            std::fs::write(file_path, content)?;
-        }
-    }
+    let file_path = agent_dir.join(format!("{}.md", skill.name));
+    let content = generate_skill_markdown(skill);
+    std::fs::write(file_path, content)?;
 
     Ok(())
 }
 
 /// Delete a skill from OpenCode's format
 pub fn delete_skill_file_opencode(base_path: &Path, skill: &Skill) -> Result<()> {
-    match skill.skill_type.as_str() {
-        "command" => {
-            let file_path = base_path.join("command").join(format!("{}.md", skill.name));
-            if file_path.exists() {
-                std::fs::remove_file(file_path)?;
-            }
-        }
-        "skill" => {
-            let file_path = base_path.join("agent").join(format!("{}.md", skill.name));
-            if file_path.exists() {
-                std::fs::remove_file(file_path)?;
-            }
-        }
-        _ => {
-            // Try both locations
-            let cmd_path = base_path.join("command").join(format!("{}.md", skill.name));
-            if cmd_path.exists() {
-                std::fs::remove_file(cmd_path)?;
-            }
-            let agent_path = base_path.join("agent").join(format!("{}.md", skill.name));
-            if agent_path.exists() {
-                std::fs::remove_file(agent_path)?;
-            }
-        }
+    let file_path = base_path.join("agent").join(format!("{}.md", skill.name));
+    if file_path.exists() {
+        std::fs::remove_file(file_path)?;
     }
 
     Ok(())
@@ -403,33 +261,13 @@ mod tests {
     // Helper functions to create test skills
     // =========================================================================
 
-    fn sample_command_skill() -> Skill {
+    fn sample_skill() -> Skill {
         Skill {
             id: 1,
-            name: "test-command".to_string(),
-            description: Some("A test command".to_string()),
-            content: "# Test Command\n\nThis is the prompt content.".to_string(),
-            skill_type: "command".to_string(),
-            allowed_tools: Some(vec!["Read".to_string(), "Write".to_string()]),
-            argument_hint: Some("<file_path>".to_string()),
-            model: Some("sonnet".to_string()),
-            disable_model_invocation: false,
-            tags: Some(vec!["test".to_string()]),
-            source: "manual".to_string(),
-            created_at: "2024-01-01".to_string(),
-            updated_at: "2024-01-01".to_string(),
-        }
-    }
-
-    fn sample_agent_skill() -> Skill {
-        Skill {
-            id: 2,
             name: "test-agent".to_string(),
             description: Some("An agent skill".to_string()),
             content: "You are a helpful assistant.".to_string(),
-            skill_type: "skill".to_string(),
             allowed_tools: Some(vec!["Bash".to_string(), "Glob".to_string()]),
-            argument_hint: None,
             model: Some("opus".to_string()),
             disable_model_invocation: true,
             tags: None,
@@ -441,13 +279,11 @@ mod tests {
 
     fn sample_minimal_skill() -> Skill {
         Skill {
-            id: 3,
+            id: 2,
             name: "minimal".to_string(),
             description: None,
             content: "Minimal content.".to_string(),
-            skill_type: "command".to_string(),
             allowed_tools: None,
-            argument_hint: None,
             model: None,
             disable_model_invocation: false,
             tags: None,
@@ -460,7 +296,7 @@ mod tests {
     fn sample_skill_file() -> SkillFile {
         SkillFile {
             id: 1,
-            skill_id: 2,
+            skill_id: 1,
             file_type: "reference".to_string(),
             name: "api-docs.md".to_string(),
             content: "# API Documentation\n\nSome docs here.".to_string(),
@@ -470,69 +306,12 @@ mod tests {
     }
 
     // =========================================================================
-    // generate_command_markdown tests
-    // =========================================================================
-
-    #[test]
-    fn test_generate_command_markdown_full() {
-        let skill = sample_command_skill();
-        let md = generate_command_markdown(&skill);
-
-        assert!(md.starts_with("---\n"));
-        assert!(md.contains("description: A test command\n"));
-        assert!(md.contains("allowed-tools: Read, Write\n"));
-        assert!(md.contains("argument-hint: <file_path>\n"));
-        assert!(md.contains("model: sonnet\n"));
-        assert!(!md.contains("disable-model-invocation"));
-        assert!(md.contains("---\n\n# Test Command"));
-    }
-
-    #[test]
-    fn test_generate_command_markdown_minimal() {
-        let skill = sample_minimal_skill();
-        let md = generate_command_markdown(&skill);
-
-        assert!(md.starts_with("---\n"));
-        assert!(!md.contains("description:"));
-        assert!(!md.contains("allowed-tools:"));
-        assert!(!md.contains("argument-hint:"));
-        assert!(!md.contains("model:"));
-        assert!(md.contains("---\n\nMinimal content."));
-    }
-
-    #[test]
-    fn test_generate_command_markdown_with_disable_model_invocation() {
-        let skill = sample_agent_skill();
-        let md = generate_command_markdown(&skill);
-
-        assert!(md.contains("disable-model-invocation: true\n"));
-    }
-
-    #[test]
-    fn test_generate_command_markdown_empty_description_skipped() {
-        let mut skill = sample_command_skill();
-        skill.description = Some("".to_string());
-        let md = generate_command_markdown(&skill);
-
-        assert!(!md.contains("description:"));
-    }
-
-    #[test]
-    fn test_generate_command_markdown_empty_tools_skipped() {
-        let mut skill = sample_command_skill();
-        skill.allowed_tools = Some(vec![]);
-        let md = generate_command_markdown(&skill);
-
-        assert!(!md.contains("allowed-tools:"));
-    }
-
-    // =========================================================================
     // generate_skill_markdown tests
     // =========================================================================
 
     #[test]
     fn test_generate_skill_markdown_full() {
-        let skill = sample_agent_skill();
+        let skill = sample_skill();
         let md = generate_skill_markdown(&skill);
 
         assert!(md.starts_with("---\n"));
@@ -553,6 +332,7 @@ mod tests {
         assert!(!md.contains("description:"));
         assert!(!md.contains("allowed-tools:"));
         assert!(!md.contains("model:"));
+        assert!(!md.contains("disable-model-invocation:"));
     }
 
     #[test]
@@ -560,7 +340,6 @@ mod tests {
         let skill = sample_minimal_skill();
         let md = generate_skill_markdown(&skill);
 
-        // Skill markdown always includes name, unlike command
         assert!(md.contains("name: minimal\n"));
     }
 
@@ -594,24 +373,9 @@ mod tests {
     // =========================================================================
 
     #[test]
-    fn test_write_skill_file_command_creates_correct_path() {
+    fn test_write_skill_file_creates_correct_path() {
         let temp_dir = TempDir::new().unwrap();
-        let skill = sample_command_skill();
-
-        write_skill_file(temp_dir.path(), &skill).unwrap();
-
-        let expected_path = temp_dir
-            .path()
-            .join(".claude")
-            .join("commands")
-            .join("test-command.md");
-        assert!(expected_path.exists());
-    }
-
-    #[test]
-    fn test_write_skill_file_agent_creates_correct_path() {
-        let temp_dir = TempDir::new().unwrap();
-        let skill = sample_agent_skill();
+        let skill = sample_skill();
 
         write_skill_file(temp_dir.path(), &skill).unwrap();
 
@@ -627,35 +391,20 @@ mod tests {
     #[test]
     fn test_write_skill_file_content_matches() {
         let temp_dir = TempDir::new().unwrap();
-        let skill = sample_command_skill();
+        let skill = sample_skill();
 
         write_skill_file(temp_dir.path(), &skill).unwrap();
 
         let file_path = temp_dir
             .path()
             .join(".claude")
-            .join("commands")
-            .join("test-command.md");
+            .join("skills")
+            .join("test-agent")
+            .join("SKILL.md");
         let content = std::fs::read_to_string(file_path).unwrap();
 
-        assert!(content.contains("description: A test command"));
-        assert!(content.contains("# Test Command"));
-    }
-
-    #[test]
-    fn test_write_skill_file_unknown_type_defaults_to_command() {
-        let temp_dir = TempDir::new().unwrap();
-        let mut skill = sample_command_skill();
-        skill.skill_type = "unknown".to_string();
-
-        write_skill_file(temp_dir.path(), &skill).unwrap();
-
-        let expected_path = temp_dir
-            .path()
-            .join(".claude")
-            .join("commands")
-            .join("test-command.md");
-        assert!(expected_path.exists());
+        assert!(content.contains("name: test-agent"));
+        assert!(content.contains("You are a helpful assistant."));
     }
 
     // =========================================================================
@@ -663,28 +412,9 @@ mod tests {
     // =========================================================================
 
     #[test]
-    fn test_delete_skill_file_command() {
+    fn test_delete_skill_file_removes_directory() {
         let temp_dir = TempDir::new().unwrap();
-        let skill = sample_command_skill();
-
-        // Write first
-        write_skill_file(temp_dir.path(), &skill).unwrap();
-        let file_path = temp_dir
-            .path()
-            .join(".claude")
-            .join("commands")
-            .join("test-command.md");
-        assert!(file_path.exists());
-
-        // Delete
-        delete_skill_file(temp_dir.path(), &skill).unwrap();
-        assert!(!file_path.exists());
-    }
-
-    #[test]
-    fn test_delete_skill_file_agent_removes_directory() {
-        let temp_dir = TempDir::new().unwrap();
-        let skill = sample_agent_skill();
+        let skill = sample_skill();
 
         // Write first
         write_skill_file(temp_dir.path(), &skill).unwrap();
@@ -703,7 +433,7 @@ mod tests {
     #[test]
     fn test_delete_nonexistent_skill_succeeds() {
         let temp_dir = TempDir::new().unwrap();
-        let skill = sample_command_skill();
+        let skill = sample_skill();
 
         // Should not error when file doesn't exist
         let result = delete_skill_file(temp_dir.path(), &skill);
@@ -717,7 +447,7 @@ mod tests {
     #[test]
     fn test_write_skill_subfile_creates_correct_path() {
         let temp_dir = TempDir::new().unwrap();
-        let skill = sample_agent_skill();
+        let skill = sample_skill();
         let file = sample_skill_file();
 
         write_skill_subfile(temp_dir.path(), &skill, &file).unwrap();
@@ -732,40 +462,14 @@ mod tests {
         assert!(expected_path.exists());
     }
 
-    #[test]
-    fn test_write_skill_subfile_fails_for_command_type() {
-        let temp_dir = TempDir::new().unwrap();
-        let skill = sample_command_skill();
-        let file = sample_skill_file();
-
-        let result = write_skill_subfile(temp_dir.path(), &skill, &file);
-        assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("only supported for agent skills"));
-    }
-
     // =========================================================================
     // OpenCode format tests
     // =========================================================================
 
     #[test]
-    fn test_write_skill_file_opencode_command() {
+    fn test_write_skill_file_opencode() {
         let temp_dir = TempDir::new().unwrap();
-        let skill = sample_command_skill();
-
-        write_skill_file_opencode(temp_dir.path(), &skill).unwrap();
-
-        // OpenCode uses singular "command" not "commands"
-        let expected_path = temp_dir.path().join("command").join("test-command.md");
-        assert!(expected_path.exists());
-    }
-
-    #[test]
-    fn test_write_skill_file_opencode_agent() {
-        let temp_dir = TempDir::new().unwrap();
-        let skill = sample_agent_skill();
+        let skill = sample_skill();
 
         write_skill_file_opencode(temp_dir.path(), &skill).unwrap();
 
@@ -777,10 +481,10 @@ mod tests {
     #[test]
     fn test_delete_skill_file_opencode() {
         let temp_dir = TempDir::new().unwrap();
-        let skill = sample_command_skill();
+        let skill = sample_skill();
 
         write_skill_file_opencode(temp_dir.path(), &skill).unwrap();
-        let file_path = temp_dir.path().join("command").join("test-command.md");
+        let file_path = temp_dir.path().join("agent").join("test-agent.md");
         assert!(file_path.exists());
 
         delete_skill_file_opencode(temp_dir.path(), &skill).unwrap();

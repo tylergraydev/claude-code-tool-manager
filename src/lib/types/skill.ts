@@ -1,13 +1,9 @@
-export type SkillType = 'command' | 'skill';
-
 export interface Skill {
 	id: number;
 	name: string;
 	description?: string;
 	content: string;
-	skillType: SkillType;
 	allowedTools?: string[];
-	argumentHint?: string;
 	model?: string;
 	disableModelInvocation: boolean;
 	tags?: string[];
@@ -20,9 +16,7 @@ export interface CreateSkillRequest {
 	name: string;
 	description?: string;
 	content: string;
-	skillType: SkillType;
 	allowedTools?: string[];
-	argumentHint?: string;
 	model?: string;
 	disableModelInvocation?: boolean;
 	tags?: string[];

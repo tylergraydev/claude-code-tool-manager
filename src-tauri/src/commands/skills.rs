@@ -3,16 +3,182 @@ use crate::db::models::{
 };
 use crate::db::schema::Database;
 use crate::services::skill_writer;
+use regex::Regex;
 use rusqlite::params;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 use tauri::State;
 
+// ============================================================================
+// Validation Constants (based on official Claude Code documentation)
+// ============================================================================
+
+/// Maximum length for skill name (per official docs)
+const MAX_NAME_LENGTH: usize = 64;
+
+/// Maximum length for skill description (per official docs)
+const MAX_DESCRIPTION_LENGTH: usize = 1024;
+
+/// Recommended maximum lines for SKILL.md content (per official best practices)
+const RECOMMENDED_MAX_CONTENT_LINES: usize = 500;
+
+/// Reserved words that cannot appear in skill names (per official docs)
+const RESERVED_WORDS: &[&str] = &["anthropic", "claude"];
+
+/// Validation result with optional warning
+#[derive(Debug)]
+pub struct ValidationResult {
+    pub is_valid: bool,
+    pub error: Option<String>,
+    pub warning: Option<String>,
+}
+
+impl ValidationResult {
+    fn ok() -> Self {
+        Self {
+            is_valid: true,
+            error: None,
+            warning: None,
+        }
+    }
+
+    fn ok_with_warning(warning: String) -> Self {
+        Self {
+            is_valid: true,
+            error: None,
+            warning: Some(warning),
+        }
+    }
+
+    fn err(error: String) -> Self {
+        Self {
+            is_valid: false,
+            error: Some(error),
+            warning: None,
+        }
+    }
+}
+
+/// Validate a skill name according to official Claude Code documentation
+fn validate_skill_name(name: &str) -> ValidationResult {
+    let name = name.trim();
+
+    // Check if empty
+    if name.is_empty() {
+        return ValidationResult::err("Name is required".to_string());
+    }
+
+    // Check maximum length (64 characters)
+    if name.len() > MAX_NAME_LENGTH {
+        return ValidationResult::err(format!(
+            "Name must be {} characters or less (currently {})",
+            MAX_NAME_LENGTH,
+            name.len()
+        ));
+    }
+
+    // Check format: lowercase letters, numbers, and hyphens only
+    // This also implicitly rejects XML tags (< or >) and other special characters
+    let name_regex = Regex::new(r"^[a-z0-9-]+$").unwrap();
+    if !name_regex.is_match(name) {
+        return ValidationResult::err(
+            "Name must contain only lowercase letters, numbers, and hyphens".to_string(),
+        );
+    }
+
+    // Check for reserved words
+    for reserved in RESERVED_WORDS {
+        if name.contains(reserved) {
+            return ValidationResult::err(format!(
+                "Name cannot contain reserved word '{}'",
+                reserved
+            ));
+        }
+    }
+
+    ValidationResult::ok()
+}
+
+/// Validate a skill description according to official Claude Code documentation
+fn validate_skill_description(description: Option<&str>) -> ValidationResult {
+    let description = match description {
+        Some(d) => d.trim(),
+        None => return ValidationResult::ok(), // Description is optional
+    };
+
+    if description.is_empty() {
+        return ValidationResult::ok(); // Empty is allowed (treated as None)
+    }
+
+    // Check maximum length (1024 characters)
+    if description.len() > MAX_DESCRIPTION_LENGTH {
+        return ValidationResult::err(format!(
+            "Description must be {} characters or less (currently {})",
+            MAX_DESCRIPTION_LENGTH,
+            description.len()
+        ));
+    }
+
+    // Check for XML tags (security requirement)
+    if description.contains('<') || description.contains('>') {
+        return ValidationResult::err("Description cannot contain XML tags (< or >)".to_string());
+    }
+
+    ValidationResult::ok()
+}
+
+/// Validate skill content and return a warning if it exceeds recommended lines
+fn validate_skill_content(content: &str) -> ValidationResult {
+    let content = content.trim();
+
+    if content.is_empty() {
+        return ValidationResult::err("Content is required".to_string());
+    }
+
+    // Count lines and warn if exceeding recommended maximum
+    let line_count = content.lines().count();
+    if line_count > RECOMMENDED_MAX_CONTENT_LINES {
+        return ValidationResult::ok_with_warning(format!(
+            "Content has {} lines, exceeding the recommended {} lines for optimal performance. Consider splitting into separate reference files.",
+            line_count,
+            RECOMMENDED_MAX_CONTENT_LINES
+        ));
+    }
+
+    ValidationResult::ok()
+}
+
+/// Validate a complete skill request
+pub fn validate_skill_request(skill: &CreateSkillRequest) -> Result<Option<String>, String> {
+    // Validate name
+    let name_result = validate_skill_name(&skill.name);
+    if !name_result.is_valid {
+        return Err(name_result.error.unwrap());
+    }
+
+    // Validate description
+    let desc_result = validate_skill_description(skill.description.as_deref());
+    if !desc_result.is_valid {
+        return Err(desc_result.error.unwrap());
+    }
+
+    // Validate content
+    let content_result = validate_skill_content(&skill.content);
+    if !content_result.is_valid {
+        return Err(content_result.error.unwrap());
+    }
+
+    // Collect warnings
+    let warning = content_result.warning;
+
+    Ok(warning)
+}
+
 fn parse_json_array(s: Option<String>) -> Option<Vec<String>> {
     s.and_then(|v| serde_json::from_str(&v).ok())
 }
 
-const SKILL_SELECT_FIELDS: &str = "id, name, description, content, skill_type, allowed_tools, argument_hint, model, disable_model_invocation, tags, source, created_at, updated_at";
+const SKILL_SELECT_FIELDS: &str = "id, name, description, content, allowed_tools, model, disable_model_invocation, tags, source, created_at, updated_at";
 
 fn row_to_skill(row: &rusqlite::Row) -> rusqlite::Result<Skill> {
     Ok(Skill {
@@ -20,15 +186,13 @@ fn row_to_skill(row: &rusqlite::Row) -> rusqlite::Result<Skill> {
         name: row.get(1)?,
         description: row.get(2)?,
         content: row.get(3)?,
-        skill_type: row.get(4)?,
-        allowed_tools: parse_json_array(row.get(5)?),
-        argument_hint: row.get(6)?,
-        model: row.get(7)?,
-        disable_model_invocation: row.get::<_, i32>(8).unwrap_or(0) != 0,
-        tags: parse_json_array(row.get(9)?),
-        source: row.get(10)?,
-        created_at: row.get(11)?,
-        updated_at: row.get(12)?,
+        allowed_tools: parse_json_array(row.get(4)?),
+        model: row.get(5)?,
+        disable_model_invocation: row.get::<_, i32>(6).unwrap_or(0) != 0,
+        tags: parse_json_array(row.get(7)?),
+        source: row.get(8)?,
+        created_at: row.get(9)?,
+        updated_at: row.get(10)?,
     })
 }
 
@@ -38,15 +202,13 @@ fn row_to_skill_with_offset(row: &rusqlite::Row, offset: usize) -> rusqlite::Res
         name: row.get(offset + 1)?,
         description: row.get(offset + 2)?,
         content: row.get(offset + 3)?,
-        skill_type: row.get(offset + 4)?,
-        allowed_tools: parse_json_array(row.get(offset + 5)?),
-        argument_hint: row.get(offset + 6)?,
-        model: row.get(offset + 7)?,
-        disable_model_invocation: row.get::<_, i32>(offset + 8).unwrap_or(0) != 0,
-        tags: parse_json_array(row.get(offset + 9)?),
-        source: row.get(offset + 10)?,
-        created_at: row.get(offset + 11)?,
-        updated_at: row.get(offset + 12)?,
+        allowed_tools: parse_json_array(row.get(offset + 4)?),
+        model: row.get(offset + 5)?,
+        disable_model_invocation: row.get::<_, i32>(offset + 6).unwrap_or(0) != 0,
+        tags: parse_json_array(row.get(offset + 7)?),
+        source: row.get(offset + 8)?,
+        created_at: row.get(offset + 9)?,
+        updated_at: row.get(offset + 10)?,
     })
 }
 
@@ -70,6 +232,10 @@ pub fn create_skill(
     db: State<'_, Arc<Mutex<Database>>>,
     skill: CreateSkillRequest,
 ) -> Result<Skill, String> {
+    // Validate the skill request
+    let _warning = validate_skill_request(&skill)?;
+    // Note: warning could be returned to frontend if needed in the future
+
     let db_guard = db.lock().map_err(|e| e.to_string())?;
 
     let allowed_tools_json = skill
@@ -84,9 +250,9 @@ pub fn create_skill(
 
     db_guard.conn()
         .execute(
-            "INSERT INTO skills (name, description, content, skill_type, allowed_tools, argument_hint, model, disable_model_invocation, tags, source)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'manual')",
-            params![skill.name, skill.description, skill.content, skill.skill_type, allowed_tools_json, skill.argument_hint, skill.model, disable_model_invocation, tags_json],
+            "INSERT INTO skills (name, description, content, allowed_tools, model, disable_model_invocation, tags, source)
+             VALUES (?, ?, ?, ?, ?, ?, ?, 'manual')",
+            params![skill.name, skill.description, skill.content, allowed_tools_json, skill.model, disable_model_invocation, tags_json],
         )
         .map_err(|e| e.to_string())?;
 
@@ -105,6 +271,10 @@ pub fn update_skill(
     id: i64,
     skill: CreateSkillRequest,
 ) -> Result<Skill, String> {
+    // Validate the skill request
+    let _warning = validate_skill_request(&skill)?;
+    // Note: warning could be returned to frontend if needed in the future
+
     let db = db.lock().map_err(|e| e.to_string())?;
 
     let allowed_tools_json = skill
@@ -119,9 +289,9 @@ pub fn update_skill(
 
     db.conn()
         .execute(
-            "UPDATE skills SET name = ?, description = ?, content = ?, skill_type = ?, allowed_tools = ?, argument_hint = ?, model = ?, disable_model_invocation = ?, tags = ?, updated_at = CURRENT_TIMESTAMP
+            "UPDATE skills SET name = ?, description = ?, content = ?, allowed_tools = ?, model = ?, disable_model_invocation = ?, tags = ?, updated_at = CURRENT_TIMESTAMP
              WHERE id = ?",
-            params![skill.name, skill.description, skill.content, skill.skill_type, allowed_tools_json, skill.argument_hint, skill.model, disable_model_invocation, tags_json, id],
+            params![skill.name, skill.description, skill.content, allowed_tools_json, skill.model, disable_model_invocation, tags_json, id],
         )
         .map_err(|e| e.to_string())?;
 
@@ -156,7 +326,7 @@ pub fn get_global_skills(db: State<'_, Arc<Mutex<Database>>>) -> Result<Vec<Glob
     let db = db.lock().map_err(|e| e.to_string())?;
     let query = format!(
         "SELECT gs.id, gs.skill_id, gs.is_enabled,
-                s.id, s.name, s.description, s.content, s.skill_type, s.allowed_tools, s.argument_hint, s.model, s.disable_model_invocation, s.tags, s.source, s.created_at, s.updated_at
+                s.id, s.name, s.description, s.content, s.allowed_tools, s.model, s.disable_model_invocation, s.tags, s.source, s.created_at, s.updated_at
          FROM global_skills gs
          JOIN skills s ON gs.skill_id = s.id
          ORDER BY s.name"
@@ -249,7 +419,7 @@ pub fn toggle_global_skill(
 
     // Get the skill details
     let query = format!(
-        "SELECT s.id, s.name, s.description, s.content, s.skill_type, s.allowed_tools, s.argument_hint, s.model, s.disable_model_invocation, s.tags, s.source, s.created_at, s.updated_at
+        "SELECT s.id, s.name, s.description, s.content, s.allowed_tools, s.model, s.disable_model_invocation, s.tags, s.source, s.created_at, s.updated_at
          FROM global_skills gs
          JOIN skills s ON gs.skill_id = s.id
          WHERE gs.id = ?"
@@ -369,7 +539,7 @@ pub fn toggle_project_skill(
 
     // Get project path and skill details
     let query = format!(
-        "SELECT p.path, s.id, s.name, s.description, s.content, s.skill_type, s.allowed_tools, s.argument_hint, s.model, s.disable_model_invocation, s.tags, s.source, s.created_at, s.updated_at
+        "SELECT p.path, s.id, s.name, s.description, s.content, s.allowed_tools, s.model, s.disable_model_invocation, s.tags, s.source, s.created_at, s.updated_at
          FROM project_skills ps
          JOIN projects p ON ps.project_id = p.id
          JOIN skills s ON ps.skill_id = s.id
@@ -403,7 +573,7 @@ pub fn get_project_skills(
     let db = db.lock().map_err(|e| e.to_string())?;
     let query = format!(
         "SELECT ps.id, ps.skill_id, ps.is_enabled,
-                s.id, s.name, s.description, s.content, s.skill_type, s.allowed_tools, s.argument_hint, s.model, s.disable_model_invocation, s.tags, s.source, s.created_at, s.updated_at
+                s.id, s.name, s.description, s.content, s.allowed_tools, s.model, s.disable_model_invocation, s.tags, s.source, s.created_at, s.updated_at
          FROM project_skills ps
          JOIN skills s ON ps.skill_id = s.id
          WHERE ps.project_id = ?
@@ -538,7 +708,28 @@ pub fn delete_skill_file(db: State<'_, Arc<Mutex<Database>>>, id: i64) -> Result
 // ============================================================================
 
 /// Create a skill directly in the database (for testing)
+/// Note: Set skip_validation to true to bypass validation in tests
 pub fn create_skill_in_db(db: &Database, skill: &CreateSkillRequest) -> Result<Skill, String> {
+    create_skill_in_db_internal(db, skill, false)
+}
+
+/// Create a skill without validation (for testing edge cases)
+pub fn create_skill_in_db_unvalidated(
+    db: &Database,
+    skill: &CreateSkillRequest,
+) -> Result<Skill, String> {
+    create_skill_in_db_internal(db, skill, true)
+}
+
+fn create_skill_in_db_internal(
+    db: &Database,
+    skill: &CreateSkillRequest,
+    skip_validation: bool,
+) -> Result<Skill, String> {
+    if !skip_validation {
+        validate_skill_request(skill)?;
+    }
+
     let allowed_tools_json = skill
         .allowed_tools
         .as_ref()
@@ -551,9 +742,9 @@ pub fn create_skill_in_db(db: &Database, skill: &CreateSkillRequest) -> Result<S
 
     db.conn()
         .execute(
-            "INSERT INTO skills (name, description, content, skill_type, allowed_tools, argument_hint, model, disable_model_invocation, tags, source)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'manual')",
-            rusqlite::params![skill.name, skill.description, skill.content, skill.skill_type, allowed_tools_json, skill.argument_hint, skill.model, disable_model_invocation, tags_json],
+            "INSERT INTO skills (name, description, content, allowed_tools, model, disable_model_invocation, tags, source)
+             VALUES (?, ?, ?, ?, ?, ?, ?, 'manual')",
+            rusqlite::params![skill.name, skill.description, skill.content, allowed_tools_json, skill.model, disable_model_invocation, tags_json],
         )
         .map_err(|e| e.to_string())?;
 
@@ -590,6 +781,9 @@ pub fn update_skill_in_db(
     id: i64,
     skill: &CreateSkillRequest,
 ) -> Result<Skill, String> {
+    // Validate the skill request
+    validate_skill_request(skill)?;
+
     let allowed_tools_json = skill
         .allowed_tools
         .as_ref()
@@ -602,9 +796,9 @@ pub fn update_skill_in_db(
 
     db.conn()
         .execute(
-            "UPDATE skills SET name = ?, description = ?, content = ?, skill_type = ?, allowed_tools = ?, argument_hint = ?, model = ?, disable_model_invocation = ?, tags = ?, updated_at = CURRENT_TIMESTAMP
+            "UPDATE skills SET name = ?, description = ?, content = ?, allowed_tools = ?, model = ?, disable_model_invocation = ?, tags = ?, updated_at = CURRENT_TIMESTAMP
              WHERE id = ?",
-            rusqlite::params![skill.name, skill.description, skill.content, skill.skill_type, allowed_tools_json, skill.argument_hint, skill.model, disable_model_invocation, tags_json, id],
+            rusqlite::params![skill.name, skill.description, skill.content, allowed_tools_json, skill.model, disable_model_invocation, tags_json, id],
         )
         .map_err(|e| e.to_string())?;
 
@@ -677,32 +871,16 @@ pub fn delete_skill_file_from_db(db: &Database, id: i64) -> Result<(), String> {
 mod tests {
     use super::*;
 
-    fn sample_command_skill() -> CreateSkillRequest {
+    fn sample_skill() -> CreateSkillRequest {
         CreateSkillRequest {
-            name: "test-command".to_string(),
-            description: Some("A test command skill".to_string()),
-            content: "You are a helpful assistant for testing.".to_string(),
-            skill_type: "command".to_string(),
-            allowed_tools: Some(vec!["Read".to_string(), "Write".to_string()]),
-            argument_hint: Some("<file>".to_string()),
-            model: Some("sonnet".to_string()),
-            disable_model_invocation: Some(false),
-            tags: Some(vec!["test".to_string(), "example".to_string()]),
-        }
-    }
-
-    fn sample_agent_skill() -> CreateSkillRequest {
-        CreateSkillRequest {
-            name: "test-agent".to_string(),
+            name: "test-skill".to_string(),
             description: Some("A test agent skill".to_string()),
             content: "You are an agent that helps with code reviews.".to_string(),
-            skill_type: "skill".to_string(),
             allowed_tools: Some(vec![
                 "Read".to_string(),
                 "Grep".to_string(),
                 "Glob".to_string(),
             ]),
-            argument_hint: None,
             model: Some("opus".to_string()),
             disable_model_invocation: Some(true),
             tags: Some(vec!["review".to_string()]),
@@ -714,9 +892,7 @@ mod tests {
             name: "minimal".to_string(),
             description: None,
             content: "Minimal skill content.".to_string(),
-            skill_type: "command".to_string(),
             allowed_tools: None,
-            argument_hint: None,
             model: None,
             disable_model_invocation: None,
             tags: None,
@@ -728,41 +904,30 @@ mod tests {
     // ========================================================================
 
     #[test]
-    fn test_create_command_skill() {
+    fn test_create_skill() {
         let db = Database::in_memory().unwrap();
-        let req = sample_command_skill();
+        let req = sample_skill();
 
         let skill = create_skill_in_db(&db, &req).unwrap();
 
-        assert_eq!(skill.name, "test-command");
-        assert_eq!(skill.description, Some("A test command skill".to_string()));
-        assert_eq!(skill.content, "You are a helpful assistant for testing.");
-        assert_eq!(skill.skill_type, "command");
+        assert_eq!(skill.name, "test-skill");
+        assert_eq!(skill.description, Some("A test agent skill".to_string()));
+        assert_eq!(
+            skill.content,
+            "You are an agent that helps with code reviews."
+        );
         assert_eq!(
             skill.allowed_tools,
-            Some(vec!["Read".to_string(), "Write".to_string()])
+            Some(vec![
+                "Read".to_string(),
+                "Grep".to_string(),
+                "Glob".to_string()
+            ])
         );
-        assert_eq!(skill.argument_hint, Some("<file>".to_string()));
-        assert_eq!(skill.model, Some("sonnet".to_string()));
-        assert!(!skill.disable_model_invocation);
-        assert_eq!(
-            skill.tags,
-            Some(vec!["test".to_string(), "example".to_string()])
-        );
-        assert_eq!(skill.source, "manual");
-    }
-
-    #[test]
-    fn test_create_agent_skill() {
-        let db = Database::in_memory().unwrap();
-        let req = sample_agent_skill();
-
-        let skill = create_skill_in_db(&db, &req).unwrap();
-
-        assert_eq!(skill.name, "test-agent");
-        assert_eq!(skill.skill_type, "skill");
-        assert!(skill.disable_model_invocation);
         assert_eq!(skill.model, Some("opus".to_string()));
+        assert!(skill.disable_model_invocation);
+        assert_eq!(skill.tags, Some(vec!["review".to_string()]));
+        assert_eq!(skill.source, "manual");
     }
 
     #[test]
@@ -775,7 +940,6 @@ mod tests {
         assert_eq!(skill.name, "minimal");
         assert!(skill.description.is_none());
         assert!(skill.allowed_tools.is_none());
-        assert!(skill.argument_hint.is_none());
         assert!(skill.model.is_none());
         assert!(!skill.disable_model_invocation);
         assert!(skill.tags.is_none());
@@ -784,7 +948,7 @@ mod tests {
     #[test]
     fn test_create_duplicate_skill_fails() {
         let db = Database::in_memory().unwrap();
-        let req = sample_command_skill();
+        let req = sample_skill();
 
         create_skill_in_db(&db, &req).unwrap();
         let result = create_skill_in_db(&db, &req);
@@ -800,7 +964,7 @@ mod tests {
     #[test]
     fn test_get_skill_by_id() {
         let db = Database::in_memory().unwrap();
-        let req = sample_command_skill();
+        let req = sample_skill();
         let created = create_skill_in_db(&db, &req).unwrap();
 
         let fetched = get_skill_by_id(&db, created.id).unwrap();
@@ -873,18 +1037,16 @@ mod tests {
     #[test]
     fn test_update_skill() {
         let db = Database::in_memory().unwrap();
-        let req = sample_command_skill();
+        let req = sample_skill();
         let created = create_skill_in_db(&db, &req).unwrap();
 
         let update_req = CreateSkillRequest {
             name: "updated-skill".to_string(),
             description: Some("Updated description".to_string()),
             content: "Updated content.".to_string(),
-            skill_type: "skill".to_string(),
             allowed_tools: Some(vec!["Bash".to_string()]),
-            argument_hint: Some("<new-hint>".to_string()),
             model: Some("haiku".to_string()),
-            disable_model_invocation: Some(true),
+            disable_model_invocation: Some(false),
             tags: Some(vec!["updated".to_string()]),
         };
 
@@ -894,9 +1056,8 @@ mod tests {
         assert_eq!(updated.name, "updated-skill");
         assert_eq!(updated.description, Some("Updated description".to_string()));
         assert_eq!(updated.content, "Updated content.");
-        assert_eq!(updated.skill_type, "skill");
         assert_eq!(updated.model, Some("haiku".to_string()));
-        assert!(updated.disable_model_invocation);
+        assert!(!updated.disable_model_invocation);
     }
 
     #[test]
@@ -916,7 +1077,7 @@ mod tests {
     #[test]
     fn test_delete_skill() {
         let db = Database::in_memory().unwrap();
-        let req = sample_command_skill();
+        let req = sample_skill();
         let created = create_skill_in_db(&db, &req).unwrap();
 
         let result = delete_skill_from_db(&db, created.id);
@@ -929,7 +1090,7 @@ mod tests {
     #[test]
     fn test_delete_skill_cascades_to_files() {
         let db = Database::in_memory().unwrap();
-        let skill = create_skill_in_db(&db, &sample_command_skill()).unwrap();
+        let skill = create_skill_in_db(&db, &sample_skill()).unwrap();
 
         let file = create_skill_file_in_db(
             &db,
@@ -956,7 +1117,7 @@ mod tests {
     #[test]
     fn test_create_skill_file() {
         let db = Database::in_memory().unwrap();
-        let skill = create_skill_in_db(&db, &sample_command_skill()).unwrap();
+        let skill = create_skill_in_db(&db, &sample_skill()).unwrap();
 
         let file = create_skill_file_in_db(
             &db,
@@ -978,7 +1139,7 @@ mod tests {
     #[test]
     fn test_create_skill_file_types() {
         let db = Database::in_memory().unwrap();
-        let skill = create_skill_in_db(&db, &sample_command_skill()).unwrap();
+        let skill = create_skill_in_db(&db, &sample_skill()).unwrap();
 
         // Reference file
         let ref_file = create_skill_file_in_db(
@@ -1023,7 +1184,7 @@ mod tests {
     #[test]
     fn test_get_skill_files_sorted() {
         let db = Database::in_memory().unwrap();
-        let skill = create_skill_in_db(&db, &sample_command_skill()).unwrap();
+        let skill = create_skill_in_db(&db, &sample_skill()).unwrap();
 
         create_skill_file_in_db(
             &db,
@@ -1070,7 +1231,7 @@ mod tests {
     #[test]
     fn test_delete_skill_file() {
         let db = Database::in_memory().unwrap();
-        let skill = create_skill_in_db(&db, &sample_command_skill()).unwrap();
+        let skill = create_skill_in_db(&db, &sample_skill()).unwrap();
 
         let file = create_skill_file_in_db(
             &db,
@@ -1092,7 +1253,7 @@ mod tests {
     #[test]
     fn test_skill_file_unique_constraint() {
         let db = Database::in_memory().unwrap();
-        let skill = create_skill_in_db(&db, &sample_command_skill()).unwrap();
+        let skill = create_skill_in_db(&db, &sample_skill()).unwrap();
 
         create_skill_file_in_db(
             &db,
@@ -1153,5 +1314,252 @@ mod tests {
     fn test_parse_json_array_invalid() {
         let result = parse_json_array(Some("not valid json".to_string()));
         assert_eq!(result, None);
+    }
+
+    // ========================================================================
+    // Validation tests (based on official Claude Code documentation)
+    // ========================================================================
+
+    #[test]
+    fn test_validate_name_valid() {
+        let result = validate_skill_name("my-skill-123");
+        assert!(result.is_valid);
+        assert!(result.error.is_none());
+    }
+
+    #[test]
+    fn test_validate_name_empty() {
+        let result = validate_skill_name("");
+        assert!(!result.is_valid);
+        assert!(result.error.unwrap().contains("required"));
+    }
+
+    #[test]
+    fn test_validate_name_too_long() {
+        let long_name = "a".repeat(65);
+        let result = validate_skill_name(&long_name);
+        assert!(!result.is_valid);
+        assert!(result.error.unwrap().contains("64 characters"));
+    }
+
+    #[test]
+    fn test_validate_name_max_length_ok() {
+        let max_name = "a".repeat(64);
+        let result = validate_skill_name(&max_name);
+        assert!(result.is_valid);
+    }
+
+    #[test]
+    fn test_validate_name_uppercase_rejected() {
+        let result = validate_skill_name("MySkill");
+        assert!(!result.is_valid);
+        assert!(result.error.unwrap().contains("lowercase"));
+    }
+
+    #[test]
+    fn test_validate_name_underscore_rejected() {
+        let result = validate_skill_name("my_skill");
+        assert!(!result.is_valid);
+        assert!(result
+            .error
+            .unwrap()
+            .contains("lowercase letters, numbers, and hyphens"));
+    }
+
+    #[test]
+    fn test_validate_name_spaces_rejected() {
+        let result = validate_skill_name("my skill");
+        assert!(!result.is_valid);
+    }
+
+    #[test]
+    fn test_validate_name_xml_tags_rejected() {
+        // XML tags are rejected by the regex pattern check (not lowercase letters/numbers/hyphens)
+        let result = validate_skill_name("<script>");
+        assert!(!result.is_valid);
+        // The error comes from the regex pattern, which doesn't allow < or >
+        assert!(result.error.unwrap().contains("lowercase"));
+    }
+
+    #[test]
+    fn test_validate_name_reserved_word_anthropic() {
+        let result = validate_skill_name("my-anthropic-skill");
+        assert!(!result.is_valid);
+        assert!(result.error.unwrap().contains("anthropic"));
+    }
+
+    #[test]
+    fn test_validate_name_reserved_word_claude() {
+        let result = validate_skill_name("claude-helper");
+        assert!(!result.is_valid);
+        assert!(result.error.unwrap().contains("claude"));
+    }
+
+    #[test]
+    fn test_validate_description_valid() {
+        let result = validate_skill_description(Some("A helpful skill for testing"));
+        assert!(result.is_valid);
+    }
+
+    #[test]
+    fn test_validate_description_none_ok() {
+        let result = validate_skill_description(None);
+        assert!(result.is_valid);
+    }
+
+    #[test]
+    fn test_validate_description_empty_ok() {
+        let result = validate_skill_description(Some(""));
+        assert!(result.is_valid);
+    }
+
+    #[test]
+    fn test_validate_description_too_long() {
+        let long_desc = "a".repeat(1025);
+        let result = validate_skill_description(Some(&long_desc));
+        assert!(!result.is_valid);
+        assert!(result.error.unwrap().contains("1024 characters"));
+    }
+
+    #[test]
+    fn test_validate_description_max_length_ok() {
+        let max_desc = "a".repeat(1024);
+        let result = validate_skill_description(Some(&max_desc));
+        assert!(result.is_valid);
+    }
+
+    #[test]
+    fn test_validate_description_xml_tags_rejected() {
+        let result = validate_skill_description(Some("Use this for <script>injection</script>"));
+        assert!(!result.is_valid);
+        assert!(result.error.unwrap().contains("XML"));
+    }
+
+    #[test]
+    fn test_validate_content_valid() {
+        let result = validate_skill_content("Some skill instructions here.");
+        assert!(result.is_valid);
+        assert!(result.warning.is_none());
+    }
+
+    #[test]
+    fn test_validate_content_empty() {
+        let result = validate_skill_content("");
+        assert!(!result.is_valid);
+        assert!(result.error.unwrap().contains("required"));
+    }
+
+    #[test]
+    fn test_validate_content_warns_over_500_lines() {
+        let long_content = "line\n".repeat(501);
+        let result = validate_skill_content(&long_content);
+        assert!(result.is_valid);
+        assert!(result.warning.is_some());
+        assert!(result.warning.unwrap().contains("500 lines"));
+    }
+
+    #[test]
+    fn test_validate_content_no_warning_at_500_lines() {
+        let content = "line\n".repeat(500);
+        let result = validate_skill_content(&content);
+        assert!(result.is_valid);
+        assert!(result.warning.is_none());
+    }
+
+    #[test]
+    fn test_validate_skill_request_valid() {
+        let skill = CreateSkillRequest {
+            name: "valid-skill".to_string(),
+            description: Some("A valid description".to_string()),
+            content: "Valid content".to_string(),
+            allowed_tools: None,
+            model: None,
+            disable_model_invocation: None,
+            tags: None,
+        };
+        let result = validate_skill_request(&skill);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_validate_skill_request_invalid_name() {
+        let skill = CreateSkillRequest {
+            name: "Invalid_Name".to_string(), // Underscores not allowed
+            description: Some("A description".to_string()),
+            content: "Content".to_string(),
+            allowed_tools: None,
+            model: None,
+            disable_model_invocation: None,
+            tags: None,
+        };
+        let result = validate_skill_request(&skill);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_validate_skill_request_invalid_description() {
+        let skill = CreateSkillRequest {
+            name: "valid-name".to_string(),
+            description: Some("<script>alert('xss')</script>".to_string()), // XML tags
+            content: "Content".to_string(),
+            allowed_tools: None,
+            model: None,
+            disable_model_invocation: None,
+            tags: None,
+        };
+        let result = validate_skill_request(&skill);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_create_skill_with_invalid_name_fails() {
+        let db = Database::in_memory().unwrap();
+        let skill = CreateSkillRequest {
+            name: "Invalid_Name".to_string(), // Underscores not allowed
+            description: None,
+            content: "Content".to_string(),
+            allowed_tools: None,
+            model: None,
+            disable_model_invocation: None,
+            tags: None,
+        };
+        let result = create_skill_in_db(&db, &skill);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("lowercase"));
+    }
+
+    #[test]
+    fn test_create_skill_with_reserved_word_fails() {
+        let db = Database::in_memory().unwrap();
+        let skill = CreateSkillRequest {
+            name: "my-claude-helper".to_string(), // Contains "claude"
+            description: None,
+            content: "Content".to_string(),
+            allowed_tools: None,
+            model: None,
+            disable_model_invocation: None,
+            tags: None,
+        };
+        let result = create_skill_in_db(&db, &skill);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("claude"));
+    }
+
+    #[test]
+    fn test_update_skill_with_invalid_name_fails() {
+        let db = Database::in_memory().unwrap();
+        let skill = create_skill_in_db(&db, &sample_skill()).unwrap();
+
+        let update = CreateSkillRequest {
+            name: "UPPERCASE".to_string(), // Invalid
+            description: None,
+            content: "Content".to_string(),
+            allowed_tools: None,
+            model: None,
+            disable_model_invocation: None,
+            tags: None,
+        };
+        let result = update_skill_in_db(&db, skill.id, &update);
+        assert!(result.is_err());
     }
 }

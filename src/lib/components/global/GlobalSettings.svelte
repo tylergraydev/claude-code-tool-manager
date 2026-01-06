@@ -1,7 +1,7 @@
 <script lang="ts">
-	import type { Mcp, Skill, SubAgent, GlobalSkill, GlobalSubAgent } from '$lib/types';
-	import { projectsStore, notifications, mcpLibrary, skillLibrary, subagentLibrary, debugStore } from '$lib/stores';
-	import { Globe, RefreshCw, Plus, Minus, Plug, Server, Sparkles, Bot, Bug, FolderOpen, Loader2 } from 'lucide-svelte';
+	import type { Mcp, Skill, SubAgent, Command, GlobalSkill, GlobalSubAgent, GlobalCommand } from '$lib/types';
+	import { projectsStore, notifications, mcpLibrary, skillLibrary, subagentLibrary, commandLibrary, debugStore } from '$lib/stores';
+	import { Globe, RefreshCw, Plus, Minus, Plug, Server, Sparkles, Bot, Bug, FolderOpen, Loader2, Terminal } from 'lucide-svelte';
 	import { installDebugInterceptor, uninstallDebugInterceptor } from '$lib/utils/debugLogger';
 	import { onMount } from 'svelte';
 
@@ -35,7 +35,7 @@
 	}
 
 	// Tab state
-	type Tab = 'mcps' | 'skills' | 'agents';
+	type Tab = 'mcps' | 'commands' | 'skills' | 'agents';
 	let activeTab = $state<Tab>('mcps');
 
 	let showAddModal = $state(false);
@@ -58,6 +58,12 @@
 		mcpLibrary.mcps.filter((mcp) => !globalMcpIds.includes(mcp.id))
 	);
 
+	// Commands state
+	let globalCommandIds = $derived(commandLibrary.globalCommands.map((g) => g.commandId));
+	let availableCommands = $derived(
+		commandLibrary.commands.filter((cmd) => !globalCommandIds.includes(cmd.id))
+	);
+
 	// Skills state
 	let globalSkillIds = $derived(skillLibrary.globalSkills.map((g) => g.skillId));
 	let availableSkills = $derived(
@@ -70,8 +76,9 @@
 		subagentLibrary.subagents.filter((agent) => !globalAgentIds.includes(agent.id))
 	);
 
-	// Load global skills and agents on mount
+	// Load global commands, skills and agents on mount
 	$effect(() => {
+		commandLibrary.loadGlobalCommands();
 		skillLibrary.loadGlobalSkills();
 		subagentLibrary.loadGlobalSubAgents();
 	});
@@ -113,6 +120,37 @@
 			await projectsStore.syncGlobalConfig();
 		} catch {
 			notifications.error('Failed to toggle MCP');
+		}
+	}
+
+	// Command handlers
+	async function handleAddCommand(command: Command) {
+		try {
+			await commandLibrary.addGlobalCommand(command.id);
+			await projectsStore.syncGlobalConfig();
+			notifications.success(`Added ${command.name} to global settings`);
+		} catch {
+			notifications.error('Failed to add command');
+		}
+	}
+
+	async function handleRemoveCommand(commandId: number) {
+		try {
+			const command = commandLibrary.getCommandById(commandId);
+			await commandLibrary.removeGlobalCommand(commandId);
+			await projectsStore.syncGlobalConfig();
+			notifications.success(`Removed ${command?.name || 'Command'} from global settings`);
+		} catch {
+			notifications.error('Failed to remove command');
+		}
+	}
+
+	async function handleToggleCommand(assignmentId: number, enabled: boolean) {
+		try {
+			await commandLibrary.toggleGlobalCommand(assignmentId, enabled);
+			await projectsStore.syncGlobalConfig();
+		} catch {
+			notifications.error('Failed to toggle command');
 		}
 	}
 
@@ -181,6 +219,7 @@
 	function getAddButtonLabel() {
 		switch (activeTab) {
 			case 'mcps': return 'Add MCP';
+			case 'commands': return 'Add Command';
 			case 'skills': return 'Add Skill';
 			case 'agents': return 'Add Agent';
 		}
@@ -189,6 +228,7 @@
 	function getAddModalTitle() {
 		switch (activeTab) {
 			case 'mcps': return 'Add Global MCP';
+			case 'commands': return 'Add Global Command';
 			case 'skills': return 'Add Global Skill';
 			case 'agents': return 'Add Global Agent';
 		}
@@ -229,6 +269,13 @@
 		>
 			<Plug class="w-4 h-4" />
 			MCPs ({projectsStore.globalMcps.length})
+		</button>
+		<button
+			onclick={() => activeTab = 'commands'}
+			class="flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors {activeTab === 'commands' ? 'border-primary-500 text-primary-600 dark:text-primary-400' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'}"
+		>
+			<Terminal class="w-4 h-4" />
+			Commands ({commandLibrary.globalCommands.length})
 		</button>
 		<button
 			onclick={() => activeTab = 'skills'}
@@ -298,6 +345,61 @@
 					<button onclick={() => (showAddModal = true)} class="btn btn-primary">
 						<Plus class="w-4 h-4 mr-2" />
 						Add MCP
+					</button>
+				</div>
+			{/if}
+		{:else if activeTab === 'commands'}
+			{#if commandLibrary.globalCommands.length > 0}
+				<div class="space-y-2">
+					{#each commandLibrary.globalCommands as assignment (assignment.id)}
+						{@const command = commandLibrary.getCommandById(assignment.commandId) ?? assignment.command}
+						<div class="flex items-center justify-between gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+							<div class="flex items-center gap-3 min-w-0 flex-1">
+								<div class="w-8 h-8 rounded-lg bg-amber-100 text-amber-600 dark:bg-amber-900/50 dark:text-amber-400 flex items-center justify-center flex-shrink-0">
+									<Terminal class="w-4 h-4" />
+								</div>
+								<div class="min-w-0">
+									<p class="font-medium text-gray-900 dark:text-white truncate {!assignment.isEnabled ? 'line-through opacity-50' : ''}">
+										/{command.name}
+									</p>
+									{#if command.description}
+										<p class="text-xs text-gray-500 dark:text-gray-400 truncate">{command.description}</p>
+									{/if}
+								</div>
+							</div>
+							<div class="flex items-center gap-3 flex-shrink-0">
+								<button
+									onclick={() => handleToggleCommand(assignment.id, !assignment.isEnabled)}
+									class="relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none {assignment.isEnabled ? 'bg-primary-600' : 'bg-gray-300 dark:bg-gray-600'}"
+									role="switch"
+									aria-checked={assignment.isEnabled}
+									title={assignment.isEnabled ? 'Disable' : 'Enable'}
+								>
+									<span
+										class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out {assignment.isEnabled ? 'translate-x-4' : 'translate-x-0'}"
+									></span>
+								</button>
+								<button
+									onclick={() => handleRemoveCommand(assignment.commandId)}
+									class="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+									title="Remove"
+								>
+									<Minus class="w-4 h-4" />
+								</button>
+							</div>
+						</div>
+					{/each}
+				</div>
+			{:else}
+				<div class="text-center py-8">
+					<Terminal class="w-12 h-12 mx-auto text-gray-300 dark:text-gray-600 mb-4" />
+					<h3 class="text-lg font-medium text-gray-900 dark:text-white">No global commands</h3>
+					<p class="text-gray-500 dark:text-gray-400 mt-1 mb-4">
+						Add commands to make them available in all projects
+					</p>
+					<button onclick={() => (showAddModal = true)} class="btn btn-primary">
+						<Plus class="w-4 h-4 mr-2" />
+						Add Command
 					</button>
 				</div>
 			{/if}
@@ -521,6 +623,35 @@
 					{:else}
 						<div class="text-center py-8 text-gray-500 dark:text-gray-400">
 							All MCPs are already in global settings
+						</div>
+					{/if}
+				{:else if activeTab === 'commands'}
+					{#if availableCommands.length > 0}
+						<div class="space-y-2">
+							{#each availableCommands as command (command.id)}
+								<button
+									onclick={() => {
+										handleAddCommand(command);
+										showAddModal = false;
+									}}
+									class="w-full flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-left"
+								>
+									<div class="w-8 h-8 rounded-lg bg-amber-100 text-amber-600 dark:bg-amber-900/50 dark:text-amber-400 flex items-center justify-center flex-shrink-0">
+										<Terminal class="w-4 h-4" />
+									</div>
+									<div class="flex-1 min-w-0">
+										<p class="font-medium text-gray-900 dark:text-white truncate">/{command.name}</p>
+										{#if command.description}
+											<p class="text-xs text-gray-500 dark:text-gray-400 truncate">{command.description}</p>
+										{/if}
+									</div>
+									<Plus class="w-4 h-4 text-gray-400 flex-shrink-0" />
+								</button>
+							{/each}
+						</div>
+					{:else}
+						<div class="text-center py-8 text-gray-500 dark:text-gray-400">
+							All commands are already in global settings
 						</div>
 					{/if}
 				{:else if activeTab === 'skills'}

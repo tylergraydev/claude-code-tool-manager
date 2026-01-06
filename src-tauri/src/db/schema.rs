@@ -93,15 +93,30 @@ impl Database {
                 FOREIGN KEY (mcp_id) REFERENCES mcps(id) ON DELETE CASCADE
             );
 
-            -- Skills (Slash Commands and Agent Skills)
+            -- Slash Commands (user-invoked with /name)
+            CREATE TABLE IF NOT EXISTS commands (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE,
+                description TEXT,
+                content TEXT NOT NULL,
+                allowed_tools TEXT,
+                argument_hint TEXT,
+                model TEXT,
+                tags TEXT,
+                source TEXT DEFAULT 'manual',
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+            );
+
+            -- Skills (Agent Skills - auto-invoked by Claude)
             CREATE TABLE IF NOT EXISTS skills (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL UNIQUE,
                 description TEXT,
                 content TEXT NOT NULL,
-                skill_type TEXT NOT NULL DEFAULT 'command' CHECK (skill_type IN ('command', 'skill')),
                 allowed_tools TEXT,
-                argument_hint TEXT,
+                model TEXT,
+                disable_model_invocation INTEGER DEFAULT 0,
                 tags TEXT,
                 source TEXT DEFAULT 'manual',
                 created_at TEXT DEFAULT CURRENT_TIMESTAMP,
@@ -146,6 +161,27 @@ impl Database {
                 FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
                 FOREIGN KEY (subagent_id) REFERENCES subagents(id) ON DELETE CASCADE,
                 UNIQUE (project_id, subagent_id)
+            );
+
+            -- Global Command Settings
+            CREATE TABLE IF NOT EXISTS global_commands (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                command_id INTEGER NOT NULL UNIQUE,
+                is_enabled INTEGER DEFAULT 1,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (command_id) REFERENCES commands(id) ON DELETE CASCADE
+            );
+
+            -- Project Command Assignments
+            CREATE TABLE IF NOT EXISTS project_commands (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                project_id INTEGER NOT NULL,
+                command_id INTEGER NOT NULL,
+                is_enabled INTEGER DEFAULT 1,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+                FOREIGN KEY (command_id) REFERENCES commands(id) ON DELETE CASCADE,
+                UNIQUE (project_id, command_id)
             );
 
             -- Global Skill Settings
@@ -275,6 +311,8 @@ impl Database {
             CREATE INDEX IF NOT EXISTS idx_project_mcps_project ON project_mcps(project_id);
             CREATE INDEX IF NOT EXISTS idx_project_mcps_mcp ON project_mcps(mcp_id);
             CREATE INDEX IF NOT EXISTS idx_projects_path ON projects(path);
+            CREATE INDEX IF NOT EXISTS idx_project_commands_project ON project_commands(project_id);
+            CREATE INDEX IF NOT EXISTS idx_project_commands_command ON project_commands(command_id);
             CREATE INDEX IF NOT EXISTS idx_project_skills_project ON project_skills(project_id);
             CREATE INDEX IF NOT EXISTS idx_project_subagents_project ON project_subagents(project_id);
             CREATE INDEX IF NOT EXISTS idx_repos_content_type ON repos(content_type);
@@ -294,22 +332,21 @@ impl Database {
     }
 
     fn run_schema_migrations(&self) -> Result<()> {
-        // Migration 1: Add new columns to skills table
-        let has_skill_type: bool = self
+        // Migration 1: Add allowed_tools to skills table (for databases created before this column existed)
+        // Note: skill_type and argument_hint were moved to the commands table in a later migration
+        let has_allowed_tools: bool = self
             .conn
             .query_row(
-                "SELECT COUNT(*) > 0 FROM pragma_table_info('skills') WHERE name = 'skill_type'",
+                "SELECT COUNT(*) > 0 FROM pragma_table_info('skills') WHERE name = 'allowed_tools'",
                 [],
                 |row| row.get(0),
             )
             .unwrap_or(false);
 
-        if !has_skill_type {
+        if !has_allowed_tools {
             self.conn.execute_batch(
                 r#"
-                ALTER TABLE skills ADD COLUMN skill_type TEXT NOT NULL DEFAULT 'command';
                 ALTER TABLE skills ADD COLUMN allowed_tools TEXT;
-                ALTER TABLE skills ADD COLUMN argument_hint TEXT;
                 "#,
             )?;
         }
@@ -403,7 +440,64 @@ impl Database {
             )?;
         }
 
-        // Migration 6: Create app_settings table for application preferences
+        // Migration 6: Migrate commands from skills table to new commands table
+        let has_commands_table: bool = self
+            .conn
+            .query_row(
+                "SELECT COUNT(*) > 0 FROM sqlite_master WHERE type='table' AND name='commands'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap_or(false);
+
+        let has_skill_type_column: bool = self
+            .conn
+            .query_row(
+                "SELECT COUNT(*) > 0 FROM pragma_table_info('skills') WHERE name = 'skill_type'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap_or(false);
+
+        // Only run migration if we have the old skill_type column and the new commands table
+        if has_commands_table && has_skill_type_column {
+            // Migrate commands from skills to commands table
+            self.conn.execute_batch(
+                r#"
+                -- Move skill_type='command' entries to commands table
+                INSERT OR IGNORE INTO commands (name, description, content, allowed_tools, argument_hint, model, tags, source, created_at, updated_at)
+                SELECT name, description, content, allowed_tools, argument_hint, model, tags, source, created_at, updated_at
+                FROM skills WHERE skill_type = 'command';
+
+                -- Migrate global_skills entries for commands to global_commands
+                INSERT OR IGNORE INTO global_commands (command_id, is_enabled, created_at)
+                SELECT c.id, gs.is_enabled, gs.created_at
+                FROM global_skills gs
+                JOIN skills s ON gs.skill_id = s.id
+                JOIN commands c ON s.name = c.name
+                WHERE s.skill_type = 'command';
+
+                -- Migrate project_skills entries for commands to project_commands
+                INSERT OR IGNORE INTO project_commands (project_id, command_id, is_enabled, created_at)
+                SELECT ps.project_id, c.id, ps.is_enabled, ps.created_at
+                FROM project_skills ps
+                JOIN skills s ON ps.skill_id = s.id
+                JOIN commands c ON s.name = c.name
+                WHERE s.skill_type = 'command';
+
+                -- Remove migrated commands from global_skills
+                DELETE FROM global_skills WHERE skill_id IN (SELECT id FROM skills WHERE skill_type = 'command');
+
+                -- Remove migrated commands from project_skills
+                DELETE FROM project_skills WHERE skill_id IN (SELECT id FROM skills WHERE skill_type = 'command');
+
+                -- Delete commands from skills table (now in commands table)
+                DELETE FROM skills WHERE skill_type = 'command';
+                "#,
+            )?;
+        }
+
+        // Migration 7: Create app_settings table for application preferences
         self.conn.execute_batch(
             r#"
             CREATE TABLE IF NOT EXISTS app_settings (
@@ -1068,14 +1162,270 @@ impl Database {
     }
 
     // ========================================================================
+    // Commands Methods
+    // ========================================================================
+
+    pub fn get_all_commands(&self) -> Result<Vec<crate::db::models::Command>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, name, description, content, allowed_tools, argument_hint, model, tags, source, created_at, updated_at
+             FROM commands ORDER BY name"
+        )?;
+
+        let commands = stmt
+            .query_map([], |row| {
+                Ok(crate::db::models::Command {
+                    id: row.get(0)?,
+                    name: row.get(1)?,
+                    description: row.get(2)?,
+                    content: row.get(3)?,
+                    allowed_tools: row
+                        .get::<_, Option<String>>(4)?
+                        .and_then(|s| serde_json::from_str(&s).ok()),
+                    argument_hint: row.get(5)?,
+                    model: row.get(6)?,
+                    tags: row
+                        .get::<_, Option<String>>(7)?
+                        .and_then(|s| serde_json::from_str(&s).ok()),
+                    source: row.get(8)?,
+                    created_at: row.get(9)?,
+                    updated_at: row.get(10)?,
+                })
+            })?
+            .filter_map(|r| r.ok())
+            .collect();
+
+        Ok(commands)
+    }
+
+    pub fn get_command_by_id(&self, id: i64) -> Result<Option<crate::db::models::Command>> {
+        let result = self.conn.query_row(
+            "SELECT id, name, description, content, allowed_tools, argument_hint, model, tags, source, created_at, updated_at
+             FROM commands WHERE id = ?",
+            [id],
+            |row| {
+                Ok(crate::db::models::Command {
+                    id: row.get(0)?,
+                    name: row.get(1)?,
+                    description: row.get(2)?,
+                    content: row.get(3)?,
+                    allowed_tools: row.get::<_, Option<String>>(4)?.and_then(|s| serde_json::from_str(&s).ok()),
+                    argument_hint: row.get(5)?,
+                    model: row.get(6)?,
+                    tags: row.get::<_, Option<String>>(7)?.and_then(|s| serde_json::from_str(&s).ok()),
+                    source: row.get(8)?,
+                    created_at: row.get(9)?,
+                    updated_at: row.get(10)?,
+                })
+            },
+        );
+
+        match result {
+            Ok(command) => Ok(Some(command)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(e.into()),
+        }
+    }
+
+    pub fn create_command(
+        &self,
+        req: &crate::db::models::CreateCommandRequest,
+    ) -> Result<crate::db::models::Command> {
+        let allowed_tools_json = req
+            .allowed_tools
+            .as_ref()
+            .map(|a| serde_json::to_string(a).unwrap());
+        let tags_json = req.tags.as_ref().map(|t| serde_json::to_string(t).unwrap());
+
+        self.conn.execute(
+            "INSERT INTO commands (name, description, content, allowed_tools, argument_hint, model, tags, source)
+             VALUES (?, ?, ?, ?, ?, ?, ?, 'manual')",
+            rusqlite::params![
+                req.name, req.description, req.content,
+                allowed_tools_json, req.argument_hint, req.model, tags_json
+            ],
+        )?;
+
+        let id = self.conn.last_insert_rowid();
+        self.get_command_by_id(id)?
+            .ok_or_else(|| anyhow::anyhow!("Failed to retrieve created command"))
+    }
+
+    pub fn update_command(
+        &self,
+        command: &crate::db::models::Command,
+    ) -> Result<crate::db::models::Command> {
+        let allowed_tools_json = command
+            .allowed_tools
+            .as_ref()
+            .map(|a| serde_json::to_string(a).unwrap());
+        let tags_json = command
+            .tags
+            .as_ref()
+            .map(|t| serde_json::to_string(t).unwrap());
+
+        self.conn.execute(
+            "UPDATE commands SET name = ?, description = ?, content = ?, allowed_tools = ?, argument_hint = ?, model = ?, tags = ?, updated_at = CURRENT_TIMESTAMP
+             WHERE id = ?",
+            rusqlite::params![
+                command.name, command.description, command.content,
+                allowed_tools_json, command.argument_hint, command.model, tags_json, command.id
+            ],
+        )?;
+
+        self.get_command_by_id(command.id)?
+            .ok_or_else(|| anyhow::anyhow!("Failed to retrieve updated command"))
+    }
+
+    pub fn delete_command(&self, id: i64) -> Result<()> {
+        self.conn
+            .execute("DELETE FROM commands WHERE id = ?", [id])?;
+        Ok(())
+    }
+
+    pub fn get_global_commands(&self) -> Result<Vec<crate::db::models::GlobalCommand>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT gc.id, gc.command_id, gc.is_enabled,
+                    c.id, c.name, c.description, c.content, c.allowed_tools, c.argument_hint, c.model, c.tags, c.source, c.created_at, c.updated_at
+             FROM global_commands gc
+             JOIN commands c ON gc.command_id = c.id
+             ORDER BY c.name"
+        )?;
+
+        let results = stmt
+            .query_map([], |row| {
+                let command = crate::db::models::Command {
+                    id: row.get(3)?,
+                    name: row.get(4)?,
+                    description: row.get(5)?,
+                    content: row.get(6)?,
+                    allowed_tools: row
+                        .get::<_, Option<String>>(7)?
+                        .and_then(|s| serde_json::from_str(&s).ok()),
+                    argument_hint: row.get(8)?,
+                    model: row.get(9)?,
+                    tags: row
+                        .get::<_, Option<String>>(10)?
+                        .and_then(|s| serde_json::from_str(&s).ok()),
+                    source: row.get(11)?,
+                    created_at: row.get(12)?,
+                    updated_at: row.get(13)?,
+                };
+
+                Ok(crate::db::models::GlobalCommand {
+                    id: row.get(0)?,
+                    command_id: row.get(1)?,
+                    command,
+                    is_enabled: row.get::<_, i32>(2)? != 0,
+                })
+            })?
+            .filter_map(|r| r.ok())
+            .collect();
+
+        Ok(results)
+    }
+
+    pub fn add_global_command(&self, command_id: i64) -> Result<()> {
+        self.conn.execute(
+            "INSERT OR IGNORE INTO global_commands (command_id) VALUES (?)",
+            [command_id],
+        )?;
+        Ok(())
+    }
+
+    pub fn remove_global_command(&self, command_id: i64) -> Result<()> {
+        self.conn.execute(
+            "DELETE FROM global_commands WHERE command_id = ?",
+            [command_id],
+        )?;
+        Ok(())
+    }
+
+    pub fn toggle_global_command(&self, id: i64, enabled: bool) -> Result<()> {
+        self.conn.execute(
+            "UPDATE global_commands SET is_enabled = ? WHERE id = ?",
+            rusqlite::params![if enabled { 1 } else { 0 }, id],
+        )?;
+        Ok(())
+    }
+
+    pub fn get_project_commands(
+        &self,
+        project_id: i64,
+    ) -> Result<Vec<crate::db::models::ProjectCommand>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT pc.id, pc.command_id, pc.is_enabled,
+                    c.id, c.name, c.description, c.content, c.allowed_tools, c.argument_hint, c.model, c.tags, c.source, c.created_at, c.updated_at
+             FROM project_commands pc
+             JOIN commands c ON pc.command_id = c.id
+             WHERE pc.project_id = ?
+             ORDER BY c.name"
+        )?;
+
+        let results = stmt
+            .query_map([project_id], |row| {
+                let command = crate::db::models::Command {
+                    id: row.get(3)?,
+                    name: row.get(4)?,
+                    description: row.get(5)?,
+                    content: row.get(6)?,
+                    allowed_tools: row
+                        .get::<_, Option<String>>(7)?
+                        .and_then(|s| serde_json::from_str(&s).ok()),
+                    argument_hint: row.get(8)?,
+                    model: row.get(9)?,
+                    tags: row
+                        .get::<_, Option<String>>(10)?
+                        .and_then(|s| serde_json::from_str(&s).ok()),
+                    source: row.get(11)?,
+                    created_at: row.get(12)?,
+                    updated_at: row.get(13)?,
+                };
+
+                Ok(crate::db::models::ProjectCommand {
+                    id: row.get(0)?,
+                    command_id: row.get(1)?,
+                    command,
+                    is_enabled: row.get::<_, i32>(2)? != 0,
+                })
+            })?
+            .filter_map(|r| r.ok())
+            .collect();
+
+        Ok(results)
+    }
+
+    pub fn assign_command_to_project(&self, project_id: i64, command_id: i64) -> Result<()> {
+        self.conn.execute(
+            "INSERT OR IGNORE INTO project_commands (project_id, command_id) VALUES (?, ?)",
+            [project_id, command_id],
+        )?;
+        Ok(())
+    }
+
+    pub fn remove_command_from_project(&self, project_id: i64, command_id: i64) -> Result<()> {
+        self.conn.execute(
+            "DELETE FROM project_commands WHERE project_id = ? AND command_id = ?",
+            [project_id, command_id],
+        )?;
+        Ok(())
+    }
+
+    pub fn toggle_project_command(&self, id: i64, enabled: bool) -> Result<()> {
+        self.conn.execute(
+            "UPDATE project_commands SET is_enabled = ? WHERE id = ?",
+            rusqlite::params![if enabled { 1 } else { 0 }, id],
+        )?;
+        Ok(())
+    }
+
+    // ========================================================================
     // Skills Methods
     // ========================================================================
 
     pub fn get_all_skills(&self) -> Result<Vec<crate::db::models::Skill>> {
         let mut stmt = self.conn.prepare(
-            "SELECT id, name, description, content, skill_type, allowed_tools,
-                    argument_hint, model, disable_model_invocation, tags, source, created_at, updated_at
-             FROM skills WHERE is_template = 0 ORDER BY name"
+            "SELECT id, name, description, content, allowed_tools, model, disable_model_invocation, tags, source, created_at, updated_at
+             FROM skills ORDER BY name"
         )?;
 
         let skills = stmt
@@ -1085,19 +1435,17 @@ impl Database {
                     name: row.get(1)?,
                     description: row.get(2)?,
                     content: row.get(3)?,
-                    skill_type: row.get(4)?,
                     allowed_tools: row
-                        .get::<_, Option<String>>(5)?
+                        .get::<_, Option<String>>(4)?
                         .and_then(|s| serde_json::from_str(&s).ok()),
-                    argument_hint: row.get(6)?,
-                    model: row.get(7)?,
-                    disable_model_invocation: row.get::<_, i32>(8)? != 0,
+                    model: row.get(5)?,
+                    disable_model_invocation: row.get::<_, i32>(6)? != 0,
                     tags: row
-                        .get::<_, Option<String>>(9)?
+                        .get::<_, Option<String>>(7)?
                         .and_then(|s| serde_json::from_str(&s).ok()),
-                    source: row.get(10)?,
-                    created_at: row.get(11)?,
-                    updated_at: row.get(12)?,
+                    source: row.get(8)?,
+                    created_at: row.get(9)?,
+                    updated_at: row.get(10)?,
                 })
             })?
             .filter_map(|r| r.ok())
@@ -1108,8 +1456,7 @@ impl Database {
 
     pub fn get_skill_by_id(&self, id: i64) -> Result<Option<crate::db::models::Skill>> {
         let result = self.conn.query_row(
-            "SELECT id, name, description, content, skill_type, allowed_tools,
-                    argument_hint, model, disable_model_invocation, tags, source, created_at, updated_at
+            "SELECT id, name, description, content, allowed_tools, model, disable_model_invocation, tags, source, created_at, updated_at
              FROM skills WHERE id = ?",
             [id],
             |row| {
@@ -1118,15 +1465,13 @@ impl Database {
                     name: row.get(1)?,
                     description: row.get(2)?,
                     content: row.get(3)?,
-                    skill_type: row.get(4)?,
-                    allowed_tools: row.get::<_, Option<String>>(5)?.and_then(|s| serde_json::from_str(&s).ok()),
-                    argument_hint: row.get(6)?,
-                    model: row.get(7)?,
-                    disable_model_invocation: row.get::<_, i32>(8)? != 0,
-                    tags: row.get::<_, Option<String>>(9)?.and_then(|s| serde_json::from_str(&s).ok()),
-                    source: row.get(10)?,
-                    created_at: row.get(11)?,
-                    updated_at: row.get(12)?,
+                    allowed_tools: row.get::<_, Option<String>>(4)?.and_then(|s| serde_json::from_str(&s).ok()),
+                    model: row.get(5)?,
+                    disable_model_invocation: row.get::<_, i32>(6)? != 0,
+                    tags: row.get::<_, Option<String>>(7)?.and_then(|s| serde_json::from_str(&s).ok()),
+                    source: row.get(8)?,
+                    created_at: row.get(9)?,
+                    updated_at: row.get(10)?,
                 })
             },
         );
@@ -1150,11 +1495,11 @@ impl Database {
         let disable_model_invocation = req.disable_model_invocation.unwrap_or(false) as i32;
 
         self.conn.execute(
-            "INSERT INTO skills (name, description, content, skill_type, allowed_tools, argument_hint, model, disable_model_invocation, tags, source)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'manual')",
+            "INSERT INTO skills (name, description, content, allowed_tools, model, disable_model_invocation, tags, source)
+             VALUES (?, ?, ?, ?, ?, ?, ?, 'manual')",
             rusqlite::params![
-                req.name, req.description, req.content, req.skill_type,
-                allowed_tools_json, req.argument_hint, req.model, disable_model_invocation, tags_json
+                req.name, req.description, req.content,
+                allowed_tools_json, req.model, disable_model_invocation, tags_json
             ],
         )?;
 

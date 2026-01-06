@@ -1,16 +1,16 @@
 <script lang="ts">
-	import type { Skill } from '$lib/types';
-	import { Sparkles, MoreVertical, Edit, Trash2 } from 'lucide-svelte';
+	import type { Command } from '$lib/types';
+	import { Terminal, MoreVertical, Edit, Trash2 } from 'lucide-svelte';
 
 	type Props = {
-		skill: Skill;
+		command: Command;
 		showActions?: boolean;
-		onEdit?: (skill: Skill) => void;
-		onDelete?: (skill: Skill) => void;
+		onEdit?: (command: Command) => void;
+		onDelete?: (command: Command) => void;
 	};
 
 	let {
-		skill,
+		command,
 		showActions = true,
 		onEdit,
 		onDelete
@@ -40,49 +40,49 @@
 
 <div class="card group relative hover:shadow-md transition-all duration-200">
 	<div class="flex items-start gap-3">
-		<div class="flex-shrink-0 w-10 h-10 rounded-xl bg-purple-100 text-purple-600 dark:bg-purple-900/50 dark:text-purple-400 flex items-center justify-center">
-			<Sparkles class="w-5 h-5" />
+		<div class="flex-shrink-0 w-10 h-10 rounded-xl bg-amber-100 text-amber-600 dark:bg-amber-900/50 dark:text-amber-400 flex items-center justify-center">
+			<Terminal class="w-5 h-5" />
 		</div>
 
 		<div class="flex-1 min-w-0">
 			<div class="flex items-center gap-2">
 				<h3 class="font-medium text-gray-900 dark:text-white truncate">
-					{skill.name}
+					/{command.name}
 				</h3>
-				{#if skill.source === 'auto-detected'}
+				{#if command.source === 'auto-detected'}
 					<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300">
 						Auto
 					</span>
 				{/if}
 			</div>
 
-			{#if skill.description}
+			{#if command.description}
 				<p class="text-sm text-gray-500 dark:text-gray-400 mt-1 line-clamp-2">
-					{skill.description}
+					{command.description}
 				</p>
 			{/if}
 
 			<div class="flex items-center gap-1.5 mt-2 flex-wrap">
-				{#if skill.allowedTools && skill.allowedTools.length > 0}
+				{#if command.allowedTools && command.allowedTools.length > 0}
 					<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-600 dark:bg-blue-900/50 dark:text-blue-400">
-						{skill.allowedTools.length} tool{skill.allowedTools.length !== 1 ? 's' : ''}
+						{command.allowedTools.length} tool{command.allowedTools.length !== 1 ? 's' : ''}
 					</span>
 				{/if}
 
-				{#if skill.disableModelInvocation}
-					<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300">
-						Manual only
+				{#if command.argumentHint}
+					<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300 font-mono">
+						{command.argumentHint}
 					</span>
 				{/if}
 
-				{#if skill.tags && skill.tags.length > 0}
-					{#each skill.tags.slice(0, 2) as tag}
+				{#if command.tags && command.tags.length > 0}
+					{#each command.tags.slice(0, 2) as tag}
 						<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300">
 							{tag}
 						</span>
 					{/each}
-					{#if skill.tags.length > 2}
-						<span class="text-xs text-gray-400">+{skill.tags.length - 2}</span>
+					{#if command.tags.length > 2}
+						<span class="text-xs text-gray-400">+{command.tags.length - 2}</span>
 					{/if}
 				{/if}
 			</div>
@@ -107,7 +107,7 @@
 						{#if onEdit}
 							<button
 								onclick={() => {
-									onEdit(skill);
+									onEdit(command);
 									closeMenu();
 								}}
 								class="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
@@ -119,7 +119,7 @@
 						{#if onDelete}
 							<button
 								onclick={() => {
-									onDelete(skill);
+									onDelete(command);
 									closeMenu();
 								}}
 								class="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
