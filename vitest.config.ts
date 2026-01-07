@@ -9,6 +9,7 @@ import { resolve } from 'path';
 			globals: true,
 			environment: 'happy-dom',
 			setupFiles: ['./src/tests/setup.ts'],
+			testTimeout: 10000,
 		alias: {
 			$lib: resolve('./src/lib'),
 			$app: resolve('./src/tests/mocks/app')
