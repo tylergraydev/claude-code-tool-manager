@@ -5,7 +5,7 @@
 [![Downloads](https://img.shields.io/github/downloads/tylergraydev/claude-code-tool-manager/total)](https://github.com/tylergraydev/claude-code-tool-manager/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-A desktop app for managing MCP servers, Commands, Skills, Sub-Agents, and Hooks for [Claude Code](https://docs.anthropic.com/en/docs/claude-code).
+A desktop app for managing MCP servers, Commands, Skills, Sub-Agents, and Hooks for [Claude Code](https://docs.anthropic.com/en/docs/claude-code) and [OpenCode](https://opencode.ai).
 
 ![Claude Code Tool Manager](imgs/project-assign.gif)
 
@@ -98,8 +98,7 @@ claude mcp add filesystem -- npx -y @modelcontextprotocol/server-filesystem ~/Do
 This tool is expanding beyond Claude Code. Coming soon:
 
 - **OpenAI Codex CLI** — Manage Codex configurations alongside Claude
-- **GitHub Copilot CLI** — Unified management across GitHub's AI tools  
-- **OpenCode** — Support for the open-source AI coding assistant
+- **GitHub Copilot CLI** — Unified management across GitHub's AI tools
 
 The goal: one app to manage all your AI CLI tools, with synchronized configurations across them.
 
