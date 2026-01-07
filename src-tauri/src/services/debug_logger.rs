@@ -232,10 +232,8 @@ pub fn error_log(message: &str) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
     use tempfile::TempDir;
-
-    // Note: These tests must run serially because they use global state
-    // Use `cargo test -- --test-threads=1` for reliable results
 
     // =========================================================================
     // Helper function tests
@@ -333,6 +331,7 @@ mod tests {
     // =========================================================================
 
     #[test]
+    #[serial]
     fn test_enable_debug_logging_creates_log_file() {
         let temp_dir = TempDir::new().unwrap();
         let app_data_dir = temp_dir.path().to_path_buf();
@@ -350,6 +349,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_enable_debug_logging_creates_logs_directory() {
         let temp_dir = TempDir::new().unwrap();
         let app_data_dir = temp_dir.path().to_path_buf();
@@ -366,6 +366,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_disable_debug_logging_succeeds() {
         let temp_dir = TempDir::new().unwrap();
         let app_data_dir = temp_dir.path().to_path_buf();
@@ -376,9 +377,9 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_disable_debug_logging_when_not_enabled() {
         // Should not error even if not enabled
-        // Note: Due to global state, this is fragile
         let result = disable_debug_logging();
         assert!(result.is_ok());
     }
@@ -388,6 +389,7 @@ mod tests {
     // =========================================================================
 
     #[test]
+    #[serial]
     fn test_write_log_when_disabled() {
         // First ensure disabled
         let _ = disable_debug_logging();
@@ -398,7 +400,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "Flaky due to global state race conditions - needs serial_test"]
+    #[serial]
     fn test_write_log_when_enabled() {
         let temp_dir = TempDir::new().unwrap();
         let app_data_dir = temp_dir.path().to_path_buf();
@@ -406,73 +408,66 @@ mod tests {
         // Enable and get the log path
         let log_path = enable_debug_logging(&app_data_dir).unwrap();
 
-        // Only proceed if debug is actually enabled (may be affected by other tests)
-        if is_debug_enabled() {
-            // Write a unique message to identify this test
-            let unique_msg = format!("Unique test message {}", std::process::id());
-            write_log("INFO", "test", &unique_msg).unwrap();
+        // Write a unique message to identify this test
+        let unique_msg = format!("Unique test message {}", std::process::id());
+        write_log("INFO", "test", &unique_msg).unwrap();
 
-            // Read log file and verify our message is there
-            let content = fs::read_to_string(&log_path).unwrap();
-            assert!(content.contains("[INFO]"), "Log should contain INFO level");
-            assert!(
-                content.contains(&unique_msg),
-                "Log should contain our unique message"
-            );
-        }
+        // Read log file and verify our message is there
+        let content = fs::read_to_string(&log_path).unwrap();
+        assert!(content.contains("[INFO]"), "Log should contain INFO level");
+        assert!(
+            content.contains(&unique_msg),
+            "Log should contain our unique message"
+        );
 
         // Clean up
         let _ = disable_debug_logging();
     }
 
     #[test]
-    #[ignore = "Flaky due to global state race conditions - needs serial_test"]
+    #[serial]
     fn test_write_log_with_context() {
         let temp_dir = TempDir::new().unwrap();
         let app_data_dir = temp_dir.path().to_path_buf();
 
         let log_path = enable_debug_logging(&app_data_dir).unwrap();
 
-        if is_debug_enabled() {
-            // Write log with context using unique identifiers
-            let unique_id = std::process::id();
-            let unique_msg = format!("Command executed {}", unique_id);
-            let context = format!(r#"{{"cmd": "test{}"}}"#, unique_id);
-            write_log_with_context("INFO", "invoke", &unique_msg, Some(&context)).unwrap();
+        // Write log with context using unique identifiers
+        let unique_id = std::process::id();
+        let unique_msg = format!("Command executed {}", unique_id);
+        let context = format!(r#"{{"cmd": "test{}"}}"#, unique_id);
+        write_log_with_context("INFO", "invoke", &unique_msg, Some(&context)).unwrap();
 
-            let content = fs::read_to_string(&log_path).unwrap();
-            assert!(
-                content.contains(&unique_msg),
-                "Log should contain our message"
-            );
-            assert!(
-                content.contains(&context),
-                "Log should contain context JSON"
-            );
-        }
+        let content = fs::read_to_string(&log_path).unwrap();
+        assert!(
+            content.contains(&unique_msg),
+            "Log should contain our message"
+        );
+        assert!(
+            content.contains(&context),
+            "Log should contain context JSON"
+        );
 
         // Clean up
         let _ = disable_debug_logging();
     }
 
     #[test]
-    #[ignore = "Flaky due to global state race conditions - needs serial_test"]
+    #[serial]
     fn test_write_log_without_context() {
         let temp_dir = TempDir::new().unwrap();
         let app_data_dir = temp_dir.path().to_path_buf();
 
         let log_path = enable_debug_logging(&app_data_dir).unwrap();
 
-        if is_debug_enabled() {
-            let unique_msg = format!("Warning message {}", std::process::id());
-            write_log_with_context("WARN", "frontend", &unique_msg, None).unwrap();
+        let unique_msg = format!("Warning message {}", std::process::id());
+        write_log_with_context("WARN", "frontend", &unique_msg, None).unwrap();
 
-            let content = fs::read_to_string(&log_path).unwrap();
-            assert!(
-                content.contains(&unique_msg),
-                "Log should contain our warning message"
-            );
-        }
+        let content = fs::read_to_string(&log_path).unwrap();
+        assert!(
+            content.contains(&unique_msg),
+            "Log should contain our warning message"
+        );
 
         // Clean up
         let _ = disable_debug_logging();
@@ -508,6 +503,7 @@ mod tests {
     // =========================================================================
 
     #[test]
+    #[serial]
     fn test_init_from_persisted_when_flag_exists() {
         let temp_dir = TempDir::new().unwrap();
         let app_data_dir = temp_dir.path().to_path_buf();
@@ -540,39 +536,37 @@ mod tests {
     // =========================================================================
 
     #[test]
+    #[serial]
     fn test_log_format_includes_timestamp() {
         let temp_dir = TempDir::new().unwrap();
         let app_data_dir = temp_dir.path().to_path_buf();
 
         let log_path = enable_debug_logging(&app_data_dir).unwrap();
 
-        if is_debug_enabled() {
-            let unique_msg = format!("Timestamp test {}", std::process::id());
-            write_log("INFO", "test", &unique_msg).unwrap();
+        let unique_msg = format!("Timestamp test {}", std::process::id());
+        write_log("INFO", "test", &unique_msg).unwrap();
 
-            let content = fs::read_to_string(&log_path).unwrap();
-            // Should contain date format like [2024-01-01 12:00:00.123]
-            assert!(content.contains("[20"), "Log should contain year prefix");
-        }
+        let content = fs::read_to_string(&log_path).unwrap();
+        // Should contain date format like [2024-01-01 12:00:00.123]
+        assert!(content.contains("[20"), "Log should contain year prefix");
 
         // Clean up
         let _ = disable_debug_logging();
     }
 
     #[test]
+    #[serial]
     fn test_log_format_uppercase_level() {
         let temp_dir = TempDir::new().unwrap();
         let app_data_dir = temp_dir.path().to_path_buf();
 
         let log_path = enable_debug_logging(&app_data_dir).unwrap();
 
-        if is_debug_enabled() {
-            let unique_msg = format!("Uppercase test {}", std::process::id());
-            write_log("info", "test", &unique_msg).unwrap();
+        let unique_msg = format!("Uppercase test {}", std::process::id());
+        write_log("info", "test", &unique_msg).unwrap();
 
-            let content = fs::read_to_string(&log_path).unwrap();
-            assert!(content.contains("[INFO]"), "Level should be uppercased");
-        }
+        let content = fs::read_to_string(&log_path).unwrap();
+        assert!(content.contains("[INFO]"), "Level should be uppercased");
 
         // Clean up
         let _ = disable_debug_logging();
