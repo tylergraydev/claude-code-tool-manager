@@ -1,7 +1,7 @@
+use crate::commands::settings::get_enabled_editors_from_db;
 use crate::db::models::{Command, CreateCommandRequest, GlobalCommand, ProjectCommand};
 use crate::db::schema::Database;
 use crate::services::command_writer;
-use crate::commands::settings::get_enabled_editors_from_db;
 use regex::Regex;
 use rusqlite::params;
 use std::path::Path;
@@ -383,8 +383,11 @@ pub fn add_global_command(
     let enabled_editors = get_enabled_editors_from_db(&db_guard);
     for editor in &enabled_editors {
         match editor.as_str() {
-            "claude_code" => command_writer::write_global_command(&command).map_err(|e| e.to_string())?,
-            "opencode" => command_writer::write_global_command_opencode(&command).map_err(|e| e.to_string())?,
+            "claude_code" => {
+                command_writer::write_global_command(&command).map_err(|e| e.to_string())?
+            }
+            "opencode" => command_writer::write_global_command_opencode(&command)
+                .map_err(|e| e.to_string())?,
             _ => {}
         }
     }
@@ -422,8 +425,11 @@ pub fn remove_global_command(
     let enabled_editors = get_enabled_editors_from_db(&db_guard);
     for editor in &enabled_editors {
         match editor.as_str() {
-            "claude_code" => command_writer::delete_global_command(&command).map_err(|e| e.to_string())?,
-            "opencode" => command_writer::delete_global_command_opencode(&command).map_err(|e| e.to_string())?,
+            "claude_code" => {
+                command_writer::delete_global_command(&command).map_err(|e| e.to_string())?
+            }
+            "opencode" => command_writer::delete_global_command_opencode(&command)
+                .map_err(|e| e.to_string())?,
             _ => {}
         }
     }
@@ -465,14 +471,20 @@ pub fn toggle_global_command(
     for editor in &enabled_editors {
         if enabled {
             match editor.as_str() {
-                "claude_code" => command_writer::write_global_command(&command).map_err(|e| e.to_string())?,
-                "opencode" => command_writer::write_global_command_opencode(&command).map_err(|e| e.to_string())?,
+                "claude_code" => {
+                    command_writer::write_global_command(&command).map_err(|e| e.to_string())?
+                }
+                "opencode" => command_writer::write_global_command_opencode(&command)
+                    .map_err(|e| e.to_string())?,
                 _ => {}
             }
         } else {
             match editor.as_str() {
-                "claude_code" => command_writer::delete_global_command(&command).map_err(|e| e.to_string())?,
-                "opencode" => command_writer::delete_global_command_opencode(&command).map_err(|e| e.to_string())?,
+                "claude_code" => {
+                    command_writer::delete_global_command(&command).map_err(|e| e.to_string())?
+                }
+                "opencode" => command_writer::delete_global_command_opencode(&command)
+                    .map_err(|e| e.to_string())?,
                 _ => {}
             }
         }
@@ -525,10 +537,14 @@ pub fn assign_command_to_project(
     let enabled_editors = get_enabled_editors_from_db(&db_guard);
     for editor in &enabled_editors {
         match editor.as_str() {
-            "claude_code" => command_writer::write_project_command(Path::new(&project_path), &command)
-                .map_err(|e| e.to_string())?,
-            "opencode" => command_writer::write_project_command_opencode(Path::new(&project_path), &command)
-                .map_err(|e| e.to_string())?,
+            "claude_code" => {
+                command_writer::write_project_command(Path::new(&project_path), &command)
+                    .map_err(|e| e.to_string())?
+            }
+            "opencode" => {
+                command_writer::write_project_command_opencode(Path::new(&project_path), &command)
+                    .map_err(|e| e.to_string())?
+            }
             _ => {}
         }
     }
@@ -576,10 +592,14 @@ pub fn remove_command_from_project(
     let enabled_editors = get_enabled_editors_from_db(&db_guard);
     for editor in &enabled_editors {
         match editor.as_str() {
-            "claude_code" => command_writer::delete_project_command(Path::new(&project_path), &command)
-                .map_err(|e| e.to_string())?,
-            "opencode" => command_writer::delete_project_command_opencode(Path::new(&project_path), &command)
-                .map_err(|e| e.to_string())?,
+            "claude_code" => {
+                command_writer::delete_project_command(Path::new(&project_path), &command)
+                    .map_err(|e| e.to_string())?
+            }
+            "opencode" => {
+                command_writer::delete_project_command_opencode(Path::new(&project_path), &command)
+                    .map_err(|e| e.to_string())?
+            }
             _ => {}
         }
     }
@@ -614,7 +634,9 @@ pub fn toggle_project_command(
     let mut stmt = db_guard.conn().prepare(&query).map_err(|e| e.to_string())?;
 
     let (command, project_path): (Command, String) = stmt
-        .query_row([assignment_id], |row| Ok((row_to_command(row)?, row.get(13)?)))
+        .query_row([assignment_id], |row| {
+            Ok((row_to_command(row)?, row.get(13)?))
+        })
         .map_err(|e| e.to_string())?;
 
     // Write or delete the file for all enabled editors
@@ -622,18 +644,28 @@ pub fn toggle_project_command(
     for editor in &enabled_editors {
         if enabled {
             match editor.as_str() {
-                "claude_code" => command_writer::write_project_command(Path::new(&project_path), &command)
-                    .map_err(|e| e.to_string())?,
-                "opencode" => command_writer::write_project_command_opencode(Path::new(&project_path), &command)
-                    .map_err(|e| e.to_string())?,
+                "claude_code" => {
+                    command_writer::write_project_command(Path::new(&project_path), &command)
+                        .map_err(|e| e.to_string())?
+                }
+                "opencode" => command_writer::write_project_command_opencode(
+                    Path::new(&project_path),
+                    &command,
+                )
+                .map_err(|e| e.to_string())?,
                 _ => {}
             }
         } else {
             match editor.as_str() {
-                "claude_code" => command_writer::delete_project_command(Path::new(&project_path), &command)
-                    .map_err(|e| e.to_string())?,
-                "opencode" => command_writer::delete_project_command_opencode(Path::new(&project_path), &command)
-                    .map_err(|e| e.to_string())?,
+                "claude_code" => {
+                    command_writer::delete_project_command(Path::new(&project_path), &command)
+                        .map_err(|e| e.to_string())?
+                }
+                "opencode" => command_writer::delete_project_command_opencode(
+                    Path::new(&project_path),
+                    &command,
+                )
+                .map_err(|e| e.to_string())?,
                 _ => {}
             }
         }

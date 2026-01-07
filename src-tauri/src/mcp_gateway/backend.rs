@@ -376,5 +376,4 @@ mod tests {
             "MCP_with_spaces__tool"
         );
     }
-
 }

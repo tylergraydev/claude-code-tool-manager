@@ -32,17 +32,11 @@ pub async fn run_startup_scan(app: &tauri::AppHandle) -> Result<()> {
 
     // Scan global commands from ~/.claude/commands/
     let command_count = scan_global_commands(&db)?;
-    log::info!(
-        "Found {} commands from ~/.claude/commands/",
-        command_count
-    );
+    log::info!("Found {} commands from ~/.claude/commands/", command_count);
 
     // Scan global skills from ~/.claude/skills/
     let skill_count = scan_global_skills(&db)?;
-    log::info!(
-        "Found {} skills from ~/.claude/skills/",
-        skill_count
-    );
+    log::info!("Found {} skills from ~/.claude/skills/", skill_count);
 
     // Scan global agents from ~/.claude/agents/
     let agent_count = scan_global_agents(&db)?;
@@ -374,9 +368,11 @@ pub fn scan_plugins(db: &Database) -> Result<usize> {
                             // Check if already exists
                             let existing_id: Option<i64> = db
                                 .conn()
-                                .query_row("SELECT id FROM mcps WHERE name = ?", [&mcp.name], |row| {
-                                    row.get(0)
-                                })
+                                .query_row(
+                                    "SELECT id FROM mcps WHERE name = ?",
+                                    [&mcp.name],
+                                    |row| row.get(0),
+                                )
                                 .ok();
 
                             if let Some(id) = existing_id {
@@ -485,7 +481,6 @@ pub fn scan_global_skills(db: &Database) -> Result<usize> {
 
     Ok(count)
 }
-
 
 /// Scan global agents from ~/.claude/agents/
 pub fn scan_global_agents(db: &Database) -> Result<usize> {
@@ -919,7 +914,11 @@ fn scan_project_agents(db: &Database, project_id: i64, agents_dir: &Path) -> Res
 }
 
 /// Get or create a skill in the database, returning (skill_id, was_created)
-fn get_or_create_skill(db: &Database, skill: &ParsedSkill, source_path: &str) -> Result<(i64, bool)> {
+fn get_or_create_skill(
+    db: &Database,
+    skill: &ParsedSkill,
+    source_path: &str,
+) -> Result<(i64, bool)> {
     // Try to find existing skill by name
     let existing_id: Option<i64> = db
         .conn()
@@ -1069,7 +1068,11 @@ fn assign_skill_to_project(db: &Database, project_id: i64, skill_id: i64) -> Res
 }
 
 /// Get or create a command in the database, returning (command_id, was_created)
-fn get_or_create_command(db: &Database, command: &ParsedSkill, source_path: &str) -> Result<(i64, bool)> {
+fn get_or_create_command(
+    db: &Database,
+    command: &ParsedSkill,
+    source_path: &str,
+) -> Result<(i64, bool)> {
     // Try to find existing command by name
     let existing_id: Option<i64> = db
         .conn()

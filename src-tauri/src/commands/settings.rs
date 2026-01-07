@@ -70,10 +70,7 @@ pub fn toggle_editor(
     editor_id: String,
     enabled: bool,
 ) -> Result<(), String> {
-    info!(
-        "[Settings] Toggling editor {} to {}",
-        editor_id, enabled
-    );
+    info!("[Settings] Toggling editor {} to {}", editor_id, enabled);
     let db = db.lock().map_err(|e| e.to_string())?;
 
     let mut editors = get_enabled_editors_from_db(&db);
@@ -86,7 +83,9 @@ pub fn toggle_editor(
         editors.retain(|e| e != &editor_id);
     }
 
-    let settings = AppSettings { enabled_editors: editors };
+    let settings = AppSettings {
+        enabled_editors: editors,
+    };
     update_app_settings_in_db(&db, &settings)
 }
 
@@ -127,8 +126,7 @@ pub fn get_enabled_editors_from_db(db: &Database) -> Vec<String> {
 
 /// Update app settings directly in the database
 pub fn update_app_settings_in_db(db: &Database, settings: &AppSettings) -> Result<(), String> {
-    let json = serde_json::to_string(&settings.enabled_editors)
-        .map_err(|e| e.to_string())?;
+    let json = serde_json::to_string(&settings.enabled_editors).map_err(|e| e.to_string())?;
     db.set_setting("enabled_editors", &json)
         .map_err(|e| e.to_string())
 }

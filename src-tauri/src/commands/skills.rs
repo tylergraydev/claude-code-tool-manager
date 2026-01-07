@@ -1,9 +1,9 @@
+use crate::commands::settings::get_enabled_editors_from_db;
 use crate::db::models::{
     CreateSkillFileRequest, CreateSkillRequest, GlobalSkill, ProjectSkill, Skill, SkillFile,
 };
 use crate::db::schema::Database;
 use crate::services::skill_writer;
-use crate::commands::settings::get_enabled_editors_from_db;
 use regex::Regex;
 use rusqlite::params;
 use std::path::Path;
@@ -379,7 +379,9 @@ pub fn add_global_skill(db: State<'_, Arc<Mutex<Database>>>, skill_id: i64) -> R
     for editor in &enabled_editors {
         match editor.as_str() {
             "claude_code" => skill_writer::write_global_skill(&skill).map_err(|e| e.to_string())?,
-            "opencode" => skill_writer::write_global_skill_opencode(&skill).map_err(|e| e.to_string())?,
+            "opencode" => {
+                skill_writer::write_global_skill_opencode(&skill).map_err(|e| e.to_string())?
+            }
             _ => {} // Unknown editor, skip
         }
     }
@@ -411,8 +413,12 @@ pub fn remove_global_skill(
     let enabled_editors = get_enabled_editors_from_db(&db_guard);
     for editor in &enabled_editors {
         match editor.as_str() {
-            "claude_code" => skill_writer::delete_global_skill(&skill).map_err(|e| e.to_string())?,
-            "opencode" => skill_writer::delete_global_skill_opencode(&skill).map_err(|e| e.to_string())?,
+            "claude_code" => {
+                skill_writer::delete_global_skill(&skill).map_err(|e| e.to_string())?
+            }
+            "opencode" => {
+                skill_writer::delete_global_skill_opencode(&skill).map_err(|e| e.to_string())?
+            }
             _ => {}
         }
     }
@@ -454,14 +460,22 @@ pub fn toggle_global_skill(
     for editor in &enabled_editors {
         if enabled {
             match editor.as_str() {
-                "claude_code" => skill_writer::write_global_skill(&skill).map_err(|e| e.to_string())?,
-                "opencode" => skill_writer::write_global_skill_opencode(&skill).map_err(|e| e.to_string())?,
+                "claude_code" => {
+                    skill_writer::write_global_skill(&skill).map_err(|e| e.to_string())?
+                }
+                "opencode" => {
+                    skill_writer::write_global_skill_opencode(&skill).map_err(|e| e.to_string())?
+                }
                 _ => {}
             }
         } else {
             match editor.as_str() {
-                "claude_code" => skill_writer::delete_global_skill(&skill).map_err(|e| e.to_string())?,
-                "opencode" => skill_writer::delete_global_skill_opencode(&skill).map_err(|e| e.to_string())?,
+                "claude_code" => {
+                    skill_writer::delete_global_skill(&skill).map_err(|e| e.to_string())?
+                }
+                "opencode" => {
+                    skill_writer::delete_global_skill_opencode(&skill).map_err(|e| e.to_string())?
+                }
                 _ => {}
             }
         }
@@ -510,8 +524,10 @@ pub fn assign_skill_to_project(
         match editor.as_str() {
             "claude_code" => skill_writer::write_project_skill(Path::new(&project_path), &skill)
                 .map_err(|e| e.to_string())?,
-            "opencode" => skill_writer::write_project_skill_opencode(Path::new(&project_path), &skill)
-                .map_err(|e| e.to_string())?,
+            "opencode" => {
+                skill_writer::write_project_skill_opencode(Path::new(&project_path), &skill)
+                    .map_err(|e| e.to_string())?
+            }
             _ => {}
         }
     }
@@ -558,8 +574,10 @@ pub fn remove_skill_from_project(
         match editor.as_str() {
             "claude_code" => skill_writer::delete_project_skill(Path::new(&project_path), &skill)
                 .map_err(|e| e.to_string())?,
-            "opencode" => skill_writer::delete_project_skill_opencode(Path::new(&project_path), &skill)
-                .map_err(|e| e.to_string())?,
+            "opencode" => {
+                skill_writer::delete_project_skill_opencode(Path::new(&project_path), &skill)
+                    .map_err(|e| e.to_string())?
+            }
             _ => {}
         }
     }
@@ -604,18 +622,26 @@ pub fn toggle_project_skill(
     for editor in &enabled_editors {
         if enabled {
             match editor.as_str() {
-                "claude_code" => skill_writer::write_project_skill(Path::new(&project_path), &skill)
-                    .map_err(|e| e.to_string())?,
-                "opencode" => skill_writer::write_project_skill_opencode(Path::new(&project_path), &skill)
-                    .map_err(|e| e.to_string())?,
+                "claude_code" => {
+                    skill_writer::write_project_skill(Path::new(&project_path), &skill)
+                        .map_err(|e| e.to_string())?
+                }
+                "opencode" => {
+                    skill_writer::write_project_skill_opencode(Path::new(&project_path), &skill)
+                        .map_err(|e| e.to_string())?
+                }
                 _ => {}
             }
         } else {
             match editor.as_str() {
-                "claude_code" => skill_writer::delete_project_skill(Path::new(&project_path), &skill)
-                    .map_err(|e| e.to_string())?,
-                "opencode" => skill_writer::delete_project_skill_opencode(Path::new(&project_path), &skill)
-                    .map_err(|e| e.to_string())?,
+                "claude_code" => {
+                    skill_writer::delete_project_skill(Path::new(&project_path), &skill)
+                        .map_err(|e| e.to_string())?
+                }
+                "opencode" => {
+                    skill_writer::delete_project_skill_opencode(Path::new(&project_path), &skill)
+                        .map_err(|e| e.to_string())?
+                }
                 _ => {}
             }
         }
