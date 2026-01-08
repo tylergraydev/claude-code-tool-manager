@@ -1,6 +1,6 @@
 [package]
 name = "claude-code-tool-manager"
-version = "1.8.0"
+version = "1.8.1"
 description = "Desktop app to manage MCP servers, Skills, and Sub-Agents for Claude Code"
 authors = ["you"]
 edition = "2021"
