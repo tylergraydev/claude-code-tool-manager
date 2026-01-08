@@ -40,9 +40,9 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IERDOTkyM0Y4NDA3RDdCREUKUldUZWUzMUErQ09aM0RtenVWdnNmRTl1TTNvcmlzU0luM2xZUWpBRkFUbGZuVXV1Z0JHc0tQV3AK",
+      "pubkey": "dW50cnVzdGVkIGNvbWVlbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IERDOTkyM0Y4NDA3RDdCREUKUldUZWUzMUErQ09aM0RtenVWdnNmRTl1TTNvcmlzU0luM2xZUWpBRkFUbGZuVXV1Z0JHc0tQV3AK",
       "endpoints": [
-        "https://github.com/tylergraydev/claude-code-tool-manager/releases/latest/download/latest.json"
+        "https://github.com/tylergraydev/claude-code-tool-manager/releases/latest/download"
       ]
     }
   }
