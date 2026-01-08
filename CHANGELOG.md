@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.8.1] - 2026-01-07
+
+### Fixed
+- Version numbers now properly embedded in v1.8.0 release artifacts
+- Auto-updater will correctly detect version 1.8.1 as newer than 1.7.0
+
 ## [1.8.0] - 2026-01-07
 
 ### Added
