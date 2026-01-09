@@ -307,15 +307,6 @@
 		}
 	}
 
-	// Get current available items count based on active tab
-	let currentAvailableCount = $derived(() => {
-		switch (activeTab) {
-			case 'mcps': return availableMcps.length;
-			case 'skills': return availableSkills.length;
-			case 'agents': return availableSubAgents.length;
-			case 'commands': return availableCommands.length;
-		}
-	});
 </script>
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
