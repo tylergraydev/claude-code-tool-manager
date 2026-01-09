@@ -26,6 +26,28 @@
 		knowledgeDir: string;
 	}
 
+	interface CodexPaths {
+		configDir: string;
+		configFile: string;
+	}
+
+	interface CopilotPaths {
+		configDir: string;
+		configFile: string;
+		mcpConfigFile: string;
+		agentsDir: string;
+	}
+
+	interface CursorPaths {
+		configDir: string;
+		mcpConfigFile: string;
+	}
+
+	interface GeminiPaths {
+		configDir: string;
+		settingsFile: string;
+	}
+
 	interface EditorInfo {
 		id: string;
 		name: string;
@@ -53,6 +75,10 @@
 
 	let claudePaths = $state<ClaudePaths | null>(null);
 	let opencodePaths = $state<OpenCodePaths | null>(null);
+	let codexPaths = $state<CodexPaths | null>(null);
+	let copilotPaths = $state<CopilotPaths | null>(null);
+	let cursorPaths = $state<CursorPaths | null>(null);
+	let geminiPaths = $state<GeminiPaths | null>(null);
 	let editors = $state<EditorInfo[]>([]);
 	let appSettings = $state<AppSettings>({ enabledEditors: ['claude_code'] });
 	let togglingEditor = $state<string | null>(null);
@@ -79,6 +105,26 @@
 			opencodePaths = await invoke<OpenCodePaths>('get_opencode_paths_cmd');
 		} catch (err) {
 			console.error('Failed to load OpenCode paths:', err);
+		}
+		try {
+			codexPaths = await invoke<CodexPaths>('get_codex_paths_cmd');
+		} catch (err) {
+			console.error('Failed to load Codex paths:', err);
+		}
+		try {
+			copilotPaths = await invoke<CopilotPaths>('get_copilot_paths_cmd');
+		} catch (err) {
+			console.error('Failed to load Copilot paths:', err);
+		}
+		try {
+			cursorPaths = await invoke<CursorPaths>('get_cursor_paths_cmd');
+		} catch (err) {
+			console.error('Failed to load Cursor paths:', err);
+		}
+		try {
+			geminiPaths = await invoke<GeminiPaths>('get_gemini_paths_cmd');
+		} catch (err) {
+			console.error('Failed to load Gemini paths:', err);
 		}
 	}
 
@@ -318,7 +364,15 @@
 	}
 
 	function getEditorDisplayName(editorId: string): string {
-		return editorId === 'claude_code' ? 'Claude Code' : 'OpenCode';
+		switch (editorId) {
+			case 'claude_code': return 'Claude Code';
+			case 'opencode': return 'OpenCode';
+			case 'codex': return 'Codex CLI';
+			case 'copilot': return 'Copilot CLI';
+			case 'cursor': return 'Cursor';
+			case 'gemini': return 'Gemini CLI';
+			default: return editorId;
+		}
 	}
 </script>
 
@@ -344,12 +398,22 @@
 				>
 					<div class="flex items-center gap-3">
 						<div class="w-10 h-10 rounded-lg flex items-center justify-center {editor.isEnabled
-							? 'bg-primary-500 text-white'
+							? editor.id === 'claude_code' ? 'bg-orange-500 text-white' : editor.id === 'codex' ? 'bg-lime-600 text-white' : editor.id === 'opencode' ? 'bg-emerald-500 text-white' : editor.id === 'copilot' ? 'bg-purple-500 text-white' : editor.id === 'cursor' ? 'bg-cyan-500 text-white' : editor.id === 'gemini' ? 'bg-sky-500 text-white' : 'bg-primary-500 text-white'
 							: 'bg-gray-100 dark:bg-gray-800 text-gray-500'}">
 							{#if editor.id === 'claude_code'}
 								<span class="text-lg font-bold">C</span>
-							{:else}
+							{:else if editor.id === 'opencode'}
 								<span class="text-lg font-bold">O</span>
+							{:else if editor.id === 'codex'}
+								<span class="text-lg font-bold">X</span>
+							{:else if editor.id === 'copilot'}
+								<span class="text-lg font-bold">G</span>
+							{:else if editor.id === 'cursor'}
+								<span class="text-lg font-bold">U</span>
+							{:else if editor.id === 'gemini'}
+								<span class="text-lg font-bold">M</span>
+							{:else}
+								<span class="text-lg font-bold">{editor.name.charAt(0)}</span>
 							{/if}
 						</div>
 						<div class="text-left">
@@ -782,7 +846,7 @@
 		{#if claudePaths}
 			<div class="mb-6">
 				<h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-2">
-					<div class="w-5 h-5 rounded bg-primary-500 flex items-center justify-center text-white text-xs font-bold">C</div>
+					<div class="w-5 h-5 rounded bg-orange-500 flex items-center justify-center text-white text-xs font-bold">C</div>
 					Claude Code
 				</h4>
 				<div class="space-y-2 ml-7">
@@ -816,7 +880,7 @@
 
 		<!-- OpenCode Paths -->
 		{#if opencodePaths}
-			<div>
+			<div class="mb-6">
 				<h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-2">
 					<div class="w-5 h-5 rounded bg-emerald-500 flex items-center justify-center text-white text-xs font-bold">O</div>
 					OpenCode
@@ -850,7 +914,151 @@
 			</div>
 		{/if}
 
-		{#if !claudePaths && !opencodePaths}
+		<!-- Codex CLI Paths -->
+		{#if codexPaths}
+			<div class="mb-6">
+				<h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-2">
+					<div class="w-5 h-5 rounded bg-lime-600 flex items-center justify-center text-white text-xs font-bold">X</div>
+					Codex CLI
+				</h4>
+				<div class="space-y-2 ml-7">
+					<div class="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+						<div class="flex items-center gap-2">
+							<FolderOpen class="w-4 h-4 text-gray-400" />
+							<div>
+								<p class="text-xs font-medium text-gray-700 dark:text-gray-300">Config Directory</p>
+								<p class="text-xs text-gray-500 dark:text-gray-400 font-mono">{codexPaths.configDir}</p>
+							</div>
+						</div>
+					</div>
+					<div class="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+						<div class="flex items-center gap-2">
+							<FileText class="w-4 h-4 text-gray-400" />
+							<div>
+								<p class="text-xs font-medium text-gray-700 dark:text-gray-300">Main Config</p>
+								<p class="text-xs text-gray-500 dark:text-gray-400 font-mono">{codexPaths.configFile}</p>
+							</div>
+						</div>
+						<button
+							onclick={() => openConfigFile(codexPaths!.configFile)}
+							class="btn btn-ghost text-xs py-1 px-2"
+						>
+							Open
+						</button>
+					</div>
+				</div>
+			</div>
+		{/if}
+
+		<!-- Copilot CLI Paths -->
+		{#if copilotPaths}
+			<div class="mb-6">
+				<h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-2">
+					<div class="w-5 h-5 rounded bg-purple-500 flex items-center justify-center text-white text-xs font-bold">G</div>
+					Copilot CLI
+				</h4>
+				<div class="space-y-2 ml-7">
+					<div class="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+						<div class="flex items-center gap-2">
+							<FolderOpen class="w-4 h-4 text-gray-400" />
+							<div>
+								<p class="text-xs font-medium text-gray-700 dark:text-gray-300">Config Directory</p>
+								<p class="text-xs text-gray-500 dark:text-gray-400 font-mono">{copilotPaths.configDir}</p>
+							</div>
+						</div>
+					</div>
+					<div class="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+						<div class="flex items-center gap-2">
+							<FileText class="w-4 h-4 text-gray-400" />
+							<div>
+								<p class="text-xs font-medium text-gray-700 dark:text-gray-300">MCP Config</p>
+								<p class="text-xs text-gray-500 dark:text-gray-400 font-mono">{copilotPaths.mcpConfigFile}</p>
+							</div>
+						</div>
+						<button
+							onclick={() => openConfigFile(copilotPaths!.mcpConfigFile)}
+							class="btn btn-ghost text-xs py-1 px-2"
+						>
+							Open
+						</button>
+					</div>
+				</div>
+			</div>
+		{/if}
+
+		<!-- Cursor Paths -->
+		{#if cursorPaths}
+			<div class="mb-6">
+				<h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-2">
+					<div class="w-5 h-5 rounded bg-cyan-500 flex items-center justify-center text-white text-xs font-bold">U</div>
+					Cursor
+				</h4>
+				<div class="space-y-2 ml-7">
+					<div class="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+						<div class="flex items-center gap-2">
+							<FolderOpen class="w-4 h-4 text-gray-400" />
+							<div>
+								<p class="text-xs font-medium text-gray-700 dark:text-gray-300">Config Directory</p>
+								<p class="text-xs text-gray-500 dark:text-gray-400 font-mono">{cursorPaths.configDir}</p>
+							</div>
+						</div>
+					</div>
+					<div class="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+						<div class="flex items-center gap-2">
+							<FileText class="w-4 h-4 text-gray-400" />
+							<div>
+								<p class="text-xs font-medium text-gray-700 dark:text-gray-300">MCP Config</p>
+								<p class="text-xs text-gray-500 dark:text-gray-400 font-mono">{cursorPaths.mcpConfigFile}</p>
+							</div>
+						</div>
+						<button
+							onclick={() => openConfigFile(cursorPaths!.mcpConfigFile)}
+							class="btn btn-ghost text-xs py-1 px-2"
+						>
+							Open
+						</button>
+					</div>
+				</div>
+			</div>
+		{/if}
+
+		<!-- Gemini CLI Paths -->
+		{#if geminiPaths}
+			<div>
+				<h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-2">
+					<div class="w-5 h-5 rounded bg-sky-500 flex items-center justify-center text-white text-xs font-bold">M</div>
+					Gemini CLI
+				</h4>
+				<div class="space-y-2 ml-7">
+					<div class="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+						<div class="flex items-center gap-2">
+							<FolderOpen class="w-4 h-4 text-gray-400" />
+							<div>
+								<p class="text-xs font-medium text-gray-700 dark:text-gray-300">Config Directory</p>
+								<p class="text-xs text-gray-500 dark:text-gray-400 font-mono">{geminiPaths.configDir}</p>
+							</div>
+						</div>
+					</div>
+					<div class="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+						<div class="flex items-center gap-2">
+							<FileText class="w-4 h-4 text-gray-400" />
+							<div>
+								<p class="text-xs font-medium text-gray-700 dark:text-gray-300">Settings File</p>
+								<p class="text-xs text-gray-500 dark:text-gray-400 font-mono">{geminiPaths.settingsFile}</p>
+							</div>
+						</div>
+						<button
+							onclick={() => openConfigFile(geminiPaths!.settingsFile)}
+							class="btn btn-ghost text-xs py-1 px-2"
+						>
+							Open
+						</button>
+					</div>
+				</div>
+			</div>
+		{/if}
+
+		{#if !claudePaths && !opencodePaths && !codexPaths && !copilotPaths && !cursorPaths && !geminiPaths}
 			<div class="flex items-center justify-center py-8">
 				<div class="animate-spin rounded-full h-6 w-6 border-b-2 border-primary-600"></div>
 			</div>

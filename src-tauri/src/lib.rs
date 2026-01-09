@@ -335,6 +335,10 @@ pub fn run() {
             commands::settings::update_app_settings,
             commands::settings::get_available_editors,
             commands::settings::get_opencode_paths_cmd,
+            commands::settings::get_codex_paths_cmd,
+            commands::settings::get_copilot_paths_cmd,
+            commands::settings::get_cursor_paths_cmd,
+            commands::settings::get_gemini_paths_cmd,
             commands::settings::toggle_editor,
             // Debug Commands
             commands::debug::enable_debug_mode,

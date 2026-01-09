@@ -442,6 +442,40 @@ pub struct OpenCodePaths {
     pub knowledge_dir: String, // ~/.config/opencode/knowledge/
 }
 
+// Codex CLI paths (for Codex support)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CodexPaths {
+    pub config_dir: String,  // ~/.codex/
+    pub config_file: String, // ~/.codex/config.toml
+}
+
+// GitHub Copilot CLI paths (for Copilot support)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CopilotPaths {
+    pub config_dir: String,      // ~/.copilot/
+    pub config_file: String,     // ~/.copilot/config.json
+    pub mcp_config_file: String, // ~/.copilot/mcp-config.json
+    pub agents_dir: String,      // ~/.copilot/agents/
+}
+
+// Cursor IDE paths (for Cursor support)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CursorPaths {
+    pub config_dir: String,      // ~/.cursor/
+    pub mcp_config_file: String, // ~/.cursor/mcp.json
+}
+
+// Gemini CLI paths (for Gemini CLI support)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GeminiPaths {
+    pub config_dir: String,    // ~/.gemini/
+    pub settings_file: String, // ~/.gemini/settings.json
+}
+
 // Editor info for frontend
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
