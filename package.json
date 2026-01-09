@@ -1,6 +1,6 @@
 {
   "name": "claude-code-tool-manager",
-  "version": "1.8.2",
+  "version": "1.8.3",
   "private": true,
   "type": "module",
   "scripts": {
