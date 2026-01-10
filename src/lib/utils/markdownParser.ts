@@ -27,7 +27,8 @@
  * Content here...
  */
 
-import type { SkillType } from '$lib/types';
+// Local type for parsed skill type (command or skill)
+type SkillType = 'command' | 'skill';
 
 export interface ParsedSkill {
 	name: string;
