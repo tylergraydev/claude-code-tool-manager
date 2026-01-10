@@ -29,7 +29,7 @@
     "@tauri-apps/plugin-fs": "^2",
     "@tauri-apps/plugin-notification": "^2",
     "@tauri-apps/plugin-process": "^2.3.1",
-    "@tauri-apps/plugin-shell": "^2.3.3",
+    "@tauri-apps/plugin-shell": "^2.3.4",
     "@tauri-apps/plugin-sql": "^2",
     "@tauri-apps/plugin-updater": "^2.9.0",
     "lucide-svelte": "^0.562.0"
