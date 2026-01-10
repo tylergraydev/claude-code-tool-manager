@@ -51,7 +51,7 @@ futures = "0.3"
 tokio-stream = "0.1"
 
 # Markdown parsing for README-based repos
-pulldown-cmark = "0.12"
+pulldown-cmark = "0.13"
 
 # Base64 decoding for GitHub API responses
 base64 = "0.22"
