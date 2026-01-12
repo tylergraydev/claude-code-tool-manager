@@ -5,7 +5,20 @@
 [![Downloads](https://img.shields.io/github/downloads/tylergraydev/claude-code-tool-manager/total)](https://github.com/tylergraydev/claude-code-tool-manager/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-A desktop app for managing MCP servers, Commands, Skills, Sub-Agents, and Hooks for [Claude Code](https://docs.anthropic.com/en/docs/claude-code) and [OpenCode](https://opencode.ai).
+A desktop app for managing MCP servers, Commands, Skills, Sub-Agents, and Hooks across multiple AI coding assistants.
+
+### Supported Editors
+
+| Editor | Config Location | Format |
+|--------|-----------------|--------|
+| [Claude Code](https://docs.anthropic.com/en/docs/claude-code) | `~/.claude.json` | JSON |
+| [OpenCode](https://opencode.ai) | `~/.config/opencode/opencode.json` | JSON |
+| [Codex CLI](https://github.com/openai/codex) | `~/.codex/config.toml` | TOML |
+| [GitHub Copilot CLI](https://githubnext.com/projects/copilot-cli) | `~/.copilot/mcp-config.json` | JSON |
+| [Cursor](https://cursor.com) | `~/.cursor/mcp.json` | JSON |
+| [Gemini CLI](https://github.com/google-gemini/gemini-cli) | `~/.gemini/settings.json` | JSON |
+
+Enable the editors you use in Settings, and your MCP configurations will sync to all of them automatically.
 
 ![Claude Code Tool Manager](imgs/project-assign.gif)
 
@@ -93,14 +106,15 @@ claude mcp add filesystem -- npx -y @modelcontextprotocol/server-filesystem ~/Do
 | Global | `~/.claude.json` | `~/.claude/commands/` | `~/.claude/skills/` | `~/.claude/agents/` | `~/.claude/settings.json` |
 | Project | `.claude/.mcp.json` | `.claude/commands/` | `.claude/skills/` | `.claude/agents/` | `.claude/settings.json` |
 
-## What's Next
+## Multi-Editor Sync
 
-This tool is expanding beyond Claude Code. Coming soon:
+When you enable multiple editors in Settings:
 
-- **OpenAI Codex CLI** — Manage Codex configurations alongside Claude
-- **GitHub Copilot CLI** — Unified management across GitHub's AI tools
+- **Global MCPs** sync to each editor's global config file
+- **Project MCPs** sync to project-level configs (e.g., `.cursor/mcp.json`, `.gemini/settings.json`)
+- **Detection** finds installed editors via PATH or app bundles
 
-The goal: one app to manage all your AI CLI tools, with synchronized configurations across them.
+This means you can manage your MCP configurations once and have them available in Claude Code, Cursor, Gemini CLI, and more simultaneously.
 
 ## Development
 

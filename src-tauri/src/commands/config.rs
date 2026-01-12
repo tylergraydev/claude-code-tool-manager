@@ -118,6 +118,13 @@ pub fn toggle_global_mcp_assignment(
 
 #[tauri::command]
 pub fn sync_global_config(db: State<'_, Arc<Mutex<Database>>>) -> Result<(), String> {
+    use crate::commands::settings::get_enabled_editors_from_db;
+    use crate::services::{
+        codex_config, copilot_config, cursor_config, gemini_config, opencode_config,
+    };
+    use crate::utils::{codex_paths, copilot_paths, cursor_paths, gemini_paths, opencode_paths};
+    use log::{info, warn};
+
     let db = db.lock().map_err(|e| e.to_string())?;
 
     // Get enabled global MCPs
@@ -156,8 +163,54 @@ pub fn sync_global_config(db: State<'_, Arc<Mutex<Database>>>) -> Result<(), Str
         .filter_map(|r| r.ok())
         .collect();
 
-    let claude_paths = paths::get_claude_paths().map_err(|e| e.to_string())?;
-    config_writer::write_global_config(&claude_paths, &mcps).map_err(|e| e.to_string())?;
+    // Write to all enabled editors
+    let enabled_editors = get_enabled_editors_from_db(&db);
+    for editor in &enabled_editors {
+        match editor.as_str() {
+            "claude_code" => {
+                let claude_paths = paths::get_claude_paths().map_err(|e| e.to_string())?;
+                config_writer::write_global_config(&claude_paths, &mcps)
+                    .map_err(|e| e.to_string())?;
+                info!("[Config] Wrote global config to Claude Code");
+            }
+            "opencode" => {
+                if let Ok(paths) = opencode_paths::get_opencode_paths() {
+                    opencode_config::write_opencode_global_config(&paths.config_file, &mcps)
+                        .map_err(|e| e.to_string())?;
+                    info!("[Config] Wrote global config to OpenCode");
+                }
+            }
+            "codex" => {
+                if let Ok(paths) = codex_paths::get_codex_paths() {
+                    codex_config::write_codex_config(&paths.config_file, &mcps)
+                        .map_err(|e| e.to_string())?;
+                    info!("[Config] Wrote global config to Codex CLI");
+                }
+            }
+            "copilot" => {
+                if let Ok(paths) = copilot_paths::get_copilot_paths() {
+                    copilot_config::write_copilot_config(&paths.mcp_config_file, &mcps)
+                        .map_err(|e| e.to_string())?;
+                    info!("[Config] Wrote global config to Copilot CLI");
+                }
+            }
+            "cursor" => {
+                if let Ok(paths) = cursor_paths::get_cursor_paths() {
+                    cursor_config::write_cursor_config(&paths.mcp_config_file, &mcps)
+                        .map_err(|e| e.to_string())?;
+                    info!("[Config] Wrote global config to Cursor");
+                }
+            }
+            "gemini" => {
+                if let Ok(paths) = gemini_paths::get_gemini_paths() {
+                    gemini_config::write_gemini_config(&paths.settings_file, &mcps)
+                        .map_err(|e| e.to_string())?;
+                    info!("[Config] Wrote global config to Gemini CLI");
+                }
+            }
+            unknown => warn!("[Config] Unknown editor type '{}'. Skipping.", unknown),
+        }
+    }
 
     Ok(())
 }

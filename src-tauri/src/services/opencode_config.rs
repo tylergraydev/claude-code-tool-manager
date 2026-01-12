@@ -207,6 +207,34 @@ pub fn generate_opencode_mcp_config(mcps: &[McpTuple]) -> Value {
     json!({ "mcp": mcp_obj })
 }
 
+/// Write global OpenCode config
+pub fn write_opencode_global_config(config_path: &Path, mcps: &[McpTuple]) -> Result<()> {
+    // Create parent directory if it doesn't exist
+    if let Some(parent) = config_path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+
+    // Read existing config or create new
+    let mut config: Value = if config_path.exists() {
+        let content = std::fs::read_to_string(config_path)?;
+        serde_json::from_str(&content).unwrap_or(json!({}))
+    } else {
+        json!({})
+    };
+
+    // Build MCP object
+    let mcp_config = generate_opencode_mcp_config(mcps);
+    if let Some(mcp) = mcp_config.get("mcp") {
+        config["mcp"] = mcp.clone();
+    }
+
+    // Write back
+    let content = serde_json::to_string_pretty(&config)?;
+    std::fs::write(config_path, content)?;
+
+    Ok(())
+}
+
 /// Write project-level OpenCode config
 pub fn write_opencode_project_config(project_path: &Path, mcps: &[McpTuple]) -> Result<()> {
     // OpenCode uses opencode.json in project root (not .opencode/opencode.json)

@@ -267,7 +267,9 @@ pub fn sync_project_config(
     project_id: i64,
 ) -> Result<(), String> {
     use crate::commands::settings::get_enabled_editors_from_db;
-    use crate::services::opencode_config;
+    use crate::services::{
+        codex_config, copilot_config, cursor_config, gemini_config, opencode_config,
+    };
     use crate::utils::paths::get_claude_paths;
 
     info!("[Projects] Syncing config for project id={}", project_id);
@@ -381,6 +383,111 @@ pub fn sync_project_config(
 
                 info!(
                     "[Projects] Wrote OpenCode config for project {}",
+                    project_id
+                );
+            }
+            "codex" => {
+                // Write to Codex format (.codex/config.toml in project)
+                let enabled_mcps: Vec<_> = mcps_with_enabled
+                    .iter()
+                    .filter(|(_, _, _, _, _, _, _, enabled)| *enabled)
+                    .map(|(n, t, cmd, args, url, headers, env, _)| {
+                        (
+                            n.clone(),
+                            t.clone(),
+                            cmd.clone(),
+                            args.clone(),
+                            url.clone(),
+                            headers.clone(),
+                            env.clone(),
+                        )
+                    })
+                    .collect();
+
+                let codex_config_path = project_path.join(".codex").join("config.toml");
+                codex_config::write_codex_config(&codex_config_path, &enabled_mcps)
+                    .map_err(|e| e.to_string())?;
+
+                info!(
+                    "[Projects] Wrote Codex CLI config for project {}",
+                    project_id
+                );
+            }
+            "copilot" => {
+                // Write to Copilot format (.copilot/mcp-config.json in project)
+                let enabled_mcps: Vec<_> = mcps_with_enabled
+                    .iter()
+                    .filter(|(_, _, _, _, _, _, _, enabled)| *enabled)
+                    .map(|(n, t, cmd, args, url, headers, env, _)| {
+                        (
+                            n.clone(),
+                            t.clone(),
+                            cmd.clone(),
+                            args.clone(),
+                            url.clone(),
+                            headers.clone(),
+                            env.clone(),
+                        )
+                    })
+                    .collect();
+
+                let copilot_config_path = project_path.join(".copilot").join("mcp-config.json");
+                copilot_config::write_copilot_config(&copilot_config_path, &enabled_mcps)
+                    .map_err(|e| e.to_string())?;
+
+                info!(
+                    "[Projects] Wrote Copilot CLI config for project {}",
+                    project_id
+                );
+            }
+            "cursor" => {
+                // Write to Cursor format (.cursor/mcp.json in project)
+                let enabled_mcps: Vec<_> = mcps_with_enabled
+                    .iter()
+                    .filter(|(_, _, _, _, _, _, _, enabled)| *enabled)
+                    .map(|(n, t, cmd, args, url, headers, env, _)| {
+                        (
+                            n.clone(),
+                            t.clone(),
+                            cmd.clone(),
+                            args.clone(),
+                            url.clone(),
+                            headers.clone(),
+                            env.clone(),
+                        )
+                    })
+                    .collect();
+
+                let cursor_config_path = project_path.join(".cursor").join("mcp.json");
+                cursor_config::write_cursor_config(&cursor_config_path, &enabled_mcps)
+                    .map_err(|e| e.to_string())?;
+
+                info!("[Projects] Wrote Cursor config for project {}", project_id);
+            }
+            "gemini" => {
+                // Write to Gemini format (.gemini/settings.json in project)
+                let enabled_mcps: Vec<_> = mcps_with_enabled
+                    .iter()
+                    .filter(|(_, _, _, _, _, _, _, enabled)| *enabled)
+                    .map(|(n, t, cmd, args, url, headers, env, _)| {
+                        (
+                            n.clone(),
+                            t.clone(),
+                            cmd.clone(),
+                            args.clone(),
+                            url.clone(),
+                            headers.clone(),
+                            env.clone(),
+                        )
+                    })
+                    .collect();
+
+                let gemini_config_path = project_path.join(".gemini").join("settings.json");
+                gemini_config::write_gemini_config(&gemini_config_path, &enabled_mcps)
+                    .map_err(|e| e.to_string())?;
+
+                info!(
+                    "[Projects] Wrote Gemini CLI config for project {}",
                     project_id
                 );
             }

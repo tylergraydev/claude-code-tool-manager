@@ -1,7 +1,15 @@
 use crate::db::Database;
 use crate::services::claude_json;
+use crate::services::codex_config;
 use crate::services::config_parser;
+use crate::services::copilot_config;
+use crate::services::cursor_config;
+use crate::services::gemini_config;
 use crate::services::opencode_config;
+use crate::utils::codex_paths::get_codex_paths;
+use crate::utils::copilot_paths::get_copilot_paths;
+use crate::utils::cursor_paths::get_cursor_paths;
+use crate::utils::gemini_paths::get_gemini_paths;
 use crate::utils::opencode_paths::get_opencode_paths;
 use crate::utils::paths::{get_claude_paths, normalize_path};
 use anyhow::Result;
@@ -61,6 +69,38 @@ pub async fn run_startup_scan(app: &tauri::AppHandle) -> Result<()> {
     // Scan OpenCode global agents from ~/.config/opencode/agent/
     let opencode_agent_count = scan_opencode_global_agents(&db)?;
     log::info!("Found {} agents from OpenCode", opencode_agent_count);
+
+    // ============================================================================
+    // Codex CLI Scanning
+    // ============================================================================
+
+    // Scan Codex global config for MCPs
+    let codex_mcp_count = scan_codex_config(&db)?;
+    log::info!("Found {} MCPs from Codex config", codex_mcp_count);
+
+    // ============================================================================
+    // GitHub Copilot CLI Scanning
+    // ============================================================================
+
+    // Scan Copilot global config for MCPs
+    let copilot_mcp_count = scan_copilot_config(&db)?;
+    log::info!("Found {} MCPs from Copilot CLI config", copilot_mcp_count);
+
+    // ============================================================================
+    // Cursor IDE Scanning
+    // ============================================================================
+
+    // Scan Cursor global config for MCPs
+    let cursor_mcp_count = scan_cursor_config(&db)?;
+    log::info!("Found {} MCPs from Cursor config", cursor_mcp_count);
+
+    // ============================================================================
+    // Gemini CLI Scanning
+    // ============================================================================
+
+    // Scan Gemini global config for MCPs
+    let gemini_mcp_count = scan_gemini_config(&db)?;
+    log::info!("Found {} MCPs from Gemini CLI config", gemini_mcp_count);
 
     Ok(())
 }
@@ -1616,6 +1656,360 @@ pub fn scan_opencode_global_agents(db: &Database) -> Result<usize> {
                         count += 1;
                     }
                 }
+            }
+        }
+    }
+
+    Ok(count)
+}
+
+// ============================================================================
+// Codex CLI Scanning Functions
+// ============================================================================
+
+/// Scan Codex CLI global config for MCPs
+pub fn scan_codex_config(db: &Database) -> Result<usize> {
+    let paths = match get_codex_paths() {
+        Ok(p) => p,
+        Err(e) => {
+            log::debug!("Codex paths not available: {}", e);
+            return Ok(0);
+        }
+    };
+
+    if !paths.config_file.exists() {
+        log::debug!("Codex config not found at {:?}", paths.config_file);
+        return Ok(0);
+    }
+
+    // Parse MCPs from config.toml
+    let mcps = match codex_config::parse_codex_mcps(&paths.config_file) {
+        Ok(m) => m,
+        Err(e) => {
+            log::warn!("Failed to parse Codex config: {}", e);
+            return Ok(0);
+        }
+    };
+
+    let mut count = 0;
+
+    for mcp in mcps {
+        let source_path = paths.config_file.to_string_lossy().to_string();
+
+        // Check if already exists
+        let existing_id: Option<i64> = db
+            .conn()
+            .query_row("SELECT id FROM mcps WHERE name = ?", [&mcp.name], |row| {
+                row.get(0)
+            })
+            .ok();
+
+        if let Some(id) = existing_id {
+            // Update source_path if not already set
+            db.conn().execute(
+                "UPDATE mcps SET source_path = ? WHERE id = ? AND (source_path IS NULL OR source_path = '')",
+                params![&source_path, id],
+            )?;
+        } else {
+            let args_json = match &mcp.args {
+                Some(args) if !args.is_empty() => Some(serde_json::to_string(args).unwrap()),
+                _ => None,
+            };
+            let env_json = match &mcp.env {
+                Some(env) if !env.is_empty() => Some(serde_json::to_string(env).unwrap()),
+                _ => None,
+            };
+            let headers_json = match &mcp.headers {
+                Some(headers) if !headers.is_empty() => {
+                    Some(serde_json::to_string(headers).unwrap())
+                }
+                _ => None,
+            };
+
+            let result = db.conn().execute(
+                "INSERT INTO mcps (name, type, command, args, url, headers, env, source, source_path)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, 'codex', ?)",
+                params![
+                    mcp.name,
+                    mcp.mcp_type,
+                    mcp.command,
+                    args_json,
+                    mcp.url,
+                    headers_json,
+                    env_json,
+                    source_path
+                ],
+            );
+
+            if result.is_ok() {
+                count += 1;
+            }
+        }
+    }
+
+    Ok(count)
+}
+
+// ============================================================================
+// GitHub Copilot CLI Scanning Functions
+// ============================================================================
+
+/// Scan GitHub Copilot CLI mcp-config.json for MCPs
+pub fn scan_copilot_config(db: &Database) -> Result<usize> {
+    let paths = match get_copilot_paths() {
+        Ok(p) => p,
+        Err(e) => {
+            log::debug!("Copilot paths not available: {}", e);
+            return Ok(0);
+        }
+    };
+
+    if !paths.mcp_config_file.exists() {
+        log::debug!(
+            "Copilot mcp-config.json not found at {:?}",
+            paths.mcp_config_file
+        );
+        return Ok(0);
+    }
+
+    // Parse MCPs from mcp-config.json
+    let mcps = match copilot_config::parse_copilot_mcps(&paths.mcp_config_file) {
+        Ok(m) => m,
+        Err(e) => {
+            log::warn!("Failed to parse Copilot mcp-config.json: {}", e);
+            return Ok(0);
+        }
+    };
+
+    let mut count = 0;
+
+    for mcp in mcps {
+        let source_path = paths.mcp_config_file.to_string_lossy().to_string();
+
+        // Check if already exists
+        let existing_id: Option<i64> = db
+            .conn()
+            .query_row("SELECT id FROM mcps WHERE name = ?", [&mcp.name], |row| {
+                row.get(0)
+            })
+            .ok();
+
+        if let Some(id) = existing_id {
+            // Update source_path if not already set
+            db.conn().execute(
+                "UPDATE mcps SET source_path = ? WHERE id = ? AND (source_path IS NULL OR source_path = '')",
+                params![&source_path, id],
+            )?;
+        } else {
+            let args_json = match &mcp.args {
+                Some(args) if !args.is_empty() => Some(serde_json::to_string(args).unwrap()),
+                _ => None,
+            };
+            let env_json = match &mcp.env {
+                Some(env) if !env.is_empty() => Some(serde_json::to_string(env).unwrap()),
+                _ => None,
+            };
+            let headers_json = match &mcp.headers {
+                Some(headers) if !headers.is_empty() => {
+                    Some(serde_json::to_string(headers).unwrap())
+                }
+                _ => None,
+            };
+
+            let result = db.conn().execute(
+                "INSERT INTO mcps (name, type, command, args, url, headers, env, source, source_path)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, 'copilot', ?)",
+                params![
+                    mcp.name,
+                    mcp.mcp_type,
+                    mcp.command,
+                    args_json,
+                    mcp.url,
+                    headers_json,
+                    env_json,
+                    source_path
+                ],
+            );
+
+            if result.is_ok() {
+                count += 1;
+            }
+        }
+    }
+
+    Ok(count)
+}
+
+// ============================================================================
+// Cursor IDE Scanning Functions
+// ============================================================================
+
+/// Scan Cursor IDE mcp.json for MCPs
+pub fn scan_cursor_config(db: &Database) -> Result<usize> {
+    let paths = match get_cursor_paths() {
+        Ok(p) => p,
+        Err(e) => {
+            log::debug!("Cursor paths not available: {}", e);
+            return Ok(0);
+        }
+    };
+
+    if !paths.mcp_config_file.exists() {
+        log::debug!("Cursor mcp.json not found at {:?}", paths.mcp_config_file);
+        return Ok(0);
+    }
+
+    // Parse MCPs from mcp.json
+    let mcps = match cursor_config::parse_cursor_mcps(&paths.mcp_config_file) {
+        Ok(m) => m,
+        Err(e) => {
+            log::warn!("Failed to parse Cursor mcp.json: {}", e);
+            return Ok(0);
+        }
+    };
+
+    let mut count = 0;
+
+    for mcp in mcps {
+        let source_path = paths.mcp_config_file.to_string_lossy().to_string();
+
+        // Check if already exists
+        let existing_id: Option<i64> = db
+            .conn()
+            .query_row("SELECT id FROM mcps WHERE name = ?", [&mcp.name], |row| {
+                row.get(0)
+            })
+            .ok();
+
+        if let Some(id) = existing_id {
+            // Update source_path if not already set
+            db.conn().execute(
+                "UPDATE mcps SET source_path = ? WHERE id = ? AND (source_path IS NULL OR source_path = '')",
+                params![&source_path, id],
+            )?;
+        } else {
+            let args_json = match &mcp.args {
+                Some(args) if !args.is_empty() => Some(serde_json::to_string(args).unwrap()),
+                _ => None,
+            };
+            let env_json = match &mcp.env {
+                Some(env) if !env.is_empty() => Some(serde_json::to_string(env).unwrap()),
+                _ => None,
+            };
+            let headers_json = match &mcp.headers {
+                Some(headers) if !headers.is_empty() => {
+                    Some(serde_json::to_string(headers).unwrap())
+                }
+                _ => None,
+            };
+
+            let result = db.conn().execute(
+                "INSERT INTO mcps (name, type, command, args, url, headers, env, source, source_path)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, 'cursor', ?)",
+                params![
+                    mcp.name,
+                    mcp.mcp_type,
+                    mcp.command,
+                    args_json,
+                    mcp.url,
+                    headers_json,
+                    env_json,
+                    source_path
+                ],
+            );
+
+            if result.is_ok() {
+                count += 1;
+            }
+        }
+    }
+
+    Ok(count)
+}
+
+// ============================================================================
+// Gemini CLI Scanning Functions
+// ============================================================================
+
+/// Scan Gemini CLI settings.json for MCPs
+pub fn scan_gemini_config(db: &Database) -> Result<usize> {
+    let paths = match get_gemini_paths() {
+        Ok(p) => p,
+        Err(e) => {
+            log::debug!("Gemini paths not available: {}", e);
+            return Ok(0);
+        }
+    };
+
+    if !paths.settings_file.exists() {
+        log::debug!(
+            "Gemini settings.json not found at {:?}",
+            paths.settings_file
+        );
+        return Ok(0);
+    }
+
+    // Parse MCPs from settings.json
+    let mcps = match gemini_config::parse_gemini_mcps(&paths.settings_file) {
+        Ok(m) => m,
+        Err(e) => {
+            log::warn!("Failed to parse Gemini settings.json: {}", e);
+            return Ok(0);
+        }
+    };
+
+    let mut count = 0;
+
+    for mcp in mcps {
+        let source_path = paths.settings_file.to_string_lossy().to_string();
+
+        // Check if already exists
+        let existing_id: Option<i64> = db
+            .conn()
+            .query_row("SELECT id FROM mcps WHERE name = ?", [&mcp.name], |row| {
+                row.get(0)
+            })
+            .ok();
+
+        if let Some(id) = existing_id {
+            // Update source_path if not already set
+            db.conn().execute(
+                "UPDATE mcps SET source_path = ? WHERE id = ? AND (source_path IS NULL OR source_path = '')",
+                params![&source_path, id],
+            )?;
+        } else {
+            let args_json = match &mcp.args {
+                Some(args) if !args.is_empty() => Some(serde_json::to_string(args).unwrap()),
+                _ => None,
+            };
+            let env_json = match &mcp.env {
+                Some(env) if !env.is_empty() => Some(serde_json::to_string(env).unwrap()),
+                _ => None,
+            };
+            let headers_json = match &mcp.headers {
+                Some(headers) if !headers.is_empty() => {
+                    Some(serde_json::to_string(headers).unwrap())
+                }
+                _ => None,
+            };
+
+            let result = db.conn().execute(
+                "INSERT INTO mcps (name, type, command, args, url, headers, env, source, source_path)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, 'gemini', ?)",
+                params![
+                    mcp.name,
+                    mcp.mcp_type,
+                    mcp.command,
+                    args_json,
+                    mcp.url,
+                    headers_json,
+                    env_json,
+                    source_path
+                ],
+            );
+
+            if result.is_ok() {
+                count += 1;
             }
         }
     }

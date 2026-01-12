@@ -1,6 +1,6 @@
 [package]
 name = "claude-code-tool-manager"
-version = "1.8.3"
+version = "2.0.0"
 description = "Desktop app to manage MCP servers, Skills, and Sub-Agents for Claude Code"
 authors = ["you"]
 edition = "2021"
@@ -58,6 +58,10 @@ base64 = "0.22"
 
 # Regex for parsing
 regex = "1"
+
+# TOML parsing for Codex CLI config
+toml = "0.8"
+toml_edit = "0.22"
 
 # URL encoding for API queries
 urlencoding = "2"

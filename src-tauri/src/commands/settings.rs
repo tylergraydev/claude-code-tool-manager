@@ -1,4 +1,11 @@
-use crate::db::{AppSettings, Database, EditorInfo, OpenCodePaths};
+use crate::db::{
+    AppSettings, CodexPaths, CopilotPaths, CursorPaths, Database, EditorInfo, GeminiPaths,
+    OpenCodePaths,
+};
+use crate::utils::codex_paths::{get_codex_paths, is_codex_installed};
+use crate::utils::copilot_paths::{get_copilot_paths, is_copilot_installed};
+use crate::utils::cursor_paths::{get_cursor_paths, is_cursor_installed};
+use crate::utils::gemini_paths::{get_gemini_paths, is_gemini_installed};
 use crate::utils::opencode_paths::{get_opencode_paths, is_opencode_installed};
 use crate::utils::paths::get_claude_paths;
 use log::info;
@@ -60,6 +67,50 @@ pub fn get_available_editors(
         });
     }
 
+    // Codex CLI
+    if let Ok(paths) = get_codex_paths() {
+        editors.push(EditorInfo {
+            id: "codex".to_string(),
+            name: "Codex CLI".to_string(),
+            is_installed: is_codex_installed(),
+            is_enabled: enabled.contains(&"codex".to_string()),
+            config_path: paths.config_file.to_string_lossy().to_string(),
+        });
+    }
+
+    // GitHub Copilot CLI
+    if let Ok(paths) = get_copilot_paths() {
+        editors.push(EditorInfo {
+            id: "copilot".to_string(),
+            name: "Copilot CLI".to_string(),
+            is_installed: is_copilot_installed(),
+            is_enabled: enabled.contains(&"copilot".to_string()),
+            config_path: paths.mcp_config_file.to_string_lossy().to_string(),
+        });
+    }
+
+    // Cursor IDE
+    if let Ok(paths) = get_cursor_paths() {
+        editors.push(EditorInfo {
+            id: "cursor".to_string(),
+            name: "Cursor".to_string(),
+            is_installed: is_cursor_installed(),
+            is_enabled: enabled.contains(&"cursor".to_string()),
+            config_path: paths.mcp_config_file.to_string_lossy().to_string(),
+        });
+    }
+
+    // Gemini CLI
+    if let Ok(paths) = get_gemini_paths() {
+        editors.push(EditorInfo {
+            id: "gemini".to_string(),
+            name: "Gemini CLI".to_string(),
+            is_installed: is_gemini_installed(),
+            is_enabled: enabled.contains(&"gemini".to_string()),
+            config_path: paths.settings_file.to_string_lossy().to_string(),
+        });
+    }
+
     Ok(editors)
 }
 
@@ -104,6 +155,60 @@ pub fn get_opencode_paths_cmd() -> Result<OpenCodePaths, String> {
         plugin_dir: paths.plugin_dir.to_string_lossy().to_string(),
         tool_dir: paths.tool_dir.to_string_lossy().to_string(),
         knowledge_dir: paths.knowledge_dir.to_string_lossy().to_string(),
+    })
+}
+
+/// Get Codex CLI paths
+#[tauri::command]
+pub fn get_codex_paths_cmd() -> Result<CodexPaths, String> {
+    info!("[Settings] Getting Codex paths");
+
+    let paths = get_codex_paths().map_err(|e| e.to_string())?;
+
+    Ok(CodexPaths {
+        config_dir: paths.config_dir.to_string_lossy().to_string(),
+        config_file: paths.config_file.to_string_lossy().to_string(),
+    })
+}
+
+/// Get GitHub Copilot CLI paths
+#[tauri::command]
+pub fn get_copilot_paths_cmd() -> Result<CopilotPaths, String> {
+    info!("[Settings] Getting Copilot CLI paths");
+
+    let paths = get_copilot_paths().map_err(|e| e.to_string())?;
+
+    Ok(CopilotPaths {
+        config_dir: paths.config_dir.to_string_lossy().to_string(),
+        config_file: paths.config_file.to_string_lossy().to_string(),
+        mcp_config_file: paths.mcp_config_file.to_string_lossy().to_string(),
+        agents_dir: paths.agents_dir.to_string_lossy().to_string(),
+    })
+}
+
+/// Get Cursor IDE paths
+#[tauri::command]
+pub fn get_cursor_paths_cmd() -> Result<CursorPaths, String> {
+    info!("[Settings] Getting Cursor paths");
+
+    let paths = get_cursor_paths().map_err(|e| e.to_string())?;
+
+    Ok(CursorPaths {
+        config_dir: paths.config_dir.to_string_lossy().to_string(),
+        mcp_config_file: paths.mcp_config_file.to_string_lossy().to_string(),
+    })
+}
+
+/// Get Gemini CLI paths
+#[tauri::command]
+pub fn get_gemini_paths_cmd() -> Result<GeminiPaths, String> {
+    info!("[Settings] Getting Gemini CLI paths");
+
+    let paths = get_gemini_paths().map_err(|e| e.to_string())?;
+
+    Ok(GeminiPaths {
+        config_dir: paths.config_dir.to_string_lossy().to_string(),
+        settings_file: paths.settings_file.to_string_lossy().to_string(),
     })
 }
 
