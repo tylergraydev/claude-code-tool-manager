@@ -8,10 +8,10 @@ use std::path::PathBuf;
 pub struct CopilotPathsInternal {
     #[allow(dead_code)]
     pub home: PathBuf,
-    pub config_dir: PathBuf,     // ~/.copilot/
-    pub config_file: PathBuf,    // ~/.copilot/config.json
+    pub config_dir: PathBuf,      // ~/.copilot/
+    pub config_file: PathBuf,     // ~/.copilot/config.json
     pub mcp_config_file: PathBuf, // ~/.copilot/mcp-config.json
-    pub agents_dir: PathBuf,     // ~/.copilot/agents/
+    pub agents_dir: PathBuf,      // ~/.copilot/agents/
 }
 
 pub fn get_copilot_paths() -> Result<CopilotPathsInternal> {

@@ -267,7 +267,9 @@ pub fn sync_project_config(
     project_id: i64,
 ) -> Result<(), String> {
     use crate::commands::settings::get_enabled_editors_from_db;
-    use crate::services::{codex_config, copilot_config, cursor_config, gemini_config, opencode_config};
+    use crate::services::{
+        codex_config, copilot_config, cursor_config, gemini_config, opencode_config,
+    };
     use crate::utils::paths::get_claude_paths;
 
     info!("[Projects] Syncing config for project id={}", project_id);
@@ -460,10 +462,7 @@ pub fn sync_project_config(
                 cursor_config::write_cursor_config(&cursor_config_path, &enabled_mcps)
                     .map_err(|e| e.to_string())?;
 
-                info!(
-                    "[Projects] Wrote Cursor config for project {}",
-                    project_id
-                );
+                info!("[Projects] Wrote Cursor config for project {}", project_id);
             }
             "gemini" => {
                 // Write to Gemini format (.gemini/settings.json in project)

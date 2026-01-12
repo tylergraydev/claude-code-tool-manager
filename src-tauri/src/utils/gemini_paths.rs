@@ -7,7 +7,7 @@ use std::path::PathBuf;
 pub struct GeminiPathsInternal {
     #[allow(dead_code)]
     pub home: PathBuf,
-    pub config_dir: PathBuf,   // ~/.gemini/
+    pub config_dir: PathBuf,    // ~/.gemini/
     pub settings_file: PathBuf, // ~/.gemini/settings.json
 }
 

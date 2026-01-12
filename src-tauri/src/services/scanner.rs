@@ -1855,10 +1855,7 @@ pub fn scan_cursor_config(db: &Database) -> Result<usize> {
     };
 
     if !paths.mcp_config_file.exists() {
-        log::debug!(
-            "Cursor mcp.json not found at {:?}",
-            paths.mcp_config_file
-        );
+        log::debug!("Cursor mcp.json not found at {:?}", paths.mcp_config_file);
         return Ok(0);
     }
 

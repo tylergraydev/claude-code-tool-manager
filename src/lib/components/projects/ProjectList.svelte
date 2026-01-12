@@ -3,6 +3,7 @@
 	import { projectsStore } from '$lib/stores';
 	import ProjectCard from './ProjectCard.svelte';
 	import ProjectDetail from './ProjectDetail.svelte';
+	import { SearchBar } from '$lib/components/shared';
 	import { FolderOpen, Plus } from 'lucide-svelte';
 
 	type Props = {
@@ -13,6 +14,20 @@
 	let { onAddProject, onRemoveProject }: Props = $props();
 
 	let selectedProject = $state<Project | null>(null);
+	let searchQuery = $state('');
+
+	// Filter projects based on search query
+	let filteredProjects = $derived(
+		searchQuery.trim()
+			? projectsStore.sortedProjects.filter((project) => {
+					const query = searchQuery.toLowerCase();
+					return (
+						project.name.toLowerCase().includes(query) ||
+						project.path.toLowerCase().includes(query)
+					);
+				})
+			: projectsStore.sortedProjects
+	);
 
 	function handleProjectClick(project: Project) {
 		selectedProject = project;
@@ -46,6 +61,13 @@
 		{/if}
 	</div>
 
+	<!-- Search Bar -->
+	{#if projectsStore.projects.length > 0}
+		<div class="max-w-md">
+			<SearchBar bind:value={searchQuery} placeholder="Search projects..." />
+		</div>
+	{/if}
+
 	<!-- Project List -->
 	{#if projectsStore.isLoading}
 		<div class="flex items-center justify-center py-12">
@@ -65,9 +87,17 @@
 				</button>
 			{/if}
 		</div>
+	{:else if filteredProjects.length === 0}
+		<div class="text-center py-12 card">
+			<FolderOpen class="w-12 h-12 mx-auto text-gray-300 dark:text-gray-600 mb-4" />
+			<h3 class="text-lg font-medium text-gray-900 dark:text-white">No projects found</h3>
+			<p class="text-gray-500 dark:text-gray-400 mt-1">
+				No projects match "{searchQuery}"
+			</p>
+		</div>
 	{:else}
 		<div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-			{#each projectsStore.sortedProjects as project (project.id)}
+			{#each filteredProjects as project (project.id)}
 				<ProjectCard
 					{project}
 					onRemove={onRemoveProject}

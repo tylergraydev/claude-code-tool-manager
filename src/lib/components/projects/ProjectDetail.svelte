@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { Project, Mcp, Skill, SubAgent, Command, ProjectSkill, ProjectSubAgent, ProjectCommand } from '$lib/types';
 	import { mcpLibrary, projectsStore, notifications, skillLibrary, subagentLibrary, commandLibrary } from '$lib/stores';
-	import { X, Plus, Minus, FolderOpen, Plug, Globe, Server, Sparkles, Bot, ChevronDown, Terminal } from 'lucide-svelte';
+	import { X, Plus, Minus, FolderOpen, Plug, Globe, Server, Sparkles, Bot, ChevronDown, Terminal, Search } from 'lucide-svelte';
 	import { invoke } from '@tauri-apps/api/core';
 
 	type Props = {
@@ -17,6 +17,9 @@
 	// Tab state
 	type Tab = 'mcps' | 'skills' | 'agents' | 'commands';
 	let activeTab = $state<Tab>('mcps');
+
+	// Search state
+	let searchQuery = $state('');
 
 	const typeIcons = {
 		stdio: Plug,
@@ -43,11 +46,31 @@
 		mcpLibrary.mcps.filter((mcp) => !assignedMcpIds.includes(mcp.id))
 	);
 
+	// Filtered available MCPs based on search
+	let filteredAvailableMcps = $derived(
+		searchQuery.trim()
+			? availableMcps.filter((mcp) => {
+					const query = searchQuery.toLowerCase();
+					return mcp.name.toLowerCase().includes(query) || mcp.description?.toLowerCase().includes(query);
+				})
+			: availableMcps
+	);
+
 	// Skills state
 	let projectSkills = $state<ProjectSkill[]>([]);
 	let assignedSkillIds = $derived(projectSkills.map((ps) => ps.skillId));
 	let availableSkills = $derived(
 		skillLibrary.skills.filter((skill) => !assignedSkillIds.includes(skill.id))
+	);
+
+	// Filtered available Skills based on search
+	let filteredAvailableSkills = $derived(
+		searchQuery.trim()
+			? availableSkills.filter((skill) => {
+					const query = searchQuery.toLowerCase();
+					return skill.name.toLowerCase().includes(query) || skill.description?.toLowerCase().includes(query);
+				})
+			: availableSkills
 	);
 
 	// SubAgents state
@@ -57,11 +80,31 @@
 		subagentLibrary.subagents.filter((agent) => !assignedSubAgentIds.includes(agent.id))
 	);
 
+	// Filtered available SubAgents based on search
+	let filteredAvailableSubAgents = $derived(
+		searchQuery.trim()
+			? availableSubAgents.filter((agent) => {
+					const query = searchQuery.toLowerCase();
+					return agent.name.toLowerCase().includes(query) || agent.description?.toLowerCase().includes(query);
+				})
+			: availableSubAgents
+	);
+
 	// Commands state
 	let projectCommands = $state<ProjectCommand[]>([]);
 	let assignedCommandIds = $derived(projectCommands.map((pc) => pc.commandId));
 	let availableCommands = $derived(
 		commandLibrary.commands.filter((cmd) => !assignedCommandIds.includes(cmd.id))
+	);
+
+	// Filtered available Commands based on search
+	let filteredAvailableCommands = $derived(
+		searchQuery.trim()
+			? availableCommands.filter((cmd) => {
+					const query = searchQuery.toLowerCase();
+					return cmd.name.toLowerCase().includes(query) || cmd.description?.toLowerCase().includes(query);
+				})
+			: availableCommands
 	);
 
 	// Load project skills, subagents, and commands
@@ -247,6 +290,23 @@
 	function getEditorDisplayName(editorType: string): string {
 		return editorType === 'claude_code' ? 'Claude Code' : 'OpenCode';
 	}
+
+	// Clear search when switching tabs
+	function handleTabChange(tab: Tab) {
+		searchQuery = '';
+		activeTab = tab;
+	}
+
+	// Get search placeholder based on active tab
+	function getSearchPlaceholder(): string {
+		switch (activeTab) {
+			case 'mcps': return 'Search available MCPs...';
+			case 'skills': return 'Search available skills...';
+			case 'agents': return 'Search available agents...';
+			case 'commands': return 'Search available commands...';
+		}
+	}
+
 </script>
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -322,28 +382,28 @@
 		<!-- Tabs -->
 		<div class="flex border-b border-gray-200 dark:border-gray-700 px-6">
 			<button
-				onclick={() => activeTab = 'mcps'}
+				onclick={() => handleTabChange('mcps')}
 				class="flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors {activeTab === 'mcps' ? 'border-primary-500 text-primary-600 dark:text-primary-400' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'}"
 			>
 				<Plug class="w-4 h-4" />
 				MCPs ({project.assignedMcps.length})
 			</button>
 			<button
-				onclick={() => activeTab = 'skills'}
+				onclick={() => handleTabChange('skills')}
 				class="flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors {activeTab === 'skills' ? 'border-primary-500 text-primary-600 dark:text-primary-400' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'}"
 			>
 				<Sparkles class="w-4 h-4" />
 				Skills ({projectSkills.length})
 			</button>
 			<button
-				onclick={() => activeTab = 'agents'}
+				onclick={() => handleTabChange('agents')}
 				class="flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors {activeTab === 'agents' ? 'border-primary-500 text-primary-600 dark:text-primary-400' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'}"
 			>
 				<Bot class="w-4 h-4" />
 				Agents ({projectSubAgents.length})
 			</button>
 			<button
-				onclick={() => activeTab = 'commands'}
+				onclick={() => handleTabChange('commands')}
 				class="flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors {activeTab === 'commands' ? 'border-primary-500 text-primary-600 dark:text-primary-400' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'}"
 			>
 				<Terminal class="w-4 h-4" />
@@ -410,32 +470,51 @@
 
 				<!-- Available MCPs -->
 				<div>
-					<h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-						Available MCPs ({availableMcps.length})
-					</h3>
+					<div class="flex items-center justify-between mb-3">
+						<h3 class="text-sm font-medium text-gray-700 dark:text-gray-300">
+							Available MCPs ({availableMcps.length})
+						</h3>
+						{#if availableMcps.length > 3}
+							<div class="relative w-48">
+								<Search class="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+								<input
+									type="text"
+									bind:value={searchQuery}
+									placeholder={getSearchPlaceholder()}
+									class="input pl-8 py-1.5 text-sm"
+								/>
+							</div>
+						{/if}
+					</div>
 					{#if availableMcps.length > 0}
-						<div class="space-y-2">
-							{#each availableMcps as mcp (mcp.id)}
-								<div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
-									<div class="flex items-center gap-3">
-										<div class="w-8 h-8 rounded-lg {typeColors[mcp.type]} flex items-center justify-center">
-											<svelte:component this={typeIcons[mcp.type]} class="w-4 h-4" />
+						{#if filteredAvailableMcps.length > 0}
+							<div class="space-y-2">
+								{#each filteredAvailableMcps as mcp (mcp.id)}
+									<div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+										<div class="flex items-center gap-3">
+											<div class="w-8 h-8 rounded-lg {typeColors[mcp.type]} flex items-center justify-center">
+												<svelte:component this={typeIcons[mcp.type]} class="w-4 h-4" />
+											</div>
+											<div>
+												<span class="font-medium text-gray-900 dark:text-white">{mcp.name}</span>
+												<span class="text-xs text-gray-500 dark:text-gray-400 ml-2">({mcp.type})</span>
+											</div>
 										</div>
-										<div>
-											<span class="font-medium text-gray-900 dark:text-white">{mcp.name}</span>
-											<span class="text-xs text-gray-500 dark:text-gray-400 ml-2">({mcp.type})</span>
-										</div>
+										<button
+											onclick={() => handleAddMcp(mcp)}
+											class="p-1.5 text-gray-400 hover:text-green-500 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-colors"
+											title="Add to project"
+										>
+											<Plus class="w-4 h-4" />
+										</button>
 									</div>
-									<button
-										onclick={() => handleAddMcp(mcp)}
-										class="p-1.5 text-gray-400 hover:text-green-500 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-colors"
-										title="Add to project"
-									>
-										<Plus class="w-4 h-4" />
-									</button>
-								</div>
-							{/each}
-						</div>
+								{/each}
+							</div>
+						{:else}
+							<div class="text-center py-4 text-sm text-gray-500 dark:text-gray-400">
+								No MCPs match "{searchQuery}"
+							</div>
+						{/if}
 					{:else}
 						<div class="text-center py-6 bg-gray-50 dark:bg-gray-700/30 rounded-lg">
 							<p class="text-gray-500 dark:text-gray-400">All MCPs are assigned</p>
@@ -501,34 +580,53 @@
 
 				<!-- Available Skills -->
 				<div>
-					<h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-						Available Skills ({availableSkills.length})
-					</h3>
+					<div class="flex items-center justify-between mb-3">
+						<h3 class="text-sm font-medium text-gray-700 dark:text-gray-300">
+							Available Skills ({availableSkills.length})
+						</h3>
+						{#if availableSkills.length > 3}
+							<div class="relative w-48">
+								<Search class="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+								<input
+									type="text"
+									bind:value={searchQuery}
+									placeholder={getSearchPlaceholder()}
+									class="input pl-8 py-1.5 text-sm"
+								/>
+							</div>
+						{/if}
+					</div>
 					{#if availableSkills.length > 0}
-						<div class="space-y-2">
-							{#each availableSkills as skill (skill.id)}
-								<div class="flex items-center justify-between gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
-									<div class="flex items-center gap-3 min-w-0 flex-1">
-										<div class="w-8 h-8 rounded-lg bg-yellow-100 text-yellow-600 dark:bg-yellow-900/50 dark:text-yellow-400 flex items-center justify-center flex-shrink-0">
-											<Sparkles class="w-4 h-4" />
+						{#if filteredAvailableSkills.length > 0}
+							<div class="space-y-2">
+								{#each filteredAvailableSkills as skill (skill.id)}
+									<div class="flex items-center justify-between gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+										<div class="flex items-center gap-3 min-w-0 flex-1">
+											<div class="w-8 h-8 rounded-lg bg-yellow-100 text-yellow-600 dark:bg-yellow-900/50 dark:text-yellow-400 flex items-center justify-center flex-shrink-0">
+												<Sparkles class="w-4 h-4" />
+											</div>
+											<div class="min-w-0">
+												<p class="font-medium text-gray-900 dark:text-white truncate">{skill.name}</p>
+												{#if skill.description}
+													<p class="text-xs text-gray-500 dark:text-gray-400 truncate">{skill.description}</p>
+												{/if}
+											</div>
 										</div>
-										<div class="min-w-0">
-											<p class="font-medium text-gray-900 dark:text-white truncate">{skill.name}</p>
-											{#if skill.description}
-												<p class="text-xs text-gray-500 dark:text-gray-400 truncate">{skill.description}</p>
-											{/if}
-										</div>
+										<button
+											onclick={() => handleAddSkill(skill)}
+											class="p-1.5 text-gray-400 hover:text-green-500 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-colors flex-shrink-0"
+											title="Add to project"
+										>
+											<Plus class="w-4 h-4" />
+										</button>
 									</div>
-									<button
-										onclick={() => handleAddSkill(skill)}
-										class="p-1.5 text-gray-400 hover:text-green-500 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-colors flex-shrink-0"
-										title="Add to project"
-									>
-										<Plus class="w-4 h-4" />
-									</button>
-								</div>
-							{/each}
-						</div>
+								{/each}
+							</div>
+						{:else}
+							<div class="text-center py-4 text-sm text-gray-500 dark:text-gray-400">
+								No skills match "{searchQuery}"
+							</div>
+						{/if}
 					{:else}
 						<div class="text-center py-6 bg-gray-50 dark:bg-gray-700/30 rounded-lg">
 							<p class="text-gray-500 dark:text-gray-400">All skills are assigned</p>
@@ -594,34 +692,53 @@
 
 				<!-- Available SubAgents -->
 				<div>
-					<h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-						Available Agents ({availableSubAgents.length})
-					</h3>
+					<div class="flex items-center justify-between mb-3">
+						<h3 class="text-sm font-medium text-gray-700 dark:text-gray-300">
+							Available Agents ({availableSubAgents.length})
+						</h3>
+						{#if availableSubAgents.length > 3}
+							<div class="relative w-48">
+								<Search class="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+								<input
+									type="text"
+									bind:value={searchQuery}
+									placeholder={getSearchPlaceholder()}
+									class="input pl-8 py-1.5 text-sm"
+								/>
+							</div>
+						{/if}
+					</div>
 					{#if availableSubAgents.length > 0}
-						<div class="space-y-2">
-							{#each availableSubAgents as agent (agent.id)}
-								<div class="flex items-center justify-between gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
-									<div class="flex items-center gap-3 min-w-0 flex-1">
-										<div class="w-8 h-8 rounded-lg bg-cyan-100 text-cyan-600 dark:bg-cyan-900/50 dark:text-cyan-400 flex items-center justify-center flex-shrink-0">
-											<Bot class="w-4 h-4" />
+						{#if filteredAvailableSubAgents.length > 0}
+							<div class="space-y-2">
+								{#each filteredAvailableSubAgents as agent (agent.id)}
+									<div class="flex items-center justify-between gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+										<div class="flex items-center gap-3 min-w-0 flex-1">
+											<div class="w-8 h-8 rounded-lg bg-cyan-100 text-cyan-600 dark:bg-cyan-900/50 dark:text-cyan-400 flex items-center justify-center flex-shrink-0">
+												<Bot class="w-4 h-4" />
+											</div>
+											<div class="min-w-0">
+												<p class="font-medium text-gray-900 dark:text-white truncate">{agent.name}</p>
+												{#if agent.description}
+													<p class="text-xs text-gray-500 dark:text-gray-400 truncate">{agent.description}</p>
+												{/if}
+											</div>
 										</div>
-										<div class="min-w-0">
-											<p class="font-medium text-gray-900 dark:text-white truncate">{agent.name}</p>
-											{#if agent.description}
-												<p class="text-xs text-gray-500 dark:text-gray-400 truncate">{agent.description}</p>
-											{/if}
-										</div>
+										<button
+											onclick={() => handleAddSubAgent(agent)}
+											class="p-1.5 text-gray-400 hover:text-green-500 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-colors flex-shrink-0"
+											title="Add to project"
+										>
+											<Plus class="w-4 h-4" />
+										</button>
 									</div>
-									<button
-										onclick={() => handleAddSubAgent(agent)}
-										class="p-1.5 text-gray-400 hover:text-green-500 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-colors flex-shrink-0"
-										title="Add to project"
-									>
-										<Plus class="w-4 h-4" />
-									</button>
-								</div>
-							{/each}
-						</div>
+								{/each}
+							</div>
+						{:else}
+							<div class="text-center py-4 text-sm text-gray-500 dark:text-gray-400">
+								No agents match "{searchQuery}"
+							</div>
+						{/if}
 					{:else}
 						<div class="text-center py-6 bg-gray-50 dark:bg-gray-700/30 rounded-lg">
 							<p class="text-gray-500 dark:text-gray-400">All agents are assigned</p>
@@ -687,34 +804,53 @@
 
 				<!-- Available Commands -->
 				<div>
-					<h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-						Available Commands ({availableCommands.length})
-					</h3>
+					<div class="flex items-center justify-between mb-3">
+						<h3 class="text-sm font-medium text-gray-700 dark:text-gray-300">
+							Available Commands ({availableCommands.length})
+						</h3>
+						{#if availableCommands.length > 3}
+							<div class="relative w-48">
+								<Search class="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+								<input
+									type="text"
+									bind:value={searchQuery}
+									placeholder={getSearchPlaceholder()}
+									class="input pl-8 py-1.5 text-sm"
+								/>
+							</div>
+						{/if}
+					</div>
 					{#if availableCommands.length > 0}
-						<div class="space-y-2">
-							{#each availableCommands as command (command.id)}
-								<div class="flex items-center justify-between gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
-									<div class="flex items-center gap-3 min-w-0 flex-1">
-										<div class="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-600 dark:bg-indigo-900/50 dark:text-indigo-400 flex items-center justify-center flex-shrink-0">
-											<Terminal class="w-4 h-4" />
+						{#if filteredAvailableCommands.length > 0}
+							<div class="space-y-2">
+								{#each filteredAvailableCommands as command (command.id)}
+									<div class="flex items-center justify-between gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+										<div class="flex items-center gap-3 min-w-0 flex-1">
+											<div class="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-600 dark:bg-indigo-900/50 dark:text-indigo-400 flex items-center justify-center flex-shrink-0">
+												<Terminal class="w-4 h-4" />
+											</div>
+											<div class="min-w-0">
+												<p class="font-medium text-gray-900 dark:text-white truncate">/{command.name}</p>
+												{#if command.description}
+													<p class="text-xs text-gray-500 dark:text-gray-400 truncate">{command.description}</p>
+												{/if}
+											</div>
 										</div>
-										<div class="min-w-0">
-											<p class="font-medium text-gray-900 dark:text-white truncate">/{command.name}</p>
-											{#if command.description}
-												<p class="text-xs text-gray-500 dark:text-gray-400 truncate">{command.description}</p>
-											{/if}
-										</div>
+										<button
+											onclick={() => handleAddCommand(command)}
+											class="p-1.5 text-gray-400 hover:text-green-500 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-colors flex-shrink-0"
+											title="Add to project"
+										>
+											<Plus class="w-4 h-4" />
+										</button>
 									</div>
-									<button
-										onclick={() => handleAddCommand(command)}
-										class="p-1.5 text-gray-400 hover:text-green-500 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-colors flex-shrink-0"
-										title="Add to project"
-									>
-										<Plus class="w-4 h-4" />
-									</button>
-								</div>
-							{/each}
-						</div>
+								{/each}
+							</div>
+						{:else}
+							<div class="text-center py-4 text-sm text-gray-500 dark:text-gray-400">
+								No commands match "{searchQuery}"
+							</div>
+						{/if}
 					{:else}
 						<div class="text-center py-6 bg-gray-50 dark:bg-gray-700/30 rounded-lg">
 							<p class="text-gray-500 dark:text-gray-400">All commands are assigned</p>

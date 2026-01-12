@@ -79,10 +79,7 @@ fn parse_mcp_entry(name: &str, config: &Value) -> Result<ParsedCursorMcp> {
 
     if has_url {
         // HTTP/SSE transport
-        let url = obj
-            .get("url")
-            .and_then(|v| v.as_str())
-            .map(String::from);
+        let url = obj.get("url").and_then(|v| v.as_str()).map(String::from);
 
         // Cursor uses direct headers (like Claude Code)
         let headers = obj.get("headers").and_then(|v| v.as_object()).map(|h| {
@@ -188,8 +185,7 @@ pub fn write_cursor_config(path: &Path, mcps: &[McpTuple]) -> Result<()> {
                 }
 
                 if let Some(env_json) = env {
-                    if let Ok(env_map) = serde_json::from_str::<HashMap<String, String>>(env_json)
-                    {
+                    if let Ok(env_map) = serde_json::from_str::<HashMap<String, String>>(env_json) {
                         let env_obj: Map<String, Value> = env_map
                             .into_iter()
                             .map(|(k, v)| (k, Value::String(v)))
@@ -253,12 +249,12 @@ pub fn add_mcp_to_cursor_config(path: &Path, mcp: &McpTuple) -> Result<()> {
                 m.name,
                 m.mcp_type,
                 m.command,
-                m.args.map(|a| serde_json::to_string(&a).unwrap_or_default()),
+                m.args
+                    .map(|a| serde_json::to_string(&a).unwrap_or_default()),
                 m.url,
                 m.headers
                     .map(|h| serde_json::to_string(&h).unwrap_or_default()),
-                m.env
-                    .map(|e| serde_json::to_string(&e).unwrap_or_default()),
+                m.env.map(|e| serde_json::to_string(&e).unwrap_or_default()),
             )
         })
         .collect();

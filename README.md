@@ -46,7 +46,7 @@ Claude Code configuration is scattered across your filesystem—`~/.claude.json`
 
 **Hooks** — Create and manage Claude Code hooks that run on events like task completion, notifications, and tool use. Includes a sound notification wizard to play sounds when Claude needs your attention or finishes a task.
 
-**Projects** — Scan for existing projects, assign tools globally or per-project, and keep everything in sync with Claude's config files.
+**Projects** — Scan for existing projects, assign tools globally or per-project, and keep everything in sync with Claude's config files. Search and filter to quickly find projects and available tools.
 
 ## Installation
 

@@ -1,12 +1,12 @@
 pub mod claude_json;
 pub mod codex_config;
 pub mod command_writer;
-pub mod copilot_config;
-pub mod cursor_config;
-pub mod gemini_config;
 pub mod config_parser;
 pub mod config_writer;
+pub mod copilot_config;
+pub mod cursor_config;
 pub mod debug_logger;
+pub mod gemini_config;
 pub mod github_client;
 pub mod hook_writer;
 pub mod mcp_client;

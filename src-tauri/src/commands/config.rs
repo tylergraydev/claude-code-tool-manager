@@ -119,7 +119,9 @@ pub fn toggle_global_mcp_assignment(
 #[tauri::command]
 pub fn sync_global_config(db: State<'_, Arc<Mutex<Database>>>) -> Result<(), String> {
     use crate::commands::settings::get_enabled_editors_from_db;
-    use crate::services::{codex_config, copilot_config, cursor_config, gemini_config, opencode_config};
+    use crate::services::{
+        codex_config, copilot_config, cursor_config, gemini_config, opencode_config,
+    };
     use crate::utils::{codex_paths, copilot_paths, cursor_paths, gemini_paths, opencode_paths};
     use log::{info, warn};
 
@@ -167,7 +169,8 @@ pub fn sync_global_config(db: State<'_, Arc<Mutex<Database>>>) -> Result<(), Str
         match editor.as_str() {
             "claude_code" => {
                 let claude_paths = paths::get_claude_paths().map_err(|e| e.to_string())?;
-                config_writer::write_global_config(&claude_paths, &mcps).map_err(|e| e.to_string())?;
+                config_writer::write_global_config(&claude_paths, &mcps)
+                    .map_err(|e| e.to_string())?;
                 info!("[Config] Wrote global config to Claude Code");
             }
             "opencode" => {
@@ -205,10 +208,7 @@ pub fn sync_global_config(db: State<'_, Arc<Mutex<Database>>>) -> Result<(), Str
                     info!("[Config] Wrote global config to Gemini CLI");
                 }
             }
-            unknown => warn!(
-                "[Config] Unknown editor type '{}'. Skipping.",
-                unknown
-            ),
+            unknown => warn!("[Config] Unknown editor type '{}'. Skipping.", unknown),
         }
     }
 

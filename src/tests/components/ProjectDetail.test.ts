@@ -2,6 +2,139 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/svelte';
 import { invoke } from '@tauri-apps/api/core';
 
+describe('ProjectDetail Search Logic', () => {
+	// Test search filtering logic for available items
+	const mockMcps = [
+		{ id: 1, name: 'filesystem-mcp', type: 'stdio' as const, description: 'File system access' },
+		{ id: 2, name: 'github-mcp', type: 'http' as const, description: 'GitHub API integration' },
+		{ id: 3, name: 'database-mcp', type: 'sse' as const, description: 'Database operations' }
+	];
+
+	const mockSkills = [
+		{ id: 1, name: 'code-review', description: 'Review code for issues' },
+		{ id: 2, name: 'test-writer', description: 'Generate test cases' },
+		{ id: 3, name: 'doc-generator', description: 'Generate documentation' }
+	];
+
+	it('should filter MCPs by name (case insensitive)', () => {
+		const searchQuery = 'github';
+		const filteredMcps = mockMcps.filter((mcp) => {
+			const query = searchQuery.toLowerCase();
+			return mcp.name.toLowerCase().includes(query) || mcp.description?.toLowerCase().includes(query);
+		});
+
+		expect(filteredMcps).toHaveLength(1);
+		expect(filteredMcps[0].name).toBe('github-mcp');
+	});
+
+	it('should filter MCPs by description', () => {
+		const searchQuery = 'database';
+		const filteredMcps = mockMcps.filter((mcp) => {
+			const query = searchQuery.toLowerCase();
+			return mcp.name.toLowerCase().includes(query) || mcp.description?.toLowerCase().includes(query);
+		});
+
+		expect(filteredMcps).toHaveLength(1);
+		expect(filteredMcps[0].name).toBe('database-mcp');
+	});
+
+	it('should return all items when search query is empty', () => {
+		const searchQuery = '';
+		const filteredMcps = searchQuery.trim()
+			? mockMcps.filter((mcp) => {
+					const query = searchQuery.toLowerCase();
+					return mcp.name.toLowerCase().includes(query) || mcp.description?.toLowerCase().includes(query);
+				})
+			: mockMcps;
+
+		expect(filteredMcps).toHaveLength(3);
+	});
+
+	it('should return empty array when no matches found', () => {
+		const searchQuery = 'nonexistent';
+		const filteredMcps = mockMcps.filter((mcp) => {
+			const query = searchQuery.toLowerCase();
+			return mcp.name.toLowerCase().includes(query) || mcp.description?.toLowerCase().includes(query);
+		});
+
+		expect(filteredMcps).toHaveLength(0);
+	});
+
+	it('should filter skills by name', () => {
+		const searchQuery = 'code';
+		const filteredSkills = mockSkills.filter((skill) => {
+			const query = searchQuery.toLowerCase();
+			return skill.name.toLowerCase().includes(query) || skill.description?.toLowerCase().includes(query);
+		});
+
+		expect(filteredSkills).toHaveLength(1);
+		expect(filteredSkills[0].name).toBe('code-review');
+	});
+
+	it('should filter skills by description', () => {
+		const searchQuery = 'test';
+		const filteredSkills = mockSkills.filter((skill) => {
+			const query = searchQuery.toLowerCase();
+			return skill.name.toLowerCase().includes(query) || skill.description?.toLowerCase().includes(query);
+		});
+
+		expect(filteredSkills).toHaveLength(1);
+		expect(filteredSkills[0].name).toBe('test-writer');
+	});
+
+	it('should handle whitespace-only search query as empty', () => {
+		const searchQuery = '   ';
+		const filteredMcps = searchQuery.trim()
+			? mockMcps.filter((mcp) => {
+					const query = searchQuery.toLowerCase();
+					return mcp.name.toLowerCase().includes(query) || mcp.description?.toLowerCase().includes(query);
+				})
+			: mockMcps;
+
+		expect(filteredMcps).toHaveLength(3);
+	});
+});
+
+describe('ProjectList Search Logic', () => {
+	const mockProjects = [
+		{ id: 1, name: 'my-app', path: '/Users/dev/projects/my-app' },
+		{ id: 2, name: 'api-server', path: '/Users/dev/work/api-server' },
+		{ id: 3, name: 'website', path: '/home/user/website' }
+	];
+
+	it('should filter projects by name', () => {
+		const searchQuery = 'api';
+		const filteredProjects = mockProjects.filter((project) => {
+			const query = searchQuery.toLowerCase();
+			return project.name.toLowerCase().includes(query) || project.path.toLowerCase().includes(query);
+		});
+
+		expect(filteredProjects).toHaveLength(1);
+		expect(filteredProjects[0].name).toBe('api-server');
+	});
+
+	it('should filter projects by path', () => {
+		const searchQuery = '/home';
+		const filteredProjects = mockProjects.filter((project) => {
+			const query = searchQuery.toLowerCase();
+			return project.name.toLowerCase().includes(query) || project.path.toLowerCase().includes(query);
+		});
+
+		expect(filteredProjects).toHaveLength(1);
+		expect(filteredProjects[0].name).toBe('website');
+	});
+
+	it('should match partial path segments', () => {
+		const searchQuery = 'dev';
+		const filteredProjects = mockProjects.filter((project) => {
+			const query = searchQuery.toLowerCase();
+			return project.name.toLowerCase().includes(query) || project.path.toLowerCase().includes(query);
+		});
+
+		expect(filteredProjects).toHaveLength(2);
+	});
+});
+
 describe('ProjectDetail Component', () => {
 	const mockProject = {
 		id: 1,

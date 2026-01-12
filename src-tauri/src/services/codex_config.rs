@@ -85,10 +85,7 @@ fn parse_mcp_entry(name: &str, config: &toml::Value) -> Result<ParsedCodexMcp> {
 
     if has_url {
         // HTTP transport
-        let url = config
-            .get("url")
-            .and_then(|v| v.as_str())
-            .map(String::from);
+        let url = config.get("url").and_then(|v| v.as_str()).map(String::from);
 
         // Handle headers - combine http_headers and bearer_token_env_var
         let mut headers: HashMap<String, String> = HashMap::new();
@@ -219,9 +216,7 @@ pub fn write_codex_config(path: &Path, mcps: &[McpTuple]) -> Result<()> {
                 }
 
                 if let Some(env_json) = env {
-                    if let Ok(env_map) =
-                        serde_json::from_str::<HashMap<String, String>>(env_json)
-                    {
+                    if let Ok(env_map) = serde_json::from_str::<HashMap<String, String>>(env_json) {
                         let mut inline = InlineTable::new();
                         for (k, v) in env_map {
                             inline.insert(&k, v.into());
@@ -298,12 +293,12 @@ pub fn add_mcp_to_codex_config(path: &Path, mcp: &McpTuple) -> Result<()> {
                 m.name,
                 m.mcp_type,
                 m.command,
-                m.args.map(|a| serde_json::to_string(&a).unwrap_or_default()),
+                m.args
+                    .map(|a| serde_json::to_string(&a).unwrap_or_default()),
                 m.url,
                 m.headers
                     .map(|h| serde_json::to_string(&h).unwrap_or_default()),
-                m.env
-                    .map(|e| serde_json::to_string(&e).unwrap_or_default()),
+                m.env.map(|e| serde_json::to_string(&e).unwrap_or_default()),
             )
         })
         .collect();
@@ -407,7 +402,10 @@ http_headers = { "X-Custom" = "value" }
         assert!(mcp.headers.is_some());
 
         let headers = mcp.headers.as_ref().unwrap();
-        assert_eq!(headers.get("Authorization"), Some(&"$GITHUB_TOKEN".to_string()));
+        assert_eq!(
+            headers.get("Authorization"),
+            Some(&"$GITHUB_TOKEN".to_string())
+        );
         assert_eq!(headers.get("X-Custom"), Some(&"value".to_string()));
     }
 

@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.8.3] - 2026-01-09
+
+### Added
+- **Project Search**: Search functionality for filtering projects by name or path in the Projects list
+- **Project Detail Search**: Search inputs in the project detail modal to filter available MCPs, Skills, Agents, and Commands
+  - Search clears automatically when switching between tabs
+  - Real-time filtering as user types
+
 ## [1.8.1] - 2026-01-07
 
 ### Fixed
