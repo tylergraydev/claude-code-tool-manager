@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-01-26
+
+### Added
+- **Homebrew Cask Support**: Install via `brew tap tylergraydev/cctm && brew install --cask claude-code-tool-manager`
+  - Automatic cask updates when new releases are published
+  - Homebrew tap at [tylergraydev/homebrew-cctm](https://github.com/tylergraydev/homebrew-cctm)
+- **Apple Code Signing & Notarization**: macOS builds are now signed and notarized
+  - No more Gatekeeper warnings when downloading
+  - Hardened runtime enabled for security
+
+## [2.0.1] - 2026-01-17
+
+### Fixed
+- Auto-updater endpoint now includes `latest.json` manifest for proper update detection
+
+## [2.0.0] - 2026-01-12
+
+### Added
+- **Multi-Editor Support**: Sync MCP configurations across 6 AI coding assistants
+  - Claude Code (`~/.claude.json`)
+  - OpenCode (`~/.config/opencode/opencode.json`)
+  - Codex CLI (`~/.codex/config.toml`)
+  - GitHub Copilot CLI (`~/.copilot/mcp-config.json`)
+  - Cursor (`~/.cursor/mcp.json`)
+  - Gemini CLI (`~/.gemini/settings.json`)
+- **Editor Detection**: Automatic detection via PATH binary checks
+- **Config Format Support**: Added TOML parser/writer for Codex CLI
+- **Editor Badges**: Distinct badge colors for each editor in Settings
+
+### Changed
+- Global and project MCPs now sync to all enabled editors automatically
+
 ## [1.8.3] - 2026-01-09
 
 ### Added
@@ -258,7 +290,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Dark mode
   - Search and filter
 
-[Unreleased]: https://github.com/tylergraydev/claude-code-tool-manager/compare/v1.5.0...HEAD
+[Unreleased]: https://github.com/tylergraydev/claude-code-tool-manager/compare/v2.1.0...HEAD
+[2.1.0]: https://github.com/tylergraydev/claude-code-tool-manager/compare/v2.0.1...v2.1.0
+[2.0.1]: https://github.com/tylergraydev/claude-code-tool-manager/compare/v2.0.0...v2.0.1
+[2.0.0]: https://github.com/tylergraydev/claude-code-tool-manager/compare/v1.8.3...v2.0.0
+[1.8.3]: https://github.com/tylergraydev/claude-code-tool-manager/compare/v1.8.1...v1.8.3
+[1.8.1]: https://github.com/tylergraydev/claude-code-tool-manager/compare/v1.8.0...v1.8.1
+[1.8.0]: https://github.com/tylergraydev/claude-code-tool-manager/compare/v1.5.0...v1.8.0
 [1.5.0]: https://github.com/tylergraydev/claude-code-tool-manager/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/tylergraydev/claude-code-tool-manager/compare/v1.3.10...v1.4.0
 [1.3.10]: https://github.com/tylergraydev/claude-code-tool-manager/compare/v1.3.9...v1.3.10
