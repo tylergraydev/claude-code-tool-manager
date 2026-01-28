@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.1] - 2026-01-26
+
+### Changed
+- **Dependencies**: Updated npm and Cargo dependencies
+  - @types/node 25.0.3 → 25.0.9
+  - vitest 4.0.16 → 4.0.17
+  - @vitest/coverage-v8 4.0.16 → 4.0.17
+  - @sveltejs/vite-plugin-svelte 6.2.3 → 6.2.4
+  - @tauri-apps/plugin-dialog 2.5.0 → 2.6.0
+  - insta 1.46.0 → 1.46.1
+  - tokio-stream 0.1.17 → 0.1.18
+  - chrono 0.4.42 → 0.4.43
+  - toml 0.8.2 → 0.9.10
+  - toml_edit 0.22.27 → 0.23.10
+
 ## [2.1.0] - 2026-01-26
 
 ### Added
@@ -290,7 +305,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Dark mode
   - Search and filter
 
-[Unreleased]: https://github.com/tylergraydev/claude-code-tool-manager/compare/v2.1.0...HEAD
+[Unreleased]: https://github.com/tylergraydev/claude-code-tool-manager/compare/v2.1.1...HEAD
+[2.1.1]: https://github.com/tylergraydev/claude-code-tool-manager/compare/v2.1.0...v2.1.1
 [2.1.0]: https://github.com/tylergraydev/claude-code-tool-manager/compare/v2.0.1...v2.1.0
 [2.0.1]: https://github.com/tylergraydev/claude-code-tool-manager/compare/v2.0.0...v2.0.1
 [2.0.0]: https://github.com/tylergraydev/claude-code-tool-manager/compare/v1.8.3...v2.0.0
