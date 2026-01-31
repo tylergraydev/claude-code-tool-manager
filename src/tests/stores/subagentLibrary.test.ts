@@ -1,16 +1,52 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { invoke } from '@tauri-apps/api/core';
+import type { SubAgent, GlobalSubAgent, ProjectSubAgent } from '$lib/types';
 
 describe('SubAgent Library Store', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
+		vi.resetModules();
+	});
+
+	const createMockSubAgent = (overrides: Partial<SubAgent> = {}): SubAgent => ({
+		id: 1,
+		name: 'test-subagent',
+		description: 'A test subagent',
+		content: 'You are a helpful assistant',
+		tools: ['read', 'write'],
+		model: 'opus',
+		permissionMode: 'default',
+		skills: ['coding', 'writing'],
+		tags: ['test', 'example'],
+		source: 'user',
+		createdAt: '2024-01-01T00:00:00Z',
+		updatedAt: '2024-01-01T00:00:00Z',
+		...overrides
+	});
+
+	const createMockGlobalSubAgent = (overrides: Partial<GlobalSubAgent> = {}): GlobalSubAgent => ({
+		id: 1,
+		subagentId: 1,
+		subagent: createMockSubAgent(),
+		isEnabled: true,
+		...overrides
+	});
+
+	const createMockProjectSubAgent = (
+		overrides: Partial<ProjectSubAgent> = {}
+	): ProjectSubAgent => ({
+		id: 1,
+		subagentId: 1,
+		subagent: createMockSubAgent(),
+		isEnabled: true,
+		...overrides
 	});
 
 	describe('load', () => {
-		it('should load subagents', async () => {
+		it('should load subagents successfully', async () => {
 			const mockSubAgents = [
-				{ id: 1, name: 'code-reviewer', description: 'Reviews code', model: 'haiku' },
-				{ id: 2, name: 'doc-writer', description: 'Writes docs', model: 'sonnet' }
+				createMockSubAgent({ id: 1, name: 'subagent-1' }),
+				createMockSubAgent({ id: 2, name: 'subagent-2' })
 			];
 
 			vi.mocked(invoke).mockResolvedValueOnce(mockSubAgents);
@@ -18,15 +54,44 @@ describe('SubAgent Library Store', () => {
 			const { subagentLibrary } = await import('$lib/stores/subagentLibrary.svelte');
 			await subagentLibrary.load();
 
+			expect(invoke).toHaveBeenCalledWith('get_all_subagents');
 			expect(subagentLibrary.subagents).toHaveLength(2);
-			expect(subagentLibrary.subagents[0].name).toBe('code-reviewer');
+			expect(subagentLibrary.subagents[0].name).toBe('subagent-1');
+			expect(subagentLibrary.isLoading).toBe(false);
+			expect(subagentLibrary.error).toBeNull();
+		});
+
+		it('should set isLoading during load', async () => {
+			let resolvePromise: (value: SubAgent[]) => void;
+			const promise = new Promise<SubAgent[]>((resolve) => {
+				resolvePromise = resolve;
+			});
+
+			vi.mocked(invoke).mockReturnValueOnce(promise);
+
+			const { subagentLibrary } = await import('$lib/stores/subagentLibrary.svelte');
+			const loadPromise = subagentLibrary.load();
+
+			expect(subagentLibrary.isLoading).toBe(true);
+
+			resolvePromise!([]);
+			await loadPromise;
+
+			expect(subagentLibrary.isLoading).toBe(false);
+		});
+
+		it('should handle errors during load', async () => {
+			vi.mocked(invoke).mockRejectedValueOnce(new Error('Database error'));
+
+			const { subagentLibrary } = await import('$lib/stores/subagentLibrary.svelte');
+			await subagentLibrary.load();
+
+			expect(subagentLibrary.error).toBe('Error: Database error');
+			expect(subagentLibrary.isLoading).toBe(false);
 		});
 
 		it('should not create duplicates on multiple loads', async () => {
-			const mockSubAgents = [
-				{ id: 1, name: 'agent-1', description: 'Desc 1' },
-				{ id: 2, name: 'agent-2', description: 'Desc 2' }
-			];
+			const mockSubAgents = [createMockSubAgent({ id: 1, name: 'subagent-1' })];
 
 			vi.mocked(invoke).mockResolvedValue(mockSubAgents);
 
@@ -36,7 +101,7 @@ describe('SubAgent Library Store', () => {
 			await subagentLibrary.load();
 			await subagentLibrary.load();
 
-			expect(subagentLibrary.subagents).toHaveLength(2);
+			expect(subagentLibrary.subagents).toHaveLength(1);
 		});
 
 		it('should handle empty response', async () => {
@@ -47,52 +112,248 @@ describe('SubAgent Library Store', () => {
 
 			expect(subagentLibrary.subagents).toHaveLength(0);
 		});
+	});
 
-		it('should set isLoading during load', async () => {
-			const mockSubAgents = [{ id: 1, name: 'test', description: 'Test' }];
+	describe('loadGlobalSubAgents', () => {
+		it('should load global subagents successfully', async () => {
+			const mockGlobalSubAgents = [
+				createMockGlobalSubAgent({ id: 1, subagentId: 1 }),
+				createMockGlobalSubAgent({ id: 2, subagentId: 2 })
+			];
 
-			let resolveInvoke: (value: unknown) => void;
-			const invokePromise = new Promise((resolve) => {
-				resolveInvoke = resolve;
-			});
-			vi.mocked(invoke).mockReturnValueOnce(invokePromise as Promise<unknown>);
+			vi.mocked(invoke).mockResolvedValueOnce(mockGlobalSubAgents);
 
 			const { subagentLibrary } = await import('$lib/stores/subagentLibrary.svelte');
-			const loadPromise = subagentLibrary.load();
+			await subagentLibrary.loadGlobalSubAgents();
 
-			expect(subagentLibrary.isLoading).toBe(true);
-
-			resolveInvoke!(mockSubAgents);
-			await loadPromise;
-
-			expect(subagentLibrary.isLoading).toBe(false);
+			expect(invoke).toHaveBeenCalledWith('get_global_subagents');
+			expect(subagentLibrary.globalSubAgents).toHaveLength(2);
 		});
 
-		it('should handle errors', async () => {
-			vi.mocked(invoke).mockRejectedValueOnce(new Error('Database error'));
+		it('should handle errors silently', async () => {
+			vi.mocked(invoke).mockRejectedValueOnce(new Error('Network error'));
+
+			const { subagentLibrary } = await import('$lib/stores/subagentLibrary.svelte');
+			await subagentLibrary.loadGlobalSubAgents();
+
+			expect(subagentLibrary.globalSubAgents).toHaveLength(0);
+		});
+	});
+
+	describe('create', () => {
+		it('should create a new subagent and add to state', async () => {
+			const newSubAgent = createMockSubAgent({ id: 3, name: 'new-subagent' });
+			const createRequest = {
+				name: 'new-subagent',
+				description: 'A new subagent',
+				content: 'You are helpful'
+			};
+
+			vi.mocked(invoke).mockResolvedValueOnce(newSubAgent);
+
+			const { subagentLibrary } = await import('$lib/stores/subagentLibrary.svelte');
+			const result = await subagentLibrary.create(createRequest);
+
+			expect(invoke).toHaveBeenCalledWith('create_subagent', { subagent: createRequest });
+			expect(result).toEqual(newSubAgent);
+			expect(subagentLibrary.subagents).toContainEqual(newSubAgent);
+		});
+
+		it('should propagate errors from create', async () => {
+			vi.mocked(invoke).mockRejectedValueOnce(new Error('Create failed'));
+
+			const { subagentLibrary } = await import('$lib/stores/subagentLibrary.svelte');
+
+			await expect(
+				subagentLibrary.create({ name: 'test', description: 'test', content: 'test' })
+			).rejects.toThrow('Create failed');
+		});
+	});
+
+	describe('update', () => {
+		it('should update an existing subagent', async () => {
+			const originalSubAgent = createMockSubAgent({ id: 1, name: 'original' });
+			const updatedSubAgent = createMockSubAgent({ id: 1, name: 'updated' });
+
+			vi.mocked(invoke)
+				.mockResolvedValueOnce([originalSubAgent])
+				.mockResolvedValueOnce(updatedSubAgent);
 
 			const { subagentLibrary } = await import('$lib/stores/subagentLibrary.svelte');
 			await subagentLibrary.load();
 
-			expect(subagentLibrary.error).toContain('Database error');
-			expect(subagentLibrary.isLoading).toBe(false);
+			const result = await subagentLibrary.update(1, {
+				name: 'updated',
+				description: 'new desc',
+				content: 'new content'
+			});
+
+			expect(invoke).toHaveBeenCalledWith('update_subagent', {
+				id: 1,
+				subagent: { name: 'updated', description: 'new desc', content: 'new content' }
+			});
+			expect(result.name).toBe('updated');
+			expect(subagentLibrary.subagents.find((a) => a.id === 1)?.name).toBe('updated');
+		});
+
+		it('should not modify other subagents when updating', async () => {
+			const subagents = [
+				createMockSubAgent({ id: 1, name: 'subagent-1' }),
+				createMockSubAgent({ id: 2, name: 'subagent-2' })
+			];
+			const updatedSubAgent = createMockSubAgent({ id: 1, name: 'updated' });
+
+			vi.mocked(invoke).mockResolvedValueOnce(subagents).mockResolvedValueOnce(updatedSubAgent);
+
+			const { subagentLibrary } = await import('$lib/stores/subagentLibrary.svelte');
+			await subagentLibrary.load();
+			await subagentLibrary.update(1, { name: 'updated', description: 'test', content: 'test' });
+
+			expect(subagentLibrary.subagents.find((a) => a.id === 2)?.name).toBe('subagent-2');
+		});
+	});
+
+	describe('delete', () => {
+		it('should delete a subagent and remove from state', async () => {
+			const subagents = [
+				createMockSubAgent({ id: 1, name: 'subagent-1' }),
+				createMockSubAgent({ id: 2, name: 'subagent-2' })
+			];
+
+			vi.mocked(invoke)
+				.mockResolvedValueOnce(subagents)
+				.mockResolvedValueOnce(undefined);
+
+			const { subagentLibrary } = await import('$lib/stores/subagentLibrary.svelte');
+			await subagentLibrary.load();
+
+			expect(subagentLibrary.subagents).toHaveLength(2);
+
+			await subagentLibrary.delete(1);
+
+			expect(invoke).toHaveBeenCalledWith('delete_subagent', { id: 1 });
+			expect(subagentLibrary.subagents).toHaveLength(1);
+			expect(subagentLibrary.subagents[0].id).toBe(2);
+		});
+	});
+
+	describe('addGlobalSubAgent', () => {
+		it('should add a global subagent and reload', async () => {
+			const globalSubAgents = [createMockGlobalSubAgent()];
+
+			vi.mocked(invoke)
+				.mockResolvedValueOnce(undefined)
+				.mockResolvedValueOnce(globalSubAgents);
+
+			const { subagentLibrary } = await import('$lib/stores/subagentLibrary.svelte');
+			await subagentLibrary.addGlobalSubAgent(1);
+
+			expect(invoke).toHaveBeenCalledWith('add_global_subagent', { subagentId: 1 });
+			expect(invoke).toHaveBeenCalledWith('get_global_subagents');
+		});
+	});
+
+	describe('removeGlobalSubAgent', () => {
+		it('should remove a global subagent and reload', async () => {
+			vi.mocked(invoke)
+				.mockResolvedValueOnce(undefined)
+				.mockResolvedValueOnce([]);
+
+			const { subagentLibrary } = await import('$lib/stores/subagentLibrary.svelte');
+			await subagentLibrary.removeGlobalSubAgent(1);
+
+			expect(invoke).toHaveBeenCalledWith('remove_global_subagent', { subagentId: 1 });
+			expect(invoke).toHaveBeenCalledWith('get_global_subagents');
+		});
+	});
+
+	describe('toggleGlobalSubAgent', () => {
+		it('should toggle a global subagent and reload', async () => {
+			vi.mocked(invoke)
+				.mockResolvedValueOnce(undefined)
+				.mockResolvedValueOnce([]);
+
+			const { subagentLibrary } = await import('$lib/stores/subagentLibrary.svelte');
+			await subagentLibrary.toggleGlobalSubAgent(1, false);
+
+			expect(invoke).toHaveBeenCalledWith('toggle_global_subagent', { id: 1, enabled: false });
+			expect(invoke).toHaveBeenCalledWith('get_global_subagents');
+		});
+	});
+
+	describe('assignToProject', () => {
+		it('should assign subagent to project', async () => {
+			vi.mocked(invoke).mockResolvedValueOnce(undefined);
+
+			const { subagentLibrary } = await import('$lib/stores/subagentLibrary.svelte');
+			await subagentLibrary.assignToProject(1, 2);
+
+			expect(invoke).toHaveBeenCalledWith('assign_subagent_to_project', {
+				projectId: 1,
+				subagentId: 2
+			});
+		});
+	});
+
+	describe('removeFromProject', () => {
+		it('should remove subagent from project', async () => {
+			vi.mocked(invoke).mockResolvedValueOnce(undefined);
+
+			const { subagentLibrary } = await import('$lib/stores/subagentLibrary.svelte');
+			await subagentLibrary.removeFromProject(1, 2);
+
+			expect(invoke).toHaveBeenCalledWith('remove_subagent_from_project', {
+				projectId: 1,
+				subagentId: 2
+			});
+		});
+	});
+
+	describe('toggleProjectSubAgent', () => {
+		it('should toggle project subagent', async () => {
+			vi.mocked(invoke).mockResolvedValueOnce(undefined);
+
+			const { subagentLibrary } = await import('$lib/stores/subagentLibrary.svelte');
+			await subagentLibrary.toggleProjectSubAgent(1, true);
+
+			expect(invoke).toHaveBeenCalledWith('toggle_project_subagent', {
+				assignmentId: 1,
+				enabled: true
+			});
+		});
+	});
+
+	describe('getProjectSubAgents', () => {
+		it('should get subagents for a project', async () => {
+			const projectSubAgents = [
+				createMockProjectSubAgent({ id: 1, subagentId: 1 }),
+				createMockProjectSubAgent({ id: 2, subagentId: 2 })
+			];
+
+			vi.mocked(invoke).mockResolvedValueOnce(projectSubAgents);
+
+			const { subagentLibrary } = await import('$lib/stores/subagentLibrary.svelte');
+			const result = await subagentLibrary.getProjectSubAgents(1);
+
+			expect(invoke).toHaveBeenCalledWith('get_project_subagents', { projectId: 1 });
+			expect(result).toHaveLength(2);
 		});
 	});
 
 	describe('getSubAgentById', () => {
 		it('should return correct subagent by ID', async () => {
-			const mockSubAgents = [
-				{ id: 1, name: 'agent-1', description: 'Desc 1' },
-				{ id: 2, name: 'agent-2', description: 'Desc 2' }
+			const subagents = [
+				createMockSubAgent({ id: 1, name: 'subagent-1' }),
+				createMockSubAgent({ id: 2, name: 'subagent-2' })
 			];
 
-			vi.mocked(invoke).mockResolvedValueOnce(mockSubAgents);
+			vi.mocked(invoke).mockResolvedValueOnce(subagents);
 
 			const { subagentLibrary } = await import('$lib/stores/subagentLibrary.svelte');
 			await subagentLibrary.load();
 
-			const agent = subagentLibrary.getSubAgentById(2);
-			expect(agent?.name).toBe('agent-2');
+			const subagent = subagentLibrary.getSubAgentById(2);
+			expect(subagent?.name).toBe('subagent-2');
 		});
 
 		it('should return undefined for non-existent ID', async () => {
@@ -101,37 +362,47 @@ describe('SubAgent Library Store', () => {
 			const { subagentLibrary } = await import('$lib/stores/subagentLibrary.svelte');
 			await subagentLibrary.load();
 
-			const agent = subagentLibrary.getSubAgentById(999);
-			expect(agent).toBeUndefined();
+			const subagent = subagentLibrary.getSubAgentById(999);
+			expect(subagent).toBeUndefined();
 		});
 	});
 
-	describe('filtering', () => {
-		it('should filter subagents by search query on name', async () => {
-			const mockSubAgents = [
-				{ id: 1, name: 'code-reviewer', description: 'Reviews code' },
-				{ id: 2, name: 'doc-writer', description: 'Writes documentation' },
-				{ id: 3, name: 'test-runner', description: 'Runs tests' }
+	describe('setSearch', () => {
+		it('should set search query', async () => {
+			const { subagentLibrary } = await import('$lib/stores/subagentLibrary.svelte');
+
+			subagentLibrary.setSearch('test query');
+
+			expect(subagentLibrary.searchQuery).toBe('test query');
+		});
+	});
+
+	describe('filteredSubAgents', () => {
+		it('should filter subagents by name', async () => {
+			const subagents = [
+				createMockSubAgent({ id: 1, name: 'code-assistant', description: 'Helps with code' }),
+				createMockSubAgent({ id: 2, name: 'writer-bot', description: 'Writing help' }),
+				createMockSubAgent({ id: 3, name: 'research-agent', description: 'Research tasks' })
 			];
 
-			vi.mocked(invoke).mockResolvedValueOnce(mockSubAgents);
+			vi.mocked(invoke).mockResolvedValueOnce(subagents);
 
 			const { subagentLibrary } = await import('$lib/stores/subagentLibrary.svelte');
 			await subagentLibrary.load();
 
-			subagentLibrary.setSearch('code');
+			subagentLibrary.setSearch('writer');
 
 			expect(subagentLibrary.filteredSubAgents).toHaveLength(1);
-			expect(subagentLibrary.filteredSubAgents[0].name).toBe('code-reviewer');
+			expect(subagentLibrary.filteredSubAgents[0].name).toBe('writer-bot');
 		});
 
 		it('should filter subagents by description', async () => {
-			const mockSubAgents = [
-				{ id: 1, name: 'agent-1', description: 'Python expert' },
-				{ id: 2, name: 'agent-2', description: 'JavaScript wizard' }
+			const subagents = [
+				createMockSubAgent({ id: 1, name: 'agent-1', description: 'Helps with Python code' }),
+				createMockSubAgent({ id: 2, name: 'agent-2', description: 'JavaScript expert' })
 			];
 
-			vi.mocked(invoke).mockResolvedValueOnce(mockSubAgents);
+			vi.mocked(invoke).mockResolvedValueOnce(subagents);
 
 			const { subagentLibrary } = await import('$lib/stores/subagentLibrary.svelte');
 			await subagentLibrary.load();
@@ -139,48 +410,46 @@ describe('SubAgent Library Store', () => {
 			subagentLibrary.setSearch('python');
 
 			expect(subagentLibrary.filteredSubAgents).toHaveLength(1);
-			expect(subagentLibrary.filteredSubAgents[0].name).toBe('agent-1');
+			expect(subagentLibrary.filteredSubAgents[0].description).toContain('Python');
 		});
 
 		it('should filter subagents by tags', async () => {
-			const mockSubAgents = [
-				{ id: 1, name: 'agent-1', description: 'Desc', tags: ['code', 'review'] },
-				{ id: 2, name: 'agent-2', description: 'Desc', tags: ['docs'] },
-				{ id: 3, name: 'agent-3', description: 'Desc', tags: ['code', 'testing'] }
+			const subagents = [
+				createMockSubAgent({ id: 1, name: 'agent-1', tags: ['javascript', 'frontend'] }),
+				createMockSubAgent({ id: 2, name: 'agent-2', tags: ['python', 'backend'] }),
+				createMockSubAgent({ id: 3, name: 'agent-3', tags: ['javascript', 'backend'] })
 			];
 
-			vi.mocked(invoke).mockResolvedValueOnce(mockSubAgents);
+			vi.mocked(invoke).mockResolvedValueOnce(subagents);
 
 			const { subagentLibrary } = await import('$lib/stores/subagentLibrary.svelte');
 			await subagentLibrary.load();
 
-			subagentLibrary.setSearch('code');
+			subagentLibrary.setSearch('javascript');
 
 			expect(subagentLibrary.filteredSubAgents).toHaveLength(2);
 		});
 
 		it('should be case-insensitive', async () => {
-			const mockSubAgents = [
-				{ id: 1, name: 'CodeReviewer', description: 'Reviews Code' }
-			];
+			const subagents = [createMockSubAgent({ id: 1, name: 'CodeAssistant' })];
 
-			vi.mocked(invoke).mockResolvedValueOnce(mockSubAgents);
+			vi.mocked(invoke).mockResolvedValueOnce(subagents);
 
 			const { subagentLibrary } = await import('$lib/stores/subagentLibrary.svelte');
 			await subagentLibrary.load();
 
-			subagentLibrary.setSearch('CODEREVIEWER');
+			subagentLibrary.setSearch('CODEASSISTANT');
 
 			expect(subagentLibrary.filteredSubAgents).toHaveLength(1);
 		});
 
 		it('should return all subagents when search is empty', async () => {
-			const mockSubAgents = [
-				{ id: 1, name: 'agent-1', description: 'Desc 1' },
-				{ id: 2, name: 'agent-2', description: 'Desc 2' }
+			const subagents = [
+				createMockSubAgent({ id: 1, name: 'agent-1' }),
+				createMockSubAgent({ id: 2, name: 'agent-2' })
 			];
 
-			vi.mocked(invoke).mockResolvedValueOnce(mockSubAgents);
+			vi.mocked(invoke).mockResolvedValueOnce(subagents);
 
 			const { subagentLibrary } = await import('$lib/stores/subagentLibrary.svelte');
 			await subagentLibrary.load();
@@ -189,162 +458,22 @@ describe('SubAgent Library Store', () => {
 
 			expect(subagentLibrary.filteredSubAgents).toHaveLength(2);
 		});
-	});
 
-	describe('CRUD operations', () => {
-		it('should create a subagent and add to list', async () => {
-			const newSubAgent = { id: 3, name: 'new-agent', description: 'New agent', content: 'Content' };
+		it('should handle subagents with undefined description and tags', async () => {
+			const subagents = [
+				createMockSubAgent({ id: 1, name: 'test-agent', description: '', tags: undefined })
+			];
 
-			vi.mocked(invoke)
-				.mockResolvedValueOnce([]) // initial load
-				.mockResolvedValueOnce(newSubAgent); // create
+			vi.mocked(invoke).mockResolvedValueOnce(subagents);
 
 			const { subagentLibrary } = await import('$lib/stores/subagentLibrary.svelte');
 			await subagentLibrary.load();
 
-			const result = await subagentLibrary.create({
-				name: 'new-agent',
-				description: 'New agent',
-				content: 'Content'
-			});
+			subagentLibrary.setSearch('something');
+			expect(subagentLibrary.filteredSubAgents).toHaveLength(0);
 
-			expect(result.id).toBe(3);
-			expect(subagentLibrary.subagents).toHaveLength(1);
-			expect(subagentLibrary.subagents[0].name).toBe('new-agent');
-		});
-
-		it('should update a subagent in the list', async () => {
-			const mockSubAgents = [{ id: 1, name: 'old-name', description: 'Old desc' }];
-			const updatedSubAgent = { id: 1, name: 'new-name', description: 'New desc' };
-
-			vi.mocked(invoke)
-				.mockResolvedValueOnce(mockSubAgents)
-				.mockResolvedValueOnce(updatedSubAgent);
-
-			const { subagentLibrary } = await import('$lib/stores/subagentLibrary.svelte');
-			await subagentLibrary.load();
-
-			await subagentLibrary.update(1, {
-				name: 'new-name',
-				description: 'New desc',
-				content: ''
-			});
-
-			expect(subagentLibrary.subagents[0].name).toBe('new-name');
-		});
-
-		it('should delete a subagent from the list', async () => {
-			const mockSubAgents = [
-				{ id: 1, name: 'agent-1', description: 'Desc 1' },
-				{ id: 2, name: 'agent-2', description: 'Desc 2' }
-			];
-
-			vi.mocked(invoke)
-				.mockResolvedValueOnce(mockSubAgents)
-				.mockResolvedValueOnce(undefined);
-
-			const { subagentLibrary } = await import('$lib/stores/subagentLibrary.svelte');
-			await subagentLibrary.load();
-
-			await subagentLibrary.delete(1);
-
-			expect(subagentLibrary.subagents).toHaveLength(1);
-			expect(subagentLibrary.subagents[0].id).toBe(2);
-		});
-	});
-
-	describe('global subagents', () => {
-		it('should load global subagents', async () => {
-			const mockGlobalSubAgents = [
-				{ id: 1, subagent_id: 1, is_enabled: true, subagent: { id: 1, name: 'global-agent', description: 'Desc' } }
-			];
-
-			vi.mocked(invoke).mockResolvedValueOnce(mockGlobalSubAgents);
-
-			const { subagentLibrary } = await import('$lib/stores/subagentLibrary.svelte');
-			await subagentLibrary.loadGlobalSubAgents();
-
-			expect(subagentLibrary.globalSubAgents).toHaveLength(1);
-		});
-
-		it('should add global subagent', async () => {
-			const mockGlobalSubAgents = [
-				{ id: 1, subagent_id: 1, is_enabled: true, subagent: { id: 1, name: 'test', description: 'Desc' } }
-			];
-
-			vi.mocked(invoke)
-				.mockResolvedValueOnce(undefined) // add_global_subagent
-				.mockResolvedValueOnce(mockGlobalSubAgents); // loadGlobalSubAgents
-
-			const { subagentLibrary } = await import('$lib/stores/subagentLibrary.svelte');
-			await subagentLibrary.addGlobalSubAgent(1);
-
-			expect(invoke).toHaveBeenCalledWith('add_global_subagent', { subagentId: 1 });
-		});
-
-		it('should remove global subagent', async () => {
-			vi.mocked(invoke)
-				.mockResolvedValueOnce(undefined) // remove_global_subagent
-				.mockResolvedValueOnce([]); // loadGlobalSubAgents
-
-			const { subagentLibrary } = await import('$lib/stores/subagentLibrary.svelte');
-			await subagentLibrary.removeGlobalSubAgent(1);
-
-			expect(invoke).toHaveBeenCalledWith('remove_global_subagent', { subagentId: 1 });
-		});
-
-		it('should toggle global subagent', async () => {
-			vi.mocked(invoke)
-				.mockResolvedValueOnce(undefined) // toggle_global_subagent
-				.mockResolvedValueOnce([]); // loadGlobalSubAgents
-
-			const { subagentLibrary } = await import('$lib/stores/subagentLibrary.svelte');
-			await subagentLibrary.toggleGlobalSubAgent(1, false);
-
-			expect(invoke).toHaveBeenCalledWith('toggle_global_subagent', { id: 1, enabled: false });
-		});
-	});
-
-	describe('project subagents', () => {
-		it('should assign subagent to project', async () => {
-			vi.mocked(invoke).mockResolvedValueOnce(undefined);
-
-			const { subagentLibrary } = await import('$lib/stores/subagentLibrary.svelte');
-			await subagentLibrary.assignToProject(1, 2);
-
-			expect(invoke).toHaveBeenCalledWith('assign_subagent_to_project', { projectId: 1, subagentId: 2 });
-		});
-
-		it('should remove subagent from project', async () => {
-			vi.mocked(invoke).mockResolvedValueOnce(undefined);
-
-			const { subagentLibrary } = await import('$lib/stores/subagentLibrary.svelte');
-			await subagentLibrary.removeFromProject(1, 2);
-
-			expect(invoke).toHaveBeenCalledWith('remove_subagent_from_project', { projectId: 1, subagentId: 2 });
-		});
-
-		it('should toggle project subagent', async () => {
-			vi.mocked(invoke).mockResolvedValueOnce(undefined);
-
-			const { subagentLibrary } = await import('$lib/stores/subagentLibrary.svelte');
-			await subagentLibrary.toggleProjectSubAgent(5, true);
-
-			expect(invoke).toHaveBeenCalledWith('toggle_project_subagent', { assignmentId: 5, enabled: true });
-		});
-
-		it('should get project subagents', async () => {
-			const mockProjectSubAgents = [
-				{ id: 1, subagent_id: 1, is_enabled: true, subagent: { id: 1, name: 'test', description: 'Desc' } }
-			];
-
-			vi.mocked(invoke).mockResolvedValueOnce(mockProjectSubAgents);
-
-			const { subagentLibrary } = await import('$lib/stores/subagentLibrary.svelte');
-			const result = await subagentLibrary.getProjectSubAgents(1);
-
-			expect(result).toHaveLength(1);
-			expect(invoke).toHaveBeenCalledWith('get_project_subagents', { projectId: 1 });
+			subagentLibrary.setSearch('test');
+			expect(subagentLibrary.filteredSubAgents).toHaveLength(1);
 		});
 	});
 });

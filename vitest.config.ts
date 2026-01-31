@@ -3,12 +3,26 @@ import { svelte } from '@sveltejs/vite-plugin-svelte';
 import { resolve } from 'path';
 
 export default defineConfig({
-	plugins: [svelte({ hot: !process.env.VITEST })],
+	plugins: [
+		svelte({
+			hot: !process.env.VITEST,
+			compilerOptions: {
+				// Required for Svelte 5 component testing
+				hmr: false
+			}
+		})
+	],
 	test: {
 		include: ['src/**/*.{test,spec}.{js,ts}'],
 		globals: true,
 		environment: 'jsdom',
 		setupFiles: ['./src/tests/setup.ts'],
+		// Force browser/client conditions for Svelte 5 component testing
+		server: {
+			deps: {
+				inline: [/svelte/]
+			}
+		},
 		alias: {
 			$lib: resolve('./src/lib'),
 			$app: resolve('./src/tests/mocks/app')
@@ -30,6 +44,8 @@ export default defineConfig({
 		alias: {
 			$lib: resolve('./src/lib'),
 			$app: resolve('./src/tests/mocks/app')
-		}
+		},
+		// Force browser conditions for Svelte 5
+		conditions: ['browser', 'development']
 	}
 });
