@@ -7,7 +7,7 @@ use crate::services::repo_sync;
 use chrono::Utc;
 use rusqlite::params;
 use std::sync::{Arc, Mutex};
-use tauri::State;
+use tauri::State;h
 
 /// Get all repositories
 #[tauri::command]
@@ -338,22 +338,17 @@ pub async fn import_repo_item(
             let (frontmatter, body) = parse_frontmatter(&raw_content);
             let content = body.trim().to_string();
 
-            // Determine skill type and allowed tools
+            // Extract allowed_tools from frontmatter
             let allowed_tools = frontmatter
                 .get("allowed-tools")
                 .or_else(|| frontmatter.get("allowedtools"))
                 .cloned();
-            let skill_type = if allowed_tools.is_some() {
-                "skill"
-            } else {
-                "command"
-            };
 
             db.conn()
                 .execute(
-                    r#"INSERT INTO skills (name, description, content, skill_type, allowed_tools, source)
-                       VALUES (?, ?, ?, ?, ?, 'imported')"#,
-                    params![item.name, item.description, content, skill_type, allowed_tools],
+                    r#"INSERT INTO skills (name, description, content, allowed_tools, source)
+                       VALUES (?, ?, ?, ?, 'imported')"#,
+                    params![item.name, item.description, content, allowed_tools],
                 )
                 .map_err(|e| e.to_string())?;
             db.conn().last_insert_rowid()
