@@ -7,7 +7,7 @@ use crate::services::repo_sync;
 use chrono::Utc;
 use rusqlite::params;
 use std::sync::{Arc, Mutex};
-use tauri::State;h
+use tauri::State;
 
 /// Get all repositories
 #[tauri::command]
