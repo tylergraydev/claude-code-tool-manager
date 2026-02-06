@@ -587,7 +587,7 @@ dependencies = [
 
 [[package]]
 name = "claude-code-tool-manager"
-version = "2.1.1"
+version = "2.1.2"
 dependencies = [
  "anyhow",
  "axum",
@@ -5200,9 +5200,9 @@ dependencies = [
 
 [[package]]
 name = "tauri-plugin-mcp-bridge"
-version = "0.6.5"
+version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "65b6a784f19214f2007b000576fe905e6e78e0574a0240a93a5cf34e04460960"
+checksum = "4cae134e7f07b0ad6e5c9019a6cf8b74382439e23f13aaa5df21538732fa480c"
 dependencies = [
  "base64 0.22.1",
  "block2 0.5.1",
