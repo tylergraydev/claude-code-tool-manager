@@ -28,7 +28,7 @@
 	let activeTab = $state<'mcps' | 'repos' | 'skills' | 'agents'>('mcps');
 	let showAddRepoModal = $state(false);
 	let newRepoUrl = $state('');
-	let newRepoType = $state<'file_based' | 'readme_based'>('readme_based');
+	let newRepoType = $state<'file_based' | 'readme_based'>('file_based');
 	let newRepoContentType = $state<'skill' | 'subagent' | 'mixed'>('mixed');
 	let selectedItem = $state<RepoItem | null>(null);
 
@@ -87,9 +87,17 @@
 	async function handleSyncRepo(id: number) {
 		try {
 			const result = await repoLibrary.syncRepo(id);
-			notifications.success(`Added ${result.added}, updated ${result.updated} items`);
+			if (result.errors.length > 0) {
+				notifications.warning(`Sync completed with issues: ${result.errors.join(', ')}`);
+			} else if (result.added === 0 && result.updated === 0) {
+				notifications.warning(
+					'No items found. Try changing the repository type (Files vs README) or content type.'
+				);
+			} else {
+				notifications.success(`Added ${result.added}, updated ${result.updated} items`);
+			}
 		} catch (e) {
-			notifications.error('Failed to sync repository');
+			notifications.error(`Failed to sync repository: ${e}`);
 		}
 	}
 
@@ -102,10 +110,26 @@
 				repoType: newRepoType,
 				contentType: newRepoContentType
 			};
-			await repoLibrary.addRepo(request);
-			notifications.success('Repository added');
+			const repo = await repoLibrary.addRepo(request);
 			showAddRepoModal = false;
 			newRepoUrl = '';
+
+			// Auto-sync the newly added repo
+			notifications.info('Syncing repository...');
+			try {
+				const result = await repoLibrary.syncRepo(repo.id);
+				if (result.errors.length > 0) {
+					notifications.warning(`Sync completed with issues: ${result.errors.join(', ')}`);
+				} else if (result.added === 0) {
+					notifications.warning(
+						'No items found. Try changing the repository type (Files vs README) or content type.'
+					);
+				} else {
+					notifications.success(`Added ${result.added} items from repository`);
+				}
+			} catch (syncError) {
+				notifications.error(`Repository added but sync failed: ${syncError}`);
+			}
 		} catch (e) {
 			notifications.error(String(e));
 		}
@@ -608,8 +632,8 @@
 						Repository Type
 					</label>
 					<select bind:value={newRepoType} class="input w-full">
-						<option value="readme_based">README-based (parses README for links)</option>
 						<option value="file_based">File-based (scans for .md files)</option>
+						<option value="readme_based">README-based (parses README for links)</option>
 					</select>
 				</div>
 

@@ -31,6 +31,25 @@ npm-debug.log*
 
 # Claude Code local settings (may contain tokens)
 .claude/
+.claude.json
+
+# MCP configuration (may contain API keys and tokens)
+.mcp.json
+
+# Secrets / credentials
+*.pem
+*.key
+*.p12
+*.pfx
+credentials.json
+secrets.json
+*secret*
+*token*
+!src/**/token*
+!src/**/secret*
+
+# Claude memory (personal notes)
+.claude_memory/
 
 # Playwright
 /test-results/
