@@ -46,7 +46,7 @@
     "@types/node": "^25.0.3",
     "@vitest/coverage-v8": "^4.0.18",
     "@vitest/ui": "^4.0.16",
-    "autoprefixer": "^10.4.20",
+    "autoprefixer": "^10.4.24",
     "happy-dom": "^20.1.0",
     "jest-dom": "^4.0.0",
     "jsdom": "^27.4.0",
