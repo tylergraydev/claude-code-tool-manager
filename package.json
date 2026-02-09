@@ -51,7 +51,7 @@
     "jest-dom": "^4.0.0",
     "jsdom": "^27.4.0",
     "postcss": "^8.4.49",
-    "svelte": "^5.49.1",
+    "svelte": "^5.50.0",
     "svelte-check": "^4.3.5",
     "tailwindcss": "^4.1.18",
     "typescript": "^5.7.2",
