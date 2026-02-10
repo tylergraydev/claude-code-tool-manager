@@ -338,24 +338,36 @@ pub async fn import_repo_item(
             let (frontmatter, body) = parse_frontmatter(&raw_content);
             let content = body.trim().to_string();
 
-            // Determine skill type and allowed tools
             let allowed_tools = frontmatter
                 .get("allowed-tools")
                 .or_else(|| frontmatter.get("allowedtools"))
                 .cloned();
-            let skill_type = if allowed_tools.is_some() {
-                "skill"
-            } else {
-                "command"
-            };
+            let model = frontmatter.get("model").cloned();
 
-            db.conn()
-                .execute(
-                    r#"INSERT INTO skills (name, description, content, skill_type, allowed_tools, source)
-                       VALUES (?, ?, ?, ?, ?, 'imported')"#,
-                    params![item.name, item.description, content, skill_type, allowed_tools],
-                )
-                .map_err(|e| e.to_string())?;
+            // Route to commands or skills table based on whether allowed_tools is present
+            if allowed_tools.is_some() {
+                // Has allowed_tools -> goes into skills table
+                db.conn()
+                    .execute(
+                        r#"INSERT INTO skills (name, description, content, allowed_tools, model, source)
+                           VALUES (?, ?, ?, ?, ?, 'imported')"#,
+                        params![item.name, item.description, content, allowed_tools, model],
+                    )
+                    .map_err(|e| e.to_string())?;
+            } else {
+                // No allowed_tools -> it's a slash command, goes into commands table
+                let argument_hint = frontmatter
+                    .get("argument-hint")
+                    .or_else(|| frontmatter.get("argumenthint"))
+                    .cloned();
+                db.conn()
+                    .execute(
+                        r#"INSERT INTO commands (name, description, content, allowed_tools, argument_hint, model, source)
+                           VALUES (?, ?, ?, ?, ?, ?, 'imported')"#,
+                        params![item.name, item.description, content, allowed_tools, argument_hint, model],
+                    )
+                    .map_err(|e| e.to_string())?;
+            }
             db.conn().last_insert_rowid()
         }
         "subagent" => {
@@ -390,9 +402,9 @@ pub async fn import_repo_item(
                 .unwrap_or_else(|| "Imported from marketplace".to_string());
             db.conn()
                 .execute(
-                    r#"INSERT INTO subagents (name, description, content, tools, model, permission_mode, skills, source)
-                       VALUES (?, ?, ?, ?, ?, ?, ?, 'imported')"#,
-                    params![item.name, description, content, tools_json, model, permission_mode, skills_json],
+                    r#"INSERT INTO subagents (name, description, content, tools, model, permission_mode, skills, tags, source)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'imported')"#,
+                    params![item.name, description, content, tools_json, model, permission_mode, skills_json, Option::<String>::None],
                 )
                 .map_err(|e| e.to_string())?;
             db.conn().last_insert_rowid()
