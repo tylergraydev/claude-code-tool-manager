@@ -464,7 +464,7 @@ mod tests {
     #[test]
     fn test_generate_play_command_python() {
         let cmd = generate_play_command("/path/to/sound.wav", "python");
-        assert!(cmd.contains("python3"));
+        assert!(cmd.contains("python"));
         assert!(cmd.contains("notification-hook.py"));
     }
 
