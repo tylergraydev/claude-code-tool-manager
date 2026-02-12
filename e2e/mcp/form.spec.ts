@@ -127,7 +127,7 @@ test.describe('MCP Form', () => {
 		// Try to submit
 		await page.click('button:has-text("Create MCP")');
 
-		// Should show format error
+		// Should show format error from custom validation
 		await expect(page.locator('text=Invalid URL format')).toBeVisible();
 	});
 

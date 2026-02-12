@@ -161,7 +161,7 @@
 	}
 </script>
 
-<form onsubmit={handleSubmit} class="space-y-6" onpaste={handlePaste}>
+<form onsubmit={handleSubmit} class="space-y-6" onpaste={handlePaste} novalidate>
 	<!-- Paste Import Section -->
 	<div class="p-4 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-800/50">
 		<div class="flex items-center justify-between">
