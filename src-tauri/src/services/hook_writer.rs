@@ -371,7 +371,11 @@ mod tests {
         let claude_dir = project_path.join(".claude");
         std::fs::create_dir_all(&claude_dir).unwrap();
         let settings_path = claude_dir.join("settings.local.json");
-        std::fs::write(&settings_path, r#"{"permissions":{"allow":["Bash"]},"hooks":{}}"#).unwrap();
+        std::fs::write(
+            &settings_path,
+            r#"{"permissions":{"allow":["Bash"]},"hooks":{}}"#,
+        )
+        .unwrap();
 
         let hooks = vec![Hook {
             id: 1,

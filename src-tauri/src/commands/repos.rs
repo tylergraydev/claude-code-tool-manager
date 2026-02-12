@@ -153,7 +153,8 @@ pub async fn sync_repo(db: State<'_, Arc<Mutex<Database>>>, id: i64) -> Result<S
     let (repo, token) = {
         let db = db.lock().map_err(|e| e.to_string())?;
         let token = get_github_token_from_db(&db);
-        let repo = db.conn()
+        let repo = db
+            .conn()
             .query_row(
                 r#"SELECT id, name, owner, repo, repo_type, content_type, github_url, description,
                           is_default, is_enabled, last_fetched_at, etag, created_at, updated_at

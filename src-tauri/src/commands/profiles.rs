@@ -15,7 +15,10 @@ pub fn get_all_profiles(db: State<'_, Arc<Mutex<Database>>>) -> Result<Vec<Profi
 
 /// Get a single profile with its items
 #[tauri::command]
-pub fn get_profile(db: State<'_, Arc<Mutex<Database>>>, id: i64) -> Result<ProfileWithItems, String> {
+pub fn get_profile(
+    db: State<'_, Arc<Mutex<Database>>>,
+    id: i64,
+) -> Result<ProfileWithItems, String> {
     info!("[Profiles] Getting profile id={}", id);
     let db = db.lock().map_err(|e| e.to_string())?;
     get_profile_from_db(&db, id)
@@ -58,7 +61,10 @@ pub fn capture_profile_from_current(
     db: State<'_, Arc<Mutex<Database>>>,
     profile_id: i64,
 ) -> Result<ProfileWithItems, String> {
-    info!("[Profiles] Capturing current config into profile id={}", profile_id);
+    info!(
+        "[Profiles] Capturing current config into profile id={}",
+        profile_id
+    );
     let db = db.lock().map_err(|e| e.to_string())?;
     capture_profile_from_current_in_db(&db, profile_id)
 }
@@ -191,7 +197,10 @@ pub fn get_profile_from_db(db: &Database, id: i64) -> Result<ProfileWithItems, S
     get_profile_items_grouped(db, id)
 }
 
-pub fn create_profile_in_db(db: &Database, request: &CreateProfileRequest) -> Result<Profile, String> {
+pub fn create_profile_in_db(
+    db: &Database,
+    request: &CreateProfileRequest,
+) -> Result<Profile, String> {
     db.conn()
         .execute(
             "INSERT INTO profiles (name, description, icon) VALUES (?, ?, ?)",
@@ -488,15 +497,19 @@ mod tests {
         let db = Database::in_memory().unwrap();
 
         // Create an MCP and add it globally
-        db.conn().execute(
-            "INSERT INTO mcps (name, type, source) VALUES ('test-mcp', 'stdio', 'manual')",
-            [],
-        ).unwrap();
+        db.conn()
+            .execute(
+                "INSERT INTO mcps (name, type, source) VALUES ('test-mcp', 'stdio', 'manual')",
+                [],
+            )
+            .unwrap();
         let mcp_id = db.conn().last_insert_rowid();
-        db.conn().execute(
-            "INSERT INTO global_mcps (mcp_id) VALUES (?)",
-            params![mcp_id],
-        ).unwrap();
+        db.conn()
+            .execute(
+                "INSERT INTO global_mcps (mcp_id) VALUES (?)",
+                params![mcp_id],
+            )
+            .unwrap();
 
         // Create a profile and capture current state
         let profile = create_test_profile(&db, "Test Profile");
@@ -506,16 +519,18 @@ mod tests {
 
         // Clear global MCPs
         db.conn().execute("DELETE FROM global_mcps", []).unwrap();
-        let count: i64 = db.conn().query_row(
-            "SELECT COUNT(*) FROM global_mcps", [], |row| row.get(0)
-        ).unwrap();
+        let count: i64 = db
+            .conn()
+            .query_row("SELECT COUNT(*) FROM global_mcps", [], |row| row.get(0))
+            .unwrap();
         assert_eq!(count, 0);
 
         // Activate profile - should restore global MCPs
         activate_profile_in_db(&db, profile.id).unwrap();
-        let count: i64 = db.conn().query_row(
-            "SELECT COUNT(*) FROM global_mcps", [], |row| row.get(0)
-        ).unwrap();
+        let count: i64 = db
+            .conn()
+            .query_row("SELECT COUNT(*) FROM global_mcps", [], |row| row.get(0))
+            .unwrap();
         assert_eq!(count, 1);
 
         // Profile should be marked active
@@ -530,10 +545,12 @@ mod tests {
         let profile = create_test_profile(&db, "Active");
 
         // Mark active
-        db.conn().execute(
-            "UPDATE profiles SET is_active = 1 WHERE id = ?",
-            params![profile.id],
-        ).unwrap();
+        db.conn()
+            .execute(
+                "UPDATE profiles SET is_active = 1 WHERE id = ?",
+                params![profile.id],
+            )
+            .unwrap();
 
         deactivate_all_profiles(&db).unwrap();
         let active = get_active_profile_from_db(&db).unwrap();
@@ -545,29 +562,36 @@ mod tests {
         let db = Database::in_memory().unwrap();
 
         // Create an MCP and capture it
-        db.conn().execute(
-            "INSERT INTO mcps (name, type, source) VALUES ('ephemeral', 'stdio', 'manual')",
-            [],
-        ).unwrap();
+        db.conn()
+            .execute(
+                "INSERT INTO mcps (name, type, source) VALUES ('ephemeral', 'stdio', 'manual')",
+                [],
+            )
+            .unwrap();
         let mcp_id = db.conn().last_insert_rowid();
-        db.conn().execute(
-            "INSERT INTO global_mcps (mcp_id) VALUES (?)",
-            params![mcp_id],
-        ).unwrap();
+        db.conn()
+            .execute(
+                "INSERT INTO global_mcps (mcp_id) VALUES (?)",
+                params![mcp_id],
+            )
+            .unwrap();
 
         let profile = create_test_profile(&db, "Profile");
         capture_profile_from_current_in_db(&db, profile.id).unwrap();
 
         // Delete the MCP entirely
         db.conn().execute("DELETE FROM global_mcps", []).unwrap();
-        db.conn().execute("DELETE FROM mcps WHERE id = ?", params![mcp_id]).unwrap();
+        db.conn()
+            .execute("DELETE FROM mcps WHERE id = ?", params![mcp_id])
+            .unwrap();
 
         // Activate should succeed without error (INSERT OR IGNORE with JOIN filters out missing items)
         activate_profile_in_db(&db, profile.id).unwrap();
 
-        let count: i64 = db.conn().query_row(
-            "SELECT COUNT(*) FROM global_mcps", [], |row| row.get(0)
-        ).unwrap();
+        let count: i64 = db
+            .conn()
+            .query_row("SELECT COUNT(*) FROM global_mcps", [], |row| row.get(0))
+            .unwrap();
         assert_eq!(count, 0); // The deleted MCP is not restored
     }
 }

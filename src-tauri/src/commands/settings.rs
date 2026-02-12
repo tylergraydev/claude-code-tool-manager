@@ -145,7 +145,11 @@ pub fn toggle_editor(
 pub fn set_github_token(db: State<'_, Arc<Mutex<Database>>>, token: String) -> Result<(), String> {
     info!("[Settings] Setting GitHub token");
     let db = db.lock().map_err(|e| e.to_string())?;
-    let value = if token.trim().is_empty() { "" } else { token.trim() };
+    let value = if token.trim().is_empty() {
+        ""
+    } else {
+        token.trim()
+    };
     db.set_setting("github_token", value)
         .map_err(|e| e.to_string())
 }

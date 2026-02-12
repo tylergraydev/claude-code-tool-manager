@@ -255,7 +255,11 @@ pub fn validate_sound_file(path: &str) -> Result<(), String> {
 pub fn generate_play_command(sound_path: &str, method: &str) -> String {
     if method == "python" {
         // Use the Python notification script
-        let python_cmd = if cfg!(target_os = "windows") { "python" } else { "python3" };
+        let python_cmd = if cfg!(target_os = "windows") {
+            "python"
+        } else {
+            "python3"
+        };
         return format!("{} ~/.claude/hooks/notification-hook.py", python_cmd);
     }
 

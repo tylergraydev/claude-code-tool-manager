@@ -3,7 +3,10 @@ use crate::db::schema::Database;
 use anyhow::Result;
 
 /// Fetch gallery entries from a remote URL (JSON array)
-pub async fn fetch_gallery_from_url(url: &str, github_token: Option<&str>) -> Result<Vec<StatusLineGalleryEntry>> {
+pub async fn fetch_gallery_from_url(
+    url: &str,
+    github_token: Option<&str>,
+) -> Result<Vec<StatusLineGalleryEntry>> {
     let client = reqwest::Client::new();
     let mut request = client.get(url);
 

@@ -96,15 +96,15 @@ pub fn generate_script_from_segments(segments: &[StatusLineSegment]) -> String {
 }
 
 /// Generate a Python 3 script from status line segments with a specific theme
-pub fn generate_script_from_segments_with_theme(segments: &[StatusLineSegment], theme: &str) -> String {
+pub fn generate_script_from_segments_with_theme(
+    segments: &[StatusLineSegment],
+    theme: &str,
+) -> String {
     if theme == "powerline" || theme == "powerline_round" {
         return generate_powerline_script(segments, theme);
     }
 
-    let enabled: Vec<&StatusLineSegment> = segments
-        .iter()
-        .filter(|s| s.enabled)
-        .collect();
+    let enabled: Vec<&StatusLineSegment> = segments.iter().filter(|s| s.enabled).collect();
 
     let mut parts_code = String::new();
     let mut needs_usage_api = false;
@@ -112,9 +112,7 @@ pub fn generate_script_from_segments_with_theme(segments: &[StatusLineSegment], 
 
     for seg in &enabled {
         if seg.segment_type == "line_break" {
-            parts_code.push_str(
-                "    lines.append(\" \".join(parts))\n    parts = []\n"
-            );
+            parts_code.push_str("    lines.append(\" \".join(parts))\n    parts = []\n");
             continue;
         }
 
@@ -220,7 +218,9 @@ pub fn generate_script_from_segments_with_theme(segments: &[StatusLineSegment], 
             "cwd" => {
                 let fmt = seg.format.as_deref().unwrap_or("basename");
                 let extract = match fmt {
-                    "full" => r#"cwd = data.get("workspace", {}).get("current_dir", "") or data.get("cwd", "")"#,
+                    "full" => {
+                        r#"cwd = data.get("workspace", {}).get("current_dir", "") or data.get("cwd", "")"#
+                    }
                     "short" => {
                         r#"import os
     cwd = data.get("workspace", {}).get("current_dir", "") or data.get("cwd", "")
@@ -705,7 +705,11 @@ fn generate_powerline_script(segments: &[StatusLineSegment], theme: &str) -> Str
         .filter(|s| s.enabled && s.segment_type != "separator" && s.segment_type != "line_break")
         .collect();
 
-    let arrow = if theme == "powerline_round" { "\u{E0B4}" } else { "\u{E0B0}" };
+    let arrow = if theme == "powerline_round" {
+        "\u{E0B4}"
+    } else {
+        "\u{E0B0}"
+    };
 
     let mut needs_usage_api = false;
 
@@ -713,7 +717,9 @@ fn generate_powerline_script(segments: &[StatusLineSegment], theme: &str) -> Str
     let mut extract_code = String::new();
     for (i, seg) in enabled.iter().enumerate() {
         let fg = seg.color.as_deref().unwrap_or("white");
-        let bg = seg.bg_color.as_deref()
+        let bg = seg
+            .bg_color
+            .as_deref()
             .unwrap_or_else(|| get_powerline_default_bg(&seg.segment_type));
         let fg_num = get_ansi_fg_color_num(fg);
         let bg_num = get_ansi_bg_color_num(bg);
@@ -741,17 +747,29 @@ fn generate_powerline_script(segments: &[StatusLineSegment], theme: &str) -> Str
                     r#"    {extract}
     {var_name} = ("{fg_num}", "{bg_num}", f"{label_prefix}{{name}}") if name else None
 "#,
-                    extract = extract, var_name = var_name, fg_num = fg_num, bg_num = bg_num, label_prefix = label_prefix
+                    extract = extract,
+                    var_name = var_name,
+                    fg_num = fg_num,
+                    bg_num = bg_num,
+                    label_prefix = label_prefix
                 ));
             }
             "cost" => {
                 let fmt = seg.format.as_deref().unwrap_or("$0.00");
-                let decimals = if fmt.contains("0000") || fmt.contains("4") { 4 } else { 2 };
+                let decimals = if fmt.contains("0000") || fmt.contains("4") {
+                    4
+                } else {
+                    2
+                };
                 extract_code.push_str(&format!(
                     r#"    cost = data.get("cost", {{}}).get("total_cost_usd", 0)
     {var_name} = ("{fg_num}", "{bg_num}", f"{label_prefix}${{cost:.{decimals}f}}")
 "#,
-                    var_name = var_name, fg_num = fg_num, bg_num = bg_num, label_prefix = label_prefix, decimals = decimals
+                    var_name = var_name,
+                    fg_num = fg_num,
+                    bg_num = bg_num,
+                    label_prefix = label_prefix,
+                    decimals = decimals
                 ));
             }
             "context" => {
@@ -768,7 +786,10 @@ fn generate_powerline_script(segments: &[StatusLineSegment], theme: &str) -> Str
         return str(n)
     {var_name} = ("{fg_num}", "{bg_num}", f"{label_prefix}{{fmt_tokens(used)}}/{{fmt_tokens(cap)}}")
 "#,
-                            var_name = var_name, fg_num = fg_num, bg_num = bg_num, label_prefix = label_prefix
+                            var_name = var_name,
+                            fg_num = fg_num,
+                            bg_num = bg_num,
+                            label_prefix = label_prefix
                         ));
                     }
                     "bar" => {
@@ -788,7 +809,10 @@ fn generate_powerline_script(segments: &[StatusLineSegment], theme: &str) -> Str
                             r#"    pct = data.get("context_window", {{}}).get("used_percentage", 0)
     {var_name} = ("{fg_num}", "{bg_num}", f"{label_prefix}{{pct:.0f}}%")
 "#,
-                            var_name = var_name, fg_num = fg_num, bg_num = bg_num, label_prefix = label_prefix
+                            var_name = var_name,
+                            fg_num = fg_num,
+                            bg_num = bg_num,
+                            label_prefix = label_prefix
                         ));
                     }
                 }
@@ -821,12 +845,21 @@ fn generate_powerline_script(segments: &[StatusLineSegment], theme: &str) -> Str
             "cwd" => {
                 let fmt = seg.format.as_deref().unwrap_or("basename");
                 let (import_line, extract) = match fmt {
-                    "full" => ("", r#"cwd = data.get("workspace", {}).get("current_dir", "") or data.get("cwd", "")"#),
-                    "short" => ("import os", r#"cwd = data.get("workspace", {}).get("current_dir", "") or data.get("cwd", "")
+                    "full" => (
+                        "",
+                        r#"cwd = data.get("workspace", {}).get("current_dir", "") or data.get("cwd", "")"#,
+                    ),
+                    "short" => (
+                        "import os",
+                        r#"cwd = data.get("workspace", {}).get("current_dir", "") or data.get("cwd", "")
     home = os.path.expanduser("~")
     if cwd.startswith(home):
-        cwd = "~" + cwd[len(home):]"#),
-                    _ => ("import os", r#"cwd = os.path.basename(data.get("workspace", {}).get("current_dir", "") or data.get("cwd", ""))"#),
+        cwd = "~" + cwd[len(home):]"#,
+                    ),
+                    _ => (
+                        "import os",
+                        r#"cwd = os.path.basename(data.get("workspace", {}).get("current_dir", "") or data.get("cwd", ""))"#,
+                    ),
                 };
                 if !import_line.is_empty() {
                     extract_code.push_str(&format!("    {}\n", import_line));
@@ -835,14 +868,24 @@ fn generate_powerline_script(segments: &[StatusLineSegment], theme: &str) -> Str
                     r#"    {extract}
     {var_name} = ("{fg_num}", "{bg_num}", f"{label_prefix}{{cwd}}") if cwd else None
 "#,
-                    extract = extract, var_name = var_name, fg_num = fg_num, bg_num = bg_num, label_prefix = label_prefix
+                    extract = extract,
+                    var_name = var_name,
+                    fg_num = fg_num,
+                    bg_num = bg_num,
+                    label_prefix = label_prefix
                 ));
             }
             "project_dir" => {
                 let fmt = seg.format.as_deref().unwrap_or("basename");
                 let (import_line, extract) = match fmt {
-                    "full" => ("", r#"pdir = data.get("workspace", {}).get("project_dir", "")"#),
-                    _ => ("import os", r#"pdir = os.path.basename(data.get("workspace", {}).get("project_dir", ""))"#),
+                    "full" => (
+                        "",
+                        r#"pdir = data.get("workspace", {}).get("project_dir", "")"#,
+                    ),
+                    _ => (
+                        "import os",
+                        r#"pdir = os.path.basename(data.get("workspace", {}).get("project_dir", ""))"#,
+                    ),
                 };
                 if !import_line.is_empty() {
                     extract_code.push_str(&format!("    {}\n", import_line));
@@ -851,29 +894,49 @@ fn generate_powerline_script(segments: &[StatusLineSegment], theme: &str) -> Str
                     r#"    {extract}
     {var_name} = ("{fg_num}", "{bg_num}", f"{label_prefix}{{pdir}}") if pdir else None
 "#,
-                    extract = extract, var_name = var_name, fg_num = fg_num, bg_num = bg_num, label_prefix = label_prefix
+                    extract = extract,
+                    var_name = var_name,
+                    fg_num = fg_num,
+                    bg_num = bg_num,
+                    label_prefix = label_prefix
                 ));
             }
             "tokens_in" => {
                 let fmt = seg.format.as_deref().unwrap_or("compact");
-                let format_fn = if fmt == "full" { "str(tokens)" } else { r#"f"{tokens/1000:.0f}k" if tokens >= 1000 else str(tokens)"# };
+                let format_fn = if fmt == "full" {
+                    "str(tokens)"
+                } else {
+                    r#"f"{tokens/1000:.0f}k" if tokens >= 1000 else str(tokens)"#
+                };
                 extract_code.push_str(&format!(
                     r#"    tokens = data.get("context_window", {{}}).get("total_input_tokens", 0)
     formatted = {format_fn}
     {var_name} = ("{fg_num}", "{bg_num}", f"{label_prefix}{{formatted}}")
 "#,
-                    format_fn = format_fn, var_name = var_name, fg_num = fg_num, bg_num = bg_num, label_prefix = label_prefix
+                    format_fn = format_fn,
+                    var_name = var_name,
+                    fg_num = fg_num,
+                    bg_num = bg_num,
+                    label_prefix = label_prefix
                 ));
             }
             "tokens_out" => {
                 let fmt = seg.format.as_deref().unwrap_or("compact");
-                let format_fn = if fmt == "full" { "str(tokens)" } else { r#"f"{tokens/1000:.0f}k" if tokens >= 1000 else str(tokens)"# };
+                let format_fn = if fmt == "full" {
+                    "str(tokens)"
+                } else {
+                    r#"f"{tokens/1000:.0f}k" if tokens >= 1000 else str(tokens)"#
+                };
                 extract_code.push_str(&format!(
                     r#"    tokens = data.get("context_window", {{}}).get("total_output_tokens", 0)
     formatted = {format_fn}
     {var_name} = ("{fg_num}", "{bg_num}", f"{label_prefix}{{formatted}}")
 "#,
-                    format_fn = format_fn, var_name = var_name, fg_num = fg_num, bg_num = bg_num, label_prefix = label_prefix
+                    format_fn = format_fn,
+                    var_name = var_name,
+                    fg_num = fg_num,
+                    bg_num = bg_num,
+                    label_prefix = label_prefix
                 ));
             }
             "duration" => {
@@ -892,7 +955,11 @@ fn generate_powerline_script(segments: &[StatusLineSegment], theme: &str) -> Str
     {format_code}
     {var_name} = ("{fg_num}", "{bg_num}", f"{label_prefix}{{formatted}}")
 "#,
-                    format_code = format_code, var_name = var_name, fg_num = fg_num, bg_num = bg_num, label_prefix = label_prefix
+                    format_code = format_code,
+                    var_name = var_name,
+                    fg_num = fg_num,
+                    bg_num = bg_num,
+                    label_prefix = label_prefix
                 ));
             }
             "api_duration" => {
@@ -911,7 +978,11 @@ fn generate_powerline_script(segments: &[StatusLineSegment], theme: &str) -> Str
     {format_code}
     {var_name} = ("{fg_num}", "{bg_num}", f"{label_prefix}{{formatted}}")
 "#,
-                    format_code = format_code, var_name = var_name, fg_num = fg_num, bg_num = bg_num, label_prefix = label_prefix
+                    format_code = format_code,
+                    var_name = var_name,
+                    fg_num = fg_num,
+                    bg_num = bg_num,
+                    label_prefix = label_prefix
                 ));
             }
             "lines_changed" => {
@@ -929,7 +1000,11 @@ fn generate_powerline_script(segments: &[StatusLineSegment], theme: &str) -> Str
     {format_code}
     {var_name} = ("{fg_num}", "{bg_num}", f"{label_prefix}{{formatted}}")
 "#,
-                    format_code = format_code, var_name = var_name, fg_num = fg_num, bg_num = bg_num, label_prefix = label_prefix
+                    format_code = format_code,
+                    var_name = var_name,
+                    fg_num = fg_num,
+                    bg_num = bg_num,
+                    label_prefix = label_prefix
                 ));
             }
             "git_branch" => {
@@ -987,7 +1062,11 @@ fn generate_powerline_script(segments: &[StatusLineSegment], theme: &str) -> Str
                     r#"    {extract}
     {var_name} = ("{fg_num}", "{bg_num}", f"{label_prefix}{{sid}}") if sid else None
 "#,
-                    extract = extract, var_name = var_name, fg_num = fg_num, bg_num = bg_num, label_prefix = label_prefix
+                    extract = extract,
+                    var_name = var_name,
+                    fg_num = fg_num,
+                    bg_num = bg_num,
+                    label_prefix = label_prefix
                 ));
             }
             "version" => {
@@ -995,7 +1074,10 @@ fn generate_powerline_script(segments: &[StatusLineSegment], theme: &str) -> Str
                     r#"    ver = data.get("version", "")
     {var_name} = ("{fg_num}", "{bg_num}", f"{label_prefix}v{{ver}}") if ver else None
 "#,
-                    var_name = var_name, fg_num = fg_num, bg_num = bg_num, label_prefix = label_prefix
+                    var_name = var_name,
+                    fg_num = fg_num,
+                    bg_num = bg_num,
+                    label_prefix = label_prefix
                 ));
             }
             "agent_name" => {
@@ -1004,7 +1086,10 @@ fn generate_powerline_script(segments: &[StatusLineSegment], theme: &str) -> Str
     aname = agent.get("name", "") if agent else ""
     {var_name} = ("{fg_num}", "{bg_num}", f"{label_prefix}{{aname}}") if aname else None
 "#,
-                    var_name = var_name, fg_num = fg_num, bg_num = bg_num, label_prefix = label_prefix
+                    var_name = var_name,
+                    fg_num = fg_num,
+                    bg_num = bg_num,
+                    label_prefix = label_prefix
                 ));
             }
             "vim_mode" => {
@@ -1013,14 +1098,20 @@ fn generate_powerline_script(segments: &[StatusLineSegment], theme: &str) -> Str
     mode = vim.get("mode", "")
     {var_name} = ("{fg_num}", "{bg_num}", f"{label_prefix}{{mode.upper()}}") if mode else None
 "#,
-                    var_name = var_name, fg_num = fg_num, bg_num = bg_num, label_prefix = label_prefix
+                    var_name = var_name,
+                    fg_num = fg_num,
+                    bg_num = bg_num,
+                    label_prefix = label_prefix
                 ));
             }
             "custom_text" => {
                 let text = seg.custom_text.as_deref().unwrap_or("");
                 extract_code.push_str(&format!(
                     "    {var_name} = (\"{fg_num}\", \"{bg_num}\", \"{text}\")\n",
-                    var_name = var_name, fg_num = fg_num, bg_num = bg_num, text = text
+                    var_name = var_name,
+                    fg_num = fg_num,
+                    bg_num = bg_num,
+                    text = text
                 ));
             }
             "five_hour_usage" => {
@@ -1049,7 +1140,10 @@ fn generate_powerline_script(segments: &[StatusLineSegment], theme: &str) -> Str
         pct = usage["five_hour"].get("utilization", 0) or 0
         {var_name} = ("{fg_num}", "{bg_num}", f"{label_prefix}{{pct:.0f}}%")
 "#,
-                            var_name = var_name, fg_num = fg_num, bg_num = bg_num, label_prefix = label_prefix
+                            var_name = var_name,
+                            fg_num = fg_num,
+                            bg_num = bg_num,
+                            label_prefix = label_prefix
                         ));
                     }
                     _ => {
@@ -1073,7 +1167,10 @@ fn generate_powerline_script(segments: &[StatusLineSegment], theme: &str) -> Str
                 pass
         {var_name} = ("{fg_num}", "{bg_num}", f"{label_prefix}{{pct:.0f}}%{{reset_str}}")
 "#,
-                            var_name = var_name, fg_num = fg_num, bg_num = bg_num, label_prefix = label_prefix
+                            var_name = var_name,
+                            fg_num = fg_num,
+                            bg_num = bg_num,
+                            label_prefix = label_prefix
                         ));
                     }
                 }
@@ -1104,7 +1201,10 @@ fn generate_powerline_script(segments: &[StatusLineSegment], theme: &str) -> Str
         pct = usage["seven_day"].get("utilization", 0) or 0
         {var_name} = ("{fg_num}", "{bg_num}", f"{label_prefix}{{pct:.0f}}%")
 "#,
-                            var_name = var_name, fg_num = fg_num, bg_num = bg_num, label_prefix = label_prefix
+                            var_name = var_name,
+                            fg_num = fg_num,
+                            bg_num = bg_num,
+                            label_prefix = label_prefix
                         ));
                     }
                     _ => {
@@ -1129,16 +1229,16 @@ fn generate_powerline_script(segments: &[StatusLineSegment], theme: &str) -> Str
                 pass
         {var_name} = ("{fg_num}", "{bg_num}", f"{label_prefix}{{pct:.0f}}%{{wk_str}}")
 "#,
-                            var_name = var_name, fg_num = fg_num, bg_num = bg_num, label_prefix = label_prefix
+                            var_name = var_name,
+                            fg_num = fg_num,
+                            bg_num = bg_num,
+                            label_prefix = label_prefix
                         ));
                     }
                 }
             }
             _ => {
-                extract_code.push_str(&format!(
-                    "    {var_name} = None\n",
-                    var_name = var_name
-                ));
+                extract_code.push_str(&format!("    {var_name} = None\n", var_name = var_name));
             }
         }
     }
@@ -1320,7 +1420,10 @@ fn build_color_code(fg: &str, bg: Option<&str>) -> String {
     match bg {
         Some(bg_color) => {
             let (br, bg_g, bb) = color_name_to_rgb(bg_color);
-            format!("\\033[38;2;{};{};{};48;2;{};{};{}m", fr, fg_g, fb, br, bg_g, bb)
+            format!(
+                "\\033[38;2;{};{};{};48;2;{};{};{}m",
+                fr, fg_g, fb, br, bg_g, bb
+            )
         }
         None => format!("\\033[38;2;{};{};{}m", fr, fg_g, fb),
     }
@@ -1461,20 +1564,18 @@ mod tests {
 
     #[test]
     fn test_generate_script_with_powerline_theme() {
-        let segments = vec![
-            StatusLineSegment {
-                id: "1".to_string(),
-                segment_type: "model".to_string(),
-                enabled: true,
-                label: None,
-                format: Some("short".to_string()),
-                color: Some("white".to_string()),
-                bg_color: Some("blue".to_string()),
-                separator_char: None,
-                custom_text: None,
-                position: 0,
-            },
-        ];
+        let segments = vec![StatusLineSegment {
+            id: "1".to_string(),
+            segment_type: "model".to_string(),
+            enabled: true,
+            label: None,
+            format: Some("short".to_string()),
+            color: Some("white".to_string()),
+            bg_color: Some("blue".to_string()),
+            separator_char: None,
+            custom_text: None,
+            position: 0,
+        }];
 
         let script = generate_script_from_segments_with_theme(&segments, "powerline");
         assert!(script.contains("Powerline"));

@@ -1,4 +1,6 @@
-use crate::db::models::{CreateStatusLineRequest, SegmentsPayload, StatusLine, StatusLineGalleryEntry, StatusLineSegment};
+use crate::db::models::{
+    CreateStatusLineRequest, SegmentsPayload, StatusLine, StatusLineGalleryEntry, StatusLineSegment,
+};
 use crate::db::schema::Database;
 use crate::services::{statusline_gallery, statusline_writer};
 use log::info;
@@ -10,9 +12,7 @@ use tauri::State;
 // ============================================================================
 
 #[tauri::command]
-pub fn get_all_statuslines(
-    db: State<'_, Arc<Mutex<Database>>>,
-) -> Result<Vec<StatusLine>, String> {
+pub fn get_all_statuslines(db: State<'_, Arc<Mutex<Database>>>) -> Result<Vec<StatusLine>, String> {
     info!("[StatusLine] Getting all statuslines");
     let db = db.lock().map_err(|e| e.to_string())?;
     db.get_all_statuslines().map_err(|e| e.to_string())
@@ -52,7 +52,10 @@ pub fn update_statusline(
         .map_err(|e| e.to_string())?
         .ok_or_else(|| "StatusLine not found".to_string())?;
 
-    let tags_json = request.tags.as_ref().map(|t| serde_json::to_string(t).unwrap());
+    let tags_json = request
+        .tags
+        .as_ref()
+        .map(|t| serde_json::to_string(t).unwrap());
     let _ = tags_json; // tags handled by update_statusline
 
     let updated = StatusLine {
@@ -81,18 +84,14 @@ pub fn update_statusline(
 }
 
 #[tauri::command]
-pub fn delete_statusline(
-    db: State<'_, Arc<Mutex<Database>>>,
-    id: i64,
-) -> Result<(), String> {
+pub fn delete_statusline(db: State<'_, Arc<Mutex<Database>>>, id: i64) -> Result<(), String> {
     info!("[StatusLine] Deleting statusline id={}", id);
     let db = db.lock().map_err(|e| e.to_string())?;
 
     // If this was active, remove from settings
     if let Ok(Some(sl)) = db.get_statusline_by_id(id) {
         if sl.is_active {
-            statusline_writer::remove_statusline_from_settings()
-                .map_err(|e| e.to_string())?;
+            statusline_writer::remove_statusline_from_settings().map_err(|e| e.to_string())?;
         }
     }
 
@@ -124,32 +123,40 @@ pub fn activate_statusline(
                 .segments_json
                 .as_ref()
                 .map(|s| SegmentsPayload::parse(s))
-                .unwrap_or_else(|| SegmentsPayload { theme: "default".to_string(), segments: vec![] });
+                .unwrap_or_else(|| SegmentsPayload {
+                    theme: "default".to_string(),
+                    segments: vec![],
+                });
 
-            let script = statusline_writer::generate_script_from_segments_with_theme(&payload.segments, &payload.theme);
+            let script = statusline_writer::generate_script_from_segments_with_theme(
+                &payload.segments,
+                &payload.theme,
+            );
 
             // Write script to ~/.claude/statusline.py
-            let script_path = statusline_writer::write_statusline_script(&script)
-                .map_err(|e| e.to_string())?;
+            let script_path =
+                statusline_writer::write_statusline_script(&script).map_err(|e| e.to_string())?;
 
             // Also save the generated script in the DB
             let mut updated = sl.clone();
             updated.generated_script = Some(script);
             let _ = db.update_statusline(&updated);
 
-            let python_cmd = if cfg!(target_os = "windows") { "python" } else { "python3" };
+            let python_cmd = if cfg!(target_os = "windows") {
+                "python"
+            } else {
+                "python3"
+            };
             format!("{} {}", python_cmd, script_path.display())
         }
-        "premade" => {
-            sl.run_command
-                .clone()
-                .ok_or_else(|| "Premade statusline has no run_command".to_string())?
-        }
-        "raw" => {
-            sl.raw_command
-                .clone()
-                .ok_or_else(|| "Raw statusline has no raw_command".to_string())?
-        }
+        "premade" => sl
+            .run_command
+            .clone()
+            .ok_or_else(|| "Premade statusline has no run_command".to_string())?,
+        "raw" => sl
+            .raw_command
+            .clone()
+            .ok_or_else(|| "Raw statusline has no raw_command".to_string())?,
         _ => return Err(format!("Unknown statusline type: {}", sl.statusline_type)),
     };
 
@@ -166,14 +173,11 @@ pub fn activate_statusline(
 }
 
 #[tauri::command]
-pub fn deactivate_statusline(
-    db: State<'_, Arc<Mutex<Database>>>,
-) -> Result<(), String> {
+pub fn deactivate_statusline(db: State<'_, Arc<Mutex<Database>>>) -> Result<(), String> {
     info!("[StatusLine] Deactivating statusline");
     let db = db.lock().map_err(|e| e.to_string())?;
 
-    statusline_writer::remove_statusline_from_settings()
-        .map_err(|e| e.to_string())?;
+    statusline_writer::remove_statusline_from_settings().map_err(|e| e.to_string())?;
 
     db.deactivate_all_statuslines().map_err(|e| e.to_string())
 }
@@ -207,12 +211,7 @@ pub async fn fetch_statusline_gallery(
         db.get_setting("github_token")
     };
 
-    match statusline_gallery::fetch_gallery_from_url(
-        &gallery_url,
-        github_token.as_deref(),
-    )
-    .await
-    {
+    match statusline_gallery::fetch_gallery_from_url(&gallery_url, github_token.as_deref()).await {
         Ok(entries) => {
             // Cache the results
             let db = db.lock().map_err(|e| e.to_string())?;
@@ -220,7 +219,10 @@ pub async fn fetch_statusline_gallery(
             Ok(entries)
         }
         Err(e) => {
-            info!("[StatusLine] Gallery fetch failed, using seed entries: {}", e);
+            info!(
+                "[StatusLine] Gallery fetch failed, using seed entries: {}",
+                e
+            );
             // Fall back to seed entries
             Ok(statusline_gallery::get_seed_gallery_entries())
         }
@@ -265,9 +267,7 @@ pub fn install_premade_statusline(
 }
 
 #[tauri::command]
-pub fn get_statusline_gallery_url(
-    db: State<'_, Arc<Mutex<Database>>>,
-) -> Result<String, String> {
+pub fn get_statusline_gallery_url(db: State<'_, Arc<Mutex<Database>>>) -> Result<String, String> {
     let db = db.lock().map_err(|e| e.to_string())?;
     Ok(statusline_gallery::get_gallery_url(&db))
 }
@@ -291,7 +291,9 @@ pub fn generate_statusline_preview(
     theme: Option<String>,
 ) -> Result<String, String> {
     let theme = theme.as_deref().unwrap_or("default");
-    Ok(statusline_writer::generate_script_from_segments_with_theme(&segments, theme))
+    Ok(statusline_writer::generate_script_from_segments_with_theme(
+        &segments, theme,
+    ))
 }
 
 #[tauri::command]
@@ -319,44 +321,47 @@ mod tests {
             run_command: None,
             raw_command: None,
             padding: Some(1),
-            segments_json: Some(serde_json::to_string(&vec![
-                StatusLineSegment {
-                    id: "seg1".to_string(),
-                    segment_type: "model".to_string(),
-                    enabled: true,
-                    label: None,
-                    format: Some("short".to_string()),
-                    color: Some("cyan".to_string()),
-                    bg_color: None,
-                    separator_char: None,
-                    custom_text: None,
-                    position: 0,
-                },
-                StatusLineSegment {
-                    id: "seg2".to_string(),
-                    segment_type: "separator".to_string(),
-                    enabled: true,
-                    label: None,
-                    format: None,
-                    color: Some("gray".to_string()),
-                    bg_color: None,
-                    separator_char: Some("|".to_string()),
-                    custom_text: None,
-                    position: 1,
-                },
-                StatusLineSegment {
-                    id: "seg3".to_string(),
-                    segment_type: "cost".to_string(),
-                    enabled: true,
-                    label: None,
-                    format: Some("$0.00".to_string()),
-                    color: Some("green".to_string()),
-                    bg_color: None,
-                    separator_char: None,
-                    custom_text: None,
-                    position: 2,
-                },
-            ]).unwrap()),
+            segments_json: Some(
+                serde_json::to_string(&vec![
+                    StatusLineSegment {
+                        id: "seg1".to_string(),
+                        segment_type: "model".to_string(),
+                        enabled: true,
+                        label: None,
+                        format: Some("short".to_string()),
+                        color: Some("cyan".to_string()),
+                        bg_color: None,
+                        separator_char: None,
+                        custom_text: None,
+                        position: 0,
+                    },
+                    StatusLineSegment {
+                        id: "seg2".to_string(),
+                        segment_type: "separator".to_string(),
+                        enabled: true,
+                        label: None,
+                        format: None,
+                        color: Some("gray".to_string()),
+                        bg_color: None,
+                        separator_char: Some("|".to_string()),
+                        custom_text: None,
+                        position: 1,
+                    },
+                    StatusLineSegment {
+                        id: "seg3".to_string(),
+                        segment_type: "cost".to_string(),
+                        enabled: true,
+                        label: None,
+                        format: Some("$0.00".to_string()),
+                        color: Some("green".to_string()),
+                        bg_color: None,
+                        separator_char: None,
+                        custom_text: None,
+                        position: 2,
+                    },
+                ])
+                .unwrap(),
+            ),
             generated_script: None,
             icon: None,
             author: None,
@@ -462,7 +467,9 @@ mod tests {
     #[test]
     fn test_get_statusline_by_id() {
         let db = Database::in_memory().unwrap();
-        let created = db.create_statusline(&make_custom_request("FindMe")).unwrap();
+        let created = db
+            .create_statusline(&make_custom_request("FindMe"))
+            .unwrap();
 
         let found = db.get_statusline_by_id(created.id).unwrap();
         assert!(found.is_some());
@@ -476,7 +483,9 @@ mod tests {
     #[test]
     fn test_update_statusline() {
         let db = Database::in_memory().unwrap();
-        let created = db.create_statusline(&make_custom_request("Original")).unwrap();
+        let created = db
+            .create_statusline(&make_custom_request("Original"))
+            .unwrap();
 
         let mut updated = created.clone();
         updated.name = "Updated Name".to_string();
@@ -492,7 +501,9 @@ mod tests {
     #[test]
     fn test_delete_statusline() {
         let db = Database::in_memory().unwrap();
-        let created = db.create_statusline(&make_custom_request("DeleteMe")).unwrap();
+        let created = db
+            .create_statusline(&make_custom_request("DeleteMe"))
+            .unwrap();
 
         db.delete_statusline(created.id).unwrap();
         let found = db.get_statusline_by_id(created.id).unwrap();
@@ -525,7 +536,9 @@ mod tests {
     #[test]
     fn test_deactivate_all_statuslines() {
         let db = Database::in_memory().unwrap();
-        let sl = db.create_statusline(&make_custom_request("Active SL")).unwrap();
+        let sl = db
+            .create_statusline(&make_custom_request("Active SL"))
+            .unwrap();
         db.set_active_statusline(sl.id).unwrap();
 
         // Verify it's active
@@ -539,7 +552,8 @@ mod tests {
     #[test]
     fn test_unique_name_constraint() {
         let db = Database::in_memory().unwrap();
-        db.create_statusline(&make_custom_request("UniqueName")).unwrap();
+        db.create_statusline(&make_custom_request("UniqueName"))
+            .unwrap();
 
         let result = db.create_statusline(&make_custom_request("UniqueName"));
         assert!(result.is_err());
@@ -671,6 +685,9 @@ mod tests {
         let req = make_premade_request("TaggedSL");
         let sl = db.create_statusline(&req).unwrap();
 
-        assert_eq!(sl.tags, Some(vec!["premade".to_string(), "powerline".to_string()]));
+        assert_eq!(
+            sl.tags,
+            Some(vec!["premade".to_string(), "powerline".to_string()])
+        );
     }
 }

@@ -611,8 +611,7 @@ impl SegmentsPayload {
             return payload;
         }
         // Fall back to legacy array format
-        let segments: Vec<StatusLineSegment> =
-            serde_json::from_str(json).unwrap_or_default();
+        let segments: Vec<StatusLineSegment> = serde_json::from_str(json).unwrap_or_default();
         SegmentsPayload {
             theme: "default".to_string(),
             segments,

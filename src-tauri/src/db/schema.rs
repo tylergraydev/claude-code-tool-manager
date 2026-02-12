@@ -1712,10 +1712,8 @@ impl Database {
         self.conn
             .execute("UPDATE statuslines SET is_active = 0", [])?;
         // Activate the specified one
-        self.conn.execute(
-            "UPDATE statuslines SET is_active = 1 WHERE id = ?",
-            [id],
-        )?;
+        self.conn
+            .execute("UPDATE statuslines SET is_active = 1 WHERE id = ?", [id])?;
         Ok(())
     }
 
