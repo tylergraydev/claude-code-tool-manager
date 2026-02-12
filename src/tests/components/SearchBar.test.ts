@@ -1,22 +1,57 @@
-import { describe, it, expect, afterEach, beforeAll, afterAll } from 'vitest';
-import { render, screen } from '@testing-library/svelte';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { render, screen, fireEvent } from '@testing-library/svelte';
 import SearchBar from '$lib/components/shared/SearchBar.svelte';
 
-describe('SearchBar Component (Unit Style)', () => {
-	let value = '';
-	let onchange: (v: string) => void = () => {};
-
+describe('SearchBar Component', () => {
 	afterEach(() => {
-		value = '';
-		onchange = () => {};
+		vi.restoreAllMocks();
 	});
 
-	it('should have placeholder default value', () => {
-		expect(SearchBar.prototype).toBeDefined();
+	it('should render input with placeholder', () => {
+		render(SearchBar, { props: { value: '', placeholder: 'Search MCPs...' } });
+
+		const input = screen.getByPlaceholderText('Search MCPs...');
+		expect(input).toBeInTheDocument();
 	});
 
-	it('should be able to create component', () => {
-		// Just test that component can be imported and accessed
-		expect(SearchBar).toBeDefined();
+	it('should render with default placeholder', () => {
+		render(SearchBar, { props: { value: '' } });
+
+		const input = screen.getByPlaceholderText('Search...');
+		expect(input).toBeInTheDocument();
+	});
+
+	it('should call onchange when user types', async () => {
+		const onchange = vi.fn();
+		render(SearchBar, { props: { value: '', onchange } });
+
+		const input = screen.getByPlaceholderText('Search...');
+		await fireEvent.input(input, { target: { value: 'test' } });
+
+		expect(onchange).toHaveBeenCalledWith('test');
+	});
+
+	it('should show clear button when value is non-empty', () => {
+		render(SearchBar, { props: { value: 'search text' } });
+
+		const clearButton = screen.getByRole('button');
+		expect(clearButton).toBeInTheDocument();
+	});
+
+	it('should not show clear button when value is empty', () => {
+		render(SearchBar, { props: { value: '' } });
+
+		const clearButton = screen.queryByRole('button');
+		expect(clearButton).not.toBeInTheDocument();
+	});
+
+	it('should call onchange with empty string when clear button clicked', async () => {
+		const onchange = vi.fn();
+		render(SearchBar, { props: { value: 'text', onchange } });
+
+		const clearButton = screen.getByRole('button');
+		await fireEvent.click(clearButton);
+
+		expect(onchange).toHaveBeenCalledWith('');
 	});
 });

@@ -487,6 +487,162 @@ pub struct EditorInfo {
     pub config_path: String, // Path to main config file
 }
 
+// Configuration Profiles
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Profile {
+    pub id: i64,
+    pub name: String,
+    pub description: Option<String>,
+    pub icon: Option<String>,
+    pub is_active: bool,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CreateProfileRequest {
+    pub name: String,
+    pub description: Option<String>,
+    pub icon: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProfileItem {
+    pub id: i64,
+    pub profile_id: i64,
+    pub item_type: String,
+    pub item_id: i64,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProfileWithItems {
+    pub profile: Profile,
+    pub mcps: Vec<i64>,
+    pub skills: Vec<i64>,
+    pub commands: Vec<i64>,
+    pub subagents: Vec<i64>,
+    pub hooks: Vec<i64>,
+}
+
+// Status Lines
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StatusLine {
+    pub id: i64,
+    pub name: String,
+    pub description: Option<String>,
+    pub statusline_type: String, // "custom", "premade", "raw"
+    pub package_name: Option<String>,
+    pub install_command: Option<String>,
+    pub run_command: Option<String>,
+    pub raw_command: Option<String>,
+    pub padding: i32,
+    pub is_active: bool,
+    pub segments_json: Option<String>,
+    pub generated_script: Option<String>,
+    pub icon: Option<String>,
+    pub author: Option<String>,
+    pub homepage_url: Option<String>,
+    pub tags: Option<Vec<String>>,
+    pub source: String,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CreateStatusLineRequest {
+    pub name: String,
+    pub description: Option<String>,
+    pub statusline_type: String,
+    pub package_name: Option<String>,
+    pub install_command: Option<String>,
+    pub run_command: Option<String>,
+    pub raw_command: Option<String>,
+    pub padding: Option<i32>,
+    pub segments_json: Option<String>,
+    pub generated_script: Option<String>,
+    pub icon: Option<String>,
+    pub author: Option<String>,
+    pub homepage_url: Option<String>,
+    pub tags: Option<Vec<String>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StatusLineSegment {
+    pub id: String,
+    #[serde(rename = "type")]
+    pub segment_type: String, // model, cost, context, cwd, tokens_in, tokens_out, vim_mode, separator, custom_text
+    pub enabled: bool,
+    pub label: Option<String>,
+    pub format: Option<String>,
+    pub color: Option<String>,
+    pub bg_color: Option<String>,
+    pub separator_char: Option<String>,
+    pub custom_text: Option<String>,
+    pub position: i32,
+}
+
+/// Wrapper for segments_json that can include theme info.
+/// Supports legacy format (plain array) and new format (object with theme).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SegmentsPayload {
+    #[serde(default = "default_theme")]
+    pub theme: String,
+    pub segments: Vec<StatusLineSegment>,
+}
+
+fn default_theme() -> String {
+    "default".to_string()
+}
+
+impl SegmentsPayload {
+    /// Parse segments_json which may be a plain array (legacy) or an object with theme
+    pub fn parse(json: &str) -> Self {
+        // Try new object format first
+        if let Ok(payload) = serde_json::from_str::<SegmentsPayload>(json) {
+            return payload;
+        }
+        // Fall back to legacy array format
+        let segments: Vec<StatusLineSegment> =
+            serde_json::from_str(json).unwrap_or_default();
+        SegmentsPayload {
+            theme: "default".to_string(),
+            segments,
+        }
+    }
+
+    pub fn is_powerline(&self) -> bool {
+        self.theme == "powerline" || self.theme == "powerline_round"
+    }
+
+    pub fn is_powerline_round(&self) -> bool {
+        self.theme == "powerline_round"
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StatusLineGalleryEntry {
+    pub name: String,
+    pub description: Option<String>,
+    pub author: Option<String>,
+    pub homepage_url: Option<String>,
+    pub install_command: Option<String>,
+    pub run_command: Option<String>,
+    pub package_name: Option<String>,
+    pub icon: Option<String>,
+    pub tags: Option<Vec<String>>,
+    pub preview_text: Option<String>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

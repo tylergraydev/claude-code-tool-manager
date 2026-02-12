@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { Header } from '$lib/components/layout';
-	import { mcpLibrary, projectsStore, subagentLibrary, skillLibrary, hookLibrary, commandLibrary } from '$lib/stores';
-	import { FolderOpen, Plug, Bot, Sparkles, Zap, Globe, ArrowRight, Terminal } from 'lucide-svelte';
+	import { mcpLibrary, projectsStore, subagentLibrary, skillLibrary, hookLibrary, commandLibrary, profileLibrary, statuslineLibrary } from '$lib/stores';
+	import { FolderOpen, Plug, Bot, Sparkles, Zap, Globe, ArrowRight, Terminal, Layers, PanelBottom } from 'lucide-svelte';
 	import { goto } from '$app/navigation';
 
 	// Derived counts
@@ -14,6 +14,10 @@
 	const globalCommandCount = $derived(commandLibrary.globalCommands.length);
 	const hookCount = $derived(hookLibrary.hooks.length);
 	const globalHookCount = $derived(hookLibrary.globalHooks.length);
+	const profileCount = $derived(profileLibrary.profiles.length);
+	const activeProfileName = $derived(profileLibrary.activeProfile?.name);
+	const statuslineCount = $derived(statuslineLibrary.statuslines.length);
+	const activeStatusLineName = $derived(statuslineLibrary.activeStatusLine?.name);
 
 	const stats = $derived([
 		{
@@ -60,6 +64,22 @@
 			icon: Zap,
 			color: 'bg-rose-500',
 			href: '/hooks'
+		},
+		{
+			label: 'Profiles',
+			value: profileCount,
+			subtitle: activeProfileName ? `Active: ${activeProfileName}` : 'None active',
+			icon: Layers,
+			color: 'bg-indigo-500',
+			href: '/profiles'
+		},
+		{
+			label: 'Status Line',
+			value: statuslineCount,
+			subtitle: activeStatusLineName ? `Active: ${activeStatusLineName}` : 'None active',
+			icon: PanelBottom,
+			color: 'bg-teal-500',
+			href: '/statusline'
 		}
 	]);
 

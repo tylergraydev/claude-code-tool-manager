@@ -49,6 +49,18 @@ test.describe('Navigation', () => {
 		await navigateToRoute(page, '/projects', /Project/i);
 	});
 
+	test('should navigate to Commands', async ({ page }) => {
+		await navigateToRoute(page, '/commands', /Command/i);
+	});
+
+	test('should navigate to Profiles', async ({ page }) => {
+		await navigateToRoute(page, '/profiles', /Profile/i);
+	});
+
+	test('should navigate to Status Line', async ({ page }) => {
+		await navigateToRoute(page, '/statusline', /Status Line/i);
+	});
+
 	test('should navigate to Global Settings', async ({ page }) => {
 		await navigateToRoute(page, '/settings', /Setting/i);
 	});

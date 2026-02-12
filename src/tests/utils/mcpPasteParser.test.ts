@@ -140,6 +140,122 @@ describe('MCP Paste Parser', () => {
 		});
 	});
 
+	describe('edge cases', () => {
+		it('should parse nested JSON with single named server', () => {
+			const json = JSON.stringify({
+				'my-server': {
+					command: 'node',
+					args: ['server.js']
+				}
+			});
+			const result = parseMcpFromClipboard(json);
+
+			expect(result.success).toBe(true);
+			expect(result.mcps[0].name).toBe('my-server');
+			expect(result.mcps[0].command).toBe('node');
+			expect(result.mcps[0].args).toEqual(['server.js']);
+		});
+
+		it('should parse command with multiple -e flags', () => {
+			const cmd = 'claude mcp add multi-env -e KEY1=val1 -e KEY2="val 2" -e KEY3=val3 -- node server.js';
+			const result = parseMcpFromClipboard(cmd);
+
+			expect(result.success).toBe(true);
+			expect(result.mcps[0].env?.KEY1).toBe('val1');
+			expect(result.mcps[0].env?.KEY2).toBe('val 2');
+			expect(result.mcps[0].env?.KEY3).toBe('val3');
+		});
+
+		it('should handle shell variable references in env values', () => {
+			const cmd = 'claude mcp add test -e API_KEY=$MY_TOKEN -- npx server';
+			const result = parseMcpFromClipboard(cmd);
+
+			expect(result.success).toBe(true);
+			expect(result.mcps[0].env?.API_KEY).toContain('MY_TOKEN');
+		});
+
+		it('should parse command with no args after --', () => {
+			const cmd = 'claude mcp add simple -- python';
+			const result = parseMcpFromClipboard(cmd);
+
+			expect(result.success).toBe(true);
+			expect(result.mcps[0].command).toBe('python');
+			expect(result.mcps[0].args).toEqual([]);
+		});
+
+		it('should parse HTTP server with headers', () => {
+			const json = JSON.stringify({
+				mcpServers: {
+					'api-server': {
+						type: 'http',
+						url: 'https://api.example.com/mcp',
+						headers: {
+							Authorization: 'Bearer token123',
+							'X-Custom': 'value'
+						}
+					}
+				}
+			});
+			const result = parseMcpFromClipboard(json);
+
+			expect(result.success).toBe(true);
+			expect(result.mcps[0].type).toBe('http');
+			expect(result.mcps[0].headers?.Authorization).toBe('Bearer token123');
+			expect(result.mcps[0].headers?.['X-Custom']).toBe('value');
+		});
+
+		it('should parse add-json with env variables', () => {
+			const cmd = `claude mcp add-json myserver '{"command":"npx","args":["-y","@pkg/srv"],"env":{"TOKEN":"abc"}}'`;
+			const result = parseMcpFromClipboard(cmd);
+
+			expect(result.success).toBe(true);
+			expect(result.mcps[0].name).toBe('myserver');
+			expect(result.mcps[0].env?.TOKEN).toBe('abc');
+		});
+
+		it('should handle URL-based server without explicit type as http', () => {
+			const json = JSON.stringify({
+				command: undefined,
+				url: 'https://api.example.com/mcp'
+			});
+			const result = parseMcpFromClipboard(json);
+
+			expect(result.success).toBe(true);
+			expect(result.mcps[0].type).toBe('http');
+			expect(result.mcps[0].url).toBe('https://api.example.com/mcp');
+		});
+
+		it('should detect SSE type from URL containing sse', () => {
+			const json = JSON.stringify({
+				mcpServers: {
+					'sse-server': {
+						url: 'https://mcp.example.com/sse'
+					}
+				}
+			});
+			const result = parseMcpFromClipboard(json);
+
+			expect(result.success).toBe(true);
+			expect(result.mcps[0].type).toBe('sse');
+		});
+
+		it('should parse command with single-quoted env values', () => {
+			const cmd = "claude mcp add test -e DESC='Hello World' -- node server.js";
+			const result = parseMcpFromClipboard(cmd);
+
+			expect(result.success).toBe(true);
+			expect(result.mcps[0].env?.DESC).toBe('Hello World');
+		});
+
+		it('should handle empty mcpServers object', () => {
+			const json = JSON.stringify({ mcpServers: {} });
+			const result = parseMcpFromClipboard(json);
+
+			expect(result.success).toBe(true);
+			expect(result.mcps).toHaveLength(0);
+		});
+	});
+
 	describe('error handling', () => {
 		it('should return error for invalid JSON', () => {
 			const result = parseMcpFromClipboard('{invalid json}');

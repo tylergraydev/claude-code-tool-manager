@@ -232,6 +232,33 @@
 </Header>
 
 <div class="flex-1 overflow-auto p-6">
+	<!-- Rate Limit Info Bar -->
+	{#if repoLibrary.rateLimitInfo}
+		{@const info = repoLibrary.rateLimitInfo}
+		{@const isAuthenticated = info.limit > 60}
+		{@const isLow = info.remaining < 10}
+		<div class="mb-4 flex items-center justify-between px-4 py-2.5 rounded-lg text-sm {isLow ? 'bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800' : 'bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700'}">
+			<div class="flex items-center gap-3">
+				<span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium {isAuthenticated ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'}">
+					{isAuthenticated ? 'Authenticated' : 'Unauthenticated'}
+				</span>
+				<span class="{isLow ? 'text-amber-700 dark:text-amber-400' : 'text-gray-600 dark:text-gray-400'}">
+					GitHub API: {info.remaining} / {info.limit} requests remaining
+				</span>
+			</div>
+			{#if isLow && info.resetAt}
+				<span class="text-xs text-amber-600 dark:text-amber-400">
+					Resets at {new Date(info.resetAt).toLocaleTimeString()}
+				</span>
+			{/if}
+			{#if !isAuthenticated}
+				<a href="/settings" class="text-xs text-primary-600 dark:text-primary-400 hover:underline">
+					Add token for 5,000 req/hr
+				</a>
+			{/if}
+		</div>
+	{/if}
+
 	<!-- Tabs -->
 	<div class="flex border-b border-gray-200 dark:border-gray-700 mb-6">
 		<button

@@ -1,3 +1,4 @@
+use crate::commands::settings::get_github_token_from_db;
 use crate::db::{
     CreateRepoRequest, Database, ImportResult, RateLimitInfo, Repo, RepoItem, SyncResult,
 };
@@ -148,10 +149,11 @@ pub fn get_all_repo_items(
 /// Sync a single repository
 #[tauri::command]
 pub async fn sync_repo(db: State<'_, Arc<Mutex<Database>>>, id: i64) -> Result<SyncResult, String> {
-    // Get repo info first (need to release lock before async)
-    let repo = {
+    // Get repo info and token first (need to release lock before async)
+    let (repo, token) = {
         let db = db.lock().map_err(|e| e.to_string())?;
-        db.conn()
+        let token = get_github_token_from_db(&db);
+        let repo = db.conn()
             .query_row(
                 r#"SELECT id, name, owner, repo, repo_type, content_type, github_url, description,
                           is_default, is_enabled, last_fetched_at, etag, created_at, updated_at
@@ -176,11 +178,12 @@ pub async fn sync_repo(db: State<'_, Arc<Mutex<Database>>>, id: i64) -> Result<S
                     })
                 },
             )
-            .map_err(|e| e.to_string())?
+            .map_err(|e| e.to_string())?;
+        (repo, token)
     };
 
     // Perform async fetch (no db access)
-    let items = repo_sync::fetch_repo_items(&repo)
+    let items = repo_sync::fetch_repo_items(&repo, token)
         .await
         .map_err(|e| e.to_string())?;
 
@@ -192,13 +195,15 @@ pub async fn sync_repo(db: State<'_, Arc<Mutex<Database>>>, id: i64) -> Result<S
 /// Sync all enabled repositories
 #[tauri::command]
 pub async fn sync_all_repos(db: State<'_, Arc<Mutex<Database>>>) -> Result<SyncResult, String> {
-    let repos = {
+    let (repos, token) = {
         let db = db.lock().map_err(|e| e.to_string())?;
-        repo_sync::get_all_repos(&db)
+        let token = get_github_token_from_db(&db);
+        let repos = repo_sync::get_all_repos(&db)
             .map_err(|e| e.to_string())?
             .into_iter()
             .filter(|r| r.is_enabled)
-            .collect::<Vec<_>>()
+            .collect::<Vec<_>>();
+        (repos, token)
     };
 
     let mut total_added = 0;
@@ -208,7 +213,7 @@ pub async fn sync_all_repos(db: State<'_, Arc<Mutex<Database>>>) -> Result<SyncR
 
     for repo in repos {
         // Fetch items (async, no db access)
-        match repo_sync::fetch_repo_items(&repo).await {
+        match repo_sync::fetch_repo_items(&repo, token.clone()).await {
             Ok(items) => {
                 // Save to database
                 let db_guard = db.lock().map_err(|e| e.to_string())?;
@@ -442,8 +447,14 @@ pub async fn import_repo_item(
 
 /// Get GitHub API rate limit information
 #[tauri::command]
-pub async fn get_github_rate_limit() -> Result<RateLimitInfo, String> {
-    let client = GitHubClient::new(None);
+pub async fn get_github_rate_limit(
+    db: State<'_, Arc<Mutex<Database>>>,
+) -> Result<RateLimitInfo, String> {
+    let token = {
+        let db = db.lock().map_err(|e| e.to_string())?;
+        get_github_token_from_db(&db)
+    };
+    let client = GitHubClient::new(token);
 
     let (limit, remaining, reset) = client.get_rate_limit().await.map_err(|e| e.to_string())?;
 

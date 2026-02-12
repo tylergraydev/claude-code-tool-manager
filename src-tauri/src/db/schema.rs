@@ -591,7 +591,46 @@ impl Database {
             )?;
         }
 
-        // Migration 11: Add is_favorite column to projects table
+        // Migration 11: Add profiles and profile_items tables
+        let has_profiles_table: bool = self
+            .conn
+            .query_row(
+                "SELECT COUNT(*) > 0 FROM sqlite_master WHERE type='table' AND name='profiles'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap_or(false);
+
+        if !has_profiles_table {
+            self.conn.execute_batch(
+                r#"
+                CREATE TABLE profiles (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL UNIQUE,
+                    description TEXT,
+                    icon TEXT,
+                    is_active INTEGER DEFAULT 0,
+                    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+                );
+
+                CREATE TABLE profile_items (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    profile_id INTEGER NOT NULL,
+                    item_type TEXT NOT NULL CHECK (item_type IN ('mcp', 'skill', 'command', 'subagent', 'hook')),
+                    item_id INTEGER NOT NULL,
+                    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE,
+                    UNIQUE(profile_id, item_type, item_id)
+                );
+
+                CREATE INDEX idx_profile_items_profile ON profile_items(profile_id);
+                CREATE INDEX idx_profiles_active ON profiles(is_active);
+                "#,
+            )?;
+        }
+
+        // Migration 12: Add is_favorite column to projects table
         let has_projects_favorite: bool = self
             .conn
             .query_row(
@@ -605,6 +644,45 @@ impl Database {
             self.conn.execute(
                 "ALTER TABLE projects ADD COLUMN is_favorite INTEGER DEFAULT 0",
                 [],
+            )?;
+        }
+
+        // Migration 13: Add statuslines table
+        let has_statuslines_table: bool = self
+            .conn
+            .query_row(
+                "SELECT COUNT(*) > 0 FROM sqlite_master WHERE type='table' AND name='statuslines'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap_or(false);
+
+        if !has_statuslines_table {
+            self.conn.execute_batch(
+                r#"
+                CREATE TABLE statuslines (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL UNIQUE,
+                    description TEXT,
+                    statusline_type TEXT NOT NULL CHECK (statusline_type IN ('custom', 'premade', 'raw')),
+                    package_name TEXT,
+                    install_command TEXT,
+                    run_command TEXT,
+                    raw_command TEXT,
+                    padding INTEGER DEFAULT 0,
+                    is_active INTEGER DEFAULT 0,
+                    segments_json TEXT,
+                    generated_script TEXT,
+                    icon TEXT,
+                    author TEXT,
+                    homepage_url TEXT,
+                    tags TEXT,
+                    source TEXT DEFAULT 'manual',
+                    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+                );
+                CREATE INDEX idx_statuslines_active ON statuslines(is_active);
+                "#,
             )?;
         }
 
@@ -1488,5 +1566,203 @@ impl Database {
         self.conn
             .execute("DELETE FROM global_hooks WHERE hook_id = ?", [hook_id])?;
         Ok(())
+    }
+
+    // ========================================================================
+    // StatusLine Methods
+    // ========================================================================
+
+    pub fn get_all_statuslines(&self) -> Result<Vec<crate::db::models::StatusLine>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, name, description, statusline_type, package_name, install_command,
+                    run_command, raw_command, padding, is_active, segments_json, generated_script,
+                    icon, author, homepage_url, tags, source, created_at, updated_at
+             FROM statuslines ORDER BY name",
+        )?;
+
+        let statuslines = stmt
+            .query_map([], |row| {
+                Ok(crate::db::models::StatusLine {
+                    id: row.get(0)?,
+                    name: row.get(1)?,
+                    description: row.get(2)?,
+                    statusline_type: row.get(3)?,
+                    package_name: row.get(4)?,
+                    install_command: row.get(5)?,
+                    run_command: row.get(6)?,
+                    raw_command: row.get(7)?,
+                    padding: row.get(8)?,
+                    is_active: row.get::<_, i32>(9)? != 0,
+                    segments_json: row.get(10)?,
+                    generated_script: row.get(11)?,
+                    icon: row.get(12)?,
+                    author: row.get(13)?,
+                    homepage_url: row.get(14)?,
+                    tags: row
+                        .get::<_, Option<String>>(15)?
+                        .and_then(|s| serde_json::from_str(&s).ok()),
+                    source: row.get(16)?,
+                    created_at: row.get(17)?,
+                    updated_at: row.get(18)?,
+                })
+            })?
+            .filter_map(|r| r.ok())
+            .collect();
+
+        Ok(statuslines)
+    }
+
+    pub fn get_statusline_by_id(&self, id: i64) -> Result<Option<crate::db::models::StatusLine>> {
+        let result = self.conn.query_row(
+            "SELECT id, name, description, statusline_type, package_name, install_command,
+                    run_command, raw_command, padding, is_active, segments_json, generated_script,
+                    icon, author, homepage_url, tags, source, created_at, updated_at
+             FROM statuslines WHERE id = ?",
+            [id],
+            |row| {
+                Ok(crate::db::models::StatusLine {
+                    id: row.get(0)?,
+                    name: row.get(1)?,
+                    description: row.get(2)?,
+                    statusline_type: row.get(3)?,
+                    package_name: row.get(4)?,
+                    install_command: row.get(5)?,
+                    run_command: row.get(6)?,
+                    raw_command: row.get(7)?,
+                    padding: row.get(8)?,
+                    is_active: row.get::<_, i32>(9)? != 0,
+                    segments_json: row.get(10)?,
+                    generated_script: row.get(11)?,
+                    icon: row.get(12)?,
+                    author: row.get(13)?,
+                    homepage_url: row.get(14)?,
+                    tags: row
+                        .get::<_, Option<String>>(15)?
+                        .and_then(|s| serde_json::from_str(&s).ok()),
+                    source: row.get(16)?,
+                    created_at: row.get(17)?,
+                    updated_at: row.get(18)?,
+                })
+            },
+        );
+
+        match result {
+            Ok(sl) => Ok(Some(sl)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(e.into()),
+        }
+    }
+
+    pub fn create_statusline(
+        &self,
+        req: &crate::db::models::CreateStatusLineRequest,
+    ) -> Result<crate::db::models::StatusLine> {
+        let tags_json = req.tags.as_ref().map(|t| serde_json::to_string(t).unwrap());
+
+        self.conn.execute(
+            "INSERT INTO statuslines (name, description, statusline_type, package_name, install_command,
+             run_command, raw_command, padding, segments_json, generated_script, icon, author,
+             homepage_url, tags, source)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'manual')",
+            rusqlite::params![
+                req.name, req.description, req.statusline_type, req.package_name,
+                req.install_command, req.run_command, req.raw_command,
+                req.padding.unwrap_or(0), req.segments_json, req.generated_script,
+                req.icon, req.author, req.homepage_url, tags_json
+            ],
+        )?;
+
+        let id = self.conn.last_insert_rowid();
+        self.get_statusline_by_id(id)?
+            .ok_or_else(|| anyhow::anyhow!("Failed to retrieve created statusline"))
+    }
+
+    pub fn update_statusline(
+        &self,
+        sl: &crate::db::models::StatusLine,
+    ) -> Result<crate::db::models::StatusLine> {
+        let tags_json = sl.tags.as_ref().map(|t| serde_json::to_string(t).unwrap());
+
+        self.conn.execute(
+            "UPDATE statuslines SET name = ?, description = ?, statusline_type = ?, package_name = ?,
+             install_command = ?, run_command = ?, raw_command = ?, padding = ?, segments_json = ?,
+             generated_script = ?, icon = ?, author = ?, homepage_url = ?, tags = ?,
+             updated_at = CURRENT_TIMESTAMP
+             WHERE id = ?",
+            rusqlite::params![
+                sl.name, sl.description, sl.statusline_type, sl.package_name,
+                sl.install_command, sl.run_command, sl.raw_command, sl.padding,
+                sl.segments_json, sl.generated_script, sl.icon, sl.author,
+                sl.homepage_url, tags_json, sl.id
+            ],
+        )?;
+
+        self.get_statusline_by_id(sl.id)?
+            .ok_or_else(|| anyhow::anyhow!("Failed to retrieve updated statusline"))
+    }
+
+    pub fn delete_statusline(&self, id: i64) -> Result<()> {
+        self.conn
+            .execute("DELETE FROM statuslines WHERE id = ?", [id])?;
+        Ok(())
+    }
+
+    pub fn set_active_statusline(&self, id: i64) -> Result<()> {
+        // Deactivate all first
+        self.conn
+            .execute("UPDATE statuslines SET is_active = 0", [])?;
+        // Activate the specified one
+        self.conn.execute(
+            "UPDATE statuslines SET is_active = 1 WHERE id = ?",
+            [id],
+        )?;
+        Ok(())
+    }
+
+    pub fn deactivate_all_statuslines(&self) -> Result<()> {
+        self.conn
+            .execute("UPDATE statuslines SET is_active = 0", [])?;
+        Ok(())
+    }
+
+    pub fn get_active_statusline(&self) -> Result<Option<crate::db::models::StatusLine>> {
+        let result = self.conn.query_row(
+            "SELECT id, name, description, statusline_type, package_name, install_command,
+                    run_command, raw_command, padding, is_active, segments_json, generated_script,
+                    icon, author, homepage_url, tags, source, created_at, updated_at
+             FROM statuslines WHERE is_active = 1",
+            [],
+            |row| {
+                Ok(crate::db::models::StatusLine {
+                    id: row.get(0)?,
+                    name: row.get(1)?,
+                    description: row.get(2)?,
+                    statusline_type: row.get(3)?,
+                    package_name: row.get(4)?,
+                    install_command: row.get(5)?,
+                    run_command: row.get(6)?,
+                    raw_command: row.get(7)?,
+                    padding: row.get(8)?,
+                    is_active: row.get::<_, i32>(9)? != 0,
+                    segments_json: row.get(10)?,
+                    generated_script: row.get(11)?,
+                    icon: row.get(12)?,
+                    author: row.get(13)?,
+                    homepage_url: row.get(14)?,
+                    tags: row
+                        .get::<_, Option<String>>(15)?
+                        .and_then(|s| serde_json::from_str(&s).ok()),
+                    source: row.get(16)?,
+                    created_at: row.get(17)?,
+                    updated_at: row.get(18)?,
+                })
+            },
+        );
+
+        match result {
+            Ok(sl) => Ok(Some(sl)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(e.into()),
+        }
     }
 }

@@ -24,10 +24,17 @@ import { resolve } from 'path';
 				'src/**/*.test.ts',
 				'src/**/*.spec.ts',
 				'src/tests/**'
-			]
+			],
+			thresholds: {
+				statements: 25,
+				branches: 12,
+				functions: 25,
+				lines: 25
+			}
 		}
 	},
 	resolve: {
+		conditions: ['browser'],
 		alias: {
 			$lib: resolve('./src/lib'),
 			$app: resolve('./src/tests/mocks/app')

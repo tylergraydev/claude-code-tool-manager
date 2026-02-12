@@ -5,7 +5,7 @@
 	import { Toast } from '$lib/components/shared';
 	import UpdateNotification from '$lib/components/shared/UpdateNotification.svelte';
 	import WhatsNewModal from '$lib/components/shared/WhatsNewModal.svelte';
-	import { mcpLibrary, projectsStore, skillLibrary, subagentLibrary, hookLibrary, commandLibrary, whatsNew, debugStore } from '$lib/stores';
+	import { mcpLibrary, projectsStore, skillLibrary, subagentLibrary, hookLibrary, commandLibrary, statuslineLibrary, whatsNew, debugStore } from '$lib/stores';
 	import { installDebugInterceptor } from '$lib/utils/debugLogger';
 
 	let { children } = $props();
@@ -23,7 +23,8 @@
 			hookLibrary.load(),
 			hookLibrary.loadGlobalHooks(),
 			commandLibrary.load(),
-			commandLibrary.loadGlobalCommands()
+			commandLibrary.loadGlobalCommands(),
+			statuslineLibrary.load()
 		]);
 
 		// Load debug state and install interceptor if enabled

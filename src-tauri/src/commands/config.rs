@@ -118,14 +118,18 @@ pub fn toggle_global_mcp_assignment(
 
 #[tauri::command]
 pub fn sync_global_config(db: State<'_, Arc<Mutex<Database>>>) -> Result<(), String> {
+    let db = db.lock().map_err(|e| e.to_string())?;
+    sync_global_config_from_db(&db)
+}
+
+/// Sync global config from database to disk (reusable helper without Tauri State)
+pub fn sync_global_config_from_db(db: &Database) -> Result<(), String> {
     use crate::commands::settings::get_enabled_editors_from_db;
     use crate::services::{
         codex_config, copilot_config, cursor_config, gemini_config, opencode_config,
     };
     use crate::utils::{codex_paths, copilot_paths, cursor_paths, gemini_paths, opencode_paths};
     use log::{info, warn};
-
-    let db = db.lock().map_err(|e| e.to_string())?;
 
     // Get enabled global MCPs
     let mut stmt = db
@@ -164,7 +168,7 @@ pub fn sync_global_config(db: State<'_, Arc<Mutex<Database>>>) -> Result<(), Str
         .collect();
 
     // Write to all enabled editors
-    let enabled_editors = get_enabled_editors_from_db(&db);
+    let enabled_editors = get_enabled_editors_from_db(db);
     for editor in &enabled_editors {
         match editor.as_str() {
             "claude_code" => {

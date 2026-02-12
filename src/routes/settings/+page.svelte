@@ -3,7 +3,7 @@
 	import { GlobalSettings } from '$lib/components/global';
 	import { invoke } from '@tauri-apps/api/core';
 	import { notifications, whatsNew } from '$lib/stores';
-	import { FolderOpen, FileText, RefreshCw, Sparkles, Check, AlertCircle, Server, Play, Square, Copy, Library, Trash2, Network, RotateCw } from 'lucide-svelte';
+	import { FolderOpen, FileText, RefreshCw, Sparkles, Check, AlertCircle, Server, Play, Square, Copy, Library, Trash2, Network, RotateCw, Key } from 'lucide-svelte';
 	import { getVersion } from '@tauri-apps/api/app';
 	import type { GatewayServerConfig, GatewayServerStatus, BackendInfo } from '$lib/types';
 
@@ -88,6 +88,11 @@
 	let mcpServerConfig = $state<McpServerConfig>({ enabled: true, port: 23847, autoStart: true });
 	let isServerLoading = $state(false);
 	let isSelfMcpInLibrary = $state(false);
+
+	// GitHub Token state
+	let githubToken = $state('');
+	let hasToken = $state(false);
+	let isSavingToken = $state(false);
 
 	// Gateway state
 	let gatewayStatus = $state<GatewayServerStatus | null>(null);
@@ -183,6 +188,44 @@
 			notifications.success('Backup created');
 		} catch (err) {
 			notifications.error('Failed to create backup');
+		}
+	}
+
+	// GitHub Token functions
+	async function loadGithubTokenStatus() {
+		try {
+			hasToken = await invoke<boolean>('has_github_token');
+		} catch (err) {
+			console.error('Failed to check GitHub token:', err);
+		}
+	}
+
+	async function saveGithubToken() {
+		if (!githubToken.trim()) return;
+		isSavingToken = true;
+		try {
+			await invoke('set_github_token', { token: githubToken });
+			hasToken = true;
+			githubToken = '';
+			notifications.success('GitHub token saved');
+		} catch (err) {
+			notifications.error(`Failed to save token: ${err}`);
+		} finally {
+			isSavingToken = false;
+		}
+	}
+
+	async function clearGithubToken() {
+		isSavingToken = true;
+		try {
+			await invoke('clear_github_token');
+			hasToken = false;
+			githubToken = '';
+			notifications.success('GitHub token cleared');
+		} catch (err) {
+			notifications.error(`Failed to clear token: ${err}`);
+		} finally {
+			isSavingToken = false;
 		}
 	}
 
@@ -354,6 +397,7 @@
 		loadPaths();
 		loadEditors();
 		loadAppSettings();
+		loadGithubTokenStatus();
 		loadMcpServerStatus();
 		loadGatewayStatus();
 		getVersion().then(v => appVersion = v).catch(() => appVersion = '');
@@ -455,6 +499,61 @@
 				</p>
 			</div>
 		{/if}
+	</div>
+
+	<!-- GitHub Token -->
+	<div class="card">
+		<h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-2 flex items-center gap-2">
+			<Key class="w-5 h-5" />
+			GitHub Token
+		</h3>
+		<p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
+			Add a personal access token to increase the GitHub API rate limit from 60 to 5,000 requests per hour.
+			<a
+				href="https://github.com/settings/tokens"
+				target="_blank"
+				rel="noopener noreferrer"
+				class="text-primary-600 dark:text-primary-400 hover:underline"
+			>
+				Create a token
+			</a>
+			(no scopes needed for public repos).
+		</p>
+
+		{#if hasToken}
+			<div class="flex items-center gap-3 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg mb-4">
+				<Check class="w-4 h-4 text-green-600 dark:text-green-400" />
+				<span class="text-sm font-medium text-green-700 dark:text-green-300">Token configured</span>
+			</div>
+		{/if}
+
+		<div class="flex gap-3">
+			<input
+				type="password"
+				bind:value={githubToken}
+				placeholder={hasToken ? 'Enter new token to update...' : 'ghp_xxxxxxxxxxxxxxxxxxxx'}
+				class="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 text-sm"
+			/>
+			<button
+				onclick={saveGithubToken}
+				disabled={!githubToken.trim() || isSavingToken}
+				class="btn btn-primary"
+			>
+				{#if isSavingToken}
+					<div class="w-4 h-4 mr-2 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+				{/if}
+				{hasToken ? 'Update' : 'Save'}
+			</button>
+			{#if hasToken}
+				<button
+					onclick={clearGithubToken}
+					disabled={isSavingToken}
+					class="btn btn-secondary text-red-600 dark:text-red-400"
+				>
+					Clear
+				</button>
+			{/if}
+		</div>
 	</div>
 
 	<GlobalSettings />

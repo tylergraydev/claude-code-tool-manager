@@ -51,8 +51,8 @@ pub fn seed_default_repos(db: &Database) -> Result<()> {
 }
 
 /// Fetch items from a repository (async, no database access)
-pub async fn fetch_repo_items(repo: &Repo) -> Result<Vec<ParsedItem>> {
-    let client = GitHubClient::new(None); // TODO: support tokens
+pub async fn fetch_repo_items(repo: &Repo, token: Option<String>) -> Result<Vec<ParsedItem>> {
+    let client = GitHubClient::new(token);
 
     match repo.repo_type.as_str() {
         "file_based" => sync_file_based_repo(&client, repo).await,

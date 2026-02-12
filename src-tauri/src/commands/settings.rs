@@ -140,6 +140,32 @@ pub fn toggle_editor(
     update_app_settings_in_db(&db, &settings)
 }
 
+/// Set GitHub personal access token
+#[tauri::command]
+pub fn set_github_token(db: State<'_, Arc<Mutex<Database>>>, token: String) -> Result<(), String> {
+    info!("[Settings] Setting GitHub token");
+    let db = db.lock().map_err(|e| e.to_string())?;
+    let value = if token.trim().is_empty() { "" } else { token.trim() };
+    db.set_setting("github_token", value)
+        .map_err(|e| e.to_string())
+}
+
+/// Clear GitHub personal access token
+#[tauri::command]
+pub fn clear_github_token(db: State<'_, Arc<Mutex<Database>>>) -> Result<(), String> {
+    info!("[Settings] Clearing GitHub token");
+    let db = db.lock().map_err(|e| e.to_string())?;
+    db.set_setting("github_token", "")
+        .map_err(|e| e.to_string())
+}
+
+/// Check if a GitHub token is configured (without returning the token itself)
+#[tauri::command]
+pub fn has_github_token(db: State<'_, Arc<Mutex<Database>>>) -> Result<bool, String> {
+    let db = db.lock().map_err(|e| e.to_string())?;
+    Ok(get_github_token_from_db(&db).is_some())
+}
+
 /// Get OpenCode paths
 #[tauri::command]
 pub fn get_opencode_paths_cmd() -> Result<OpenCodePaths, String> {
@@ -215,6 +241,12 @@ pub fn get_gemini_paths_cmd() -> Result<GeminiPaths, String> {
 // ============================================================================
 // Testable helper functions (no Tauri State dependency)
 // ============================================================================
+
+/// Get GitHub token from database (returns None if empty/whitespace)
+pub fn get_github_token_from_db(db: &Database) -> Option<String> {
+    db.get_setting("github_token")
+        .filter(|s| !s.trim().is_empty())
+}
 
 /// Get app settings directly from the database
 pub fn get_app_settings_from_db(db: &Database) -> Result<AppSettings, String> {

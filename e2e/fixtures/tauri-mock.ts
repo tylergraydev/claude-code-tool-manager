@@ -135,6 +135,40 @@ export const mockData = {
 	globalSubAgents: [],
 	hooks: [],
 	repos: [],
+	profiles: [
+		{
+			id: 1,
+			name: 'default-profile',
+			description: 'Default profile configuration',
+			icon: null,
+			isActive: true,
+			createdAt: '2024-01-01T00:00:00Z',
+			updatedAt: '2024-01-01T00:00:00Z'
+		}
+	],
+	activeProfile: {
+		id: 1,
+		name: 'default-profile',
+		description: 'Default profile configuration',
+		icon: null,
+		isActive: true,
+		createdAt: '2024-01-01T00:00:00Z',
+		updatedAt: '2024-01-01T00:00:00Z'
+	},
+	statuslines: [] as any[],
+	activeStatusLine: null as any,
+	commands: [
+		{
+			id: 1,
+			name: 'test-command',
+			description: 'A test command',
+			content: 'echo hello',
+			source: 'manual',
+			isFavorite: false,
+			createdAt: '2024-01-01T00:00:00Z',
+			updatedAt: '2024-01-01T00:00:00Z'
+		}
+	],
 	appSettings: {
 		defaultEditor: 'claude_code'
 	}
@@ -260,7 +294,41 @@ export async function mockTauriApi(page: Page) {
 			],
 			globalSubAgents: [],
 			hooks: [],
-			repos: []
+			repos: [],
+			profiles: [
+				{
+					id: 1,
+					name: 'default-profile',
+					description: 'Default profile configuration',
+					icon: null,
+					isActive: true,
+					createdAt: '2024-01-01T00:00:00Z',
+					updatedAt: '2024-01-01T00:00:00Z'
+				}
+			],
+			activeProfile: {
+				id: 1,
+				name: 'default-profile',
+				description: 'Default profile configuration',
+				icon: null,
+				isActive: true,
+				createdAt: '2024-01-01T00:00:00Z',
+				updatedAt: '2024-01-01T00:00:00Z'
+			},
+			statuslines: [],
+			activeStatusLine: null,
+			commands: [
+				{
+					id: 1,
+					name: 'test-command',
+					description: 'A test command',
+					content: 'echo hello',
+					source: 'manual',
+					isFavorite: false,
+					createdAt: '2024-01-01T00:00:00Z',
+					updatedAt: '2024-01-01T00:00:00Z'
+				}
+			]
 		};
 
 		// Track invoke calls for assertions
@@ -362,6 +430,55 @@ export async function mockTauriApi(page: Page) {
 				case 'assign_hook_to_project':
 				case 'remove_hook_from_project':
 				case 'toggle_project_hook':
+					return null;
+
+				// Profile commands
+				case 'get_all_profiles':
+					return mockData.profiles;
+				case 'get_active_profile':
+					return mockData.activeProfile;
+				case 'create_profile':
+					return { ...args, id: Date.now(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+				case 'update_profile':
+				case 'delete_profile':
+				case 'duplicate_profile':
+				case 'activate_profile':
+				case 'deactivate_profile':
+					return null;
+
+				// Status Line commands
+				case 'get_all_statuslines':
+					return mockData.statuslines;
+				case 'get_active_statusline':
+					return mockData.activeStatusLine;
+				case 'create_statusline':
+					return { ...args, id: Date.now(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+				case 'update_statusline':
+				case 'delete_statusline':
+				case 'duplicate_statusline':
+				case 'activate_statusline':
+				case 'deactivate_statusline':
+				case 'get_statusline_gallery':
+				case 'import_statusline_from_gallery':
+					return null;
+
+				// Command commands
+				case 'get_all_commands':
+					return mockData.commands;
+				case 'create_command':
+					return { ...args, id: Date.now(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+				case 'update_command':
+				case 'delete_command':
+				case 'duplicate_command':
+					return null;
+
+				// Sound commands
+				case 'get_all_sounds':
+					return [];
+				case 'get_all_sound_notifications':
+					return [];
+				case 'play_sound':
+				case 'stop_sound':
 					return null;
 
 				// Repo/marketplace commands

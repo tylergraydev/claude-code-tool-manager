@@ -255,7 +255,8 @@ pub fn validate_sound_file(path: &str) -> Result<(), String> {
 pub fn generate_play_command(sound_path: &str, method: &str) -> String {
     if method == "python" {
         // Use the Python notification script
-        return format!("python3 ~/.claude/hooks/notification-hook.py");
+        let python_cmd = if cfg!(target_os = "windows") { "python" } else { "python3" };
+        return format!("{} ~/.claude/hooks/notification-hook.py", python_cmd);
     }
 
     // Direct shell command approach
@@ -469,5 +470,83 @@ mod tests {
         // the function handles missing files correctly
         let result = validate_sound_file("/nonexistent/sound.wav");
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_validate_sound_file_missing_extension() {
+        // Create a temp file without audio extension
+        let dir = tempfile::tempdir().unwrap();
+        let file_path = dir.path().join("sound.txt");
+        std::fs::write(&file_path, b"not audio").unwrap();
+
+        let result = validate_sound_file(file_path.to_str().unwrap());
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Unsupported"));
+    }
+
+    #[test]
+    fn test_validate_sound_file_valid_wav() {
+        let dir = tempfile::tempdir().unwrap();
+        let file_path = dir.path().join("test.wav");
+        std::fs::write(&file_path, b"fake wav data").unwrap();
+
+        let result = validate_sound_file(file_path.to_str().unwrap());
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_validate_sound_file_valid_mp3() {
+        let dir = tempfile::tempdir().unwrap();
+        let file_path = dir.path().join("test.mp3");
+        std::fs::write(&file_path, b"fake mp3 data").unwrap();
+
+        let result = validate_sound_file(file_path.to_str().unwrap());
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_validate_sound_file_valid_aiff() {
+        let dir = tempfile::tempdir().unwrap();
+        let file_path = dir.path().join("test.aiff");
+        std::fs::write(&file_path, b"fake aiff data").unwrap();
+
+        let result = validate_sound_file(file_path.to_str().unwrap());
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_play_sound_nonexistent_file() {
+        let result = play_sound("/nonexistent/path/sound.wav");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("not found"));
+    }
+
+    #[test]
+    fn test_get_custom_sounds_path() {
+        let path = get_custom_sounds_path();
+        assert!(path.to_string_lossy().contains(".claude"));
+        assert!(path.to_string_lossy().contains("sounds"));
+    }
+
+    #[test]
+    fn test_get_hooks_path() {
+        let path = get_hooks_path();
+        assert!(path.to_string_lossy().contains(".claude"));
+        assert!(path.to_string_lossy().contains("hooks"));
+    }
+
+    #[test]
+    fn test_save_and_delete_custom_sound() {
+        // Override the sounds path for testing isn't possible directly,
+        // but we can at least test the validation part
+        let result = save_custom_sound("test.txt", b"not audio");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Unsupported"));
+    }
+
+    #[test]
+    fn test_generate_play_command_shell_contains_path() {
+        let cmd = generate_play_command("/test/sound.wav", "shell");
+        assert!(cmd.contains("/test/sound.wav") || cmd.contains("sound.wav"));
     }
 }

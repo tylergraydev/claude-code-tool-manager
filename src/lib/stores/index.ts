@@ -12,3 +12,5 @@ export { notifications, type Notification, type NotificationType } from './notif
 export { claudeJson, type ClaudeJsonMcp, type ClaudeJsonProject } from './claudeJson.svelte';
 export { updater, type UpdateStatus } from './updater.svelte';
 export { whatsNew, type ReleaseInfo } from './whatsNew.svelte';
+export { profileLibrary } from './profileLibrary.svelte';
+export { statuslineLibrary } from './statuslineLibrary.svelte';

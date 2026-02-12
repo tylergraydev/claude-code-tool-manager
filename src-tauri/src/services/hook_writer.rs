@@ -228,4 +228,176 @@ mod tests {
             "Welcome to the session!"
         );
     }
+
+    #[test]
+    fn test_multiple_hooks_same_event_type() {
+        let hooks = vec![
+            Hook {
+                id: 1,
+                name: "hook-a".to_string(),
+                description: None,
+                event_type: "PreToolUse".to_string(),
+                matcher: Some("Bash".to_string()),
+                hook_type: "command".to_string(),
+                command: Some("echo a".to_string()),
+                prompt: None,
+                timeout: None,
+                tags: None,
+                source: "manual".to_string(),
+                is_template: false,
+                created_at: "2024-01-01".to_string(),
+                updated_at: "2024-01-01".to_string(),
+            },
+            Hook {
+                id: 2,
+                name: "hook-b".to_string(),
+                description: None,
+                event_type: "PreToolUse".to_string(),
+                matcher: Some("Write".to_string()),
+                hook_type: "command".to_string(),
+                command: Some("echo b".to_string()),
+                prompt: None,
+                timeout: None,
+                tags: None,
+                source: "manual".to_string(),
+                is_template: false,
+                created_at: "2024-01-01".to_string(),
+                updated_at: "2024-01-01".to_string(),
+            },
+        ];
+
+        let config = generate_hooks_config(&hooks);
+        let pre_tool = config.get("PreToolUse").unwrap().as_array().unwrap();
+        assert_eq!(pre_tool.len(), 2);
+    }
+
+    #[test]
+    fn test_empty_hooks_produces_empty_object() {
+        let hooks: Vec<Hook> = vec![];
+        let config = generate_hooks_config(&hooks);
+        assert!(config.as_object().unwrap().is_empty());
+    }
+
+    #[test]
+    fn test_hook_with_timeout() {
+        let hooks = vec![Hook {
+            id: 1,
+            name: "timeout-hook".to_string(),
+            description: None,
+            event_type: "PostToolUse".to_string(),
+            matcher: Some("Bash".to_string()),
+            hook_type: "command".to_string(),
+            command: Some("lint .".to_string()),
+            prompt: None,
+            timeout: Some(60),
+            tags: None,
+            source: "manual".to_string(),
+            is_template: false,
+            created_at: "2024-01-01".to_string(),
+            updated_at: "2024-01-01".to_string(),
+        }];
+
+        let config = generate_hooks_config(&hooks);
+        let post_tool = config.get("PostToolUse").unwrap().as_array().unwrap();
+        let hook_actions = post_tool[0].get("hooks").unwrap().as_array().unwrap();
+        assert_eq!(hook_actions[0].get("timeout").unwrap(), 60);
+    }
+
+    #[test]
+    fn test_hooks_to_settings_format() {
+        let hooks = vec![Hook {
+            id: 1,
+            name: "test".to_string(),
+            description: None,
+            event_type: "Stop".to_string(),
+            matcher: None,
+            hook_type: "command".to_string(),
+            command: Some("echo done".to_string()),
+            prompt: None,
+            timeout: None,
+            tags: None,
+            source: "manual".to_string(),
+            is_template: false,
+            created_at: "2024-01-01".to_string(),
+            updated_at: "2024-01-01".to_string(),
+        }];
+
+        let result = hooks_to_settings_format(&hooks);
+        assert!(result.get("hooks").is_some());
+        assert!(result["hooks"].get("Stop").is_some());
+    }
+
+    #[test]
+    fn test_write_project_hooks_creates_dirs() {
+        let dir = tempfile::tempdir().unwrap();
+        let project_path = dir.path().join("my-project");
+        // Directory does not exist yet
+
+        let hooks = vec![Hook {
+            id: 1,
+            name: "test".to_string(),
+            description: None,
+            event_type: "PreToolUse".to_string(),
+            matcher: None,
+            hook_type: "command".to_string(),
+            command: Some("echo test".to_string()),
+            prompt: None,
+            timeout: None,
+            tags: None,
+            source: "manual".to_string(),
+            is_template: false,
+            created_at: "2024-01-01".to_string(),
+            updated_at: "2024-01-01".to_string(),
+        }];
+
+        let result = write_project_hooks(&project_path, &hooks);
+        assert!(result.is_ok());
+
+        let settings_path = project_path.join(".claude").join("settings.local.json");
+        assert!(settings_path.exists());
+
+        // Verify content
+        let content = std::fs::read_to_string(&settings_path).unwrap();
+        let json: Value = serde_json::from_str(&content).unwrap();
+        assert!(json.get("hooks").is_some());
+    }
+
+    #[test]
+    fn test_write_project_hooks_preserves_other_settings() {
+        let dir = tempfile::tempdir().unwrap();
+        let project_path = dir.path();
+
+        // Create existing settings file with other keys
+        let claude_dir = project_path.join(".claude");
+        std::fs::create_dir_all(&claude_dir).unwrap();
+        let settings_path = claude_dir.join("settings.local.json");
+        std::fs::write(&settings_path, r#"{"permissions":{"allow":["Bash"]},"hooks":{}}"#).unwrap();
+
+        let hooks = vec![Hook {
+            id: 1,
+            name: "test".to_string(),
+            description: None,
+            event_type: "Stop".to_string(),
+            matcher: None,
+            hook_type: "command".to_string(),
+            command: Some("echo done".to_string()),
+            prompt: None,
+            timeout: None,
+            tags: None,
+            source: "manual".to_string(),
+            is_template: false,
+            created_at: "2024-01-01".to_string(),
+            updated_at: "2024-01-01".to_string(),
+        }];
+
+        write_project_hooks(project_path, &hooks).unwrap();
+
+        let content = std::fs::read_to_string(&settings_path).unwrap();
+        let json: Value = serde_json::from_str(&content).unwrap();
+        // Other keys preserved
+        assert!(json.get("permissions").is_some());
+        // Hooks updated
+        assert!(json.get("hooks").is_some());
+        assert!(json["hooks"].get("Stop").is_some());
+    }
 }
