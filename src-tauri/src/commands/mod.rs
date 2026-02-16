@@ -21,3 +21,4 @@ pub mod statusline;
 pub mod subagents;
 pub mod permissions;
 pub mod memory;
+pub mod claude_settings;

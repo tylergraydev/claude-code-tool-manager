@@ -24,3 +24,4 @@ pub mod statusline_writer;
 pub mod subagent_writer;
 pub mod permission_writer;
 pub mod memory_writer;
+pub mod claude_settings;

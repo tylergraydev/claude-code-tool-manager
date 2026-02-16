@@ -17,3 +17,4 @@ export { spinnerVerbLibrary } from './spinnerVerbLibrary.svelte';
 export { statuslineLibrary } from './statuslineLibrary.svelte';
 export { permissionLibrary } from './permissionLibrary.svelte';
 export { memoryLibrary } from './memoryLibrary.svelte';
+export { claudeSettingsLibrary } from './claudeSettingsLibrary.svelte';
