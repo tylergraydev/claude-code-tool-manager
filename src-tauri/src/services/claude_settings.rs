@@ -643,7 +643,10 @@ mod tests {
         assert_eq!(json["sandbox"]["enabled"], true);
         assert_eq!(json["sandbox"]["autoAllowBashIfSandboxed"], true);
         assert_eq!(json["sandbox"]["excludedCommands"][0], "git");
-        assert_eq!(json["sandbox"]["network"]["allowedDomains"][0], "*.example.com");
+        assert_eq!(
+            json["sandbox"]["network"]["allowedDomains"][0],
+            "*.example.com"
+        );
         assert_eq!(json["sandbox"]["network"]["httpProxyPort"], 8080);
         // None fields should not be present
         assert!(json["sandbox"].get("allowUnsandboxedCommands").is_none());
