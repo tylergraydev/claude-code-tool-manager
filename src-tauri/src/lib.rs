@@ -408,6 +408,16 @@ pub fn run() {
             commands::mcp_server::add_self_mcp_to_library,
             commands::mcp_server::remove_self_mcp_from_library,
             commands::mcp_server::is_self_mcp_in_library,
+            // Permission Commands
+            commands::permissions::get_all_permissions,
+            commands::permissions::set_permission_rules,
+            commands::permissions::add_permission_rule,
+            commands::permissions::remove_permission_rule,
+            commands::permissions::reorder_permission_rules,
+            commands::permissions::set_default_mode,
+            commands::permissions::set_additional_directories,
+            commands::permissions::get_permission_templates,
+            commands::permissions::seed_permission_templates,
             // MCP Gateway Commands
             commands::mcp_gateway::get_gateway_status,
             commands::mcp_gateway::get_gateway_config,

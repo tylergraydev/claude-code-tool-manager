@@ -10,3 +10,4 @@ export * from './sound';
 export * from './spinnerVerb';
 export * from './statusline';
 export * from './subagent';
+export * from './permission';

@@ -719,6 +719,36 @@ impl Database {
             )?;
         }
 
+        // Migration 15: Add permission_templates table
+        let has_permission_templates_table: bool = self
+            .conn
+            .query_row(
+                "SELECT COUNT(*) > 0 FROM sqlite_master WHERE type='table' AND name='permission_templates'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap_or(false);
+
+        if !has_permission_templates_table {
+            self.conn.execute_batch(
+                r#"
+                CREATE TABLE permission_templates (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL UNIQUE,
+                    description TEXT,
+                    category TEXT NOT NULL CHECK (category IN ('allow', 'deny', 'ask')),
+                    rule TEXT NOT NULL,
+                    tool_name TEXT,
+                    tags TEXT,
+                    is_default INTEGER DEFAULT 0,
+                    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+                );
+                CREATE INDEX idx_permission_templates_category ON permission_templates(category);
+                "#,
+            )?;
+        }
+
         Ok(())
     }
 

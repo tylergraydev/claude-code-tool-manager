@@ -15,3 +15,4 @@ export { whatsNew, type ReleaseInfo } from './whatsNew.svelte';
 export { profileLibrary } from './profileLibrary.svelte';
 export { spinnerVerbLibrary } from './spinnerVerbLibrary.svelte';
 export { statuslineLibrary } from './statuslineLibrary.svelte';
+export { permissionLibrary } from './permissionLibrary.svelte';

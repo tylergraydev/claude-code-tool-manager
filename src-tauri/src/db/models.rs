@@ -642,6 +642,22 @@ pub struct StatusLineGalleryEntry {
     pub preview_text: Option<String>,
 }
 
+// Permission Templates
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PermissionTemplate {
+    pub id: i64,
+    pub name: String,
+    pub description: Option<String>,
+    pub category: String,
+    pub rule: String,
+    pub tool_name: Option<String>,
+    pub tags: Option<Vec<String>>,
+    pub is_default: bool,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
 // Spinner Verbs
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
