@@ -55,7 +55,10 @@ fn write_settings_file(path: &Path, settings: &Value) -> Result<()> {
 }
 
 /// Resolve the settings file path for a given scope
-pub fn resolve_settings_path(scope: &PermissionScope, project_path: Option<&Path>) -> Result<PathBuf> {
+pub fn resolve_settings_path(
+    scope: &PermissionScope,
+    project_path: Option<&Path>,
+) -> Result<PathBuf> {
     match scope {
         PermissionScope::User => {
             let base_dirs =
@@ -168,7 +171,10 @@ pub fn write_permission_rules(
 
     if rules.is_empty() {
         // Remove the category key if empty
-        if let Some(perms) = settings.get_mut("permissions").and_then(|v| v.as_object_mut()) {
+        if let Some(perms) = settings
+            .get_mut("permissions")
+            .and_then(|v| v.as_object_mut())
+        {
             perms.remove(category);
             // If permissions object is now empty, remove it
             if perms.is_empty() {
@@ -202,7 +208,10 @@ pub fn write_default_mode(
         }
         None => {
             // Remove defaultMode
-            if let Some(perms) = settings.get_mut("permissions").and_then(|v| v.as_object_mut()) {
+            if let Some(perms) = settings
+                .get_mut("permissions")
+                .and_then(|v| v.as_object_mut())
+            {
                 perms.remove("defaultMode");
             }
         }
@@ -221,7 +230,10 @@ pub fn write_additional_directories(
     let mut settings = read_settings_file(&path)?;
 
     if dirs.is_empty() {
-        if let Some(perms) = settings.get_mut("permissions").and_then(|v| v.as_object_mut()) {
+        if let Some(perms) = settings
+            .get_mut("permissions")
+            .and_then(|v| v.as_object_mut())
+        {
             perms.remove("additionalDirectories");
         }
     } else {
@@ -402,13 +414,7 @@ mod tests {
         .unwrap();
 
         // Now clear them
-        write_permission_rules(
-            &PermissionScope::Local,
-            Some(project_path),
-            "allow",
-            &[],
-        )
-        .unwrap();
+        write_permission_rules(&PermissionScope::Local, Some(project_path), "allow", &[]).unwrap();
 
         let path = project_path.join(".claude").join("settings.local.json");
         let content = std::fs::read_to_string(&path).unwrap();

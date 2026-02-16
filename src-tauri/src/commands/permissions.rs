@@ -47,8 +47,7 @@ pub fn set_permission_rules(
     );
     let ps = parse_scope(&scope)?;
     let pp = project_path.as_deref().map(Path::new);
-    permission_writer::write_permission_rules(&ps, pp, &category, &rules)
-        .map_err(|e| e.to_string())
+    permission_writer::write_permission_rules(&ps, pp, &category, &rules).map_err(|e| e.to_string())
 }
 
 /// Add a single permission rule to a category
@@ -67,8 +66,7 @@ pub fn add_permission_rule(
     let pp = project_path.as_deref().map(Path::new);
 
     // Read current rules, append, write back
-    let path =
-        permission_writer::resolve_settings_path(&ps, pp).map_err(|e| e.to_string())?;
+    let path = permission_writer::resolve_settings_path(&ps, pp).map_err(|e| e.to_string())?;
     let perms =
         permission_writer::read_permissions_from_file(&path, &scope).map_err(|e| e.to_string())?;
 
@@ -84,8 +82,7 @@ pub fn add_permission_rule(
         rules.push(rule);
     }
 
-    permission_writer::write_permission_rules(&ps, pp, &category, &rules)
-        .map_err(|e| e.to_string())
+    permission_writer::write_permission_rules(&ps, pp, &category, &rules).map_err(|e| e.to_string())
 }
 
 /// Remove a permission rule by index
@@ -103,8 +100,7 @@ pub fn remove_permission_rule(
     let ps = parse_scope(&scope)?;
     let pp = project_path.as_deref().map(Path::new);
 
-    let path =
-        permission_writer::resolve_settings_path(&ps, pp).map_err(|e| e.to_string())?;
+    let path = permission_writer::resolve_settings_path(&ps, pp).map_err(|e| e.to_string())?;
     let perms =
         permission_writer::read_permissions_from_file(&path, &scope).map_err(|e| e.to_string())?;
 
@@ -125,8 +121,7 @@ pub fn remove_permission_rule(
 
     rules.remove(index);
 
-    permission_writer::write_permission_rules(&ps, pp, &category, &rules)
-        .map_err(|e| e.to_string())
+    permission_writer::write_permission_rules(&ps, pp, &category, &rules).map_err(|e| e.to_string())
 }
 
 /// Reorder permission rules (replace array with new order)
@@ -145,8 +140,7 @@ pub fn reorder_permission_rules(
     );
     let ps = parse_scope(&scope)?;
     let pp = project_path.as_deref().map(Path::new);
-    permission_writer::write_permission_rules(&ps, pp, &category, &rules)
-        .map_err(|e| e.to_string())
+    permission_writer::write_permission_rules(&ps, pp, &category, &rules).map_err(|e| e.to_string())
 }
 
 /// Set the defaultMode for a scope
@@ -234,11 +228,9 @@ pub fn seed_permission_templates(db: State<'_, Arc<Mutex<Database>>>) -> Result<
     // Check if templates already exist
     let count: i64 = db
         .conn()
-        .query_row(
-            "SELECT COUNT(*) FROM permission_templates",
-            [],
-            |row| row.get(0),
-        )
+        .query_row("SELECT COUNT(*) FROM permission_templates", [], |row| {
+            row.get(0)
+        })
         .unwrap_or(0);
 
     if count > 0 {
@@ -247,23 +239,128 @@ pub fn seed_permission_templates(db: State<'_, Arc<Mutex<Database>>>) -> Result<
 
     let templates: Vec<(&str, &str, &str, &str, Option<&str>, &str)> = vec![
         // ALLOW templates
-        ("Allow npm scripts", "Allow running npm/yarn/pnpm scripts", "allow", "Bash(npm run *)", Some("Bash"), "development"),
-        ("Allow git commands", "Allow all git operations", "allow", "Bash(git *)", Some("Bash"), "git"),
-        ("Allow cargo commands", "Allow Rust cargo commands", "allow", "Bash(cargo *)", Some("Bash"), "development"),
-        ("Allow file reading", "Allow reading any file", "allow", "Read", Some("Read"), "files"),
-        ("Allow file writing", "Allow writing files", "allow", "Write", Some("Write"), "files"),
-        ("Allow file editing", "Allow editing files", "allow", "Edit", Some("Edit"), "files"),
+        (
+            "Allow npm scripts",
+            "Allow running npm/yarn/pnpm scripts",
+            "allow",
+            "Bash(npm run *)",
+            Some("Bash"),
+            "development",
+        ),
+        (
+            "Allow git commands",
+            "Allow all git operations",
+            "allow",
+            "Bash(git *)",
+            Some("Bash"),
+            "git",
+        ),
+        (
+            "Allow cargo commands",
+            "Allow Rust cargo commands",
+            "allow",
+            "Bash(cargo *)",
+            Some("Bash"),
+            "development",
+        ),
+        (
+            "Allow file reading",
+            "Allow reading any file",
+            "allow",
+            "Read",
+            Some("Read"),
+            "files",
+        ),
+        (
+            "Allow file writing",
+            "Allow writing files",
+            "allow",
+            "Write",
+            Some("Write"),
+            "files",
+        ),
+        (
+            "Allow file editing",
+            "Allow editing files",
+            "allow",
+            "Edit",
+            Some("Edit"),
+            "files",
+        ),
         // DENY templates
-        ("Block curl/wget", "Prevent network downloads via shell", "deny", "Bash(curl *)", Some("Bash"), "security"),
-        ("Block rm -rf", "Prevent recursive force deletion", "deny", "Bash(rm -rf *)", Some("Bash"), "security"),
-        ("Block .env access", "Prevent reading environment files", "deny", "Read(.env*)", Some("Read"), "security"),
-        ("Block secrets access", "Prevent reading credential files", "deny", "Read(*credentials*)", Some("Read"), "security"),
-        ("Block sudo", "Prevent privilege escalation", "deny", "Bash(sudo *)", Some("Bash"), "security"),
+        (
+            "Block curl/wget",
+            "Prevent network downloads via shell",
+            "deny",
+            "Bash(curl *)",
+            Some("Bash"),
+            "security",
+        ),
+        (
+            "Block rm -rf",
+            "Prevent recursive force deletion",
+            "deny",
+            "Bash(rm -rf *)",
+            Some("Bash"),
+            "security",
+        ),
+        (
+            "Block .env access",
+            "Prevent reading environment files",
+            "deny",
+            "Read(.env*)",
+            Some("Read"),
+            "security",
+        ),
+        (
+            "Block secrets access",
+            "Prevent reading credential files",
+            "deny",
+            "Read(*credentials*)",
+            Some("Read"),
+            "security",
+        ),
+        (
+            "Block sudo",
+            "Prevent privilege escalation",
+            "deny",
+            "Bash(sudo *)",
+            Some("Bash"),
+            "security",
+        ),
         // ASK templates
-        ("Ask for git push", "Confirm before pushing to remote", "ask", "Bash(git push *)", Some("Bash"), "git"),
-        ("Ask for npm install", "Confirm before installing packages", "ask", "Bash(npm install *)", Some("Bash"), "development"),
-        ("Ask for file deletion", "Confirm before deleting files", "ask", "Bash(rm *)", Some("Bash"), "safety"),
-        ("Ask for web fetch", "Confirm before fetching URLs", "ask", "WebFetch", Some("WebFetch"), "network"),
+        (
+            "Ask for git push",
+            "Confirm before pushing to remote",
+            "ask",
+            "Bash(git push *)",
+            Some("Bash"),
+            "git",
+        ),
+        (
+            "Ask for npm install",
+            "Confirm before installing packages",
+            "ask",
+            "Bash(npm install *)",
+            Some("Bash"),
+            "development",
+        ),
+        (
+            "Ask for file deletion",
+            "Confirm before deleting files",
+            "ask",
+            "Bash(rm *)",
+            Some("Bash"),
+            "safety",
+        ),
+        (
+            "Ask for web fetch",
+            "Confirm before fetching URLs",
+            "ask",
+            "WebFetch",
+            Some("WebFetch"),
+            "network",
+        ),
     ];
 
     let count = templates.len();

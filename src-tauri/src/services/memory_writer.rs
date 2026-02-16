@@ -82,7 +82,10 @@ pub fn detect_project_memory_location(project_path: &Path) -> Result<(PathBuf, S
 }
 
 /// Read a single memory file and return its info
-pub fn read_memory_file(scope: &MemoryScope, project_path: Option<&Path>) -> Result<MemoryFileInfo> {
+pub fn read_memory_file(
+    scope: &MemoryScope,
+    project_path: Option<&Path>,
+) -> Result<MemoryFileInfo> {
     let scope_str = match scope {
         MemoryScope::User => "user",
         MemoryScope::Project => "project",
@@ -97,13 +100,10 @@ pub fn read_memory_file(scope: &MemoryScope, project_path: Option<&Path>) -> Res
         // Normalize \r\n to \n
         let content = content.replace("\r\n", "\n");
         let metadata = std::fs::metadata(&path)?;
-        let last_modified = metadata
-            .modified()
-            .ok()
-            .map(|t| {
-                let datetime: chrono::DateTime<chrono::Utc> = t.into();
-                datetime.to_rfc3339()
-            });
+        let last_modified = metadata.modified().ok().map(|t| {
+            let datetime: chrono::DateTime<chrono::Utc> = t.into();
+            datetime.to_rfc3339()
+        });
         let size_bytes = Some(metadata.len());
 
         Ok(MemoryFileInfo {

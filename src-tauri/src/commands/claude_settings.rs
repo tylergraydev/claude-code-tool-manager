@@ -14,9 +14,7 @@ fn parse_scope(scope: &str) -> Result<PermissionScope, String> {
 
 /// Get all claude settings from all three scopes
 #[tauri::command]
-pub fn get_all_claude_settings(
-    project_path: Option<String>,
-) -> Result<AllClaudeSettings, String> {
+pub fn get_all_claude_settings(project_path: Option<String>) -> Result<AllClaudeSettings, String> {
     info!(
         "[ClaudeSettings] Reading all settings (project={:?})",
         project_path
@@ -37,9 +35,8 @@ pub fn get_claude_settings(
     );
     let ps = parse_scope(&scope)?;
     let pp = project_path.as_deref().map(Path::new);
-    let path =
-        crate::services::permission_writer::resolve_settings_path(&ps, pp)
-            .map_err(|e| e.to_string())?;
+    let path = crate::services::permission_writer::resolve_settings_path(&ps, pp)
+        .map_err(|e| e.to_string())?;
     claude_settings::read_claude_settings_from_file(&path, &scope).map_err(|e| e.to_string())
 }
 
@@ -60,8 +57,7 @@ pub fn save_claude_settings(
     claude_settings::write_claude_settings(&ps, pp, &settings).map_err(|e| e.to_string())?;
 
     // Re-read to return updated state
-    let path =
-        crate::services::permission_writer::resolve_settings_path(&ps, pp)
-            .map_err(|e| e.to_string())?;
+    let path = crate::services::permission_writer::resolve_settings_path(&ps, pp)
+        .map_err(|e| e.to_string())?;
     claude_settings::read_claude_settings_from_file(&path, &scope).map_err(|e| e.to_string())
 }
