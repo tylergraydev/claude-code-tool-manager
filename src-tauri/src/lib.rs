@@ -426,6 +426,10 @@ pub fn run() {
             commands::memory::create_memory_file,
             commands::memory::detect_project_memory_location,
             commands::memory::render_markdown,
+            // Claude Settings Commands
+            commands::claude_settings::get_all_claude_settings,
+            commands::claude_settings::get_claude_settings,
+            commands::claude_settings::save_claude_settings,
             // MCP Gateway Commands
             commands::mcp_gateway::get_gateway_status,
             commands::mcp_gateway::get_gateway_config,

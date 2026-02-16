@@ -56,10 +56,7 @@ pub fn save_memory_file(
 
 /// Delete a memory file
 #[tauri::command]
-pub fn delete_memory_file(
-    scope: String,
-    project_path: Option<String>,
-) -> Result<(), String> {
+pub fn delete_memory_file(scope: String, project_path: Option<String>) -> Result<(), String> {
     info!("[Memory] Deleting memory file for scope={}", scope);
     let ms = parse_scope(&scope)?;
     let pp = project_path.as_deref().map(Path::new);
@@ -82,9 +79,7 @@ pub fn create_memory_file(
 
 /// Detect which project memory location variant is in use
 #[tauri::command]
-pub fn detect_project_memory_location(
-    project_path: String,
-) -> Result<(String, String), String> {
+pub fn detect_project_memory_location(project_path: String) -> Result<(String, String), String> {
     info!(
         "[Memory] Detecting project memory location for {:?}",
         project_path
