@@ -1,5 +1,23 @@
 export type ClaudeSettingsScope = 'user' | 'project' | 'local';
 
+export interface SandboxNetworkSettings {
+	allowUnixSockets?: string[];
+	allowAllUnixSockets?: boolean;
+	allowLocalBinding?: boolean;
+	allowedDomains?: string[];
+	httpProxyPort?: number;
+	socksProxyPort?: number;
+}
+
+export interface SandboxSettings {
+	enabled?: boolean;
+	autoAllowBashIfSandboxed?: boolean;
+	excludedCommands?: string[];
+	allowUnsandboxedCommands?: boolean;
+	enableWeakerNestedSandbox?: boolean;
+	network?: SandboxNetworkSettings;
+}
+
 export interface ClaudeSettings {
 	scope: string;
 	model?: string;
@@ -9,6 +27,7 @@ export interface ClaudeSettings {
 	alwaysThinkingEnabled?: boolean;
 	attributionCommit?: string;
 	attributionPr?: string;
+	sandbox?: SandboxSettings;
 }
 
 export interface AllClaudeSettings {
