@@ -50,6 +50,8 @@ Claude Code configuration is scattered across your filesystem—`~/.claude.json`
 
 **Status Line Builder** — Design custom terminal status lines for Claude Code with a visual builder. Choose from 25+ segment types (model, cost, context window, git branch, vim mode, token counts, usage stats, and more), apply Powerline themes, or browse and install premade status lines from the community gallery.
 
+**Spinner Verbs** — Customize the action verbs shown in the Claude Code spinner while it works (e.g., "Pondering", "Crafting", "Scheming"). Add, edit, delete, and reorder verbs with drag-and-drop, toggle individual verbs on/off, and choose between append or replace mode. Syncs directly to `~/.claude/settings.json`.
+
 **Projects** — Scan for existing projects, assign tools globally or per-project, and keep everything in sync with Claude's config files. Search and filter to quickly find projects and available tools.
 
 ## Installation
