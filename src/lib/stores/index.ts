@@ -13,4 +13,5 @@ export { claudeJson, type ClaudeJsonMcp, type ClaudeJsonProject } from './claude
 export { updater, type UpdateStatus } from './updater.svelte';
 export { whatsNew, type ReleaseInfo } from './whatsNew.svelte';
 export { profileLibrary } from './profileLibrary.svelte';
+export { spinnerVerbLibrary } from './spinnerVerbLibrary.svelte';
 export { statuslineLibrary } from './statuslineLibrary.svelte';

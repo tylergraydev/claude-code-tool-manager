@@ -686,6 +686,39 @@ impl Database {
             )?;
         }
 
+        // Migration 14: Add spinner_verbs and spinner_verb_config tables
+        let has_spinner_verbs_table: bool = self
+            .conn
+            .query_row(
+                "SELECT COUNT(*) > 0 FROM sqlite_master WHERE type='table' AND name='spinner_verbs'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap_or(false);
+
+        if !has_spinner_verbs_table {
+            self.conn.execute_batch(
+                r#"
+                CREATE TABLE spinner_verbs (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    verb TEXT NOT NULL UNIQUE,
+                    is_enabled INTEGER DEFAULT 1,
+                    display_order INTEGER DEFAULT 0,
+                    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+                );
+
+                CREATE TABLE spinner_verb_config (
+                    id INTEGER PRIMARY KEY CHECK (id = 1),
+                    mode TEXT NOT NULL DEFAULT 'append' CHECK (mode IN ('append', 'replace')),
+                    updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+                );
+
+                INSERT OR IGNORE INTO spinner_verb_config (id, mode) VALUES (1, 'append');
+                "#,
+            )?;
+        }
+
         Ok(())
     }
 
@@ -1762,5 +1795,123 @@ impl Database {
             Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
             Err(e) => Err(e.into()),
         }
+    }
+
+    // Spinner Verb methods
+    pub fn get_all_spinner_verbs(&self) -> Result<Vec<crate::db::models::SpinnerVerb>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, verb, is_enabled, display_order, created_at, updated_at
+             FROM spinner_verbs ORDER BY display_order, id",
+        )?;
+
+        let verbs = stmt
+            .query_map([], |row| {
+                Ok(crate::db::models::SpinnerVerb {
+                    id: row.get(0)?,
+                    verb: row.get(1)?,
+                    is_enabled: row.get::<_, i32>(2)? != 0,
+                    display_order: row.get(3)?,
+                    created_at: row.get(4)?,
+                    updated_at: row.get(5)?,
+                })
+            })?
+            .filter_map(|r| r.ok())
+            .collect();
+
+        Ok(verbs)
+    }
+
+    pub fn get_spinner_verb_by_id(&self, id: i64) -> Result<crate::db::models::SpinnerVerb> {
+        self.conn
+            .query_row(
+                "SELECT id, verb, is_enabled, display_order, created_at, updated_at
+             FROM spinner_verbs WHERE id = ?",
+                rusqlite::params![id],
+                |row| {
+                    Ok(crate::db::models::SpinnerVerb {
+                        id: row.get(0)?,
+                        verb: row.get(1)?,
+                        is_enabled: row.get::<_, i32>(2)? != 0,
+                        display_order: row.get(3)?,
+                        created_at: row.get(4)?,
+                        updated_at: row.get(5)?,
+                    })
+                },
+            )
+            .map_err(|e| e.into())
+    }
+
+    pub fn create_spinner_verb(&self, verb: &str) -> Result<crate::db::models::SpinnerVerb> {
+        // Get the next display_order
+        let max_order: i32 = self
+            .conn
+            .query_row(
+                "SELECT COALESCE(MAX(display_order), -1) FROM spinner_verbs",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap_or(-1);
+
+        self.conn.execute(
+            "INSERT INTO spinner_verbs (verb, display_order) VALUES (?, ?)",
+            rusqlite::params![verb, max_order + 1],
+        )?;
+
+        let id = self.conn.last_insert_rowid();
+        self.get_spinner_verb_by_id(id)
+    }
+
+    pub fn update_spinner_verb(
+        &self,
+        id: i64,
+        verb: &str,
+        is_enabled: bool,
+    ) -> Result<crate::db::models::SpinnerVerb> {
+        self.conn.execute(
+            "UPDATE spinner_verbs SET verb = ?, is_enabled = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+            rusqlite::params![verb, is_enabled as i32, id],
+        )?;
+
+        self.get_spinner_verb_by_id(id)
+    }
+
+    pub fn delete_spinner_verb(&self, id: i64) -> Result<()> {
+        self.conn.execute(
+            "DELETE FROM spinner_verbs WHERE id = ?",
+            rusqlite::params![id],
+        )?;
+        Ok(())
+    }
+
+    pub fn get_spinner_verb_mode(&self) -> Result<String> {
+        let mode = self
+            .conn
+            .query_row(
+                "SELECT mode FROM spinner_verb_config WHERE id = 1",
+                [],
+                |row| row.get::<_, String>(0),
+            )
+            .unwrap_or_else(|_| "append".to_string());
+
+        Ok(mode)
+    }
+
+    pub fn set_spinner_verb_mode(&self, mode: &str) -> Result<()> {
+        self.conn.execute(
+            "INSERT INTO spinner_verb_config (id, mode, updated_at) VALUES (1, ?, CURRENT_TIMESTAMP)
+             ON CONFLICT(id) DO UPDATE SET mode = excluded.mode, updated_at = CURRENT_TIMESTAMP",
+            rusqlite::params![mode],
+        )?;
+        Ok(())
+    }
+
+    pub fn reorder_spinner_verbs(&self, ids: &[i64]) -> Result<()> {
+        for (index, id) in ids.iter().enumerate() {
+            self.conn.execute(
+                "UPDATE spinner_verbs SET display_order = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                rusqlite::params![index as i32, id],
+            )?;
+        }
+        Ok(())
     }
 }
