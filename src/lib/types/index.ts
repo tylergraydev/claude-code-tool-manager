@@ -7,5 +7,6 @@ export * from './project';
 export * from './repo';
 export * from './skill';
 export * from './sound';
+export * from './spinnerVerb';
 export * from './statusline';
 export * from './subagent';

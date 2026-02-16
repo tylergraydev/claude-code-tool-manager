@@ -18,6 +18,7 @@ pub mod repo_sync;
 pub mod scanner;
 pub mod skill_writer;
 pub mod sound_player;
+pub mod spinner_verb_writer;
 pub mod statusline_gallery;
 pub mod statusline_writer;
 pub mod subagent_writer;

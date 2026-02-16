@@ -16,5 +16,6 @@ pub mod scanner;
 pub mod settings;
 pub mod skills;
 pub mod sounds;
+pub mod spinner_verbs;
 pub mod statusline;
 pub mod subagents;

@@ -369,6 +369,16 @@ pub fn run() {
             commands::statusline::set_statusline_gallery_url,
             commands::statusline::generate_statusline_preview,
             commands::statusline::read_current_statusline_config,
+            // Spinner Verb Commands
+            commands::spinner_verbs::get_all_spinner_verbs,
+            commands::spinner_verbs::create_spinner_verb,
+            commands::spinner_verbs::update_spinner_verb,
+            commands::spinner_verbs::delete_spinner_verb,
+            commands::spinner_verbs::reorder_spinner_verbs,
+            commands::spinner_verbs::get_spinner_verb_mode,
+            commands::spinner_verbs::set_spinner_verb_mode,
+            commands::spinner_verbs::sync_spinner_verbs,
+            commands::spinner_verbs::read_current_spinner_verbs_config,
             // Debug Commands
             commands::debug::enable_debug_mode,
             commands::debug::disable_debug_mode,

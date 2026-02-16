@@ -642,6 +642,25 @@ pub struct StatusLineGalleryEntry {
     pub preview_text: Option<String>,
 }
 
+// Spinner Verbs
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SpinnerVerb {
+    pub id: i64,
+    pub verb: String,
+    pub is_enabled: bool,
+    pub display_order: i32,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SpinnerVerbConfig {
+    pub mode: String, // "append" or "replace"
+    pub verbs: Vec<SpinnerVerb>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
