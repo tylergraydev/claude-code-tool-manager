@@ -23,3 +23,4 @@ pub mod statusline_gallery;
 pub mod statusline_writer;
 pub mod subagent_writer;
 pub mod permission_writer;
+pub mod memory_writer;

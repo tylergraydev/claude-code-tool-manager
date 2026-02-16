@@ -418,6 +418,14 @@ pub fn run() {
             commands::permissions::set_additional_directories,
             commands::permissions::get_permission_templates,
             commands::permissions::seed_permission_templates,
+            // Memory Commands
+            commands::memory::get_all_memory_files,
+            commands::memory::get_memory_file,
+            commands::memory::save_memory_file,
+            commands::memory::delete_memory_file,
+            commands::memory::create_memory_file,
+            commands::memory::detect_project_memory_location,
+            commands::memory::render_markdown,
             // MCP Gateway Commands
             commands::mcp_gateway::get_gateway_status,
             commands::mcp_gateway::get_gateway_config,

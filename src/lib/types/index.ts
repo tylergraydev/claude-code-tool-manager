@@ -11,3 +11,4 @@ export * from './spinnerVerb';
 export * from './statusline';
 export * from './subagent';
 export * from './permission';
+export * from './memory';
