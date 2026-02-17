@@ -32,7 +32,7 @@
 
 	function handleSave() {
 		onsave({
-			scope: settings.scope,
+			...settings,
 			model: model || undefined,
 			availableModels,
 			outputStyle: outputStyle || undefined,

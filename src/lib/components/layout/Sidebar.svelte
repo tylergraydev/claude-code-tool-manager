@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/stores';
-	import { Library, FolderOpen, Settings, Plug, FileCode, Bot, Store, Zap, Terminal, Sparkles, Layers, PanelBottom, RotateCw, Shield, ShieldCheck, FileText, Sliders } from 'lucide-svelte';
+	import { Library, FolderOpen, Settings, Plug, FileCode, Bot, Store, Zap, Terminal, Sparkles, Layers, PanelBottom, RotateCw, Shield, ShieldCheck, FileText, Sliders, Puzzle, Variable, ToggleRight } from 'lucide-svelte';
 	import { onMount } from 'svelte';
 	import { getVersion } from '@tauri-apps/api/app';
 
@@ -29,6 +29,9 @@
 		{ href: '/sandbox', label: 'Sandbox', icon: ShieldCheck },
 		{ href: '/memory', label: 'Memory', icon: FileText },
 		{ href: '/models-output', label: 'Models & Output', icon: Sliders },
+		{ href: '/plugins', label: 'Plugins', icon: Puzzle },
+		{ href: '/env-vars', label: 'Env Variables', icon: Variable },
+		{ href: '/ui-toggles', label: 'UI Toggles', icon: ToggleRight },
 		{ href: '/marketplace', label: 'Marketplace', icon: Store },
 		{ href: '/settings', label: 'Global Settings', icon: Settings }
 	];
@@ -47,7 +50,7 @@
 		</div>
 	</div>
 
-	<nav class="flex-1 p-3 space-y-1">
+	<nav class="flex-1 overflow-y-auto p-3 space-y-1">
 		{#each navItems as item}
 			{@const isActive = $page.url.pathname === item.href ||
 				(item.href !== '/' && $page.url.pathname.startsWith(item.href))}

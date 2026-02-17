@@ -59,14 +59,7 @@
 		}
 
 		onsave({
-			scope: settings.scope,
-			model: settings.model,
-			availableModels: settings.availableModels,
-			outputStyle: settings.outputStyle,
-			language: settings.language,
-			alwaysThinkingEnabled: settings.alwaysThinkingEnabled,
-			attributionCommit: settings.attributionCommit,
-			attributionPr: settings.attributionPr,
+			...settings,
 			sandbox
 		});
 	}
