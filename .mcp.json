@@ -3,6 +3,10 @@
     "Tool Manager MCP": {
       "type": "http",
       "url": "http://127.0.0.1:23847/mcp"
+    },
+    "tauri-mcp": {
+      "command": "npx",
+      "args": ["-y", "@hypothesi/tauri-mcp-server"]
     }
   }
 }

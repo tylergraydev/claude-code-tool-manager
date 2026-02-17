@@ -69,6 +69,33 @@ export interface ClaudeSettings {
 	terminalProgressBarEnabled?: boolean;
 	prefersReducedMotion?: boolean;
 	respectGitignore?: boolean;
+	// File Suggestion
+	fileSuggestionType?: string;
+	fileSuggestionCommand?: string;
+	// Session & Cleanup
+	cleanupPeriodDays?: number;
+	autoUpdatesChannel?: string;
+	teammateMode?: string;
+	plansDirectory?: string;
+	// Auth & API Key Helpers
+	apiKeyHelper?: string;
+	otelHeadersHelper?: string;
+	awsAuthRefresh?: string;
+	awsCredentialExport?: string;
+	// MCP Approval
+	enableAllProjectMcpServers?: boolean;
+	enabledMcpjsonServers?: string[];
+	disabledMcpjsonServers?: string[];
+	// Managed-only keys (from managed-settings.json, read-only)
+	allowManagedHooksOnly?: boolean;
+	allowManagedPermissionRulesOnly?: boolean;
+	disableBypassPermissionsMode?: boolean;
+	allowedMcpServers?: string[];
+	deniedMcpServers?: string[];
+	strictKnownMarketplaces?: boolean;
+	companyAnnouncements?: string[];
+	forceLoginMethod?: string;
+	forceLoginOrgUUID?: string;
 }
 
 export interface AllClaudeSettings {
@@ -242,6 +269,19 @@ export const ENV_VAR_CATEGORIES = [
 	...new Set(KNOWN_ENV_VARS.map((v) => v.category))
 ] as const;
 
+export const AUTO_UPDATES_CHANNELS = [
+	{ value: '', label: 'Not set' },
+	{ value: 'stable', label: 'Stable' },
+	{ value: 'latest', label: 'Latest' }
+] as const;
+
+export const TEAMMATE_MODES = [
+	{ value: '', label: 'Not set' },
+	{ value: 'auto', label: 'Auto' },
+	{ value: 'in-process', label: 'In-process' },
+	{ value: 'tmux', label: 'Tmux' }
+] as const;
+
 export const MARKETPLACE_SOURCE_TYPES: { value: MarketplaceSourceType; label: string }[] = [
 	{ value: 'github', label: 'GitHub Repository' },
 	{ value: 'git', label: 'Git URL' },
@@ -251,3 +291,66 @@ export const MARKETPLACE_SOURCE_TYPES: { value: MarketplaceSourceType; label: st
 	{ value: 'directory', label: 'Directory' },
 	{ value: 'hostPattern', label: 'Host Pattern' }
 ];
+
+export interface ManagedSettingsInfo {
+	filePath: string;
+	exists: boolean;
+	settings: ClaudeSettings | null;
+}
+
+export const MANAGED_SETTINGS_FIELDS = [
+	{
+		key: 'allowManagedHooksOnly' as const,
+		label: 'Allow Managed Hooks Only',
+		description: 'Only allow hooks defined in managed settings or the SDK',
+		type: 'boolean' as const
+	},
+	{
+		key: 'allowManagedPermissionRulesOnly' as const,
+		label: 'Allow Managed Permission Rules Only',
+		description: 'Only allow permission rules defined in managed settings',
+		type: 'boolean' as const
+	},
+	{
+		key: 'disableBypassPermissionsMode' as const,
+		label: 'Disable Bypass Permissions Mode',
+		description: 'Prevent users from bypassing the permission system',
+		type: 'boolean' as const
+	},
+	{
+		key: 'allowedMcpServers' as const,
+		label: 'Allowed MCP Servers',
+		description: 'Allowlist of MCP servers that can be used',
+		type: 'stringArray' as const
+	},
+	{
+		key: 'deniedMcpServers' as const,
+		label: 'Denied MCP Servers',
+		description: 'Denylist of MCP servers that cannot be used',
+		type: 'stringArray' as const
+	},
+	{
+		key: 'strictKnownMarketplaces' as const,
+		label: 'Strict Known Marketplaces',
+		description: 'Enforce the marketplace allowlist strictly',
+		type: 'boolean' as const
+	},
+	{
+		key: 'companyAnnouncements' as const,
+		label: 'Company Announcements',
+		description: 'Messages displayed to users at startup',
+		type: 'stringArray' as const
+	},
+	{
+		key: 'forceLoginMethod' as const,
+		label: 'Force Login Method',
+		description: 'Force a specific login method (claudeai or console)',
+		type: 'string' as const
+	},
+	{
+		key: 'forceLoginOrgUUID' as const,
+		label: 'Force Login Org UUID',
+		description: 'Auto-select a specific organization by UUID',
+		type: 'string' as const
+	}
+] as const;

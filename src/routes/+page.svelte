@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { Header } from '$lib/components/layout';
 	import { mcpLibrary, projectsStore, subagentLibrary, skillLibrary, hookLibrary, commandLibrary, profileLibrary, statuslineLibrary } from '$lib/stores';
-	import { FolderOpen, Plug, Bot, Sparkles, Zap, Globe, ArrowRight, Terminal, Layers, PanelBottom } from 'lucide-svelte';
+	import { FolderOpen, Plug, Bot, Sparkles, Zap, ArrowRight, Terminal, Layers, PanelBottom, Library, Settings, Store } from 'lucide-svelte';
 	import { goto } from '$app/navigation';
 
 	// Derived counts
@@ -83,42 +83,74 @@
 		}
 	]);
 
-	// Quick links
+	// Quick links with icons
 	const quickLinks = [
-		{ label: 'Add MCP', href: '/library', description: 'Add a new MCP server to your library' },
-		{ label: 'Manage Projects', href: '/projects', description: 'Configure MCPs for your projects' },
-		{ label: 'Browse Marketplace', href: '/marketplace', description: 'Discover community MCPs and tools' },
-		{ label: 'Settings', href: '/settings', description: 'Configure application settings' }
+		{ label: 'Add MCP', href: '/library', description: 'Add a new MCP server to your library', icon: Library },
+		{ label: 'Manage Projects', href: '/projects', description: 'Configure MCPs for your projects', icon: FolderOpen },
+		{ label: 'Browse Marketplace', href: '/marketplace', description: 'Discover community MCPs and tools', icon: Store },
+		{ label: 'Settings', href: '/settings', description: 'Configure application settings', icon: Settings }
 	];
+
+	// Global config mini-cards
+	const globalConfig = $derived([
+		{
+			label: 'Global MCPs',
+			value: globalMcpCount,
+			subtitle: 'MCP servers',
+			icon: Plug,
+			color: 'text-purple-500'
+		},
+		{
+			label: 'Global Subagents',
+			value: subagentLibrary.globalSubAgents.length,
+			subtitle: 'Custom agents',
+			icon: Bot,
+			color: 'text-green-500'
+		},
+		{
+			label: 'Global Commands',
+			value: globalCommandCount,
+			subtitle: 'Slash commands',
+			icon: Terminal,
+			color: 'text-amber-500'
+		},
+		{
+			label: 'Global Hooks',
+			value: globalHookCount,
+			subtitle: 'Event hooks',
+			icon: Zap,
+			color: 'text-rose-500'
+		}
+	]);
 </script>
 
 <Header title="Dashboard" subtitle="Overview of your Claude Code configuration" />
 
-<div class="flex-1 overflow-auto p-6 space-y-8">
+<div class="flex-1 overflow-auto p-6 space-y-6">
 	<!-- Stats Grid -->
 	<section>
-		<h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Overview</h2>
-		<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+		<h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-3">Overview</h2>
+		<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
 			{#each stats as stat}
 				<button
 					onclick={() => goto(stat.href)}
-					class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 hover:border-gray-300 dark:hover:border-gray-600 hover:shadow-md transition-all text-left group"
+					class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 hover:border-gray-300 dark:hover:border-gray-600 hover:shadow-md transition-all text-left group"
 				>
 					<div class="flex items-start justify-between">
 						<div>
 							<p class="text-sm font-medium text-gray-500 dark:text-gray-400">{stat.label}</p>
-							<p class="text-3xl font-bold text-gray-900 dark:text-white mt-1">{stat.value}</p>
+							<p class="text-2xl font-bold text-gray-900 dark:text-white mt-0.5">{stat.value}</p>
 							{#if stat.subtitle}
-								<p class="text-xs text-gray-400 dark:text-gray-500 mt-1">{stat.subtitle}</p>
+								<p class="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{stat.subtitle}</p>
 							{/if}
 						</div>
-						<div class="{stat.color} p-2.5 rounded-lg">
-							<stat.icon class="w-5 h-5 text-white" />
+						<div class="{stat.color} p-2 rounded-lg">
+							<stat.icon class="w-4 h-4 text-white" />
 						</div>
 					</div>
-					<div class="mt-3 flex items-center text-sm text-gray-500 dark:text-gray-400 group-hover:text-gray-700 dark:group-hover:text-gray-300 transition-colors">
+					<div class="mt-2 flex items-center text-xs text-gray-500 dark:text-gray-400 group-hover:text-gray-700 dark:group-hover:text-gray-300 transition-colors">
 						<span>View all</span>
-						<ArrowRight class="w-4 h-4 ml-1 group-hover:translate-x-0.5 transition-transform" />
+						<ArrowRight class="w-3 h-3 ml-1 group-hover:translate-x-0.5 transition-transform" />
 					</div>
 				</button>
 			{/each}
@@ -127,62 +159,42 @@
 
 	<!-- Quick Links -->
 	<section>
-		<h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Quick Actions</h2>
-		<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+		<h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-3">Quick Actions</h2>
+		<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
 			{#each quickLinks as link}
 				<a
 					href={link.href}
 					class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 hover:border-blue-300 dark:hover:border-blue-600 hover:shadow-md transition-all group"
 				>
-					<p class="font-medium text-gray-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
-						{link.label}
-					</p>
-					<p class="text-sm text-gray-500 dark:text-gray-400 mt-1">{link.description}</p>
+					<div class="flex items-center gap-3 mb-2">
+						<div class="p-1.5 rounded-lg bg-gray-100 dark:bg-gray-700 group-hover:bg-blue-50 dark:group-hover:bg-blue-900/30 transition-colors">
+							<link.icon class="w-4 h-4 text-gray-500 dark:text-gray-400 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors" />
+						</div>
+						<p class="font-medium text-gray-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+							{link.label}
+						</p>
+					</div>
+					<p class="text-sm text-gray-500 dark:text-gray-400">{link.description}</p>
 				</a>
 			{/each}
 		</div>
 	</section>
 
-	<!-- Global Configuration Summary -->
+	<!-- Global Configuration -->
 	<section>
-		<h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Global Configuration</h2>
-		<div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5">
-			<div class="flex items-center gap-2 mb-4">
-				<Globe class="w-5 h-5 text-gray-400" />
-				<span class="text-sm text-gray-500 dark:text-gray-400">
-					Items enabled globally apply to all Claude Code sessions
-				</span>
-			</div>
-			<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-				<div class="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
-					<Plug class="w-4 h-4 text-purple-500" />
-					<div>
-						<p class="text-sm font-medium text-gray-900 dark:text-white">{globalMcpCount} Global MCPs</p>
-						<p class="text-xs text-gray-500 dark:text-gray-400">MCP servers</p>
+		<h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-3">Global Configuration</h2>
+		<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+			{#each globalConfig as item}
+				<div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
+					<div class="flex items-center gap-3">
+						<item.icon class="w-4 h-4 {item.color}" />
+						<div>
+							<p class="text-sm font-medium text-gray-900 dark:text-white">{item.value} {item.label}</p>
+							<p class="text-xs text-gray-500 dark:text-gray-400">{item.subtitle}</p>
+						</div>
 					</div>
 				</div>
-				<div class="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
-					<Bot class="w-4 h-4 text-green-500" />
-					<div>
-						<p class="text-sm font-medium text-gray-900 dark:text-white">{subagentLibrary.globalSubAgents.length} Global Subagents</p>
-						<p class="text-xs text-gray-500 dark:text-gray-400">Custom agents</p>
-					</div>
-				</div>
-				<div class="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
-					<Terminal class="w-4 h-4 text-amber-500" />
-					<div>
-						<p class="text-sm font-medium text-gray-900 dark:text-white">{globalCommandCount} Global Commands</p>
-						<p class="text-xs text-gray-500 dark:text-gray-400">Slash commands</p>
-					</div>
-				</div>
-				<div class="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
-					<Zap class="w-4 h-4 text-rose-500" />
-					<div>
-						<p class="text-sm font-medium text-gray-900 dark:text-white">{globalHookCount} Global Hooks</p>
-						<p class="text-xs text-gray-500 dark:text-gray-400">Event hooks</p>
-					</div>
-				</div>
-			</div>
+			{/each}
 		</div>
 	</section>
 </div>
