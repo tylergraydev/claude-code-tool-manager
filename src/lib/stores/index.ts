@@ -18,3 +18,4 @@ export { statuslineLibrary } from './statuslineLibrary.svelte';
 export { permissionLibrary } from './permissionLibrary.svelte';
 export { memoryLibrary } from './memoryLibrary.svelte';
 export { claudeSettingsLibrary } from './claudeSettingsLibrary.svelte';
+export { keybindingsLibrary } from './keybindingsLibrary.svelte';

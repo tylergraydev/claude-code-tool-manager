@@ -4,6 +4,8 @@ pub mod commands;
 pub mod config;
 pub mod debug;
 pub mod hooks;
+pub mod keybindings;
+pub mod managed_settings;
 pub mod mcp;
 pub mod mcp_gateway;
 pub mod mcp_registry;

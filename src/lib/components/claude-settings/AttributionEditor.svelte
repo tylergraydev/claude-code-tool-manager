@@ -27,12 +27,7 @@
 
 	function handleSave() {
 		onsave({
-			scope: settings.scope,
-			model: settings.model,
-			availableModels: settings.availableModels,
-			outputStyle: settings.outputStyle,
-			language: settings.language,
-			alwaysThinkingEnabled: settings.alwaysThinkingEnabled,
+			...settings,
 			attributionCommit: commitHasValue ? commitText : undefined,
 			attributionPr: prHasValue ? prText : undefined
 		});

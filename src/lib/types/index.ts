@@ -13,3 +13,4 @@ export * from './subagent';
 export * from './permission';
 export * from './memory';
 export * from './claudeSettings';
+export * from './keybindings';

@@ -29,7 +29,7 @@ pub struct SandboxSettings {
     pub network: Option<SandboxNetworkSettings>,
 }
 
-/// Claude settings from a single scope (model config + attribution + sandbox)
+/// Claude settings from a single scope (model config + attribution + sandbox + plugins + env + UI toggles + more)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ClaudeSettings {
@@ -45,6 +45,44 @@ pub struct ClaudeSettings {
     pub attribution_pr: Option<String>,
     // Sandbox
     pub sandbox: Option<SandboxSettings>,
+    // Plugins (Value because enabledPlugins has heterogeneous values: bool | string[])
+    pub enabled_plugins: Option<Value>,
+    pub extra_known_marketplaces: Option<Value>,
+    // Environment Variables
+    pub env: Option<Value>,
+    // UI Toggles
+    pub show_turn_duration: Option<bool>,
+    pub spinner_tips_enabled: Option<bool>,
+    pub terminal_progress_bar_enabled: Option<bool>,
+    pub prefers_reduced_motion: Option<bool>,
+    pub respect_gitignore: Option<bool>,
+    // File Suggestion (nested: fileSuggestion.type / fileSuggestion.command)
+    pub file_suggestion_type: Option<String>,
+    pub file_suggestion_command: Option<String>,
+    // Session & Cleanup
+    pub cleanup_period_days: Option<u32>,
+    pub auto_updates_channel: Option<String>,
+    pub teammate_mode: Option<String>,
+    pub plans_directory: Option<String>,
+    // Auth & API Key Helpers
+    pub api_key_helper: Option<String>,
+    pub otel_headers_helper: Option<String>,
+    pub aws_auth_refresh: Option<String>,
+    pub aws_credential_export: Option<String>,
+    // MCP Approval
+    pub enable_all_project_mcp_servers: Option<bool>,
+    pub enabled_mcpjson_servers: Option<Vec<String>>,
+    pub disabled_mcpjson_servers: Option<Vec<String>>,
+    // Managed-only keys (read from managed-settings.json, never written by users)
+    pub allow_managed_hooks_only: Option<bool>,
+    pub allow_managed_permission_rules_only: Option<bool>,
+    pub disable_bypass_permissions_mode: Option<bool>,
+    pub allowed_mcp_servers: Option<Vec<String>>,
+    pub denied_mcp_servers: Option<Vec<String>>,
+    pub strict_known_marketplaces: Option<bool>,
+    pub company_announcements: Option<Vec<String>>,
+    pub force_login_method: Option<String>,
+    pub force_login_org_uuid: Option<String>,
 }
 
 /// All claude settings across all three scopes
@@ -87,6 +125,15 @@ fn extract_string_array(value: &Value, key: &str) -> Vec<String> {
                 .collect()
         })
         .unwrap_or_default()
+}
+
+/// Helper: extract an optional string array (None when key absent, Some when present)
+fn extract_optional_string_array(value: &Value, key: &str) -> Option<Vec<String>> {
+    value.get(key).and_then(|v| v.as_array()).map(|arr| {
+        arr.iter()
+            .filter_map(|item| item.as_str().map(|s| s.to_string()))
+            .collect()
+    })
 }
 
 /// Read claude settings from a single settings file
@@ -136,6 +183,104 @@ pub fn read_claude_settings_from_file(path: &Path, scope: &str) -> Result<Claude
         }
     });
 
+    // Plugins (pass-through as Value)
+    let enabled_plugins = settings.get("enabledPlugins").cloned();
+    let extra_known_marketplaces = settings.get("extraKnownMarketplaces").cloned();
+
+    // Environment variables (pass-through as Value)
+    let env = settings.get("env").cloned();
+
+    // UI Toggles
+    let show_turn_duration = settings.get("showTurnDuration").and_then(|v| v.as_bool());
+    let spinner_tips_enabled = settings.get("spinnerTipsEnabled").and_then(|v| v.as_bool());
+    let terminal_progress_bar_enabled = settings
+        .get("terminalProgressBarEnabled")
+        .and_then(|v| v.as_bool());
+    let prefers_reduced_motion = settings
+        .get("prefersReducedMotion")
+        .and_then(|v| v.as_bool());
+    let respect_gitignore = settings.get("respectGitignore").and_then(|v| v.as_bool());
+
+    // File Suggestion (nested object like attribution)
+    let file_suggestion = settings.get("fileSuggestion").cloned().unwrap_or(json!({}));
+    let file_suggestion_type = file_suggestion
+        .get("type")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
+    let file_suggestion_command = file_suggestion
+        .get("command")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
+
+    // Session & Cleanup
+    let cleanup_period_days = settings
+        .get("cleanupPeriodDays")
+        .and_then(|v| v.as_u64())
+        .map(|n| n as u32);
+    let auto_updates_channel = settings
+        .get("autoUpdatesChannel")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
+    let teammate_mode = settings
+        .get("teammateMode")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
+    let plans_directory = settings
+        .get("plansDirectory")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
+
+    // Auth & API Key Helpers
+    let api_key_helper = settings
+        .get("apiKeyHelper")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
+    let otel_headers_helper = settings
+        .get("otelHeadersHelper")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
+    let aws_auth_refresh = settings
+        .get("awsAuthRefresh")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
+    let aws_credential_export = settings
+        .get("awsCredentialExport")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
+
+    // MCP Approval
+    let enable_all_project_mcp_servers = settings
+        .get("enableAllProjectMcpServers")
+        .and_then(|v| v.as_bool());
+    let enabled_mcpjson_servers = extract_optional_string_array(&settings, "enabledMcpjsonServers");
+    let disabled_mcpjson_servers =
+        extract_optional_string_array(&settings, "disabledMcpjsonServers");
+
+    // Managed-only keys
+    let allow_managed_hooks_only = settings
+        .get("allowManagedHooksOnly")
+        .and_then(|v| v.as_bool());
+    let allow_managed_permission_rules_only = settings
+        .get("allowManagedPermissionRulesOnly")
+        .and_then(|v| v.as_bool());
+    let disable_bypass_permissions_mode = settings
+        .get("disableBypassPermissionsMode")
+        .and_then(|v| v.as_bool());
+    let allowed_mcp_servers = extract_optional_string_array(&settings, "allowedMcpServers");
+    let denied_mcp_servers = extract_optional_string_array(&settings, "deniedMcpServers");
+    let strict_known_marketplaces = settings
+        .get("strictKnownMarketplaces")
+        .and_then(|v| v.as_bool());
+    let company_announcements = extract_optional_string_array(&settings, "companyAnnouncements");
+    let force_login_method = settings
+        .get("forceLoginMethod")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
+    let force_login_org_uuid = settings
+        .get("forceLoginOrgUUID")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
+
     Ok(ClaudeSettings {
         scope: scope.to_string(),
         model,
@@ -146,6 +291,36 @@ pub fn read_claude_settings_from_file(path: &Path, scope: &str) -> Result<Claude
         attribution_commit,
         attribution_pr,
         sandbox,
+        enabled_plugins,
+        extra_known_marketplaces,
+        env,
+        show_turn_duration,
+        spinner_tips_enabled,
+        terminal_progress_bar_enabled,
+        prefers_reduced_motion,
+        respect_gitignore,
+        file_suggestion_type,
+        file_suggestion_command,
+        cleanup_period_days,
+        auto_updates_channel,
+        teammate_mode,
+        plans_directory,
+        api_key_helper,
+        otel_headers_helper,
+        aws_auth_refresh,
+        aws_credential_export,
+        enable_all_project_mcp_servers,
+        enabled_mcpjson_servers,
+        disabled_mcpjson_servers,
+        allow_managed_hooks_only,
+        allow_managed_permission_rules_only,
+        disable_bypass_permissions_mode,
+        allowed_mcp_servers,
+        denied_mcp_servers,
+        strict_known_marketplaces,
+        company_announcements,
+        force_login_method,
+        force_login_org_uuid,
     })
 }
 
@@ -176,6 +351,36 @@ pub fn read_all_claude_settings(project_path: Option<&Path>) -> Result<AllClaude
                 attribution_commit: None,
                 attribution_pr: None,
                 sandbox: None,
+                enabled_plugins: None,
+                extra_known_marketplaces: None,
+                env: None,
+                show_turn_duration: None,
+                spinner_tips_enabled: None,
+                terminal_progress_bar_enabled: None,
+                prefers_reduced_motion: None,
+                respect_gitignore: None,
+                file_suggestion_type: None,
+                file_suggestion_command: None,
+                cleanup_period_days: None,
+                auto_updates_channel: None,
+                teammate_mode: None,
+                plans_directory: None,
+                api_key_helper: None,
+                otel_headers_helper: None,
+                aws_auth_refresh: None,
+                aws_credential_export: None,
+                enable_all_project_mcp_servers: None,
+                enabled_mcpjson_servers: None,
+                disabled_mcpjson_servers: None,
+                allow_managed_hooks_only: None,
+                allow_managed_permission_rules_only: None,
+                disable_bypass_permissions_mode: None,
+                allowed_mcp_servers: None,
+                denied_mcp_servers: None,
+                strict_known_marketplaces: None,
+                company_announcements: None,
+                force_login_method: None,
+                force_login_org_uuid: None,
             })
         };
 
@@ -192,6 +397,36 @@ pub fn read_all_claude_settings(project_path: Option<&Path>) -> Result<AllClaude
                 attribution_commit: None,
                 attribution_pr: None,
                 sandbox: None,
+                enabled_plugins: None,
+                extra_known_marketplaces: None,
+                env: None,
+                show_turn_duration: None,
+                spinner_tips_enabled: None,
+                terminal_progress_bar_enabled: None,
+                prefers_reduced_motion: None,
+                respect_gitignore: None,
+                file_suggestion_type: None,
+                file_suggestion_command: None,
+                cleanup_period_days: None,
+                auto_updates_channel: None,
+                teammate_mode: None,
+                plans_directory: None,
+                api_key_helper: None,
+                otel_headers_helper: None,
+                aws_auth_refresh: None,
+                aws_credential_export: None,
+                enable_all_project_mcp_servers: None,
+                enabled_mcpjson_servers: None,
+                disabled_mcpjson_servers: None,
+                allow_managed_hooks_only: None,
+                allow_managed_permission_rules_only: None,
+                disable_bypass_permissions_mode: None,
+                allowed_mcp_servers: None,
+                denied_mcp_servers: None,
+                strict_known_marketplaces: None,
+                company_announcements: None,
+                force_login_method: None,
+                force_login_org_uuid: None,
             })
         };
 
@@ -330,7 +565,207 @@ pub fn write_claude_settings(
         }
     }
 
+    // Plugins (pass-through Value)
+    set_or_remove_value(
+        &mut file_settings,
+        "enabledPlugins",
+        &settings.enabled_plugins,
+    );
+    set_or_remove_value(
+        &mut file_settings,
+        "extraKnownMarketplaces",
+        &settings.extra_known_marketplaces,
+    );
+
+    // Environment variables (pass-through Value)
+    set_or_remove_value(&mut file_settings, "env", &settings.env);
+
+    // UI Toggles
+    set_or_remove_bool(
+        &mut file_settings,
+        "showTurnDuration",
+        &settings.show_turn_duration,
+    );
+    set_or_remove_bool(
+        &mut file_settings,
+        "spinnerTipsEnabled",
+        &settings.spinner_tips_enabled,
+    );
+    set_or_remove_bool(
+        &mut file_settings,
+        "terminalProgressBarEnabled",
+        &settings.terminal_progress_bar_enabled,
+    );
+    set_or_remove_bool(
+        &mut file_settings,
+        "prefersReducedMotion",
+        &settings.prefers_reduced_motion,
+    );
+    set_or_remove_bool(
+        &mut file_settings,
+        "respectGitignore",
+        &settings.respect_gitignore,
+    );
+
+    // File Suggestion: manage nested object (same pattern as attribution)
+    let has_fs_type = settings.file_suggestion_type.is_some();
+    let has_fs_command = settings.file_suggestion_command.is_some();
+
+    if has_fs_type || has_fs_command {
+        let mut file_suggestion = file_settings
+            .get("fileSuggestion")
+            .cloned()
+            .unwrap_or(json!({}));
+
+        set_or_remove_string_in(&mut file_suggestion, "type", &settings.file_suggestion_type);
+        set_or_remove_string_in(
+            &mut file_suggestion,
+            "command",
+            &settings.file_suggestion_command,
+        );
+
+        if file_suggestion.as_object().map_or(true, |o| o.is_empty()) {
+            if let Some(obj) = file_settings.as_object_mut() {
+                obj.remove("fileSuggestion");
+            }
+        } else {
+            file_settings["fileSuggestion"] = file_suggestion;
+        }
+    } else {
+        if let Some(obj) = file_settings.as_object_mut() {
+            obj.remove("fileSuggestion");
+        }
+    }
+
+    // Session & Cleanup
+    set_or_remove_number_u32(
+        &mut file_settings,
+        "cleanupPeriodDays",
+        &settings.cleanup_period_days,
+    );
+    set_or_remove_string(
+        &mut file_settings,
+        "autoUpdatesChannel",
+        &settings.auto_updates_channel,
+    );
+    set_or_remove_string(&mut file_settings, "teammateMode", &settings.teammate_mode);
+    set_or_remove_string(
+        &mut file_settings,
+        "plansDirectory",
+        &settings.plans_directory,
+    );
+
+    // Auth & API Key Helpers
+    set_or_remove_string(&mut file_settings, "apiKeyHelper", &settings.api_key_helper);
+    set_or_remove_string(
+        &mut file_settings,
+        "otelHeadersHelper",
+        &settings.otel_headers_helper,
+    );
+    set_or_remove_string(
+        &mut file_settings,
+        "awsAuthRefresh",
+        &settings.aws_auth_refresh,
+    );
+    set_or_remove_string(
+        &mut file_settings,
+        "awsCredentialExport",
+        &settings.aws_credential_export,
+    );
+
+    // MCP Approval
+    set_or_remove_bool(
+        &mut file_settings,
+        "enableAllProjectMcpServers",
+        &settings.enable_all_project_mcp_servers,
+    );
+    set_or_remove_string_array(
+        &mut file_settings,
+        "enabledMcpjsonServers",
+        &settings.enabled_mcpjson_servers,
+    );
+    set_or_remove_string_array(
+        &mut file_settings,
+        "disabledMcpjsonServers",
+        &settings.disabled_mcpjson_servers,
+    );
+
+    // Managed-only keys
+    set_or_remove_bool(
+        &mut file_settings,
+        "allowManagedHooksOnly",
+        &settings.allow_managed_hooks_only,
+    );
+    set_or_remove_bool(
+        &mut file_settings,
+        "allowManagedPermissionRulesOnly",
+        &settings.allow_managed_permission_rules_only,
+    );
+    set_or_remove_bool(
+        &mut file_settings,
+        "disableBypassPermissionsMode",
+        &settings.disable_bypass_permissions_mode,
+    );
+    set_or_remove_string_array(
+        &mut file_settings,
+        "allowedMcpServers",
+        &settings.allowed_mcp_servers,
+    );
+    set_or_remove_string_array(
+        &mut file_settings,
+        "deniedMcpServers",
+        &settings.denied_mcp_servers,
+    );
+    set_or_remove_bool(
+        &mut file_settings,
+        "strictKnownMarketplaces",
+        &settings.strict_known_marketplaces,
+    );
+    set_or_remove_string_array(
+        &mut file_settings,
+        "companyAnnouncements",
+        &settings.company_announcements,
+    );
+    set_or_remove_string(
+        &mut file_settings,
+        "forceLoginMethod",
+        &settings.force_login_method,
+    );
+    set_or_remove_string(
+        &mut file_settings,
+        "forceLoginOrgUUID",
+        &settings.force_login_org_uuid,
+    );
+
     write_settings_file(&path, &file_settings)
+}
+
+/// Helper: set a JSON Value key or remove it if None
+fn set_or_remove_value(settings: &mut Value, key: &str, value: &Option<Value>) {
+    match value {
+        Some(v) => {
+            settings[key] = v.clone();
+        }
+        None => {
+            if let Some(obj) = settings.as_object_mut() {
+                obj.remove(key);
+            }
+        }
+    }
+}
+
+/// Helper: set a boolean key or remove it if None
+fn set_or_remove_bool(settings: &mut Value, key: &str, value: &Option<bool>) {
+    match value {
+        Some(v) => {
+            settings[key] = json!(v);
+        }
+        None => {
+            if let Some(obj) = settings.as_object_mut() {
+                obj.remove(key);
+            }
+        }
+    }
 }
 
 /// Helper: set a string key or remove it if None
@@ -361,6 +796,34 @@ fn set_or_remove_string_in(parent: &mut Value, key: &str, value: &Option<String>
     }
 }
 
+/// Helper: set a u32 number key or remove it if None
+fn set_or_remove_number_u32(settings: &mut Value, key: &str, value: &Option<u32>) {
+    match value {
+        Some(v) => {
+            settings[key] = json!(v);
+        }
+        None => {
+            if let Some(obj) = settings.as_object_mut() {
+                obj.remove(key);
+            }
+        }
+    }
+}
+
+/// Helper: set a string array key or remove it if None
+fn set_or_remove_string_array(settings: &mut Value, key: &str, value: &Option<Vec<String>>) {
+    match value {
+        Some(v) => {
+            settings[key] = json!(v);
+        }
+        None => {
+            if let Some(obj) = settings.as_object_mut() {
+                obj.remove(key);
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -380,6 +843,27 @@ mod tests {
         assert!(settings.attribution_commit.is_none());
         assert!(settings.attribution_pr.is_none());
         assert!(settings.sandbox.is_none());
+        assert!(settings.enabled_plugins.is_none());
+        assert!(settings.extra_known_marketplaces.is_none());
+        assert!(settings.env.is_none());
+        assert!(settings.show_turn_duration.is_none());
+        assert!(settings.spinner_tips_enabled.is_none());
+        assert!(settings.terminal_progress_bar_enabled.is_none());
+        assert!(settings.prefers_reduced_motion.is_none());
+        assert!(settings.respect_gitignore.is_none());
+        assert!(settings.file_suggestion_type.is_none());
+        assert!(settings.file_suggestion_command.is_none());
+        assert!(settings.cleanup_period_days.is_none());
+        assert!(settings.auto_updates_channel.is_none());
+        assert!(settings.teammate_mode.is_none());
+        assert!(settings.plans_directory.is_none());
+        assert!(settings.api_key_helper.is_none());
+        assert!(settings.otel_headers_helper.is_none());
+        assert!(settings.aws_auth_refresh.is_none());
+        assert!(settings.aws_credential_export.is_none());
+        assert!(settings.enable_all_project_mcp_servers.is_none());
+        assert!(settings.enabled_mcpjson_servers.is_none());
+        assert!(settings.disabled_mcpjson_servers.is_none());
     }
 
     #[test]
@@ -433,6 +917,36 @@ mod tests {
             attribution_commit: Some("Generated by Claude".to_string()),
             attribution_pr: Some("Created with AI".to_string()),
             sandbox: None,
+            enabled_plugins: None,
+            extra_known_marketplaces: None,
+            env: None,
+            show_turn_duration: None,
+            spinner_tips_enabled: None,
+            terminal_progress_bar_enabled: None,
+            prefers_reduced_motion: None,
+            respect_gitignore: None,
+            file_suggestion_type: None,
+            file_suggestion_command: None,
+            cleanup_period_days: None,
+            auto_updates_channel: None,
+            teammate_mode: None,
+            plans_directory: None,
+            api_key_helper: None,
+            otel_headers_helper: None,
+            aws_auth_refresh: None,
+            aws_credential_export: None,
+            enable_all_project_mcp_servers: None,
+            enabled_mcpjson_servers: None,
+            disabled_mcpjson_servers: None,
+            allow_managed_hooks_only: None,
+            allow_managed_permission_rules_only: None,
+            disable_bypass_permissions_mode: None,
+            allowed_mcp_servers: None,
+            denied_mcp_servers: None,
+            strict_known_marketplaces: None,
+            company_announcements: None,
+            force_login_method: None,
+            force_login_org_uuid: None,
         };
 
         write_claude_settings(&PermissionScope::Local, Some(project_path), &settings).unwrap();
@@ -476,6 +990,36 @@ mod tests {
             attribution_commit: None,
             attribution_pr: None,
             sandbox: None,
+            enabled_plugins: None,
+            extra_known_marketplaces: None,
+            env: None,
+            show_turn_duration: None,
+            spinner_tips_enabled: None,
+            terminal_progress_bar_enabled: None,
+            prefers_reduced_motion: None,
+            respect_gitignore: None,
+            file_suggestion_type: None,
+            file_suggestion_command: None,
+            cleanup_period_days: None,
+            auto_updates_channel: None,
+            teammate_mode: None,
+            plans_directory: None,
+            api_key_helper: None,
+            otel_headers_helper: None,
+            aws_auth_refresh: None,
+            aws_credential_export: None,
+            enable_all_project_mcp_servers: None,
+            enabled_mcpjson_servers: None,
+            disabled_mcpjson_servers: None,
+            allow_managed_hooks_only: None,
+            allow_managed_permission_rules_only: None,
+            disable_bypass_permissions_mode: None,
+            allowed_mcp_servers: None,
+            denied_mcp_servers: None,
+            strict_known_marketplaces: None,
+            company_announcements: None,
+            force_login_method: None,
+            force_login_org_uuid: None,
         };
 
         write_claude_settings(&PermissionScope::Local, Some(project_path), &settings).unwrap();
@@ -509,6 +1053,36 @@ mod tests {
             attribution_commit: Some("test".to_string()),
             attribution_pr: Some("test".to_string()),
             sandbox: None,
+            enabled_plugins: None,
+            extra_known_marketplaces: None,
+            env: None,
+            show_turn_duration: None,
+            spinner_tips_enabled: None,
+            terminal_progress_bar_enabled: None,
+            prefers_reduced_motion: None,
+            respect_gitignore: None,
+            file_suggestion_type: None,
+            file_suggestion_command: None,
+            cleanup_period_days: None,
+            auto_updates_channel: None,
+            teammate_mode: None,
+            plans_directory: None,
+            api_key_helper: None,
+            otel_headers_helper: None,
+            aws_auth_refresh: None,
+            aws_credential_export: None,
+            enable_all_project_mcp_servers: None,
+            enabled_mcpjson_servers: None,
+            disabled_mcpjson_servers: None,
+            allow_managed_hooks_only: None,
+            allow_managed_permission_rules_only: None,
+            disable_bypass_permissions_mode: None,
+            allowed_mcp_servers: None,
+            denied_mcp_servers: None,
+            strict_known_marketplaces: None,
+            company_announcements: None,
+            force_login_method: None,
+            force_login_org_uuid: None,
         };
 
         write_claude_settings(&PermissionScope::Local, Some(project_path), &settings).unwrap();
@@ -524,6 +1098,36 @@ mod tests {
             attribution_commit: None,
             attribution_pr: None,
             sandbox: None,
+            enabled_plugins: None,
+            extra_known_marketplaces: None,
+            env: None,
+            show_turn_duration: None,
+            spinner_tips_enabled: None,
+            terminal_progress_bar_enabled: None,
+            prefers_reduced_motion: None,
+            respect_gitignore: None,
+            file_suggestion_type: None,
+            file_suggestion_command: None,
+            cleanup_period_days: None,
+            auto_updates_channel: None,
+            teammate_mode: None,
+            plans_directory: None,
+            api_key_helper: None,
+            otel_headers_helper: None,
+            aws_auth_refresh: None,
+            aws_credential_export: None,
+            enable_all_project_mcp_servers: None,
+            enabled_mcpjson_servers: None,
+            disabled_mcpjson_servers: None,
+            allow_managed_hooks_only: None,
+            allow_managed_permission_rules_only: None,
+            disable_bypass_permissions_mode: None,
+            allowed_mcp_servers: None,
+            denied_mcp_servers: None,
+            strict_known_marketplaces: None,
+            company_announcements: None,
+            force_login_method: None,
+            force_login_org_uuid: None,
         };
 
         write_claude_settings(&PermissionScope::Local, Some(project_path), &clear_settings)
@@ -632,6 +1236,36 @@ mod tests {
                     ..Default::default()
                 }),
             }),
+            enabled_plugins: None,
+            extra_known_marketplaces: None,
+            env: None,
+            show_turn_duration: None,
+            spinner_tips_enabled: None,
+            terminal_progress_bar_enabled: None,
+            prefers_reduced_motion: None,
+            respect_gitignore: None,
+            file_suggestion_type: None,
+            file_suggestion_command: None,
+            cleanup_period_days: None,
+            auto_updates_channel: None,
+            teammate_mode: None,
+            plans_directory: None,
+            api_key_helper: None,
+            otel_headers_helper: None,
+            aws_auth_refresh: None,
+            aws_credential_export: None,
+            enable_all_project_mcp_servers: None,
+            enabled_mcpjson_servers: None,
+            disabled_mcpjson_servers: None,
+            allow_managed_hooks_only: None,
+            allow_managed_permission_rules_only: None,
+            disable_bypass_permissions_mode: None,
+            allowed_mcp_servers: None,
+            denied_mcp_servers: None,
+            strict_known_marketplaces: None,
+            company_announcements: None,
+            force_login_method: None,
+            force_login_org_uuid: None,
         };
 
         write_claude_settings(&PermissionScope::Local, Some(project_path), &settings).unwrap();
@@ -681,6 +1315,36 @@ mod tests {
                 enabled: Some(true),
                 ..Default::default()
             }),
+            enabled_plugins: None,
+            extra_known_marketplaces: None,
+            env: None,
+            show_turn_duration: None,
+            spinner_tips_enabled: None,
+            terminal_progress_bar_enabled: None,
+            prefers_reduced_motion: None,
+            respect_gitignore: None,
+            file_suggestion_type: None,
+            file_suggestion_command: None,
+            cleanup_period_days: None,
+            auto_updates_channel: None,
+            teammate_mode: None,
+            plans_directory: None,
+            api_key_helper: None,
+            otel_headers_helper: None,
+            aws_auth_refresh: None,
+            aws_credential_export: None,
+            enable_all_project_mcp_servers: None,
+            enabled_mcpjson_servers: None,
+            disabled_mcpjson_servers: None,
+            allow_managed_hooks_only: None,
+            allow_managed_permission_rules_only: None,
+            disable_bypass_permissions_mode: None,
+            allowed_mcp_servers: None,
+            denied_mcp_servers: None,
+            strict_known_marketplaces: None,
+            company_announcements: None,
+            force_login_method: None,
+            force_login_org_uuid: None,
         };
 
         write_claude_settings(&PermissionScope::Local, Some(project_path), &settings).unwrap();
@@ -715,6 +1379,36 @@ mod tests {
                 enabled: Some(true),
                 ..Default::default()
             }),
+            enabled_plugins: None,
+            extra_known_marketplaces: None,
+            env: None,
+            show_turn_duration: None,
+            spinner_tips_enabled: None,
+            terminal_progress_bar_enabled: None,
+            prefers_reduced_motion: None,
+            respect_gitignore: None,
+            file_suggestion_type: None,
+            file_suggestion_command: None,
+            cleanup_period_days: None,
+            auto_updates_channel: None,
+            teammate_mode: None,
+            plans_directory: None,
+            api_key_helper: None,
+            otel_headers_helper: None,
+            aws_auth_refresh: None,
+            aws_credential_export: None,
+            enable_all_project_mcp_servers: None,
+            enabled_mcpjson_servers: None,
+            disabled_mcpjson_servers: None,
+            allow_managed_hooks_only: None,
+            allow_managed_permission_rules_only: None,
+            disable_bypass_permissions_mode: None,
+            allowed_mcp_servers: None,
+            denied_mcp_servers: None,
+            strict_known_marketplaces: None,
+            company_announcements: None,
+            force_login_method: None,
+            force_login_org_uuid: None,
         };
 
         write_claude_settings(&PermissionScope::Local, Some(project_path), &settings).unwrap();
@@ -735,6 +1429,36 @@ mod tests {
             attribution_commit: None,
             attribution_pr: None,
             sandbox: None,
+            enabled_plugins: None,
+            extra_known_marketplaces: None,
+            env: None,
+            show_turn_duration: None,
+            spinner_tips_enabled: None,
+            terminal_progress_bar_enabled: None,
+            prefers_reduced_motion: None,
+            respect_gitignore: None,
+            file_suggestion_type: None,
+            file_suggestion_command: None,
+            cleanup_period_days: None,
+            auto_updates_channel: None,
+            teammate_mode: None,
+            plans_directory: None,
+            api_key_helper: None,
+            otel_headers_helper: None,
+            aws_auth_refresh: None,
+            aws_credential_export: None,
+            enable_all_project_mcp_servers: None,
+            enabled_mcpjson_servers: None,
+            disabled_mcpjson_servers: None,
+            allow_managed_hooks_only: None,
+            allow_managed_permission_rules_only: None,
+            disable_bypass_permissions_mode: None,
+            allowed_mcp_servers: None,
+            denied_mcp_servers: None,
+            strict_known_marketplaces: None,
+            company_announcements: None,
+            force_login_method: None,
+            force_login_org_uuid: None,
         };
 
         write_claude_settings(&PermissionScope::Local, Some(project_path), &clear_settings)
@@ -743,5 +1467,836 @@ mod tests {
         let content = std::fs::read_to_string(&path).unwrap();
         let json: Value = serde_json::from_str(&content).unwrap();
         assert!(json.get("sandbox").is_none());
+    }
+
+    #[test]
+    fn test_read_plugins_settings() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings.json");
+        std::fs::write(
+            &path,
+            r#"{
+                "enabledPlugins": {
+                    "my-plugin": true,
+                    "restricted-plugin": ["tool1", "tool2"],
+                    "disabled-plugin": false
+                },
+                "extraKnownMarketplaces": {
+                    "my-marketplace": {
+                        "source": { "source": "github", "repo": "user/repo" }
+                    }
+                }
+            }"#,
+        )
+        .unwrap();
+
+        let settings = read_claude_settings_from_file(&path, "user").unwrap();
+
+        let plugins = settings.enabled_plugins.unwrap();
+        assert_eq!(plugins["my-plugin"], true);
+        assert_eq!(plugins["restricted-plugin"][0], "tool1");
+        assert_eq!(plugins["disabled-plugin"], false);
+
+        let marketplaces = settings.extra_known_marketplaces.unwrap();
+        assert_eq!(
+            marketplaces["my-marketplace"]["source"]["repo"],
+            "user/repo"
+        );
+    }
+
+    #[test]
+    fn test_read_env_settings() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings.json");
+        std::fs::write(
+            &path,
+            r#"{
+                "env": {
+                    "ANTHROPIC_API_KEY": "sk-test",
+                    "CLAUDE_CODE_MAX_TURNS": "10"
+                }
+            }"#,
+        )
+        .unwrap();
+
+        let settings = read_claude_settings_from_file(&path, "user").unwrap();
+        let env = settings.env.unwrap();
+        assert_eq!(env["ANTHROPIC_API_KEY"], "sk-test");
+        assert_eq!(env["CLAUDE_CODE_MAX_TURNS"], "10");
+    }
+
+    #[test]
+    fn test_read_ui_toggle_settings() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings.json");
+        std::fs::write(
+            &path,
+            r#"{
+                "showTurnDuration": true,
+                "spinnerTipsEnabled": false,
+                "terminalProgressBarEnabled": true,
+                "prefersReducedMotion": false,
+                "respectGitignore": true
+            }"#,
+        )
+        .unwrap();
+
+        let settings = read_claude_settings_from_file(&path, "user").unwrap();
+        assert_eq!(settings.show_turn_duration, Some(true));
+        assert_eq!(settings.spinner_tips_enabled, Some(false));
+        assert_eq!(settings.terminal_progress_bar_enabled, Some(true));
+        assert_eq!(settings.prefers_reduced_motion, Some(false));
+        assert_eq!(settings.respect_gitignore, Some(true));
+    }
+
+    #[test]
+    fn test_write_plugins_and_env() {
+        let dir = tempfile::tempdir().unwrap();
+        let project_path = dir.path();
+
+        let settings = ClaudeSettings {
+            scope: "local".to_string(),
+            model: None,
+            available_models: vec![],
+            output_style: None,
+            language: None,
+            always_thinking_enabled: None,
+            attribution_commit: None,
+            attribution_pr: None,
+            sandbox: None,
+            enabled_plugins: Some(json!({
+                "my-plugin": true,
+                "restricted": ["tool1", "tool2"]
+            })),
+            extra_known_marketplaces: Some(json!({
+                "custom": { "source": { "source": "npm", "package": "my-pkg" } }
+            })),
+            env: Some(json!({
+                "MY_VAR": "hello"
+            })),
+            show_turn_duration: None,
+            spinner_tips_enabled: None,
+            terminal_progress_bar_enabled: None,
+            prefers_reduced_motion: None,
+            respect_gitignore: None,
+            file_suggestion_type: None,
+            file_suggestion_command: None,
+            cleanup_period_days: None,
+            auto_updates_channel: None,
+            teammate_mode: None,
+            plans_directory: None,
+            api_key_helper: None,
+            otel_headers_helper: None,
+            aws_auth_refresh: None,
+            aws_credential_export: None,
+            enable_all_project_mcp_servers: None,
+            enabled_mcpjson_servers: None,
+            disabled_mcpjson_servers: None,
+            allow_managed_hooks_only: None,
+            allow_managed_permission_rules_only: None,
+            disable_bypass_permissions_mode: None,
+            allowed_mcp_servers: None,
+            denied_mcp_servers: None,
+            strict_known_marketplaces: None,
+            company_announcements: None,
+            force_login_method: None,
+            force_login_org_uuid: None,
+        };
+
+        write_claude_settings(&PermissionScope::Local, Some(project_path), &settings).unwrap();
+
+        let path = project_path.join(".claude").join("settings.local.json");
+        let content = std::fs::read_to_string(&path).unwrap();
+        let json: Value = serde_json::from_str(&content).unwrap();
+
+        assert_eq!(json["enabledPlugins"]["my-plugin"], true);
+        assert_eq!(json["enabledPlugins"]["restricted"][0], "tool1");
+        assert_eq!(
+            json["extraKnownMarketplaces"]["custom"]["source"]["source"],
+            "npm"
+        );
+        assert_eq!(json["env"]["MY_VAR"], "hello");
+    }
+
+    #[test]
+    fn test_write_ui_toggles() {
+        let dir = tempfile::tempdir().unwrap();
+        let project_path = dir.path();
+
+        let settings = ClaudeSettings {
+            scope: "local".to_string(),
+            model: None,
+            available_models: vec![],
+            output_style: None,
+            language: None,
+            always_thinking_enabled: None,
+            attribution_commit: None,
+            attribution_pr: None,
+            sandbox: None,
+            enabled_plugins: None,
+            extra_known_marketplaces: None,
+            env: None,
+            show_turn_duration: Some(true),
+            spinner_tips_enabled: Some(false),
+            terminal_progress_bar_enabled: Some(true),
+            prefers_reduced_motion: None,
+            respect_gitignore: Some(true),
+            file_suggestion_type: None,
+            file_suggestion_command: None,
+            cleanup_period_days: None,
+            auto_updates_channel: None,
+            teammate_mode: None,
+            plans_directory: None,
+            api_key_helper: None,
+            otel_headers_helper: None,
+            aws_auth_refresh: None,
+            aws_credential_export: None,
+            enable_all_project_mcp_servers: None,
+            enabled_mcpjson_servers: None,
+            disabled_mcpjson_servers: None,
+            allow_managed_hooks_only: None,
+            allow_managed_permission_rules_only: None,
+            disable_bypass_permissions_mode: None,
+            allowed_mcp_servers: None,
+            denied_mcp_servers: None,
+            strict_known_marketplaces: None,
+            company_announcements: None,
+            force_login_method: None,
+            force_login_org_uuid: None,
+        };
+
+        write_claude_settings(&PermissionScope::Local, Some(project_path), &settings).unwrap();
+
+        let path = project_path.join(".claude").join("settings.local.json");
+        let content = std::fs::read_to_string(&path).unwrap();
+        let json: Value = serde_json::from_str(&content).unwrap();
+
+        assert_eq!(json["showTurnDuration"], true);
+        assert_eq!(json["spinnerTipsEnabled"], false);
+        assert_eq!(json["terminalProgressBarEnabled"], true);
+        assert!(json.get("prefersReducedMotion").is_none());
+        assert_eq!(json["respectGitignore"], true);
+    }
+
+    #[test]
+    fn test_write_clears_new_fields_when_none() {
+        let dir = tempfile::tempdir().unwrap();
+        let project_path = dir.path();
+
+        // First write with values
+        let settings = ClaudeSettings {
+            scope: "local".to_string(),
+            model: None,
+            available_models: vec![],
+            output_style: None,
+            language: None,
+            always_thinking_enabled: None,
+            attribution_commit: None,
+            attribution_pr: None,
+            sandbox: None,
+            enabled_plugins: Some(json!({"p": true})),
+            extra_known_marketplaces: Some(json!({"m": {}})),
+            env: Some(json!({"K": "V"})),
+            show_turn_duration: Some(true),
+            spinner_tips_enabled: Some(true),
+            terminal_progress_bar_enabled: Some(true),
+            prefers_reduced_motion: Some(true),
+            respect_gitignore: Some(true),
+            file_suggestion_type: None,
+            file_suggestion_command: None,
+            cleanup_period_days: None,
+            auto_updates_channel: None,
+            teammate_mode: None,
+            plans_directory: None,
+            api_key_helper: None,
+            otel_headers_helper: None,
+            aws_auth_refresh: None,
+            aws_credential_export: None,
+            enable_all_project_mcp_servers: None,
+            enabled_mcpjson_servers: None,
+            disabled_mcpjson_servers: None,
+            allow_managed_hooks_only: None,
+            allow_managed_permission_rules_only: None,
+            disable_bypass_permissions_mode: None,
+            allowed_mcp_servers: None,
+            denied_mcp_servers: None,
+            strict_known_marketplaces: None,
+            company_announcements: None,
+            force_login_method: None,
+            force_login_org_uuid: None,
+        };
+
+        write_claude_settings(&PermissionScope::Local, Some(project_path), &settings).unwrap();
+
+        // Now clear all
+        let clear = ClaudeSettings {
+            scope: "local".to_string(),
+            model: None,
+            available_models: vec![],
+            output_style: None,
+            language: None,
+            always_thinking_enabled: None,
+            attribution_commit: None,
+            attribution_pr: None,
+            sandbox: None,
+            enabled_plugins: None,
+            extra_known_marketplaces: None,
+            env: None,
+            show_turn_duration: None,
+            spinner_tips_enabled: None,
+            terminal_progress_bar_enabled: None,
+            prefers_reduced_motion: None,
+            respect_gitignore: None,
+            file_suggestion_type: None,
+            file_suggestion_command: None,
+            cleanup_period_days: None,
+            auto_updates_channel: None,
+            teammate_mode: None,
+            plans_directory: None,
+            api_key_helper: None,
+            otel_headers_helper: None,
+            aws_auth_refresh: None,
+            aws_credential_export: None,
+            enable_all_project_mcp_servers: None,
+            enabled_mcpjson_servers: None,
+            disabled_mcpjson_servers: None,
+            allow_managed_hooks_only: None,
+            allow_managed_permission_rules_only: None,
+            disable_bypass_permissions_mode: None,
+            allowed_mcp_servers: None,
+            denied_mcp_servers: None,
+            strict_known_marketplaces: None,
+            company_announcements: None,
+            force_login_method: None,
+            force_login_org_uuid: None,
+        };
+
+        write_claude_settings(&PermissionScope::Local, Some(project_path), &clear).unwrap();
+
+        let path = project_path.join(".claude").join("settings.local.json");
+        let content = std::fs::read_to_string(&path).unwrap();
+        let json: Value = serde_json::from_str(&content).unwrap();
+
+        assert!(json.get("enabledPlugins").is_none());
+        assert!(json.get("extraKnownMarketplaces").is_none());
+        assert!(json.get("env").is_none());
+        assert!(json.get("showTurnDuration").is_none());
+        assert!(json.get("spinnerTipsEnabled").is_none());
+        assert!(json.get("terminalProgressBarEnabled").is_none());
+        assert!(json.get("prefersReducedMotion").is_none());
+        assert!(json.get("respectGitignore").is_none());
+    }
+
+    #[test]
+    fn test_read_file_suggestion_settings() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings.json");
+        std::fs::write(
+            &path,
+            r#"{
+                "fileSuggestion": {
+                    "type": "command",
+                    "command": "/usr/bin/suggest-files"
+                }
+            }"#,
+        )
+        .unwrap();
+
+        let settings = read_claude_settings_from_file(&path, "user").unwrap();
+        assert_eq!(settings.file_suggestion_type, Some("command".to_string()));
+        assert_eq!(
+            settings.file_suggestion_command,
+            Some("/usr/bin/suggest-files".to_string())
+        );
+    }
+
+    #[test]
+    fn test_write_file_suggestion_settings() {
+        let dir = tempfile::tempdir().unwrap();
+        let project_path = dir.path();
+
+        let settings = ClaudeSettings {
+            scope: "local".to_string(),
+            model: None,
+            available_models: vec![],
+            output_style: None,
+            language: None,
+            always_thinking_enabled: None,
+            attribution_commit: None,
+            attribution_pr: None,
+            sandbox: None,
+            enabled_plugins: None,
+            extra_known_marketplaces: None,
+            env: None,
+            show_turn_duration: None,
+            spinner_tips_enabled: None,
+            terminal_progress_bar_enabled: None,
+            prefers_reduced_motion: None,
+            respect_gitignore: None,
+            file_suggestion_type: Some("command".to_string()),
+            file_suggestion_command: Some("/usr/bin/suggest-files".to_string()),
+            cleanup_period_days: None,
+            auto_updates_channel: None,
+            teammate_mode: None,
+            plans_directory: None,
+            api_key_helper: None,
+            otel_headers_helper: None,
+            aws_auth_refresh: None,
+            aws_credential_export: None,
+            enable_all_project_mcp_servers: None,
+            enabled_mcpjson_servers: None,
+            disabled_mcpjson_servers: None,
+            allow_managed_hooks_only: None,
+            allow_managed_permission_rules_only: None,
+            disable_bypass_permissions_mode: None,
+            allowed_mcp_servers: None,
+            denied_mcp_servers: None,
+            strict_known_marketplaces: None,
+            company_announcements: None,
+            force_login_method: None,
+            force_login_org_uuid: None,
+        };
+
+        write_claude_settings(&PermissionScope::Local, Some(project_path), &settings).unwrap();
+
+        let path = project_path.join(".claude").join("settings.local.json");
+        let content = std::fs::read_to_string(&path).unwrap();
+        let json: Value = serde_json::from_str(&content).unwrap();
+
+        assert_eq!(json["fileSuggestion"]["type"], "command");
+        assert_eq!(json["fileSuggestion"]["command"], "/usr/bin/suggest-files");
+    }
+
+    #[test]
+    fn test_file_suggestion_round_trip() {
+        let dir = tempfile::tempdir().unwrap();
+        let project_path = dir.path();
+
+        let settings = ClaudeSettings {
+            scope: "local".to_string(),
+            model: None,
+            available_models: vec![],
+            output_style: None,
+            language: None,
+            always_thinking_enabled: None,
+            attribution_commit: None,
+            attribution_pr: None,
+            sandbox: None,
+            enabled_plugins: None,
+            extra_known_marketplaces: None,
+            env: None,
+            show_turn_duration: None,
+            spinner_tips_enabled: None,
+            terminal_progress_bar_enabled: None,
+            prefers_reduced_motion: None,
+            respect_gitignore: None,
+            file_suggestion_type: Some("command".to_string()),
+            file_suggestion_command: Some("my-script".to_string()),
+            cleanup_period_days: None,
+            auto_updates_channel: None,
+            teammate_mode: None,
+            plans_directory: None,
+            api_key_helper: None,
+            otel_headers_helper: None,
+            aws_auth_refresh: None,
+            aws_credential_export: None,
+            enable_all_project_mcp_servers: None,
+            enabled_mcpjson_servers: None,
+            disabled_mcpjson_servers: None,
+            allow_managed_hooks_only: None,
+            allow_managed_permission_rules_only: None,
+            disable_bypass_permissions_mode: None,
+            allowed_mcp_servers: None,
+            denied_mcp_servers: None,
+            strict_known_marketplaces: None,
+            company_announcements: None,
+            force_login_method: None,
+            force_login_org_uuid: None,
+        };
+
+        write_claude_settings(&PermissionScope::Local, Some(project_path), &settings).unwrap();
+
+        let path = project_path.join(".claude").join("settings.local.json");
+        let read_back = read_claude_settings_from_file(&path, "local").unwrap();
+        assert_eq!(read_back.file_suggestion_type, Some("command".to_string()));
+        assert_eq!(
+            read_back.file_suggestion_command,
+            Some("my-script".to_string())
+        );
+    }
+
+    #[test]
+    fn test_read_session_cleanup_settings() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings.json");
+        std::fs::write(
+            &path,
+            r#"{
+                "cleanupPeriodDays": 14,
+                "autoUpdatesChannel": "stable",
+                "teammateMode": "tmux",
+                "plansDirectory": "/home/user/plans"
+            }"#,
+        )
+        .unwrap();
+
+        let settings = read_claude_settings_from_file(&path, "user").unwrap();
+        assert_eq!(settings.cleanup_period_days, Some(14));
+        assert_eq!(settings.auto_updates_channel, Some("stable".to_string()));
+        assert_eq!(settings.teammate_mode, Some("tmux".to_string()));
+        assert_eq!(
+            settings.plans_directory,
+            Some("/home/user/plans".to_string())
+        );
+    }
+
+    #[test]
+    fn test_write_session_cleanup_settings() {
+        let dir = tempfile::tempdir().unwrap();
+        let project_path = dir.path();
+
+        let settings = ClaudeSettings {
+            scope: "local".to_string(),
+            model: None,
+            available_models: vec![],
+            output_style: None,
+            language: None,
+            always_thinking_enabled: None,
+            attribution_commit: None,
+            attribution_pr: None,
+            sandbox: None,
+            enabled_plugins: None,
+            extra_known_marketplaces: None,
+            env: None,
+            show_turn_duration: None,
+            spinner_tips_enabled: None,
+            terminal_progress_bar_enabled: None,
+            prefers_reduced_motion: None,
+            respect_gitignore: None,
+            file_suggestion_type: None,
+            file_suggestion_command: None,
+            cleanup_period_days: Some(30),
+            auto_updates_channel: Some("latest".to_string()),
+            teammate_mode: Some("auto".to_string()),
+            plans_directory: Some("./my-plans".to_string()),
+            api_key_helper: None,
+            otel_headers_helper: None,
+            aws_auth_refresh: None,
+            aws_credential_export: None,
+            enable_all_project_mcp_servers: None,
+            enabled_mcpjson_servers: None,
+            disabled_mcpjson_servers: None,
+            allow_managed_hooks_only: None,
+            allow_managed_permission_rules_only: None,
+            disable_bypass_permissions_mode: None,
+            allowed_mcp_servers: None,
+            denied_mcp_servers: None,
+            strict_known_marketplaces: None,
+            company_announcements: None,
+            force_login_method: None,
+            force_login_org_uuid: None,
+        };
+
+        write_claude_settings(&PermissionScope::Local, Some(project_path), &settings).unwrap();
+
+        let path = project_path.join(".claude").join("settings.local.json");
+        let content = std::fs::read_to_string(&path).unwrap();
+        let json: Value = serde_json::from_str(&content).unwrap();
+
+        assert_eq!(json["cleanupPeriodDays"], 30);
+        assert_eq!(json["autoUpdatesChannel"], "latest");
+        assert_eq!(json["teammateMode"], "auto");
+        assert_eq!(json["plansDirectory"], "./my-plans");
+    }
+
+    #[test]
+    fn test_read_auth_helpers_settings() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings.json");
+        std::fs::write(
+            &path,
+            r#"{
+                "apiKeyHelper": "/usr/bin/get-api-key",
+                "otelHeadersHelper": "otel-helper.sh",
+                "awsAuthRefresh": "aws-refresh.sh",
+                "awsCredentialExport": "aws-creds.sh"
+            }"#,
+        )
+        .unwrap();
+
+        let settings = read_claude_settings_from_file(&path, "user").unwrap();
+        assert_eq!(
+            settings.api_key_helper,
+            Some("/usr/bin/get-api-key".to_string())
+        );
+        assert_eq!(
+            settings.otel_headers_helper,
+            Some("otel-helper.sh".to_string())
+        );
+        assert_eq!(
+            settings.aws_auth_refresh,
+            Some("aws-refresh.sh".to_string())
+        );
+        assert_eq!(
+            settings.aws_credential_export,
+            Some("aws-creds.sh".to_string())
+        );
+    }
+
+    #[test]
+    fn test_write_auth_helpers_settings() {
+        let dir = tempfile::tempdir().unwrap();
+        let project_path = dir.path();
+
+        let settings = ClaudeSettings {
+            scope: "local".to_string(),
+            model: None,
+            available_models: vec![],
+            output_style: None,
+            language: None,
+            always_thinking_enabled: None,
+            attribution_commit: None,
+            attribution_pr: None,
+            sandbox: None,
+            enabled_plugins: None,
+            extra_known_marketplaces: None,
+            env: None,
+            show_turn_duration: None,
+            spinner_tips_enabled: None,
+            terminal_progress_bar_enabled: None,
+            prefers_reduced_motion: None,
+            respect_gitignore: None,
+            file_suggestion_type: None,
+            file_suggestion_command: None,
+            cleanup_period_days: None,
+            auto_updates_channel: None,
+            teammate_mode: None,
+            plans_directory: None,
+            api_key_helper: Some("/usr/bin/get-api-key".to_string()),
+            otel_headers_helper: Some("otel-helper.sh".to_string()),
+            aws_auth_refresh: Some("aws-refresh.sh".to_string()),
+            aws_credential_export: Some("aws-creds.sh".to_string()),
+            enable_all_project_mcp_servers: None,
+            enabled_mcpjson_servers: None,
+            disabled_mcpjson_servers: None,
+            allow_managed_hooks_only: None,
+            allow_managed_permission_rules_only: None,
+            disable_bypass_permissions_mode: None,
+            allowed_mcp_servers: None,
+            denied_mcp_servers: None,
+            strict_known_marketplaces: None,
+            company_announcements: None,
+            force_login_method: None,
+            force_login_org_uuid: None,
+        };
+
+        write_claude_settings(&PermissionScope::Local, Some(project_path), &settings).unwrap();
+
+        let path = project_path.join(".claude").join("settings.local.json");
+        let content = std::fs::read_to_string(&path).unwrap();
+        let json: Value = serde_json::from_str(&content).unwrap();
+
+        assert_eq!(json["apiKeyHelper"], "/usr/bin/get-api-key");
+        assert_eq!(json["otelHeadersHelper"], "otel-helper.sh");
+        assert_eq!(json["awsAuthRefresh"], "aws-refresh.sh");
+        assert_eq!(json["awsCredentialExport"], "aws-creds.sh");
+    }
+
+    #[test]
+    fn test_read_mcp_approval_settings() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings.json");
+        std::fs::write(
+            &path,
+            r#"{
+                "enableAllProjectMcpServers": true,
+                "enabledMcpjsonServers": ["server-a", "server-b"],
+                "disabledMcpjsonServers": ["server-c"]
+            }"#,
+        )
+        .unwrap();
+
+        let settings = read_claude_settings_from_file(&path, "user").unwrap();
+        assert_eq!(settings.enable_all_project_mcp_servers, Some(true));
+        assert_eq!(
+            settings.enabled_mcpjson_servers,
+            Some(vec!["server-a".to_string(), "server-b".to_string()])
+        );
+        assert_eq!(
+            settings.disabled_mcpjson_servers,
+            Some(vec!["server-c".to_string()])
+        );
+    }
+
+    #[test]
+    fn test_write_mcp_approval_settings() {
+        let dir = tempfile::tempdir().unwrap();
+        let project_path = dir.path();
+
+        let settings = ClaudeSettings {
+            scope: "local".to_string(),
+            model: None,
+            available_models: vec![],
+            output_style: None,
+            language: None,
+            always_thinking_enabled: None,
+            attribution_commit: None,
+            attribution_pr: None,
+            sandbox: None,
+            enabled_plugins: None,
+            extra_known_marketplaces: None,
+            env: None,
+            show_turn_duration: None,
+            spinner_tips_enabled: None,
+            terminal_progress_bar_enabled: None,
+            prefers_reduced_motion: None,
+            respect_gitignore: None,
+            file_suggestion_type: None,
+            file_suggestion_command: None,
+            cleanup_period_days: None,
+            auto_updates_channel: None,
+            teammate_mode: None,
+            plans_directory: None,
+            api_key_helper: None,
+            otel_headers_helper: None,
+            aws_auth_refresh: None,
+            aws_credential_export: None,
+            enable_all_project_mcp_servers: Some(false),
+            enabled_mcpjson_servers: Some(vec!["srv1".to_string(), "srv2".to_string()]),
+            disabled_mcpjson_servers: Some(vec!["srv3".to_string()]),
+            allow_managed_hooks_only: None,
+            allow_managed_permission_rules_only: None,
+            disable_bypass_permissions_mode: None,
+            allowed_mcp_servers: None,
+            denied_mcp_servers: None,
+            strict_known_marketplaces: None,
+            company_announcements: None,
+            force_login_method: None,
+            force_login_org_uuid: None,
+        };
+
+        write_claude_settings(&PermissionScope::Local, Some(project_path), &settings).unwrap();
+
+        let path = project_path.join(".claude").join("settings.local.json");
+        let content = std::fs::read_to_string(&path).unwrap();
+        let json: Value = serde_json::from_str(&content).unwrap();
+
+        assert_eq!(json["enableAllProjectMcpServers"], false);
+        assert_eq!(json["enabledMcpjsonServers"][0], "srv1");
+        assert_eq!(json["enabledMcpjsonServers"][1], "srv2");
+        assert_eq!(json["disabledMcpjsonServers"][0], "srv3");
+    }
+
+    #[test]
+    fn test_write_clears_new_tier3_fields_when_none() {
+        let dir = tempfile::tempdir().unwrap();
+        let project_path = dir.path();
+
+        // First write with values
+        let settings = ClaudeSettings {
+            scope: "local".to_string(),
+            model: None,
+            available_models: vec![],
+            output_style: None,
+            language: None,
+            always_thinking_enabled: None,
+            attribution_commit: None,
+            attribution_pr: None,
+            sandbox: None,
+            enabled_plugins: None,
+            extra_known_marketplaces: None,
+            env: None,
+            show_turn_duration: None,
+            spinner_tips_enabled: None,
+            terminal_progress_bar_enabled: None,
+            prefers_reduced_motion: None,
+            respect_gitignore: None,
+            file_suggestion_type: Some("command".to_string()),
+            file_suggestion_command: Some("test".to_string()),
+            cleanup_period_days: Some(7),
+            auto_updates_channel: Some("stable".to_string()),
+            teammate_mode: Some("auto".to_string()),
+            plans_directory: Some("/tmp/plans".to_string()),
+            api_key_helper: Some("helper".to_string()),
+            otel_headers_helper: Some("otel".to_string()),
+            aws_auth_refresh: Some("aws".to_string()),
+            aws_credential_export: Some("creds".to_string()),
+            enable_all_project_mcp_servers: Some(true),
+            enabled_mcpjson_servers: Some(vec!["a".to_string()]),
+            disabled_mcpjson_servers: Some(vec!["b".to_string()]),
+            allow_managed_hooks_only: None,
+            allow_managed_permission_rules_only: None,
+            disable_bypass_permissions_mode: None,
+            allowed_mcp_servers: None,
+            denied_mcp_servers: None,
+            strict_known_marketplaces: None,
+            company_announcements: None,
+            force_login_method: None,
+            force_login_org_uuid: None,
+        };
+
+        write_claude_settings(&PermissionScope::Local, Some(project_path), &settings).unwrap();
+
+        // Now clear all
+        let clear = ClaudeSettings {
+            scope: "local".to_string(),
+            model: None,
+            available_models: vec![],
+            output_style: None,
+            language: None,
+            always_thinking_enabled: None,
+            attribution_commit: None,
+            attribution_pr: None,
+            sandbox: None,
+            enabled_plugins: None,
+            extra_known_marketplaces: None,
+            env: None,
+            show_turn_duration: None,
+            spinner_tips_enabled: None,
+            terminal_progress_bar_enabled: None,
+            prefers_reduced_motion: None,
+            respect_gitignore: None,
+            file_suggestion_type: None,
+            file_suggestion_command: None,
+            cleanup_period_days: None,
+            auto_updates_channel: None,
+            teammate_mode: None,
+            plans_directory: None,
+            api_key_helper: None,
+            otel_headers_helper: None,
+            aws_auth_refresh: None,
+            aws_credential_export: None,
+            enable_all_project_mcp_servers: None,
+            enabled_mcpjson_servers: None,
+            disabled_mcpjson_servers: None,
+            allow_managed_hooks_only: None,
+            allow_managed_permission_rules_only: None,
+            disable_bypass_permissions_mode: None,
+            allowed_mcp_servers: None,
+            denied_mcp_servers: None,
+            strict_known_marketplaces: None,
+            company_announcements: None,
+            force_login_method: None,
+            force_login_org_uuid: None,
+        };
+
+        write_claude_settings(&PermissionScope::Local, Some(project_path), &clear).unwrap();
+
+        let path = project_path.join(".claude").join("settings.local.json");
+        let content = std::fs::read_to_string(&path).unwrap();
+        let json: Value = serde_json::from_str(&content).unwrap();
+
+        assert!(json.get("fileSuggestion").is_none());
+        assert!(json.get("cleanupPeriodDays").is_none());
+        assert!(json.get("autoUpdatesChannel").is_none());
+        assert!(json.get("teammateMode").is_none());
+        assert!(json.get("plansDirectory").is_none());
+        assert!(json.get("apiKeyHelper").is_none());
+        assert!(json.get("otelHeadersHelper").is_none());
+        assert!(json.get("awsAuthRefresh").is_none());
+        assert!(json.get("awsCredentialExport").is_none());
+        assert!(json.get("enableAllProjectMcpServers").is_none());
+        assert!(json.get("enabledMcpjsonServers").is_none());
+        assert!(json.get("disabledMcpjsonServers").is_none());
     }
 }

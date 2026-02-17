@@ -445,6 +445,11 @@ pub fn run() {
             commands::mcp_gateway::is_mcp_in_gateway,
             commands::mcp_gateway::get_gateway_backends,
             commands::mcp_gateway::restart_gateway_backend,
+            // Keybindings Commands
+            commands::keybindings::get_keybindings,
+            commands::keybindings::save_keybindings,
+            // Managed Settings Commands
+            commands::managed_settings::get_managed_settings,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

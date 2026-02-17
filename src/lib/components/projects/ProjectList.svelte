@@ -1,8 +1,8 @@
 <script lang="ts">
 	import type { Project } from '$lib/types';
+	import { goto } from '$app/navigation';
 	import { projectsStore } from '$lib/stores';
 	import ProjectCard from './ProjectCard.svelte';
-	import ProjectDetail from './ProjectDetail.svelte';
 	import { SearchBar } from '$lib/components/shared';
 	import { FolderOpen, Plus } from 'lucide-svelte';
 
@@ -13,7 +13,6 @@
 
 	let { onAddProject, onRemoveProject }: Props = $props();
 
-	let selectedProject = $state<Project | null>(null);
 	let searchQuery = $state('');
 
 	// Filter projects based on search query
@@ -30,13 +29,7 @@
 	);
 
 	function handleProjectClick(project: Project) {
-		selectedProject = project;
-	}
-
-	function handleCloseDetail() {
-		selectedProject = null;
-		// Reload projects to get updated assignments
-		projectsStore.loadProjects();
+		goto('/projects/' + project.id);
 	}
 
 	async function handleFavoriteToggle(project: Project, favorite: boolean) {
@@ -50,7 +43,7 @@
 		<div>
 			<h3 class="text-lg font-semibold text-gray-900 dark:text-white">Projects</h3>
 			<p class="text-sm text-gray-500 dark:text-gray-400">
-				Click a project to manage its MCPs
+				Click a project to open its dashboard
 			</p>
 		</div>
 		{#if onAddProject}
@@ -108,8 +101,3 @@
 		</div>
 	{/if}
 </div>
-
-<!-- Project Detail Modal -->
-{#if selectedProject}
-	<ProjectDetail project={selectedProject} onClose={handleCloseDetail} />
-{/if}

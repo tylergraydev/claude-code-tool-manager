@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { Header } from '$lib/components/layout';
 	import { SpinnerVerbList, SpinnerVerbForm } from '$lib/components/spinnerverbs';
 	import { ConfirmDialog } from '$lib/components/shared';
 	import { spinnerVerbLibrary, notifications } from '$lib/stores';
@@ -73,54 +72,47 @@
 	}
 </script>
 
-<Header
-	title="Spinner Verbs"
-	subtitle="Customize the action verbs shown in Claude Code's spinner while it's working"
-/>
-
-<div class="flex-1 overflow-auto p-6">
-	<!-- Mode & Actions Bar -->
-	<div class="flex items-center justify-between mb-6">
-		<div class="flex items-center gap-4">
-			<label
-				for="spinner-mode"
-				class="text-sm font-medium text-gray-700 dark:text-gray-300"
-			>
-				Mode:
-			</label>
-			<select
-				id="spinner-mode"
-				value={spinnerVerbLibrary.mode}
-				onchange={handleModeChange}
-				class="px-3 py-1.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-			>
-				<option value="append">Append (add to defaults)</option>
-				<option value="replace">Replace (use only these)</option>
-			</select>
-		</div>
-
-		<div class="flex items-center gap-3">
-			<button
-				onclick={handleSync}
-				disabled={isSyncing}
-				class="btn btn-secondary flex items-center gap-2"
-			>
-				<RefreshCw class="w-4 h-4 {isSyncing ? 'animate-spin' : ''}" />
-				Sync to Settings
-			</button>
-			<button onclick={() => (showAddVerb = true)} class="btn btn-primary">
-				<Plus class="w-4 h-4 mr-2" />
-				Add Verb
-			</button>
-		</div>
+<!-- Mode & Actions Bar -->
+<div class="flex items-center justify-between mb-6">
+	<div class="flex items-center gap-4">
+		<label
+			for="spinner-mode"
+			class="text-sm font-medium text-gray-700 dark:text-gray-300"
+		>
+			Mode:
+		</label>
+		<select
+			id="spinner-mode"
+			value={spinnerVerbLibrary.mode}
+			onchange={handleModeChange}
+			class="px-3 py-1.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+		>
+			<option value="append">Append (add to defaults)</option>
+			<option value="replace">Replace (use only these)</option>
+		</select>
 	</div>
 
-	<!-- Verb List -->
-	<SpinnerVerbList
-		onEdit={(verb) => (editingVerb = verb)}
-		onDelete={(verb) => (deletingVerb = verb)}
-	/>
+	<div class="flex items-center gap-3">
+		<button
+			onclick={handleSync}
+			disabled={isSyncing}
+			class="btn btn-secondary flex items-center gap-2"
+		>
+			<RefreshCw class="w-4 h-4 {isSyncing ? 'animate-spin' : ''}" />
+			Sync to Settings
+		</button>
+		<button onclick={() => (showAddVerb = true)} class="btn btn-primary">
+			<Plus class="w-4 h-4 mr-2" />
+			Add Verb
+		</button>
+	</div>
 </div>
+
+<!-- Verb List -->
+<SpinnerVerbList
+	onEdit={(verb) => (editingVerb = verb)}
+	onDelete={(verb) => (deletingVerb = verb)}
+/>
 
 <!-- Add Verb Modal -->
 {#if showAddVerb}

@@ -1,0 +1,13 @@
+export { default as SettingsModelsTab } from './SettingsModelsTab.svelte';
+export { default as SettingsSecurityTab } from './SettingsSecurityTab.svelte';
+export { default as SettingsPluginsTab } from './SettingsPluginsTab.svelte';
+export { default as SettingsEnvironmentTab } from './SettingsEnvironmentTab.svelte';
+export { default as SettingsInterfaceTab } from './SettingsInterfaceTab.svelte';
+export { default as SettingsFilesTab } from './SettingsFilesTab.svelte';
+export { default as SettingsSessionTab } from './SettingsSessionTab.svelte';
+export { default as SettingsAuthTab } from './SettingsAuthTab.svelte';
+export { default as SettingsMcpApprovalTab } from './SettingsMcpApprovalTab.svelte';
+export { default as SettingsKeybindingsTab } from './SettingsKeybindingsTab.svelte';
+export { default as SettingsSpinnerVerbsTab } from './SettingsSpinnerVerbsTab.svelte';
+export { default as SettingsAdminTab } from './SettingsAdminTab.svelte';
+export { default as SettingsEditorSyncTab } from './SettingsEditorSyncTab.svelte';
