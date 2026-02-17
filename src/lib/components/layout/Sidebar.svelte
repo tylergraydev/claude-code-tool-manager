@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/stores';
-	import { Library, FolderOpen, Settings, Plug, FileCode, Bot, Store, Zap, Terminal, Sparkles, Layers, PanelBottom, RotateCw, Shield, FileText, Sliders } from 'lucide-svelte';
+	import { Library, FolderOpen, Settings, Plug, FileCode, Bot, Store, Zap, Terminal, Sparkles, Layers, PanelBottom, RotateCw, Shield, ShieldCheck, FileText, Sliders } from 'lucide-svelte';
 	import { onMount } from 'svelte';
 	import { getVersion } from '@tauri-apps/api/app';
 
@@ -26,6 +26,7 @@
 		{ href: '/statusline', label: 'Status Line', icon: PanelBottom },
 		{ href: '/spinnerverbs', label: 'Spinner Verbs', icon: RotateCw },
 		{ href: '/permissions', label: 'Permissions', icon: Shield },
+		{ href: '/sandbox', label: 'Sandbox', icon: ShieldCheck },
 		{ href: '/memory', label: 'Memory', icon: FileText },
 		{ href: '/models-output', label: 'Models & Output', icon: Sliders },
 		{ href: '/marketplace', label: 'Marketplace', icon: Store },
