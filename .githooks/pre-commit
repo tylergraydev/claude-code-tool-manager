@@ -1,0 +1,13 @@
+#!/bin/sh
+# Pre-commit hook: format Rust code before committing
+
+# Check if any Rust files are staged
+RUST_STAGED=$(git diff --cached --name-only --diff-filter=ACM | grep '\.rs$' || true)
+
+if [ -n "$RUST_STAGED" ]; then
+    echo "Running cargo fmt..."
+    (cd src-tauri && cargo fmt) || exit 1
+
+    # Re-stage any formatted Rust files
+    echo "$RUST_STAGED" | xargs git add
+fi
