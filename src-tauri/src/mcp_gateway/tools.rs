@@ -113,6 +113,7 @@ impl ServerHandler for GatewayServer {
                     annotations: None,
                     icons: None,
                     meta: None,
+                    execution: None,
                 },
                 Tool {
                     name: "load_mcp_tools".into(),
@@ -140,6 +141,7 @@ impl ServerHandler for GatewayServer {
                     annotations: None,
                     icons: None,
                     meta: None,
+                    execution: None,
                 },
                 Tool {
                     name: "call_mcp_tool".into(),
@@ -175,6 +177,7 @@ impl ServerHandler for GatewayServer {
                     annotations: None,
                     icons: None,
                     meta: None,
+                    execution: None,
                 },
             ];
 
