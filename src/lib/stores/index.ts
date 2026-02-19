@@ -19,3 +19,4 @@ export { permissionLibrary } from './permissionLibrary.svelte';
 export { memoryLibrary } from './memoryLibrary.svelte';
 export { claudeSettingsLibrary } from './claudeSettingsLibrary.svelte';
 export { keybindingsLibrary } from './keybindingsLibrary.svelte';
+export { usageStore } from './usageStore.svelte';

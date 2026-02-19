@@ -450,6 +450,8 @@ pub fn run() {
             commands::keybindings::save_keybindings,
             // Managed Settings Commands
             commands::managed_settings::get_managed_settings,
+            // Analytics Commands
+            commands::analytics::get_usage_stats,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
