@@ -1,5 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import type { StatsCacheInfo, DateRangeFilter } from '$lib/types';
+import { estimateModelCost } from '$lib/types/usage';
 
 class UsageStoreState {
 	data = $state<StatsCacheInfo | null>(null);
@@ -34,6 +35,26 @@ class UsageStoreState {
 	totalToolCalls = $derived.by(() => {
 		const activity = this.stats?.dailyActivity ?? [];
 		return activity.reduce((sum, d) => sum + d.toolCallCount, 0);
+	});
+
+	totalCostUSD = $derived.by(() => {
+		const usage = this.stats?.modelUsage ?? {};
+		let total = 0;
+		for (const [modelId, detail] of Object.entries(usage)) {
+			// Use costUSD from the stats cache if available, otherwise estimate
+			if (detail.costUSD > 0) {
+				total += detail.costUSD;
+			} else {
+				total += estimateModelCost(
+					modelId,
+					detail.inputTokens,
+					detail.outputTokens,
+					detail.cacheReadInputTokens,
+					detail.cacheCreationInputTokens
+				);
+			}
+		}
+		return total;
 	});
 
 	hourCountsArray = $derived.by(() => {

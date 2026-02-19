@@ -455,6 +455,10 @@ pub fn run() {
             // Insights Commands
             commands::insights::get_insights_report,
             commands::insights::get_session_facets,
+            // Session Explorer Commands
+            commands::sessions::get_session_projects,
+            commands::sessions::get_project_sessions,
+            commands::sessions::get_session_detail,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

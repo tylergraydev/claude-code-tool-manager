@@ -22,6 +22,7 @@ pub mod permission_writer;
 pub mod repo_parser;
 pub mod repo_sync;
 pub mod scanner;
+pub mod session_explorer;
 pub mod skill_writer;
 pub mod sound_player;
 pub mod spinner_verb_writer;

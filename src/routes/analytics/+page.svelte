@@ -66,6 +66,7 @@
 			firstSessionDate={usageStore.stats.firstSessionDate}
 			longestSession={usageStore.stats.longestSession}
 			lastComputedDate={usageStore.stats.lastComputedDate}
+			totalCostUSD={usageStore.totalCostUSD}
 		/>
 
 		<!-- Daily Activity Chart -->

@@ -20,6 +20,7 @@ pub mod profiles;
 pub mod projects;
 pub mod repos;
 pub mod scanner;
+pub mod sessions;
 pub mod settings;
 pub mod skills;
 pub mod sounds;

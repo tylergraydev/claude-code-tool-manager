@@ -108,3 +108,95 @@ export function formatDuration(ms: number): string {
 	if (hours > 0) return `${hours}h ${minutes}m`;
 	return `${minutes}m`;
 }
+
+// ─── Cost Estimation ────────────────────────────────────────────────────────
+
+/** Per-million-token pricing for a model family */
+export interface ModelPricing {
+	input: number;
+	output: number;
+	cacheRead: number;
+	cacheWrite: number;
+}
+
+/** API pricing per million tokens (as of Feb 2025) */
+const OPUS_PRICING: ModelPricing = {
+	input: 15,
+	output: 75,
+	cacheRead: 1.5,
+	cacheWrite: 18.75
+};
+
+const SONNET_PRICING: ModelPricing = {
+	input: 3,
+	output: 15,
+	cacheRead: 0.3,
+	cacheWrite: 3.75
+};
+
+const HAIKU_PRICING: ModelPricing = {
+	input: 0.8,
+	output: 4,
+	cacheRead: 0.08,
+	cacheWrite: 1
+};
+
+/** Map model IDs to their pricing. Matches by substring for flexibility. */
+function getPricing(modelId: string): ModelPricing {
+	const lower = modelId.toLowerCase();
+	if (lower.includes('opus')) return OPUS_PRICING;
+	if (lower.includes('haiku')) return HAIKU_PRICING;
+	// Default to Sonnet pricing for sonnet and unknown models
+	return SONNET_PRICING;
+}
+
+/** Estimate the API cost for a single model's token usage */
+export function estimateModelCost(
+	modelId: string,
+	inputTokens: number,
+	outputTokens: number,
+	cacheReadTokens: number,
+	cacheWriteTokens: number
+): number {
+	const p = getPricing(modelId);
+	return (
+		(inputTokens / 1_000_000) * p.input +
+		(outputTokens / 1_000_000) * p.output +
+		(cacheReadTokens / 1_000_000) * p.cacheRead +
+		(cacheWriteTokens / 1_000_000) * p.cacheWrite
+	);
+}
+
+/**
+ * Estimate cost for a session that may use multiple models.
+ * When per-model breakdown isn't available, uses the provided modelsUsed
+ * array to pick the most expensive model's pricing as a conservative estimate.
+ */
+export function estimateSessionCost(
+	modelsUsed: string[],
+	inputTokens: number,
+	outputTokens: number,
+	cacheReadTokens: number,
+	cacheWriteTokens: number
+): number {
+	// Pick the most expensive model in the session for a conservative estimate
+	const model = modelsUsed.length > 0 ? modelsUsed[0] : 'claude-sonnet-4-5';
+	// Sort to find most expensive (opus > sonnet > haiku)
+	const sorted = [...modelsUsed].sort((a, b) => {
+		const pa = getPricing(a);
+		const pb = getPricing(b);
+		return pb.output - pa.output;
+	});
+	const primaryModel = sorted[0] ?? model;
+	return estimateModelCost(primaryModel, inputTokens, outputTokens, cacheReadTokens, cacheWriteTokens);
+}
+
+/** Format USD cost for display */
+export function formatCost(usd: number): string {
+	if (usd >= 100) return `$${usd.toFixed(0)}`;
+	if (usd >= 1) return `$${usd.toFixed(2)}`;
+	if (usd >= 0.01) return `$${usd.toFixed(2)}`;
+	if (usd >= 0.001) return `$${usd.toFixed(3)}`;
+	if (usd === 0) return '$0.00';
+	return `<$0.01`;
+}

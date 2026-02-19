@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/stores';
-	import { Library, FolderOpen, Settings, Bot, Store, Zap, Terminal, Sparkles, Layers, PanelBottom, Shield, FileText, Plug, BarChart3, TrendingUp } from 'lucide-svelte';
+	import { Library, FolderOpen, Settings, Bot, Store, Zap, Terminal, Sparkles, Layers, PanelBottom, Shield, FileText, Plug, BarChart3, TrendingUp, FolderSearch } from 'lucide-svelte';
 	import { onMount } from 'svelte';
 	import { getVersion } from '@tauri-apps/api/app';
 
@@ -59,7 +59,8 @@
 			label: 'Insights',
 			items: [
 				{ href: '/analytics', label: 'Analytics', icon: BarChart3 },
-				{ href: '/insights', label: 'Insights', icon: TrendingUp }
+				{ href: '/insights', label: 'Insights', icon: TrendingUp },
+				{ href: '/sessions', label: 'Sessions', icon: FolderSearch }
 			]
 		}
 	];

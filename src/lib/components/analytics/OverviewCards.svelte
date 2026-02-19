@@ -1,7 +1,7 @@
 <script lang="ts">
-	import { Hash, MessageSquare, Wrench, Calendar, Clock } from 'lucide-svelte';
+	import { Hash, MessageSquare, Wrench, Calendar, Clock, DollarSign } from 'lucide-svelte';
 	import type { LongestSession } from '$lib/types';
-	import { formatCompactNumber, formatDuration } from '$lib/types/usage';
+	import { formatCompactNumber, formatDuration, formatCost } from '$lib/types/usage';
 
 	type Props = {
 		totalSessions: number | null;
@@ -10,6 +10,7 @@
 		firstSessionDate: string | null;
 		longestSession: LongestSession | null;
 		lastComputedDate: string | null;
+		totalCostUSD?: number;
 	};
 
 	let {
@@ -18,7 +19,8 @@
 		totalToolCalls,
 		firstSessionDate,
 		longestSession,
-		lastComputedDate
+		lastComputedDate,
+		totalCostUSD
 	}: Props = $props();
 
 	function formatDate(iso: string | null): string {
@@ -65,11 +67,22 @@
 			subtitle: longestSession ? `${longestSession.messageCount} messages` : undefined,
 			icon: Clock,
 			color: 'bg-rose-500'
-		}
+		},
+		...(totalCostUSD != null
+			? [
+					{
+						label: 'Est. API Cost',
+						value: formatCost(totalCostUSD),
+						subtitle: 'if billed at API rates',
+						icon: DollarSign,
+						color: 'bg-emerald-500'
+					}
+				]
+			: [])
 	]);
 </script>
 
-<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
 	{#each cards as card}
 		<div
 			class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4"

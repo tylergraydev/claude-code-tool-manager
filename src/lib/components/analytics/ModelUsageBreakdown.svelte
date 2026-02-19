@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { ModelUsageDetail } from '$lib/types';
-	import { getModelColor, formatModelName, formatCompactNumber } from '$lib/types/usage';
+	import { getModelColor, formatModelName, formatCompactNumber, estimateModelCost, formatCost } from '$lib/types/usage';
 
 	type Props = {
 		modelUsage: Record<string, ModelUsageDetail>;
@@ -137,6 +137,9 @@
 							<th class="text-right py-2 px-1 font-medium text-gray-500 dark:text-gray-400">
 								Total
 							</th>
+							<th class="text-right py-2 px-1 font-medium text-gray-500 dark:text-gray-400">
+								Est. Cost
+							</th>
 						</tr>
 					</thead>
 					<tbody>
@@ -165,6 +168,19 @@
 								</td>
 								<td class="text-right py-1.5 px-1 font-medium text-gray-900 dark:text-white">
 									{formatCompactNumber(entry.total)}
+								</td>
+								<td class="text-right py-1.5 px-1 font-medium text-emerald-600 dark:text-emerald-400">
+									{formatCost(
+										entry.detail.costUSD > 0
+											? entry.detail.costUSD
+											: estimateModelCost(
+													entry.id,
+													entry.detail.inputTokens,
+													entry.detail.outputTokens,
+													entry.detail.cacheReadInputTokens,
+													entry.detail.cacheCreationInputTokens
+												)
+									)}
 								</td>
 							</tr>
 						{/each}
