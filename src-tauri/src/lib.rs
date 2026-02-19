@@ -452,6 +452,9 @@ pub fn run() {
             commands::managed_settings::get_managed_settings,
             // Analytics Commands
             commands::analytics::get_usage_stats,
+            // Insights Commands
+            commands::insights::get_insights_report,
+            commands::insights::get_session_facets,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
