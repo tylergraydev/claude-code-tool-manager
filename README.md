@@ -54,6 +54,12 @@ Claude Code configuration is scattered across your filesystem—`~/.claude.json`
 
 **Projects** — Scan for existing projects, assign tools globally or per-project, and keep everything in sync with Claude's config files. Search and filter to quickly find projects and available tools.
 
+**Usage Analytics** — Visualize your Claude Code usage patterns with interactive charts: daily activity, model usage breakdown with donut charts, daily token consumption by model, peak hours heatmap, and estimated API costs. Reads directly from `~/.claude/stats-cache.json`.
+
+**Insights Viewer** — View Claude's session quality reports and friction analysis. Displays the HTML insights report and session facets with outcome tracking, helpfulness ratings, and friction trend charts. Reads from `~/.claude/usage-data/`.
+
+**Session Explorer** — Browse individual Claude Code sessions per project. Drill into session transcripts with conversation timelines showing role badges, tool call tags, and per-message token usage. Includes project comparison cards, sortable session tables, tool frequency charts, and estimated API cost per session. Parses JSONL files from `~/.claude/projects/`.
+
 ## Installation
 
 ### macOS (Homebrew)
