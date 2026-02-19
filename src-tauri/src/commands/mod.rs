@@ -5,6 +5,7 @@ pub mod commands;
 pub mod config;
 pub mod debug;
 pub mod hooks;
+pub mod insights;
 pub mod keybindings;
 pub mod managed_settings;
 pub mod mcp;

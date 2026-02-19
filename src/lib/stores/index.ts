@@ -20,3 +20,4 @@ export { memoryLibrary } from './memoryLibrary.svelte';
 export { claudeSettingsLibrary } from './claudeSettingsLibrary.svelte';
 export { keybindingsLibrary } from './keybindingsLibrary.svelte';
 export { usageStore } from './usageStore.svelte';
+export { insightsStore } from './insightsStore.svelte';

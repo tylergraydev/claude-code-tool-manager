@@ -10,6 +10,7 @@ pub mod debug_logger;
 pub mod gemini_config;
 pub mod github_client;
 pub mod hook_writer;
+pub mod insights;
 pub mod keybindings_writer;
 pub mod managed_settings;
 pub mod mcp_client;
