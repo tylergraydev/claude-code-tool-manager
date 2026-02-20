@@ -22,3 +22,4 @@ export { keybindingsLibrary } from './keybindingsLibrary.svelte';
 export { usageStore } from './usageStore.svelte';
 export { insightsStore } from './insightsStore.svelte';
 export { sessionStore } from './sessionStore.svelte';
+export { comparisonStore } from './comparisonStore.svelte';

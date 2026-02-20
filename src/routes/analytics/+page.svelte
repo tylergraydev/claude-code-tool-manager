@@ -1,17 +1,25 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { Header } from '$lib/components/layout';
+	import { onDestroy } from 'svelte';
 	import OverviewCards from '$lib/components/analytics/OverviewCards.svelte';
 	import DailyActivityChart from '$lib/components/analytics/DailyActivityChart.svelte';
 	import ModelUsageBreakdown from '$lib/components/analytics/ModelUsageBreakdown.svelte';
 	import DailyTokenChart from '$lib/components/analytics/DailyTokenChart.svelte';
+	import DailyCostChart from '$lib/components/analytics/DailyCostChart.svelte';
+	import CostProjectionsCard from '$lib/components/analytics/CostProjectionsCard.svelte';
 	import PeakHoursChart from '$lib/components/analytics/PeakHoursChart.svelte';
 	import { usageStore } from '$lib/stores';
-	import { RefreshCw, BarChart3, FileQuestion } from 'lucide-svelte';
+	import { RefreshCw, FileQuestion } from 'lucide-svelte';
 	import type { DateRangeFilter } from '$lib/types';
 
 	onMount(() => {
 		usageStore.load();
+		usageStore.startPolling(60_000);
+	});
+
+	onDestroy(() => {
+		usageStore.stopPolling();
 	});
 
 	function handleRefresh() {
@@ -23,13 +31,7 @@
 	}
 </script>
 
-<Header title="Usage Analytics" subtitle="Visualize your Claude Code usage patterns">
-	{#snippet children()}
-		<button onclick={handleRefresh} class="btn btn-ghost" title="Refresh data">
-			<RefreshCw class="w-4 h-4" />
-		</button>
-	{/snippet}
-</Header>
+<Header title="Usage Analytics" subtitle="Visualize your Claude Code usage patterns" />
 
 <div class="flex-1 overflow-auto p-6 space-y-6">
 	{#if usageStore.isLoading}
@@ -69,6 +71,17 @@
 			totalCostUSD={usageStore.totalCostUSD}
 		/>
 
+		<div class="flex items-center justify-end">
+			<button
+				onclick={handleRefresh}
+				class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors"
+				title="Refresh analytics"
+			>
+				<RefreshCw class="w-3.5 h-3.5" />
+				Refresh
+			</button>
+		</div>
+
 		<!-- Daily Activity Chart -->
 		<DailyActivityChart
 			data={usageStore.filteredDailyActivity}
@@ -87,5 +100,19 @@
 			data={usageStore.filteredDailyTokens}
 			models={usageStore.allModels}
 		/>
+
+		<!-- Cost Section -->
+		<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+			<div class="lg:col-span-2">
+				<DailyCostChart
+					data={usageStore.filteredDailyCosts}
+					models={usageStore.allModels}
+				/>
+			</div>
+			<CostProjectionsCard
+				dailyCosts={usageStore.filteredDailyCosts}
+				totalCostUSD={usageStore.totalCostUSD}
+			/>
+		</div>
 	{/if}
 </div>

@@ -1,8 +1,10 @@
 <script lang="ts">
 	import { page } from '$app/stores';
-	import { Library, FolderOpen, Settings, Bot, Store, Zap, Terminal, Sparkles, Layers, PanelBottom, Shield, FileText, Plug, BarChart3, TrendingUp, FolderSearch } from 'lucide-svelte';
+	import { Library, FolderOpen, Settings, Bot, Store, Zap, Terminal, Sparkles, Layers, PanelBottom, Shield, FileText, Plug, BarChart3, TrendingUp, FolderSearch, GitCompareArrows } from 'lucide-svelte';
 	import { onMount } from 'svelte';
 	import { getVersion } from '@tauri-apps/api/app';
+	import TodayUsageWidget from './TodayUsageWidget.svelte';
+	import { sessionStore } from '$lib/stores';
 
 	let appVersion = $state('');
 
@@ -11,6 +13,10 @@
 			appVersion = await getVersion();
 		} catch {
 			appVersion = '1.0.0';
+		}
+		// Load session projects for the usage widget
+		if (sessionStore.projects.length === 0) {
+			sessionStore.loadProjects();
 		}
 	});
 
@@ -60,7 +66,8 @@
 			items: [
 				{ href: '/analytics', label: 'Analytics', icon: BarChart3 },
 				{ href: '/insights', label: 'Insights', icon: TrendingUp },
-				{ href: '/sessions', label: 'Sessions', icon: FolderSearch }
+				{ href: '/sessions', label: 'Sessions', icon: FolderSearch },
+				{ href: '/comparison', label: 'Comparison', icon: GitCompareArrows }
 			]
 		}
 	];
@@ -107,6 +114,7 @@
 	</nav>
 
 	<div class="border-t border-gray-200 dark:border-gray-700 p-3">
+		<TodayUsageWidget />
 		<a
 			href="/settings"
 			class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors
