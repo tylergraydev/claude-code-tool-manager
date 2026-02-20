@@ -70,7 +70,7 @@ urlencoding = "2"
 uuid = { version = "1", features = ["v4"] }
 
 # MCP Server (exposing our own MCP server)
-rmcp = { version = "0.15", features = ["server", "macros", "transport-streamable-http-server"] }
+rmcp = { version = "0.16", features = ["server", "macros", "transport-streamable-http-server"] }
 axum = "0.8"
 tower-http = { version = "0.6", features = ["cors"] }
 schemars = "1.2"
