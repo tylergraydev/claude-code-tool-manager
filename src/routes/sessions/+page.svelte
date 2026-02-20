@@ -21,13 +21,7 @@
 	}
 </script>
 
-<Header title="Session Explorer" subtitle="Browse individual Claude Code sessions per project">
-	{#snippet children()}
-		<button onclick={handleRefresh} class="btn btn-ghost" title="Refresh data">
-			<RefreshCw class="w-4 h-4" />
-		</button>
-	{/snippet}
-</Header>
+<Header title="Session Explorer" subtitle="Browse individual Claude Code sessions per project" />
 
 <div class="flex-1 overflow-auto p-6 space-y-6">
 	{#if sessionStore.isLoadingProjects}
@@ -61,6 +55,17 @@
 	{:else}
 		<!-- Overview Cards -->
 		<ProjectOverviewCards projects={sessionStore.projects} />
+
+		<div class="flex items-center justify-end">
+			<button
+				onclick={handleRefresh}
+				class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors"
+				title="Refresh sessions"
+			>
+				<RefreshCw class="w-3.5 h-3.5" />
+				Refresh
+			</button>
+		</div>
 
 		<!-- Project Selector + Tool Usage side by side on large screens -->
 		<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
@@ -132,6 +137,7 @@
 		{:else if sessionStore.sessionDetail}
 			<SessionDetailPanel
 				detail={sessionStore.sessionDetail}
+				sessionSummary={sessionStore.selectedSessionSummary}
 				onClose={() => sessionStore.clearSession()}
 			/>
 		{/if}
