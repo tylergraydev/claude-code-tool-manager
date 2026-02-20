@@ -9,7 +9,7 @@
 use crate::mcp_gateway::backend::GatewayBackendManager;
 use rmcp::{
     model::{
-        CallToolRequestParam, CallToolResult, Content, ListToolsResult, PaginatedRequestParam,
+        CallToolRequestParams, CallToolResult, Content, ListToolsResult, PaginatedRequestParams,
         ServerCapabilities, ServerInfo, Tool,
     },
     service::RequestContext,
@@ -90,7 +90,7 @@ impl ServerHandler for GatewayServer {
 
     fn list_tools(
         &self,
-        _request: Option<PaginatedRequestParam>,
+        _request: Option<PaginatedRequestParams>,
         _context: RequestContext<RoleServer>,
     ) -> impl std::future::Future<Output = Result<ListToolsResult, ErrorData>> + Send + '_ {
         async move {
@@ -193,7 +193,7 @@ impl ServerHandler for GatewayServer {
 
     fn call_tool(
         &self,
-        request: CallToolRequestParam,
+        request: CallToolRequestParams,
         _context: RequestContext<RoleServer>,
     ) -> impl std::future::Future<Output = Result<CallToolResult, ErrorData>> + Send + '_ {
         async move {
