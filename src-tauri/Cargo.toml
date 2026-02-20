@@ -61,7 +61,7 @@ regex = "1"
 
 # TOML parsing for Codex CLI config
 toml = "1.0"
-toml_edit = "0.24"
+toml_edit = "0.25"
 
 # URL encoding for API queries
 urlencoding = "2"
