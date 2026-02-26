@@ -59,6 +59,17 @@ jobs:
           security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
           security list-keychain -d user -s $KEYCHAIN_PATH
 
+      - name: Write Apple API key to file
+        if: matrix.platform == 'macos-latest'
+        env:
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+        run: |
+          mkdir -p $RUNNER_TEMP/apple-keys
+          API_KEY_PATH=$RUNNER_TEMP/apple-keys/AuthKey_${APPLE_API_KEY_ID}.p8
+          echo -n "$APPLE_API_KEY" > "$API_KEY_PATH"
+          echo "APPLE_API_KEY_PATH=$API_KEY_PATH" >> $GITHUB_ENV
+
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
@@ -86,9 +97,8 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           # Apple code signing (macOS only)
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-          # Apple notarization (macOS only)
-          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
-          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          # Apple notarization (macOS only) - APPLE_API_KEY_PATH is set by the "Write Apple API key to file" step
+          APPLE_API_KEY_PATH: ${{ env.APPLE_API_KEY_PATH }}
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
         with:
           tagName: ${{ github.ref_name }}
@@ -117,7 +127,8 @@ jobs:
           prerelease: false
           args: --target ${{ matrix.target }}
 
-      - name: Cleanup keychain
+      - name: Cleanup keychain and API key
         if: matrix.platform == 'macos-latest' && always()
         run: |
           security delete-keychain $RUNNER_TEMP/app-signing.keychain-db || true
+          rm -rf $RUNNER_TEMP/apple-keys || true
