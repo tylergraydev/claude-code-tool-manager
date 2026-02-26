@@ -67,7 +67,20 @@ jobs:
         run: |
           mkdir -p $RUNNER_TEMP/apple-keys
           API_KEY_PATH=$RUNNER_TEMP/apple-keys/AuthKey_${APPLE_API_KEY_ID}.p8
-          echo -n "$APPLE_API_KEY" > "$API_KEY_PATH"
+
+          # Debug: show format info (first 10 chars of a .p8 are always "-----BEGIN", not sensitive)
+          echo "Key starts with: $(echo -n "$APPLE_API_KEY" | head -c 10)"
+          echo "Key length: $(echo -n "$APPLE_API_KEY" | wc -c)"
+
+          # If it starts with "-----", it's raw PEM - write directly
+          # Otherwise assume it's base64-encoded and decode it
+          if echo "$APPLE_API_KEY" | grep -q "^-----"; then
+            printf '%s\n' "$APPLE_API_KEY" > "$API_KEY_PATH"
+          else
+            echo -n "$APPLE_API_KEY" | base64 --decode > "$API_KEY_PATH"
+          fi
+
+          echo "Written key starts with: $(head -c 10 "$API_KEY_PATH")"
           echo "APPLE_API_KEY_PATH=$API_KEY_PATH" >> $GITHUB_ENV
 
       - name: Setup Node.js
