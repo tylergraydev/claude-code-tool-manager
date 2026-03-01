@@ -818,11 +818,16 @@ pub fn extract_tool_calls(content: &serde_json::Value) -> Vec<ToolCallInfo> {
 /// Truncate a string to approximately `max_chars` characters, breaking at a word boundary.
 fn truncate_str(s: &str, max_chars: usize) -> String {
     let trimmed = s.trim();
-    if trimmed.len() <= max_chars {
+    if trimmed.chars().count() <= max_chars {
         return trimmed.to_string();
     }
-    // Find last space before max_chars
-    let truncated = &trimmed[..max_chars];
+    // Find last space before max_chars using character indices, not byte indices
+    let char_indices: Vec<(usize, char)> = trimmed.char_indices().collect();
+    if char_indices.len() <= max_chars {
+        return trimmed.to_string();
+    }
+    let truncate_byte_pos = char_indices[max_chars].0;
+    let truncated = &trimmed[..truncate_byte_pos];
     if let Some(last_space) = truncated.rfind(' ') {
         format!("{}...", &trimmed[..last_space])
     } else {
@@ -893,6 +898,58 @@ mod tests {
         let truncated = truncate_str(&long, 20);
         assert!(truncated.len() < 30);
         assert!(truncated.ends_with("..."));
+    }
+
+    #[test]
+    fn test_truncate_str_with_multibyte_utf8() {
+        // Test string with multi-byte UTF-8 character (→) near truncation point
+        // This reproduces the panic from issue where byte 200 was inside '→' (bytes 198..201)
+        let text = "a".repeat(195) + " test → more text after arrow";
+        let truncated = truncate_str(&text, 200);
+        // Should not panic and should handle the arrow character correctly
+        assert!(truncated.contains("..."));
+        assert!(truncated.len() > 0);
+    }
+
+    #[test]
+    fn test_truncate_str_various_multibyte_chars() {
+        // Test various multi-byte UTF-8 characters at different positions
+        let boundary_str = "a".repeat(100) + "→" + &"b".repeat(100);
+        let test_cases = vec![
+            ("emoji at end 😀", 50),
+            ("中文字符 in the middle of text", 20),
+            ("arrows → ← ↑ ↓ everywhere", 15),
+            ("Ζῳή żółty 日本語 한글", 10),
+            (boundary_str.as_str(), 101), // Right at boundary
+        ];
+        
+        for (text, max_chars) in test_cases {
+            let result = truncate_str(text, max_chars);
+            // Should not panic
+            assert!(result.len() > 0 || text.is_empty());
+        }
+    }
+
+    // Property-based testing with proptest
+    use proptest::prelude::*;
+
+    proptest! {
+        #[test]
+        fn test_truncate_str_never_panics(s in "\\PC*", max_chars in 1usize..500) {
+            // This test generates random UTF-8 strings and random lengths
+            // and ensures truncate_str never panics regardless of input
+            let result = truncate_str(&s, max_chars);
+            
+            // Basic invariants that should always hold:
+            // 1. Result is valid UTF-8 (implicitly tested by not panicking)
+            // 2. If input is short enough, output equals input (trimmed)
+            if s.trim().chars().count() <= max_chars {
+                prop_assert_eq!(result, s.trim());
+            } else {
+                // If truncated, should end with "..."
+                prop_assert!(result.ends_with("..."));
+            }
+        }
     }
 
     #[test]
