@@ -51,7 +51,7 @@
     "happy-dom": "^20.7.0",
     "jest-dom": "^4.0.0",
     "jsdom": "^28.0.0",
-    "postcss": "^8.4.49",
+    "postcss": "^8.5.8",
     "svelte": "^5.49.1",
     "svelte-check": "^4.4.4",
     "tailwindcss": "^4.2.0",
