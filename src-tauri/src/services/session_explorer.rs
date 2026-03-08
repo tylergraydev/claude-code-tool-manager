@@ -818,11 +818,17 @@ pub fn extract_tool_calls(content: &serde_json::Value) -> Vec<ToolCallInfo> {
 /// Truncate a string to approximately `max_chars` characters, breaking at a word boundary.
 fn truncate_str(s: &str, max_chars: usize) -> String {
     let trimmed = s.trim();
-    if trimmed.len() <= max_chars {
+    if trimmed.chars().count() <= max_chars {
         return trimmed.to_string();
     }
-    // Find last space before max_chars
-    let truncated = &trimmed[..max_chars];
+    // Find the byte index of the max_chars-th character
+    let byte_end = trimmed
+        .char_indices()
+        .nth(max_chars)
+        .map(|(i, _)| i)
+        .unwrap_or(trimmed.len());
+    let truncated = &trimmed[..byte_end];
+    // Find last space before the limit for a clean word break
     if let Some(last_space) = truncated.rfind(' ') {
         format!("{}...", &trimmed[..last_space])
     } else {
@@ -893,6 +899,18 @@ mod tests {
         let truncated = truncate_str(&long, 20);
         assert!(truncated.len() < 30);
         assert!(truncated.ends_with("..."));
+    }
+
+    #[test]
+    fn test_truncate_str_unicode() {
+        // Emojis are multi-byte: should not panic when truncation lands mid-character
+        let emoji_str = "Hello 🌍🌎🌏 world! 🎉🎊✨ some more text here to exceed the limit";
+        let truncated = truncate_str(emoji_str, 10);
+        assert!(truncated.ends_with("..."));
+        // Ensure it doesn't panic with all-emoji strings
+        let all_emoji = "🔥".repeat(50);
+        let truncated2 = truncate_str(&all_emoji, 5);
+        assert!(truncated2.ends_with("..."));
     }
 
     #[test]
