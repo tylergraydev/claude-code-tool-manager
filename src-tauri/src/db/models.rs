@@ -476,12 +476,22 @@ pub struct GeminiPaths {
     pub settings_file: String, // ~/.gemini/settings.json
 }
 
+// WSL Claude Code paths
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WslClaudePaths {
+    pub distro: String,      // WSL distro name (e.g., "Ubuntu")
+    pub wsl_home: String,    // Home directory inside WSL (e.g., "/home/user")
+    pub claude_json: String, // ~/.claude.json inside WSL
+    pub claude_dir: String,  // ~/.claude/ inside WSL
+}
+
 // Editor info for frontend
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EditorInfo {
-    pub id: String,          // "claude_code" or "opencode"
-    pub name: String,        // "Claude Code" or "OpenCode"
+    pub id: String,          // "claude_code", "opencode", "wsl_ubuntu", etc.
+    pub name: String,        // "Claude Code", "Claude Code (WSL: Ubuntu)", etc.
     pub is_installed: bool,  // Whether config directory exists
     pub is_enabled: bool,    // Whether syncing to this editor is enabled
     pub config_path: String, // Path to main config file

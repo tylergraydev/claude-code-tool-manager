@@ -33,7 +33,7 @@ export function mockInvokeResponses(responses: Record<string, unknown>): void {
 export function mockInvokeHandler(
 	handler: (cmd: string, args?: Record<string, unknown>) => unknown
 ): void {
-	vi.mocked(invoke).mockImplementation(async (cmd: string, args?: Record<string, unknown>) => {
-		return handler(cmd, args);
+	vi.mocked(invoke).mockImplementation(async (cmd: string, args?: unknown) => {
+		return handler(cmd, args as Record<string, unknown> | undefined);
 	});
 }

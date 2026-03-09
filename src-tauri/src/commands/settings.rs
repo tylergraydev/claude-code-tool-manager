@@ -1,6 +1,6 @@
 use crate::db::{
     AppSettings, CodexPaths, CopilotPaths, CursorPaths, Database, EditorInfo, GeminiPaths,
-    OpenCodePaths,
+    OpenCodePaths, WslClaudePaths,
 };
 use crate::utils::codex_paths::{get_codex_paths, is_codex_installed};
 use crate::utils::copilot_paths::{get_copilot_paths, is_copilot_installed};
@@ -8,6 +8,7 @@ use crate::utils::cursor_paths::{get_cursor_paths, is_cursor_installed};
 use crate::utils::gemini_paths::{get_gemini_paths, is_gemini_installed};
 use crate::utils::opencode_paths::{get_opencode_paths, is_opencode_installed};
 use crate::utils::paths::get_claude_paths;
+use crate::utils::wsl;
 use log::info;
 use std::sync::{Arc, Mutex};
 use tauri::State;
@@ -108,6 +109,25 @@ pub fn get_available_editors(
             is_installed: is_gemini_installed(),
             is_enabled: enabled.contains(&"gemini".to_string()),
             config_path: paths.settings_file.to_string_lossy().to_string(),
+        });
+    }
+
+    // WSL Claude Code installations (Windows only)
+    let wsl_installations = wsl::detect_wsl_claude_installations();
+    for wsl_info in &wsl_installations {
+        let editor_id = wsl::wsl_editor_id(&wsl_info.distro);
+        let config_path = wsl_info
+            .wsl_home
+            .as_ref()
+            .map(|h| format!("{}/.claude.json", h))
+            .unwrap_or_else(|| "~/.claude.json".to_string());
+
+        editors.push(EditorInfo {
+            id: editor_id.clone(),
+            name: format!("Claude Code (WSL: {})", wsl_info.distro),
+            is_installed: wsl_info.is_installed,
+            is_enabled: enabled.contains(&editor_id),
+            config_path: format!("WSL:{} {}", wsl_info.distro, config_path),
         });
     }
 
@@ -240,6 +260,28 @@ pub fn get_gemini_paths_cmd() -> Result<GeminiPaths, String> {
         config_dir: paths.config_dir.to_string_lossy().to_string(),
         settings_file: paths.settings_file.to_string_lossy().to_string(),
     })
+}
+
+/// Get WSL Claude Code paths for all detected distros
+#[tauri::command]
+pub fn get_wsl_claude_paths_cmd() -> Result<Vec<WslClaudePaths>, String> {
+    info!("[Settings] Getting WSL Claude Code paths");
+
+    let installations = wsl::detect_wsl_claude_installations();
+
+    Ok(installations
+        .into_iter()
+        .filter(|info| info.is_installed)
+        .map(|info| {
+            let home = info.wsl_home.unwrap_or_else(|| "~".to_string());
+            WslClaudePaths {
+                distro: info.distro,
+                wsl_home: home.clone(),
+                claude_json: format!("{}/.claude.json", home),
+                claude_dir: format!("{}/.claude", home),
+            }
+        })
+        .collect())
 }
 
 // ============================================================================

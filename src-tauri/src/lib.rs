@@ -339,6 +339,7 @@ pub fn run() {
             commands::settings::get_copilot_paths_cmd,
             commands::settings::get_cursor_paths_cmd,
             commands::settings::get_gemini_paths_cmd,
+            commands::settings::get_wsl_claude_paths_cmd,
             commands::settings::toggle_editor,
             commands::settings::set_github_token,
             commands::settings::clear_github_token,
