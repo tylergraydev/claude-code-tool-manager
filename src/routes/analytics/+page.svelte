@@ -74,11 +74,12 @@
 		<div class="flex items-center justify-end">
 			<button
 				onclick={handleRefresh}
-				class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors"
+				disabled={usageStore.isRefreshing}
+				class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
 				title="Refresh analytics"
 			>
-				<RefreshCw class="w-3.5 h-3.5" />
-				Refresh
+				<RefreshCw class="w-3.5 h-3.5 {usageStore.isRefreshing ? 'animate-spin' : ''}" />
+				{usageStore.isRefreshing ? 'Refreshing…' : 'Refresh'}
 			</button>
 		</div>
 

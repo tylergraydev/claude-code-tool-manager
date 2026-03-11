@@ -10,9 +10,9 @@
 
 	let { children } = $props();
 
-	onMount(async () => {
-		// Load initial data
-		await Promise.all([
+	onMount(() => {
+		// Load initial data concurrently without blocking render
+		Promise.all([
 			mcpLibrary.load(),
 			projectsStore.loadProjects(),
 			projectsStore.loadGlobalMcps(),
@@ -26,14 +26,15 @@
 			commandLibrary.loadGlobalCommands(),
 			statuslineLibrary.load(),
 			spinnerVerbLibrary.load()
-		]);
+		]).catch((e) => console.error('[layout] Initial data load failed:', e));
 
 		// Load debug state and install interceptor if enabled
-		await debugStore.load();
-		if (debugStore.isEnabled) {
-			installDebugInterceptor();
-			console.log('[Debug] App started with debug mode enabled');
-		}
+		debugStore.load().then(() => {
+			if (debugStore.isEnabled) {
+				installDebugInterceptor();
+				console.log('[Debug] App started with debug mode enabled');
+			}
+		}).catch((e) => console.error('[layout] Debug store load failed:', e));
 
 		// Check for "What's New" after update (with delay to not block startup)
 		setTimeout(() => {

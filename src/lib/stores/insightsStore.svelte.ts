@@ -6,6 +6,8 @@ class InsightsStoreState {
 	facetsInfo = $state<SessionFacetsInfo | null>(null);
 	isLoadingReport = $state(false);
 	isLoadingFacets = $state(false);
+	isRefreshingReport = $state(false);
+	isRefreshingFacets = $state(false);
 	reportError = $state<string | null>(null);
 	facetsError = $state<string | null>(null);
 
@@ -16,6 +18,7 @@ class InsightsStoreState {
 	facets = $derived(this.facetsInfo?.facets ?? []);
 
 	isLoading = $derived(this.isLoadingReport || this.isLoadingFacets);
+	isRefreshing = $derived(this.isRefreshingReport || this.isRefreshingFacets);
 
 	outcomeCounts = $derived.by(() => {
 		const counts: Record<string, number> = {};
@@ -53,7 +56,11 @@ class InsightsStoreState {
 	}
 
 	async loadReport() {
-		this.isLoadingReport = true;
+		if (this.reportInfo) {
+			this.isRefreshingReport = true;
+		} else {
+			this.isLoadingReport = true;
+		}
 		this.reportError = null;
 		try {
 			this.reportInfo = await invoke<InsightsReportInfo>('get_insights_report');
@@ -63,11 +70,16 @@ class InsightsStoreState {
 			console.error('[insightsStore] Failed to load insights report:', e);
 		} finally {
 			this.isLoadingReport = false;
+			this.isRefreshingReport = false;
 		}
 	}
 
 	async loadFacets() {
-		this.isLoadingFacets = true;
+		if (this.facetsInfo) {
+			this.isRefreshingFacets = true;
+		} else {
+			this.isLoadingFacets = true;
+		}
 		this.facetsError = null;
 		try {
 			this.facetsInfo = await invoke<SessionFacetsInfo>('get_session_facets');
@@ -77,6 +89,7 @@ class InsightsStoreState {
 			console.error('[insightsStore] Failed to load session facets:', e);
 		} finally {
 			this.isLoadingFacets = false;
+			this.isRefreshingFacets = false;
 		}
 	}
 }

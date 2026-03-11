@@ -7,9 +7,10 @@
 		htmlContent: string;
 		filePath: string;
 		onRefresh?: () => void;
+		isRefreshing?: boolean;
 	};
 
-	let { htmlContent, filePath, onRefresh }: Props = $props();
+	let { htmlContent, filePath, onRefresh, isRefreshing = false }: Props = $props();
 
 	async function openInBrowser() {
 		try {
@@ -30,11 +31,12 @@
 			{#if onRefresh}
 				<button
 					onclick={onRefresh}
-					class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors"
+					disabled={isRefreshing}
+					class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
 					title="Refresh insights"
 				>
-					<RefreshCw class="w-3.5 h-3.5" />
-					Refresh
+					<RefreshCw class="w-3.5 h-3.5 {isRefreshing ? 'animate-spin' : ''}" />
+					{isRefreshing ? 'Refreshing…' : 'Refresh'}
 				</button>
 			{/if}
 			<button

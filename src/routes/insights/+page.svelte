@@ -38,6 +38,7 @@
 			htmlContent={insightsStore.reportHtml}
 			filePath={insightsStore.reportFilePath}
 			onRefresh={handleRefresh}
+			isRefreshing={insightsStore.isRefreshing}
 		/>
 	{:else}
 		<div
