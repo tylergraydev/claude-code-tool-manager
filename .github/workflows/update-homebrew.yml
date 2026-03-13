@@ -3,6 +3,11 @@ name: Update Homebrew Cask
 on:
   release:
     types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to update (e.g. 3.4.0, without v prefix)'
+        required: true
 
 jobs:
   update-cask:
@@ -14,8 +19,12 @@ jobs:
       - name: Extract version
         id: version
         run: |
-          VERSION="${{ github.event.release.tag_name }}"
-          VERSION="${VERSION#v}"  # Remove 'v' prefix
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION="${{ github.event.release.tag_name }}"
+            VERSION="${VERSION#v}"  # Remove 'v' prefix
+          fi
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Download DMGs and calculate SHA256
@@ -24,15 +33,30 @@ jobs:
           VERSION="${{ steps.version.outputs.version }}"
           BASE_URL="https://github.com/${{ github.repository }}/releases/download/v${VERSION}"
 
-          # Download and hash aarch64 DMG
-          curl -sL "${BASE_URL}/Claude.Code.Tool.Manager_${VERSION}_aarch64.dmg" -o aarch64.dmg
-          SHA_ARM=$(shasum -a 256 aarch64.dmg | cut -d ' ' -f 1)
-          echo "sha_arm=$SHA_ARM" >> $GITHUB_OUTPUT
+          # Download aarch64 DMG (fail on HTTP errors, retry up to 3 times)
+          curl -fSL --retry 3 --retry-delay 10 \
+            "${BASE_URL}/Claude.Code.Tool.Manager_${VERSION}_aarch64.dmg" -o aarch64.dmg
 
-          # Download and hash x64 DMG
-          curl -sL "${BASE_URL}/Claude.Code.Tool.Manager_${VERSION}_x64.dmg" -o x64.dmg
+          # Download x64 DMG
+          curl -fSL --retry 3 --retry-delay 10 \
+            "${BASE_URL}/Claude.Code.Tool.Manager_${VERSION}_x64.dmg" -o x64.dmg
+
+          # Verify downloads are valid (non-empty and reasonable size)
+          for f in aarch64.dmg x64.dmg; do
+            SIZE=$(stat --format=%s "$f" 2>/dev/null || stat -f%z "$f")
+            echo "$f size: $SIZE bytes"
+            if [ "$SIZE" -lt 1000000 ]; then
+              echo "::error::$f is suspiciously small ($SIZE bytes) — download likely failed"
+              exit 1
+            fi
+          done
+
+          SHA_ARM=$(shasum -a 256 aarch64.dmg | cut -d ' ' -f 1)
           SHA_INTEL=$(shasum -a 256 x64.dmg | cut -d ' ' -f 1)
+          echo "sha_arm=$SHA_ARM" >> $GITHUB_OUTPUT
           echo "sha_intel=$SHA_INTEL" >> $GITHUB_OUTPUT
+          echo "aarch64 SHA256: $SHA_ARM"
+          echo "x64 SHA256: $SHA_INTEL"
 
       - name: Checkout homebrew tap
         uses: actions/checkout@v6
