@@ -17,12 +17,15 @@
 		open,
 		title,
 		message,
-		confirmText = i18n.t('common.confirm'),
-		cancelText = i18n.t('common.cancel'),
+		confirmText,
+		cancelText,
 		variant = 'danger',
 		onConfirm,
 		onCancel
 	}: Props = $props();
+
+	const resolvedConfirmText = $derived(confirmText ?? i18n.t('common.confirm'));
+	const resolvedCancelText = $derived(cancelText ?? i18n.t('common.cancel'));
 
 	const variants = {
 		danger: 'bg-red-600 hover:bg-red-700 focus:ring-red-500',
@@ -66,10 +69,10 @@
 
 			<div class="mt-6 flex justify-end gap-3">
 				<button onclick={onCancel} class="btn btn-secondary">
-					{cancelText}
+					{resolvedCancelText}
 				</button>
 				<button onclick={onConfirm} class="btn text-white {variants[variant]}">
-					{confirmText}
+					{resolvedConfirmText}
 				</button>
 			</div>
 		</div>
