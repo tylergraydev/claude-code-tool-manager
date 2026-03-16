@@ -22,6 +22,7 @@
 		Loader2,
 		ArrowUpDown
 	} from 'lucide-svelte';
+	import { i18n } from '$lib/i18n';
 	import type { Repo, RepoItem, CreateRepoRequest, ItemType, RegistryMcpEntry } from '$lib/types';
 
 	// State
@@ -66,7 +67,7 @@
 
 		// Auto-sync if no items have been fetched yet
 		if (repoLibrary.repos.length > 0 && repoLibrary.items.length === 0) {
-			notifications.info('Syncing repositories for the first time...');
+			notifications.info(i18n.t('marketplace.syncing'));
 			await handleSyncAll();
 		}
 	}
@@ -75,21 +76,21 @@
 		try {
 			const result = await repoLibrary.syncAllRepos();
 			if (result.errors.length > 0) {
-				notifications.warning(`Synced with ${result.errors.length} errors`);
+				notifications.warning(i18n.t('marketplace.syncErrors', { count: result.errors.length }));
 			} else {
-				notifications.success(`Added ${result.added}, updated ${result.updated} items`);
+				notifications.success(i18n.t('marketplace.syncResult', { added: result.added, updated: result.updated }));
 			}
 		} catch (e) {
-			notifications.error('Failed to sync repositories');
+			notifications.error(i18n.t('marketplace.syncFailed'));
 		}
 	}
 
 	async function handleSyncRepo(id: number) {
 		try {
 			const result = await repoLibrary.syncRepo(id);
-			notifications.success(`Added ${result.added}, updated ${result.updated} items`);
+			notifications.success(i18n.t('marketplace.syncResult', { added: result.added, updated: result.updated }));
 		} catch (e) {
-			notifications.error('Failed to sync repository');
+			notifications.error(i18n.t('marketplace.syncRepoFailed'));
 		}
 	}
 
@@ -103,7 +104,7 @@
 				contentType: newRepoContentType
 			};
 			await repoLibrary.addRepo(request);
-			notifications.success('Repository added');
+			notifications.success(i18n.t('marketplace.repoAdded'));
 			showAddRepoModal = false;
 			newRepoUrl = '';
 		} catch (e) {
@@ -113,12 +114,12 @@
 
 	async function handleRemoveRepo(repo: Repo) {
 		if (repo.isDefault) {
-			notifications.error('Cannot remove default repositories');
+			notifications.error(i18n.t('marketplace.resetFailed'));
 			return;
 		}
 		try {
 			await repoLibrary.removeRepo(repo.id);
-			notifications.success('Repository removed');
+			notifications.success(i18n.t('marketplace.repoRemoved'));
 		} catch (e) {
 			notifications.error(String(e));
 		}
@@ -128,7 +129,7 @@
 		try {
 			await repoLibrary.toggleRepo(repo.id, !repo.isEnabled);
 		} catch (e) {
-			notifications.error('Failed to toggle repository');
+			notifications.error(i18n.t('marketplace.toggleFailed'));
 		}
 	}
 
@@ -136,12 +137,12 @@
 		try {
 			const result = await repoLibrary.importItem(item.id);
 			if (result.success) {
-				notifications.success(`Imported ${item.name}`);
+				notifications.success(i18n.t('marketplace.itemImported', { name: item.name }));
 			} else {
-				notifications.warning(result.message || 'Already imported');
+				notifications.warning(result.message || i18n.t('marketplace.alreadyImportedMsg'));
 			}
 		} catch (e) {
-			notifications.error('Failed to import item');
+			notifications.error(i18n.t('marketplace.importFailed'));
 		}
 	}
 
@@ -150,10 +151,10 @@
 			await invoke('reset_repos_to_defaults');
 			await repoLibrary.loadRepos();
 			await repoLibrary.loadItems();
-			notifications.success('Repos reset to defaults');
+			notifications.success(i18n.t('marketplace.resetDone'));
 			await handleSyncAll();
 		} catch (e) {
-			notifications.error('Failed to reset repos');
+			notifications.error(i18n.t('marketplace.resetFailed'));
 		}
 	}
 
@@ -180,7 +181,7 @@
 		isImportingMcp = true;
 		try {
 			await repoLibrary.importFromRegistry(entry);
-			notifications.success(`Imported ${entry.name} to your MCP Library`);
+			notifications.success(i18n.t('marketplace.mcpImported', { name: entry.name }));
 			selectedRegistryMcp = null;
 		} catch (e) {
 			notifications.error(`Failed to import: ${e}`);
@@ -220,14 +221,14 @@
 	};
 </script>
 
-<Header title="Marketplace" subtitle="Browse and import Skills and Agents from public repositories">
+<Header title={i18n.t('page.marketplace.title')} subtitle={i18n.t('page.marketplace.subtitle')}>
 	<button
 		onclick={handleSyncAll}
 		disabled={repoLibrary.isSyncing}
 		class="btn btn-secondary"
 	>
 		<RefreshCw class="w-4 h-4 mr-2 {repoLibrary.isSyncing ? 'animate-spin' : ''}" />
-		{repoLibrary.isSyncing ? 'Syncing...' : 'Sync All'}
+		{repoLibrary.isSyncing ? i18n.t('marketplace.syncing') : i18n.t('marketplace.syncAll')}
 	</button>
 </Header>
 
@@ -240,20 +241,20 @@
 		<div class="mb-4 flex items-center justify-between px-4 py-2.5 rounded-lg text-sm {isLow ? 'bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800' : 'bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700'}">
 			<div class="flex items-center gap-3">
 				<span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium {isAuthenticated ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'}">
-					{isAuthenticated ? 'Authenticated' : 'Unauthenticated'}
+					{isAuthenticated ? i18n.t('marketplace.authenticated') : i18n.t('marketplace.unauthenticated')}
 				</span>
 				<span class="{isLow ? 'text-amber-700 dark:text-amber-400' : 'text-gray-600 dark:text-gray-400'}">
-					GitHub API: {info.remaining} / {info.limit} requests remaining
+					{i18n.t('marketplace.apiRateInfo', { remaining: info.remaining, limit: info.limit })}
 				</span>
 			</div>
 			{#if isLow && info.resetAt}
 				<span class="text-xs text-amber-600 dark:text-amber-400">
-					Resets at {new Date(info.resetAt).toLocaleTimeString()}
+					{i18n.t('marketplace.resetsAt', { time: new Date(info.resetAt).toLocaleTimeString() })}
 				</span>
 			{/if}
 			{#if !isAuthenticated}
 				<a href="/settings" class="text-xs text-primary-600 dark:text-primary-400 hover:underline">
-					Add token for 5,000 req/hr
+					{i18n.t('marketplace.addToken')}
 				</a>
 			{/if}
 		</div>
@@ -315,7 +316,7 @@
 						type="text"
 						bind:value={mcpSearchQuery}
 						onkeydown={handleMcpSearchKeydown}
-						placeholder="Search MCP servers (e.g., filesystem, github, slack...)"
+						placeholder={i18n.t('marketplace.searchPlaceholder')}
 						class="input w-full pl-10"
 					/>
 				</div>
@@ -325,8 +326,8 @@
 						bind:value={mcpSortBy}
 						class="input pr-8 appearance-none cursor-pointer"
 					>
-						<option value="updated">Recently Updated</option>
-						<option value="name">Name (A-Z)</option>
+						<option value="updated">{i18n.t('marketplace.recentlyUpdated')}</option>
+						<option value="name">{i18n.t('marketplace.nameAZ')}</option>
 					</select>
 					<ArrowUpDown class="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
 				</div>
@@ -337,10 +338,10 @@
 				>
 					{#if repoLibrary.isSearchingRegistry}
 						<Loader2 class="w-4 h-4 mr-2 animate-spin" />
-						Searching...
+						{i18n.t('marketplace.searching')}
 					{:else}
 						<Search class="w-4 h-4 mr-2" />
-						Search
+						{i18n.t('common.search')}
 					{/if}
 				</button>
 			</div>
@@ -356,14 +357,14 @@
 			{#if repoLibrary.isSearchingRegistry && repoLibrary.registryMcps.length === 0}
 				<div class="text-center py-12">
 					<Loader2 class="w-8 h-8 mx-auto text-primary-500 animate-spin mb-4" />
-					<p class="text-gray-500 dark:text-gray-400">Loading MCPs from registry...</p>
+					<p class="text-gray-500 dark:text-gray-400">{i18n.t('marketplace.loadingMcps')}</p>
 				</div>
 			{:else if repoLibrary.registryMcps.length === 0}
 				<div class="text-center py-12 bg-gray-50 dark:bg-gray-800/50 rounded-xl">
 					<Server class="w-12 h-12 mx-auto text-gray-400 mb-4" />
-					<p class="text-gray-500 dark:text-gray-400">No MCPs found</p>
+					<p class="text-gray-500 dark:text-gray-400">{i18n.t('marketplace.noMcpsFound')}</p>
 					<p class="text-sm text-gray-400 dark:text-gray-500 mt-1">
-						Try searching for an MCP server or wait for the registry to load
+						{i18n.t('marketplace.noMcpsHint')}
 					</p>
 				</div>
 			{:else}
@@ -398,7 +399,7 @@
 								</div>
 								<span class="text-xs text-gray-400 flex items-center gap-1">
 									<Eye class="w-3 h-3" />
-									Click to preview
+									{i18n.t('marketplace.clickToPreview')}
 								</span>
 							</div>
 						</button>
@@ -415,9 +416,9 @@
 						>
 							{#if repoLibrary.isSearchingRegistry}
 								<Loader2 class="w-4 h-4 mr-2 animate-spin" />
-								Loading...
+								{i18n.t('common.loading')}
 							{:else}
-								Load More
+								{i18n.t('marketplace.loadMore')}
 							{/if}
 						</button>
 					</div>
@@ -428,22 +429,22 @@
 		<!-- Repositories List -->
 		<div class="space-y-4">
 			<div class="flex justify-end gap-2">
-				<button onclick={handleResetRepos} class="btn btn-secondary" title="Reset to default repos">
+				<button onclick={handleResetRepos} class="btn btn-secondary" title={i18n.t('marketplace.resetDefaults')}>
 					<RotateCcw class="w-4 h-4 mr-2" />
-					Reset Defaults
+					{i18n.t('marketplace.resetDefaults')}
 				</button>
 				<button onclick={() => (showAddRepoModal = true)} class="btn btn-primary">
 					<Plus class="w-4 h-4 mr-2" />
-					Add Repository
+					{i18n.t('marketplace.addRepository')}
 				</button>
 			</div>
 
 			{#if repoLibrary.repos.length === 0}
 				<div class="text-center py-12 bg-gray-50 dark:bg-gray-800/50 rounded-xl">
 					<Store class="w-12 h-12 mx-auto text-gray-400 mb-4" />
-					<p class="text-gray-500 dark:text-gray-400">No repositories configured</p>
+					<p class="text-gray-500 dark:text-gray-400">{i18n.t('marketplace.noRepos')}</p>
 					<p class="text-sm text-gray-400 dark:text-gray-500 mt-1">
-						Add a repository to start browsing
+						{i18n.t('marketplace.addRepoHint')}
 					</p>
 				</div>
 			{:else}
@@ -467,13 +468,13 @@
 											<span
 												class="px-2 py-0.5 text-xs bg-primary-100 text-primary-700 dark:bg-primary-900/50 dark:text-primary-300 rounded"
 											>
-												Default
+												{i18n.t('common.default')}
 											</span>
 										{/if}
 										<span
 											class="px-2 py-0.5 text-xs bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400 rounded"
 										>
-											{repo.repoType === 'file_based' ? 'Files' : 'README'}
+											{repo.repoType === 'file_based' ? i18n.t('marketplace.files') : i18n.t('marketplace.readme')}
 										</span>
 										<span
 											class="px-2 py-0.5 text-xs bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400 rounded"
@@ -486,7 +487,7 @@
 									{/if}
 									{#if repo.lastFetchedAt}
 										<p class="text-xs text-gray-400 dark:text-gray-500 mt-1">
-											Last synced: {new Date(repo.lastFetchedAt).toLocaleString()}
+											{i18n.t('marketplace.lastSynced', { date: new Date(repo.lastFetchedAt).toLocaleString() })}
 										</p>
 									{/if}
 								</div>
@@ -500,7 +501,7 @@
 										: 'bg-gray-300 dark:bg-gray-600'}"
 									role="switch"
 									aria-checked={repo.isEnabled}
-									title={repo.isEnabled ? 'Disable' : 'Enable'}
+									title={repo.isEnabled ? i18n.t('common.disable') : i18n.t('common.enable')}
 								>
 									<span
 										class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out {repo.isEnabled
@@ -513,7 +514,7 @@
 									onclick={() => handleSyncRepo(repo.id)}
 									disabled={repoLibrary.isSyncing}
 									class="p-2 text-gray-400 hover:text-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded-lg transition-colors"
-									title="Sync repository"
+									title={i18n.t('marketplace.syncRepo')}
 								>
 									<RefreshCw class="w-4 h-4 {repoLibrary.isSyncing ? 'animate-spin' : ''}" />
 								</button>
@@ -523,7 +524,7 @@
 									target="_blank"
 									rel="noopener noreferrer"
 									class="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-lg transition-colors"
-									title="Open in GitHub"
+									title={i18n.t('marketplace.openInGithub')}
 								>
 									<ExternalLink class="w-4 h-4" />
 								</a>
@@ -532,7 +533,7 @@
 									<button
 										onclick={() => handleRemoveRepo(repo)}
 										class="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-										title="Remove repository"
+										title={i18n.t('marketplace.removeRepo')}
 									>
 										<Trash2 class="w-4 h-4" />
 									</button>
@@ -552,9 +553,9 @@
 			{@const EmptyIcon = typeIcons[itemType]}
 			<div class="text-center py-12 bg-gray-50 dark:bg-gray-800/50 rounded-xl">
 				<EmptyIcon class="w-12 h-12 mx-auto text-gray-400 mb-4" />
-				<p class="text-gray-500 dark:text-gray-400">No {activeTab} found</p>
+				<p class="text-gray-500 dark:text-gray-400">{i18n.t('marketplace.noItemsFound', { type: activeTab })}</p>
 				<p class="text-sm text-gray-400 dark:text-gray-500 mt-1">
-					Sync repositories to discover items
+					{i18n.t('marketplace.syncToDiscover')}
 				</p>
 			</div>
 		{:else}
@@ -574,7 +575,7 @@
 									<h3 class="font-medium text-gray-900 dark:text-white truncate">{item.name}</h3>
 									{#if item.isImported}
 										<span class="px-2 py-0.5 text-xs bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300 rounded">
-											Imported
+											{i18n.t('marketplace.imported')}
 										</span>
 									{/if}
 								</div>
@@ -586,11 +587,11 @@
 						<div class="mt-auto flex items-center justify-between pt-3 border-t border-gray-100 dark:border-gray-700">
 							<span class="text-xs text-gray-400 flex items-center gap-1">
 								<Eye class="w-3 h-3" />
-								Click to preview
+								{i18n.t('marketplace.clickToPreview')}
 							</span>
 							{#if item.isImported}
 								<span class="px-2 py-1 text-xs bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300 rounded">
-									Imported
+									{i18n.t('marketplace.imported')}
 								</span>
 							{/if}
 						</div>
@@ -601,7 +602,7 @@
 	{/if}
 </div>
 
-<!-- Add Repository Modal -->
+<!-- {i18n.t('marketplace.addRepository')} Modal -->
 {#if showAddRepoModal}
 	<!-- svelte-ignore a11y_click_events_have_key_events -->
 	<!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -615,49 +616,49 @@
 			class="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-md w-full mx-4 p-6"
 			onclick={(e) => e.stopPropagation()}
 		>
-			<h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Add Repository</h2>
+			<h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">{i18n.t('marketplace.addRepository')}</h2>
 
 			<div class="space-y-4">
 				<div>
 					<label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-						GitHub URL
+						{i18n.t('marketplace.githubUrl')}
 					</label>
 					<input
 						type="url"
 						bind:value={newRepoUrl}
-						placeholder="https://github.com/owner/repo"
+						placeholder={i18n.t('marketplace.urlPlaceholder')}
 						class="input w-full"
 					/>
 				</div>
 
 				<div>
 					<label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-						Repository Type
+						{i18n.t('marketplace.repoType')}
 					</label>
 					<select bind:value={newRepoType} class="input w-full">
-						<option value="readme_based">README-based (parses README for links)</option>
-						<option value="file_based">File-based (scans for .md files)</option>
+						<option value="readme_based">{i18n.t('marketplace.readmeBased')}</option>
+						<option value="file_based">{i18n.t('marketplace.fileBased')}</option>
 					</select>
 				</div>
 
 				<div>
 					<label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-						Content Type
+						{i18n.t('marketplace.contentType')}
 					</label>
 					<select bind:value={newRepoContentType} class="input w-full">
-						<option value="mixed">Mixed (Skills & Agents)</option>
-						<option value="skill">Skills only</option>
-						<option value="subagent">Agents only</option>
+						<option value="mixed">{i18n.t('marketplace.mixed')}</option>
+						<option value="skill">{i18n.t('marketplace.skillsOnly')}</option>
+						<option value="subagent">{i18n.t('marketplace.agentsOnly')}</option>
 					</select>
 				</div>
 			</div>
 
 			<div class="mt-6 flex justify-end gap-3">
 				<button onclick={() => (showAddRepoModal = false)} class="btn btn-secondary">
-					Cancel
+					{i18n.t('common.cancel')}
 				</button>
 				<button onclick={handleAddRepo} disabled={!newRepoUrl} class="btn btn-primary">
-					Add Repository
+					{i18n.t('marketplace.addRepository')}
 				</button>
 			</div>
 		</div>
@@ -693,7 +694,7 @@
 							</span>
 							{#if selectedItem.isImported}
 								<span class="px-2 py-0.5 text-xs bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300 rounded">
-									Imported
+									{i18n.t('marketplace.imported')}
 								</span>
 							{/if}
 						</div>
@@ -714,7 +715,7 @@
 			<div class="flex-1 overflow-auto p-6">
 				{#if selectedItem.rawContent}
 					<div class="mb-4">
-						<h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Content Preview</h3>
+						<h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{i18n.t('marketplace.contentPreview')}</h3>
 						<pre class="bg-gray-50 dark:bg-gray-900 rounded-lg p-4 text-sm text-gray-800 dark:text-gray-200 overflow-x-auto whitespace-pre-wrap font-mono max-h-64 overflow-y-auto">{selectedItem.rawContent}</pre>
 					</div>
 				{/if}
@@ -723,7 +724,7 @@
 					{@const metadata = JSON.parse(selectedItem.metadata)}
 					{#if Object.keys(metadata).length > 0}
 						<div class="mb-4">
-							<h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Metadata</h3>
+							<h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{i18n.t('marketplace.metadata')}</h3>
 							<div class="bg-gray-50 dark:bg-gray-900 rounded-lg p-4">
 								<dl class="grid grid-cols-2 gap-2 text-sm">
 									{#each Object.entries(metadata) as [key, value]}
@@ -738,14 +739,14 @@
 
 				{#if selectedItem.filePath}
 					<div class="mb-4">
-						<h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">File Path</h3>
+						<h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{i18n.t('marketplace.filePath')}</h3>
 						<code class="text-sm text-gray-600 dark:text-gray-400">{selectedItem.filePath}</code>
 					</div>
 				{/if}
 
 				{#if selectedItem.sourceUrl}
 					<div class="mb-4">
-						<h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Source</h3>
+						<h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{i18n.t('marketplace.source')}</h3>
 						<a
 							href={selectedItem.sourceUrl}
 							target="_blank"
@@ -762,7 +763,7 @@
 			<!-- Footer -->
 			<div class="flex items-center justify-end gap-3 p-6 border-t border-gray-200 dark:border-gray-700">
 				<button onclick={() => (selectedItem = null)} class="btn btn-secondary">
-					Close
+					{i18n.t('common.close')}
 				</button>
 				<button
 					onclick={() => {
@@ -773,7 +774,7 @@
 					class="btn {selectedItem.isImported ? 'btn-ghost text-gray-400' : 'btn-primary'}"
 				>
 					<Download class="w-4 h-4 mr-2" />
-					{selectedItem.isImported ? 'Already Imported' : 'Import'}
+					{selectedItem.isImported ? i18n.t('marketplace.alreadyImported') : i18n.t('common.import')}
 				</button>
 			</div>
 		</div>
@@ -834,24 +835,24 @@
 			<div class="flex-1 overflow-auto p-6">
 				<!-- Command/URL Configuration -->
 				<div class="mb-4">
-					<h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Configuration</h3>
+					<h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{i18n.t('marketplace.configuration')}</h3>
 					<div class="bg-gray-50 dark:bg-gray-900 rounded-lg p-4">
 						{#if selectedRegistryMcp.mcpType === 'stdio'}
 							<div class="space-y-2">
 								<div>
-									<span class="text-xs text-gray-500 dark:text-gray-400">Command:</span>
+									<span class="text-xs text-gray-500 dark:text-gray-400">{i18n.t('marketplace.commandLabel')}</span>
 									<code class="ml-2 text-sm text-gray-800 dark:text-gray-200 font-mono">{selectedRegistryMcp.command}</code>
 								</div>
 								{#if selectedRegistryMcp.args && selectedRegistryMcp.args.length > 0}
 									<div>
-										<span class="text-xs text-gray-500 dark:text-gray-400">Arguments:</span>
+										<span class="text-xs text-gray-500 dark:text-gray-400">{i18n.t('marketplace.arguments')}</span>
 										<code class="ml-2 text-sm text-gray-800 dark:text-gray-200 font-mono">{selectedRegistryMcp.args.join(' ')}</code>
 									</div>
 								{/if}
 							</div>
 						{:else}
 							<div>
-								<span class="text-xs text-gray-500 dark:text-gray-400">URL:</span>
+								<span class="text-xs text-gray-500 dark:text-gray-400">{i18n.t('marketplace.urlLabel')}</span>
 								<code class="ml-2 text-sm text-gray-800 dark:text-gray-200 font-mono break-all">{selectedRegistryMcp.url}</code>
 							</div>
 						{/if}
@@ -862,8 +863,8 @@
 				{#if selectedRegistryMcp.envPlaceholders && selectedRegistryMcp.envPlaceholders.length > 0}
 					<div class="mb-4">
 						<h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-							Environment Variables
-							<span class="text-xs text-gray-400 font-normal ml-2">(You'll need to configure these after import)</span>
+							{i18n.t('marketplace.envVars')}
+							<span class="text-xs text-gray-400 font-normal ml-2">{i18n.t('marketplace.envVarsHint')}</span>
 						</h3>
 						<div class="bg-gray-50 dark:bg-gray-900 rounded-lg p-4 space-y-3">
 							{#each selectedRegistryMcp.envPlaceholders as envVar}
@@ -873,7 +874,7 @@
 									</code>
 									{#if envVar.isRequired}
 										<span class="px-1.5 py-0.5 text-xs bg-red-100 text-red-600 dark:bg-red-900/50 dark:text-red-400 rounded">
-											Required
+											{i18n.t('marketplace.required')}
 										</span>
 									{/if}
 									{#if envVar.description}
@@ -888,7 +889,7 @@
 				<!-- Source URL -->
 				{#if selectedRegistryMcp.sourceUrl}
 					<div class="mb-4">
-						<h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Source Repository</h3>
+						<h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{i18n.t('marketplace.sourceRepo')}</h3>
 						<a
 							href={selectedRegistryMcp.sourceUrl}
 							target="_blank"
@@ -905,7 +906,7 @@
 			<!-- Footer -->
 			<div class="flex items-center justify-end gap-3 p-6 border-t border-gray-200 dark:border-gray-700">
 				<button onclick={() => (selectedRegistryMcp = null)} class="btn btn-secondary">
-					Close
+					{i18n.t('common.close')}
 				</button>
 				<button
 					onclick={() => handleImportRegistryMcp(selectedRegistryMcp!)}
@@ -914,10 +915,10 @@
 				>
 					{#if isImportingMcp}
 						<Loader2 class="w-4 h-4 mr-2 animate-spin" />
-						Importing...
+						{i18n.t('marketplace.importing')}
 					{:else}
 						<Download class="w-4 h-4 mr-2" />
-						Import to Library
+						{i18n.t('marketplace.importToLibrary')}
 					{/if}
 				</button>
 			</div>

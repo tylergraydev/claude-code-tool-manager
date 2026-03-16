@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { Header } from '$lib/components/layout';
 	import { mcpLibrary, projectsStore, subagentLibrary, skillLibrary, hookLibrary, commandLibrary, profileLibrary, statuslineLibrary } from '$lib/stores';
+	import { i18n } from '$lib/i18n';
 	import { FolderOpen, Plug, Bot, Sparkles, Zap, ArrowRight, Terminal, Layers, PanelBottom, Library, Settings, Store } from 'lucide-svelte';
 	import { goto } from '$app/navigation';
 
@@ -21,62 +22,62 @@
 
 	const stats = $derived([
 		{
-			label: 'Projects',
+			label: i18n.t('dashboard.projects'),
 			value: projectCount,
 			icon: FolderOpen,
 			color: 'bg-blue-500',
 			href: '/projects'
 		},
 		{
-			label: 'MCPs',
+			label: i18n.t('dashboard.mcps'),
 			value: mcpCount,
-			subtitle: `${globalMcpCount} global`,
+			subtitle: `${globalMcpCount} ${i18n.t('dashboard.global')}`,
 			icon: Plug,
 			color: 'bg-purple-500',
 			href: '/library'
 		},
 		{
-			label: 'Subagents',
+			label: i18n.t('dashboard.subagents'),
 			value: subagentCount,
 			icon: Bot,
 			color: 'bg-green-500',
 			href: '/subagents'
 		},
 		{
-			label: 'Commands',
+			label: i18n.t('dashboard.commands'),
 			value: commandCount,
-			subtitle: `${globalCommandCount} global`,
+			subtitle: `${globalCommandCount} ${i18n.t('dashboard.global')}`,
 			icon: Terminal,
 			color: 'bg-amber-500',
 			href: '/commands'
 		},
 		{
-			label: 'Skills',
+			label: i18n.t('dashboard.skills'),
 			value: skillCount,
 			icon: Sparkles,
 			color: 'bg-purple-400',
 			href: '/skills'
 		},
 		{
-			label: 'Hooks',
+			label: i18n.t('dashboard.hooks'),
 			value: hookCount,
-			subtitle: `${globalHookCount} global`,
+			subtitle: `${globalHookCount} ${i18n.t('dashboard.global')}`,
 			icon: Zap,
 			color: 'bg-rose-500',
 			href: '/hooks'
 		},
 		{
-			label: 'Profiles',
+			label: i18n.t('dashboard.profiles'),
 			value: profileCount,
-			subtitle: activeProfileName ? `Active: ${activeProfileName}` : 'None active',
+			subtitle: activeProfileName ? i18n.t('dashboard.activeProfile', { name: activeProfileName }) : i18n.t('dashboard.noneActive'),
 			icon: Layers,
 			color: 'bg-indigo-500',
 			href: '/profiles'
 		},
 		{
-			label: 'Status Line',
+			label: i18n.t('dashboard.statusLine'),
 			value: statuslineCount,
-			subtitle: activeStatusLineName ? `Active: ${activeStatusLineName}` : 'None active',
+			subtitle: activeStatusLineName ? i18n.t('dashboard.activeProfile', { name: activeStatusLineName }) : i18n.t('dashboard.noneActive'),
 			icon: PanelBottom,
 			color: 'bg-teal-500',
 			href: '/statusline'
@@ -85,51 +86,51 @@
 
 	// Quick links with icons
 	const quickLinks = [
-		{ label: 'Add MCP', href: '/library', description: 'Add a new MCP server to your library', icon: Library },
-		{ label: 'Manage Projects', href: '/projects', description: 'Configure MCPs for your projects', icon: FolderOpen },
-		{ label: 'Browse Marketplace', href: '/marketplace', description: 'Discover community MCPs and tools', icon: Store },
-		{ label: 'Settings', href: '/settings', description: 'Configure application settings', icon: Settings }
+		{ label: i18n.t('dashboard.addMcp'), href: '/library', description: i18n.t('dashboard.addMcpDesc'), icon: Library },
+		{ label: i18n.t('dashboard.manageProjects'), href: '/projects', description: i18n.t('dashboard.manageProjectsDesc'), icon: FolderOpen },
+		{ label: i18n.t('dashboard.browseMarketplace'), href: '/marketplace', description: i18n.t('dashboard.browseMarketplaceDesc'), icon: Store },
+		{ label: i18n.t('dashboard.settings'), href: '/settings', description: i18n.t('dashboard.settingsDesc'), icon: Settings }
 	];
 
 	// Global config mini-cards
 	const globalConfig = $derived([
 		{
-			label: 'Global MCPs',
+			label: i18n.t('dashboard.globalMcps'),
 			value: globalMcpCount,
-			subtitle: 'MCP servers',
+			subtitle: i18n.t('dashboard.mcpServers'),
 			icon: Plug,
 			color: 'text-purple-500'
 		},
 		{
-			label: 'Global Subagents',
+			label: i18n.t('dashboard.globalSubagents'),
 			value: subagentLibrary.globalSubAgents.length,
-			subtitle: 'Custom agents',
+			subtitle: i18n.t('dashboard.customAgents'),
 			icon: Bot,
 			color: 'text-green-500'
 		},
 		{
-			label: 'Global Commands',
+			label: i18n.t('dashboard.globalCommands'),
 			value: globalCommandCount,
-			subtitle: 'Slash commands',
+			subtitle: i18n.t('dashboard.slashCommands'),
 			icon: Terminal,
 			color: 'text-amber-500'
 		},
 		{
-			label: 'Global Hooks',
+			label: i18n.t('dashboard.globalHooks'),
 			value: globalHookCount,
-			subtitle: 'Event hooks',
+			subtitle: i18n.t('dashboard.eventHooks'),
 			icon: Zap,
 			color: 'text-rose-500'
 		}
 	]);
 </script>
 
-<Header title="Dashboard" subtitle="Overview of your Claude Code configuration" />
+<Header title={i18n.t('page.dashboard.title')} subtitle={i18n.t('page.dashboard.subtitle')} />
 
 <div class="flex-1 overflow-auto p-6 space-y-6">
 	<!-- Stats Grid -->
 	<section>
-		<h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-3">Overview</h2>
+		<h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-3">{i18n.t('dashboard.overview')}</h2>
 		<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
 			{#each stats as stat}
 				<button
@@ -149,7 +150,7 @@
 						</div>
 					</div>
 					<div class="mt-2 flex items-center text-xs text-gray-500 dark:text-gray-400 group-hover:text-gray-700 dark:group-hover:text-gray-300 transition-colors">
-						<span>View all</span>
+						<span>{i18n.t('common.viewAll')}</span>
 						<ArrowRight class="w-3 h-3 ml-1 group-hover:translate-x-0.5 transition-transform" />
 					</div>
 				</button>
@@ -159,7 +160,7 @@
 
 	<!-- Quick Links -->
 	<section>
-		<h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-3">Quick Actions</h2>
+		<h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-3">{i18n.t('dashboard.quickActions')}</h2>
 		<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
 			{#each quickLinks as link}
 				<a
@@ -182,7 +183,7 @@
 
 	<!-- Global Configuration -->
 	<section>
-		<h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-3">Global Configuration</h2>
+		<h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-3">{i18n.t('dashboard.globalConfig')}</h2>
 		<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
 			{#each globalConfig as item}
 				<div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">

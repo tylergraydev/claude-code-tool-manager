@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { sessionStore } from '$lib/stores';
+	import { i18n } from '$lib/i18n';
 	import { estimateSessionCost, formatCost, formatCompactNumber } from '$lib/types/usage';
 	import { Activity } from 'lucide-svelte';
 
@@ -37,7 +38,7 @@
 		<div class="flex items-center gap-1.5 mb-2">
 			<Activity class="w-3 h-3 text-gray-400 dark:text-gray-500" />
 			<span class="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">
-				Usage
+				{i18n.t('usage.title')}
 			</span>
 			{#if sessionStore.isLoadingProjects}
 				<div class="ml-auto w-1.5 h-1.5 rounded-full bg-primary-400 animate-pulse"></div>
@@ -45,26 +46,26 @@
 		</div>
 		<div class="grid grid-cols-3 gap-y-1">
 			<div>
-				<span class="text-[10px] text-gray-400 dark:text-gray-500">Projects</span>
+				<span class="text-[10px] text-gray-400 dark:text-gray-500">{i18n.t('usage.projects')}</span>
 				<p class="text-xs font-medium text-gray-700 dark:text-gray-300">
 					{sessionStore.projects.length}
 				</p>
 			</div>
 			<div>
-				<span class="text-[10px] text-gray-400 dark:text-gray-500">Sessions</span>
+				<span class="text-[10px] text-gray-400 dark:text-gray-500">{i18n.t('usage.sessions')}</span>
 				<p class="text-xs font-medium text-gray-700 dark:text-gray-300">
 					{totalSessions}
 				</p>
 			</div>
 			<div>
-				<span class="text-[10px] text-gray-400 dark:text-gray-500">Cost</span>
+				<span class="text-[10px] text-gray-400 dark:text-gray-500">{i18n.t('usage.cost')}</span>
 				<p class="text-xs font-medium text-gray-700 dark:text-gray-300">
 					{totalCost > 0 ? formatCost(totalCost) : '—'}
 				</p>
 			</div>
 		</div>
 		<p class="text-[10px] text-gray-400 dark:text-gray-500 mt-1.5">
-			{formatCompactNumber(totalTokens)} tokens across all projects
+			{formatCompactNumber(totalTokens)} {i18n.t('usage.tokensAcross')}
 		</p>
 	</div>
 {/if}

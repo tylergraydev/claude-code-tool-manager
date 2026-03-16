@@ -12,6 +12,7 @@
 	} from '$lib/components/permissions';
 	import { SearchBar } from '$lib/components/shared';
 	import { permissionLibrary, projectsStore, notifications } from '$lib/stores';
+	import { i18n } from '$lib/i18n';
 	import type { PermissionCategory, PermissionTemplate } from '$lib/types';
 	import { Sparkles, Layers, RefreshCw, FolderOpen } from 'lucide-svelte';
 
@@ -36,18 +37,18 @@
 		try {
 			await permissionLibrary.addRule(ruleFormCategory, rule);
 			showRuleForm = false;
-			notifications.success(`Rule added to ${ruleFormCategory}`);
+			notifications.success(i18n.t('permissions.ruleAdded', { category: ruleFormCategory }));
 		} catch (err) {
-			notifications.error('Failed to add rule');
+			notifications.error(i18n.t('permissions.addFailed'));
 		}
 	}
 
 	async function handleRemoveRule(category: PermissionCategory, index: number) {
 		try {
 			await permissionLibrary.removeRule(category, index);
-			notifications.success('Rule removed');
+			notifications.success(i18n.t('permissions.ruleRemoved'));
 		} catch (err) {
-			notifications.error('Failed to remove rule');
+			notifications.error(i18n.t('permissions.removeFailed'));
 		}
 	}
 
@@ -55,7 +56,7 @@
 		try {
 			await permissionLibrary.reorderRules(category, rules);
 		} catch (err) {
-			notifications.error('Failed to reorder rules');
+			notifications.error(i18n.t('permissions.reorderFailed'));
 		}
 	}
 
@@ -63,27 +64,27 @@
 		try {
 			await permissionLibrary.applyTemplate(template);
 			showTemplatePanel = false;
-			notifications.success(`Applied template: ${template.name}`);
+			notifications.success(i18n.t('permissions.templateApplied', { name: template.name }));
 		} catch (err) {
-			notifications.error('Failed to apply template');
+			notifications.error(i18n.t('permissions.templateFailed'));
 		}
 	}
 
 	async function handleDefaultModeChange(mode: string | null) {
 		try {
 			await permissionLibrary.setDefaultMode(mode);
-			notifications.success('Default mode updated');
+			notifications.success(i18n.t('permissions.modeUpdated'));
 		} catch (err) {
-			notifications.error('Failed to update default mode');
+			notifications.error(i18n.t('permissions.modeFailed'));
 		}
 	}
 
 	async function handleDirectoriesChange(dirs: string[]) {
 		try {
 			await permissionLibrary.setAdditionalDirectories(dirs);
-			notifications.success('Additional directories updated');
+			notifications.success(i18n.t('permissions.dirsUpdated'));
 		} catch (err) {
-			notifications.error('Failed to update directories');
+			notifications.error(i18n.t('permissions.dirsFailed'));
 		}
 	}
 
@@ -96,13 +97,13 @@
 
 	async function handleRefresh() {
 		await permissionLibrary.load();
-		notifications.success('Permissions refreshed');
+		notifications.success(i18n.t('permissions.refreshed'));
 	}
 </script>
 
 <Header
-	title="Permissions"
-	subtitle="Manage Claude Code permission rules — control what tools Claude can use"
+	title={i18n.t('page.permissions.title')}
+	subtitle={i18n.t('page.permissions.subtitle')}
 />
 
 <div class="flex-1 overflow-auto p-6">
@@ -116,7 +117,7 @@
 				onchange={handleProjectChange}
 				class="input text-sm"
 			>
-				<option value="">No project</option>
+				<option value="">{i18n.t('common.noProject')}</option>
 				{#each projectsStore.projects as project}
 					<option value={project.path}>{project.name}</option>
 				{/each}
@@ -140,19 +141,19 @@
 				class="btn btn-secondary"
 			>
 				<Sparkles class="w-4 h-4 mr-2" />
-				Templates
+				{i18n.t('permissions.templates')}
 			</button>
 			<button
 				onclick={() => (showMergedView = true)}
 				class="btn btn-secondary"
 			>
 				<Layers class="w-4 h-4 mr-2" />
-				Merged View
+				{i18n.t('permissions.mergedView')}
 			</button>
 			<button
 				onclick={handleRefresh}
 				class="btn btn-ghost"
-				title="Refresh from settings files"
+				title={i18n.t('permissions.refreshTitle')}
 			>
 				<RefreshCw class="w-4 h-4" />
 			</button>
@@ -186,7 +187,7 @@
 		<div class="mb-4 max-w-md">
 			<SearchBar
 				value={permissionLibrary.searchQuery}
-				placeholder="Filter rules..."
+				placeholder={i18n.t('permissions.filterPlaceholder')}
 				onchange={(v) => permissionLibrary.setSearch(v)}
 			/>
 		</div>
@@ -219,7 +220,7 @@
 		</div>
 	{:else}
 		<div class="text-center py-20 text-gray-400 dark:text-gray-500">
-			<p>Select a scope to view permissions</p>
+			<p>{i18n.t('permissions.selectScope')}</p>
 		</div>
 	{/if}
 </div>

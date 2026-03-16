@@ -5,6 +5,7 @@
 	import { SearchBar } from '$lib/components/shared';
 	import { Sparkles } from 'lucide-svelte';
 	import { invoke } from '@tauri-apps/api/core';
+	import { i18n } from '$lib/i18n';
 
 	type Props = {
 		onEdit?: (skill: Skill) => void;
@@ -29,7 +30,7 @@
 		<div class="flex-1 max-w-sm">
 			<SearchBar
 				bind:value={skillLibrary.searchQuery}
-				placeholder="Search skills..."
+				placeholder={i18n.t('skillLib.searchPlaceholder')}
 			/>
 		</div>
 
@@ -47,14 +48,14 @@
 		<div class="text-center py-12">
 			<Sparkles class="w-12 h-12 mx-auto text-gray-300 dark:text-gray-600 mb-4" />
 			{#if skillLibrary.searchQuery}
-				<h3 class="text-lg font-medium text-gray-900 dark:text-white">No matching skills</h3>
+				<h3 class="text-lg font-medium text-gray-900 dark:text-white">{i18n.t('skillLib.noMatching')}</h3>
 				<p class="text-gray-500 dark:text-gray-400 mt-1">
-					Try adjusting your search
+					{i18n.t('skillLib.tryAdjusting')}
 				</p>
 			{:else}
-				<h3 class="text-lg font-medium text-gray-900 dark:text-white">No skills in library</h3>
+				<h3 class="text-lg font-medium text-gray-900 dark:text-white">{i18n.t('skillLib.noSkills')}</h3>
 				<p class="text-gray-500 dark:text-gray-400 mt-1">
-					Add your first agent skill to get started
+					{i18n.t('skillLib.addFirst')}
 				</p>
 			{/if}
 		</div>

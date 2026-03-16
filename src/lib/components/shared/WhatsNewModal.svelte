@@ -2,6 +2,7 @@
 	import { whatsNew } from '$lib/stores/whatsNew.svelte';
 	import { X, ExternalLink, Sparkles, Loader2 } from 'lucide-svelte';
 	import { open } from '@tauri-apps/plugin-shell';
+	import { i18n } from '$lib/i18n';
 
 	function handleDismiss() {
 		whatsNew.dismiss();
@@ -80,11 +81,11 @@
 					</div>
 					<div>
 						<h2 id="whats-new-title" class="text-lg font-semibold text-gray-900 dark:text-white">
-							What's New
+							{i18n.t('whatsNew.title')}
 						</h2>
 						{#if whatsNew.release}
 							<p class="text-sm text-gray-500 dark:text-gray-400">
-								Version {whatsNew.release.version}
+								{i18n.t('whatsNew.version', { version: whatsNew.release.version })}
 							</p>
 						{/if}
 					</div>
@@ -107,7 +108,7 @@
 				{:else if whatsNew.release}
 					{#if whatsNew.release.publishedAt}
 						<p class="text-xs text-gray-500 dark:text-gray-400 mb-4">
-							Released {formatDate(whatsNew.release.publishedAt)}
+							{i18n.t('whatsNew.released', { date: formatDate(whatsNew.release.publishedAt) })}
 						</p>
 					{/if}
 
@@ -116,7 +117,7 @@
 					</div>
 				{:else}
 					<p class="text-gray-500 dark:text-gray-400">
-						No release notes available.
+						{i18n.t('whatsNew.noNotes')}
 					</p>
 				{/if}
 			</div>
@@ -128,13 +129,13 @@
 					class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
 				>
 					<ExternalLink class="w-4 h-4" />
-					View on GitHub
+					{i18n.t('whatsNew.viewOnGithub')}
 				</button>
 				<button
 					onclick={handleDismiss}
 					class="px-4 py-2 text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 rounded-lg transition-colors"
 				>
-					Got it
+					{i18n.t('whatsNew.gotIt')}
 				</button>
 			</div>
 		</div>

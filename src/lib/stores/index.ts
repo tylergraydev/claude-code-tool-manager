@@ -23,3 +23,4 @@ export { usageStore } from './usageStore.svelte';
 export { insightsStore } from './insightsStore.svelte';
 export { sessionStore } from './sessionStore.svelte';
 export { comparisonStore } from './comparisonStore.svelte';
+export { i18n } from '$lib/i18n';

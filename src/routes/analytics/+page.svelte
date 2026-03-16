@@ -10,6 +10,7 @@
 	import CostProjectionsCard from '$lib/components/analytics/CostProjectionsCard.svelte';
 	import PeakHoursChart from '$lib/components/analytics/PeakHoursChart.svelte';
 	import { usageStore } from '$lib/stores';
+	import { i18n } from '$lib/i18n';
 	import { RefreshCw, FileQuestion } from 'lucide-svelte';
 	import type { DateRangeFilter } from '$lib/types';
 
@@ -31,7 +32,7 @@
 	}
 </script>
 
-<Header title="Usage Analytics" subtitle="Visualize your Claude Code usage patterns" />
+<Header title={i18n.t('page.analytics.title')} subtitle={i18n.t('page.analytics.subtitle')} />
 
 <div class="flex-1 overflow-auto p-6 space-y-6">
 	{#if usageStore.isLoading}
@@ -52,11 +53,11 @@
 		>
 			<div class="text-gray-400 dark:text-gray-500 mb-4">
 				<FileQuestion class="w-12 h-12 mx-auto mb-3 opacity-50" />
-				<p class="text-lg font-medium">No usage data found</p>
+				<p class="text-lg font-medium">{i18n.t('analytics.noData')}</p>
 				<p class="text-sm mt-1">
-					Claude Code stores analytics in <code class="text-xs bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded">{usageStore.filePath}</code>
+					{i18n.t('analytics.storedIn')} <code class="text-xs bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded">{usageStore.filePath}</code>
 				</p>
-				<p class="text-sm mt-1">Use Claude Code to generate usage data, then refresh this page.</p>
+				<p class="text-sm mt-1">{i18n.t('analytics.useClaudeCode')}</p>
 			</div>
 		</div>
 	{:else if usageStore.stats}
@@ -76,10 +77,10 @@
 				onclick={handleRefresh}
 				disabled={usageStore.isRefreshing}
 				class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-				title="Refresh analytics"
+				title={i18n.t('analytics.refreshTitle')}
 			>
 				<RefreshCw class="w-3.5 h-3.5 {usageStore.isRefreshing ? 'animate-spin' : ''}" />
-				{usageStore.isRefreshing ? 'Refreshing…' : 'Refresh'}
+				{usageStore.isRefreshing ? i18n.t('common.refreshing') : i18n.t('common.refresh')}
 			</button>
 		</div>
 

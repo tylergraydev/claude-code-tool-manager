@@ -9,6 +9,7 @@
 	import CostComparisonChart from '$lib/components/comparison/CostComparisonChart.svelte';
 	import ToolUsageComparisonChart from '$lib/components/comparison/ToolUsageComparisonChart.svelte';
 	import ModelMixComparison from '$lib/components/comparison/ModelMixComparison.svelte';
+	import { i18n } from '$lib/i18n';
 	import { GitCompareArrows, FileQuestion } from 'lucide-svelte';
 
 	onMount(() => {
@@ -20,7 +21,7 @@
 	const hasEnoughSelected = $derived(comparisonStore.selectedFolders.size >= 2);
 </script>
 
-<Header title="Cross-Project Comparison" subtitle="Compare usage metrics across projects side-by-side" />
+<Header title={i18n.t('page.comparison.title')} subtitle={i18n.t('page.comparison.subtitle')} />
 
 <div class="flex-1 overflow-auto p-6 space-y-6">
 	{#if sessionStore.isLoadingProjects}
@@ -41,8 +42,8 @@
 		>
 			<div class="text-gray-400 dark:text-gray-500">
 				<FileQuestion class="w-12 h-12 mx-auto mb-3 opacity-50" />
-				<p class="text-lg font-medium">No projects found</p>
-				<p class="text-sm mt-1">Use Claude Code to generate session data, then refresh this page.</p>
+				<p class="text-lg font-medium">{i18n.t('comparison.noProjects')}</p>
+				<p class="text-sm mt-1">{i18n.t('comparison.useClaudeCode')}</p>
 			</div>
 		</div>
 	{:else}
@@ -55,9 +56,9 @@
 			>
 				<div class="text-gray-400 dark:text-gray-500">
 					<GitCompareArrows class="w-10 h-10 mx-auto mb-3 opacity-50" />
-					<p class="text-sm font-medium">Select at least 2 projects to compare</p>
+					<p class="text-sm font-medium">{i18n.t('comparison.selectProjects')}</p>
 					<p class="text-xs mt-1">
-						Choose 2–5 projects above to see side-by-side metrics
+						{i18n.t('comparison.selectHint')}
 					</p>
 				</div>
 			</div>

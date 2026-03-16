@@ -18,6 +18,7 @@
 		SettingsAdminTab,
 		SettingsEditorSyncTab
 	} from '$lib/components/settings/tabs';
+	import { i18n } from '$lib/i18n';
 
 	const scopedCategories = SETTINGS_CATEGORIES.filter(c => c.type === 'scoped');
 	const standaloneCategories = SETTINGS_CATEGORIES.filter(c => c.type === 'standalone');
@@ -47,8 +48,8 @@
 </script>
 
 <Header
-	title="Settings"
-	subtitle={TAB_SUBTITLES[activeTab] ?? 'Configure Claude Code settings'}
+	title={i18n.t('page.settings.title')}
+	subtitle={TAB_SUBTITLES[activeTab] ?? i18n.t('page.settings.subtitle')}
 />
 
 <div class="flex-1 overflow-hidden flex">
@@ -56,7 +57,7 @@
 	<nav class="w-52 border-r border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 overflow-y-auto flex-shrink-0">
 		<div class="p-3">
 			<p class="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 px-3 mb-2">
-				Configuration
+				{i18n.t('settings.configuration')}
 			</p>
 			{#each scopedCategories as category}
 				{@const isActive = activeTab === category.id}
@@ -75,7 +76,7 @@
 			<div class="border-t border-gray-200 dark:border-gray-700 my-3"></div>
 
 			<p class="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 px-3 mb-2">
-				Other
+				{i18n.t('settings.other')}
 			</p>
 			{#each standaloneCategories as category}
 				{@const isActive = activeTab === category.id}

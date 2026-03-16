@@ -4,7 +4,7 @@
 	import { onMount } from 'svelte';
 	import { getVersion } from '@tauri-apps/api/app';
 	import TodayUsageWidget from './TodayUsageWidget.svelte';
-	import { sessionStore } from '$lib/stores';
+	import { sessionStore, i18n } from '$lib/stores';
 
 	let appVersion = $state('');
 
@@ -33,44 +33,44 @@
 
 	const isSettingsActive = $derived($page.url.pathname === '/settings' || $page.url.pathname.startsWith('/settings'));
 
-	const navGroups: NavGroup[] = [
+	const navGroups: NavGroup[] = $derived([
 		{
-			label: 'Core',
+			label: i18n.t('nav.core'),
 			items: [
-				{ href: '/', label: 'Dashboard', icon: Plug },
-				{ href: '/projects', label: 'Projects', icon: FolderOpen }
+				{ href: '/', label: i18n.t('nav.dashboard'), icon: Plug },
+				{ href: '/projects', label: i18n.t('nav.projects'), icon: FolderOpen }
 			]
 		},
 		{
-			label: 'Tools',
+			label: i18n.t('nav.tools'),
 			items: [
-				{ href: '/library', label: 'MCPs', icon: Library },
-				{ href: '/subagents', label: 'Agents', icon: Bot },
-				{ href: '/skills', label: 'Skills', icon: Sparkles },
-				{ href: '/commands', label: 'Commands', icon: Terminal },
-				{ href: '/hooks', label: 'Hooks', icon: Zap }
+				{ href: '/library', label: i18n.t('nav.mcps'), icon: Library },
+				{ href: '/subagents', label: i18n.t('nav.agents'), icon: Bot },
+				{ href: '/skills', label: i18n.t('nav.skills'), icon: Sparkles },
+				{ href: '/commands', label: i18n.t('nav.commands'), icon: Terminal },
+				{ href: '/hooks', label: i18n.t('nav.hooks'), icon: Zap }
 			]
 		},
 		{
-			label: 'Configure',
+			label: i18n.t('nav.configure'),
 			items: [
-				{ href: '/profiles', label: 'Profiles', icon: Layers },
-				{ href: '/statusline', label: 'Status Line', icon: PanelBottom },
-				{ href: '/permissions', label: 'Permissions', icon: Shield },
-				{ href: '/memory', label: 'Memory', icon: FileText },
-				{ href: '/marketplace', label: 'Marketplace', icon: Store }
+				{ href: '/profiles', label: i18n.t('nav.profiles'), icon: Layers },
+				{ href: '/statusline', label: i18n.t('nav.statusLine'), icon: PanelBottom },
+				{ href: '/permissions', label: i18n.t('nav.permissions'), icon: Shield },
+				{ href: '/memory', label: i18n.t('nav.memory'), icon: FileText },
+				{ href: '/marketplace', label: i18n.t('nav.marketplace'), icon: Store }
 			]
 		},
 		{
-			label: 'Insights',
+			label: i18n.t('nav.insights'),
 			items: [
-				{ href: '/analytics', label: 'Analytics', icon: BarChart3 },
-				{ href: '/insights', label: 'Insights', icon: TrendingUp },
-				{ href: '/sessions', label: 'Sessions', icon: FolderSearch },
-				{ href: '/comparison', label: 'Comparison', icon: GitCompareArrows }
+				{ href: '/analytics', label: i18n.t('nav.analytics'), icon: BarChart3 },
+				{ href: '/insights', label: i18n.t('nav.insights'), icon: TrendingUp },
+				{ href: '/sessions', label: i18n.t('nav.sessions'), icon: FolderSearch },
+				{ href: '/comparison', label: i18n.t('nav.comparison'), icon: GitCompareArrows }
 			]
 		}
-	];
+	]);
 </script>
 
 <aside class="w-56 border-r border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 flex flex-col">
@@ -80,8 +80,8 @@
 				<Plug class="w-5 h-5 text-white" />
 			</div>
 			<div>
-				<h1 class="font-semibold text-gray-900 dark:text-white">Claude Code</h1>
-				<p class="text-xs text-gray-500 dark:text-gray-400">Tool Manager</p>
+				<h1 class="font-semibold text-gray-900 dark:text-white">{i18n.t('app.name')}</h1>
+				<p class="text-xs text-gray-500 dark:text-gray-400">{i18n.t('app.tagline')}</p>
 			</div>
 		</div>
 	</div>
@@ -123,7 +123,7 @@
 					: 'text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700/50'}"
 		>
 			<Settings class="w-5 h-5" />
-			Settings
+			{i18n.t('nav.settings')}
 		</a>
 		<p class="text-xs text-gray-400 dark:text-gray-500 px-3 mt-2">
 			{appVersion ? `v${appVersion}` : ''}

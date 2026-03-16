@@ -6,6 +6,7 @@
 	import FrictionTrendsChart from '$lib/components/analytics/FrictionTrendsChart.svelte';
 	import SessionSummaryList from '$lib/components/analytics/SessionSummaryList.svelte';
 	import { insightsStore } from '$lib/stores';
+	import { i18n } from '$lib/i18n';
 	import { FileQuestion } from 'lucide-svelte';
 
 	onMount(() => {
@@ -17,7 +18,7 @@
 	}
 </script>
 
-<Header title="Insights" subtitle="Session quality, friction analysis, and Claude's insights report" />
+<Header title={i18n.t('page.insights.title')} subtitle={i18n.t('page.insights.subtitle')} />
 
 <div class="flex-1 overflow-auto p-6 space-y-6">
 	<!-- Report Section -->
@@ -46,9 +47,9 @@
 		>
 			<div class="text-gray-400 dark:text-gray-500">
 				<FileQuestion class="w-10 h-10 mx-auto mb-3 opacity-50" />
-				<p class="text-sm font-medium">No insights report found</p>
+				<p class="text-sm font-medium">{i18n.t('insights.noReport')}</p>
 				<p class="text-xs mt-1">
-					Run <code class="bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded">/insights</code> in Claude Code to generate the report.
+					{i18n.t('insights.runCommand')} <code class="bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded">/insights</code> {i18n.t('insights.inClaudeCode')}
 				</p>
 			</div>
 		</div>
@@ -80,11 +81,11 @@
 		>
 			<div class="text-gray-400 dark:text-gray-500">
 				<FileQuestion class="w-10 h-10 mx-auto mb-3 opacity-50" />
-				<p class="text-sm font-medium">No session quality data found</p>
+				<p class="text-sm font-medium">{i18n.t('insights.noSessionData')}</p>
 				<p class="text-xs mt-1">
-					Session facets are stored in <code class="bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded">~/.claude/usage-data/facets/</code>
+					{i18n.t('insights.facetsStoredIn')} <code class="bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded">~/.claude/usage-data/facets/</code>
 				</p>
-				<p class="text-xs mt-1">Use Claude Code to generate session data, then refresh this page.</p>
+				<p class="text-xs mt-1">{i18n.t('insights.useClaudeCode')}</p>
 			</div>
 		</div>
 	{/if}

@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { RefreshCw, Moon, Sun } from 'lucide-svelte';
-	import { mcpLibrary, projectsStore } from '$lib/stores';
+	import { RefreshCw, Moon, Sun, Languages } from 'lucide-svelte';
+	import { mcpLibrary, projectsStore, i18n } from '$lib/stores';
 	import type { Snippet } from 'svelte';
 
 	type Props = {
@@ -40,9 +40,18 @@
 		{/if}
 
 		<button
+			onclick={() => i18n.setLocale(i18n.nextLocale)}
+			class="btn btn-ghost text-xs font-medium"
+			title={i18n.t('header.switchLanguage')}
+		>
+			<Languages class="w-4 h-4" />
+			{i18n.currentLabel}
+		</button>
+
+		<button
 			onclick={handleRefresh}
 			class="btn btn-ghost"
-			title="Refresh data"
+			title={i18n.t('header.refresh')}
 		>
 			<RefreshCw class="w-4 h-4" />
 		</button>
@@ -50,7 +59,7 @@
 		<button
 			onclick={toggleTheme}
 			class="btn btn-ghost"
-			title="Toggle theme"
+			title={i18n.t('header.toggleTheme')}
 		>
 			{#if isDark}
 				<Sun class="w-4 h-4" />

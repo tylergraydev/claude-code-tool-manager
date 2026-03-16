@@ -5,6 +5,7 @@
 	import { SearchBar } from '$lib/components/shared';
 	import { Terminal } from 'lucide-svelte';
 	import { invoke } from '@tauri-apps/api/core';
+	import { i18n } from '$lib/i18n';
 
 	type Props = {
 		onEdit?: (command: Command) => void;
@@ -29,7 +30,7 @@
 		<div class="flex-1 max-w-sm">
 			<SearchBar
 				bind:value={commandLibrary.searchQuery}
-				placeholder="Search commands..."
+				placeholder={i18n.t('commandLib.searchPlaceholder')}
 			/>
 		</div>
 
@@ -47,14 +48,14 @@
 		<div class="text-center py-12">
 			<Terminal class="w-12 h-12 mx-auto text-gray-300 dark:text-gray-600 mb-4" />
 			{#if commandLibrary.searchQuery}
-				<h3 class="text-lg font-medium text-gray-900 dark:text-white">No matching commands</h3>
+				<h3 class="text-lg font-medium text-gray-900 dark:text-white">{i18n.t('commandLib.noMatching')}</h3>
 				<p class="text-gray-500 dark:text-gray-400 mt-1">
-					Try adjusting your search
+					{i18n.t('commandLib.tryAdjusting')}
 				</p>
 			{:else}
-				<h3 class="text-lg font-medium text-gray-900 dark:text-white">No commands in library</h3>
+				<h3 class="text-lg font-medium text-gray-900 dark:text-white">{i18n.t('commandLib.noCommands')}</h3>
 				<p class="text-gray-500 dark:text-gray-400 mt-1">
-					Add your first slash command to get started
+					{i18n.t('commandLib.addFirst')}
 				</p>
 			{/if}
 		</div>

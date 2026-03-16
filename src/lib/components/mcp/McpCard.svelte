@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { Mcp } from '$lib/types';
 	import { Plug, Globe, Server, MoreVertical, Edit, Copy, Trash2, Play, Lock, Radio, Heart } from 'lucide-svelte';
+	import { i18n } from '$lib/i18n';
 
 	type Props = {
 		mcp: Mcp;
@@ -80,14 +81,14 @@
 				{#if isSystemMcp}
 					<span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300">
 						<Lock class="w-2.5 h-2.5" />
-						System
+						{i18n.t('common.system')}
 					</span>
 				{:else if mcp.source === 'auto-detected'}
 					<span
 						class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300 cursor-help"
 						title={mcp.sourcePath ? `Source: ${mcp.sourcePath}` : 'Auto-detected from filesystem'}
 					>
-						Auto
+						{i18n.t('common.auto')}
 					</span>
 				{/if}
 			</div>
@@ -116,7 +117,7 @@
 				{#if showGatewayToggle && isInGateway}
 					<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300">
 						<Radio class="w-3 h-3" />
-						Gateway
+						{i18n.t('mcp.gateway')}
 					</span>
 				{/if}
 			</div>
@@ -132,10 +133,10 @@
 							{isInGateway
 								? 'text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300'
 								: 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}"
-						title={isInGateway ? 'Remove from Gateway' : 'Add to Gateway'}
+						title={isInGateway ? i18n.t('mcp.removeFromGateway') : i18n.t('mcp.addToGateway')}
 					>
 						<Radio class="w-4 h-4" />
-						{isInGateway ? 'In Gateway' : 'Add to Gateway'}
+						{isInGateway ? i18n.t('mcp.inGateway') : i18n.t('mcp.addToGateway')}
 					</button>
 				</div>
 			{/if}
@@ -152,7 +153,7 @@
 						class="p-1.5 rounded-lg transition-colors {mcp.isFavorite
 							? 'text-rose-500 hover:text-rose-600'
 							: 'text-gray-300 hover:text-rose-400 dark:text-gray-600 dark:hover:text-rose-400'}"
-						title={mcp.isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+						title={mcp.isFavorite ? i18n.t('mcp.removeFromFavorites') : i18n.t('mcp.addToFavorites')}
 					>
 						<Heart class="w-4 h-4" fill={mcp.isFavorite ? 'currentColor' : 'none'} />
 					</button>
@@ -181,7 +182,7 @@
 								class="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
 							>
 								<Play class="w-4 h-4" />
-								Test
+								{i18n.t('common.test')}
 							</button>
 						{/if}
 						{#if onEdit && !isSystemMcp}
@@ -193,7 +194,7 @@
 								class="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
 							>
 								<Edit class="w-4 h-4" />
-								Edit
+								{i18n.t('common.edit')}
 							</button>
 						{/if}
 						{#if onDuplicate && !isSystemMcp}
@@ -205,7 +206,7 @@
 								class="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
 							>
 								<Copy class="w-4 h-4" />
-								Duplicate
+								{i18n.t('common.duplicate')}
 							</button>
 						{/if}
 						{#if onDelete && !isSystemMcp}
@@ -217,7 +218,7 @@
 								class="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
 							>
 								<Trash2 class="w-4 h-4" />
-								Delete
+								{i18n.t('common.delete')}
 							</button>
 						{/if}
 					</div>

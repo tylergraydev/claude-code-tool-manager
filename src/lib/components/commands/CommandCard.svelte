@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { Command } from '$lib/types';
 	import { Terminal, MoreVertical, Edit, Trash2, Heart } from 'lucide-svelte';
+	import { i18n } from '$lib/i18n';
 
 	type Props = {
 		command: Command;
@@ -56,7 +57,7 @@
 						class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300 cursor-help"
 						title={command.sourcePath ? `Source: ${command.sourcePath}` : 'Auto-detected from filesystem'}
 					>
-						Auto
+						{i18n.t('common.auto')}
 					</span>
 				{/if}
 			</div>
@@ -104,7 +105,7 @@
 						class="p-1.5 rounded-lg transition-colors {command.isFavorite
 							? 'text-rose-500 hover:text-rose-600'
 							: 'text-gray-300 hover:text-rose-400 dark:text-gray-600 dark:hover:text-rose-400'}"
-						title={command.isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+						title={command.isFavorite ? i18n.t('mcp.removeFromFavorites') : i18n.t('mcp.addToFavorites')}
 					>
 						<Heart class="w-4 h-4" fill={command.isFavorite ? 'currentColor' : 'none'} />
 					</button>
@@ -133,7 +134,7 @@
 									class="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
 								>
 									<Edit class="w-4 h-4" />
-									Edit
+									{i18n.t('common.edit')}
 								</button>
 							{/if}
 							{#if onDelete}
@@ -145,7 +146,7 @@
 									class="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
 								>
 									<Trash2 class="w-4 h-4" />
-									Delete
+									{i18n.t('common.delete')}
 								</button>
 							{/if}
 						</div>
