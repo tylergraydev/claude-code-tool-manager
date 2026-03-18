@@ -686,4 +686,121 @@ mod tests {
         // Should not error if file does not exist
         remove_mcp_from_copilot_config(&config_path, "nonexistent").unwrap();
     }
+
+    // =========================================================================
+    // Additional coverage tests
+    // =========================================================================
+
+    #[test]
+    fn test_parse_copilot_mcps_unknown_type() {
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("mcp-config.json");
+
+        fs::write(
+            &config_path,
+            r#"{
+                "servers": {
+                    "mystery": {
+                        "someField": "value"
+                    }
+                }
+            }"#,
+        )
+        .unwrap();
+
+        let mcps = parse_copilot_mcps(&config_path).unwrap();
+        assert_eq!(mcps.len(), 1);
+        assert_eq!(mcps[0].mcp_type, "stdio");
+        assert!(mcps[0].command.is_none());
+    }
+
+    #[test]
+    fn test_parse_copilot_mcps_http_no_request_init() {
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("mcp-config.json");
+
+        fs::write(
+            &config_path,
+            r#"{
+                "servers": {
+                    "bare-http": {
+                        "url": "https://example.com"
+                    }
+                }
+            }"#,
+        )
+        .unwrap();
+
+        let mcps = parse_copilot_mcps(&config_path).unwrap();
+        assert_eq!(mcps[0].mcp_type, "http");
+        assert!(mcps[0].headers.is_none());
+    }
+
+    #[test]
+    fn test_write_copilot_config_unknown_type_skipped() {
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("mcp-config.json");
+
+        let mcps: Vec<McpTuple> = vec![(
+            "unknown".to_string(),
+            "unknown_type".to_string(),
+            None,
+            None,
+            None,
+            None,
+            None,
+        )];
+
+        write_copilot_config(&config_path, &mcps).unwrap();
+
+        let content = fs::read_to_string(&config_path).unwrap();
+        let config: CopilotMcpConfig = serde_json::from_str(&content).unwrap();
+        assert!(config.servers.is_empty());
+    }
+
+    #[test]
+    fn test_write_copilot_config_sse_type() {
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("mcp-config.json");
+
+        let mcps: Vec<McpTuple> = vec![(
+            "sse-mcp".to_string(),
+            "sse".to_string(),
+            None,
+            None,
+            Some("https://api.example.com/sse".to_string()),
+            None,
+            None,
+        )];
+
+        write_copilot_config(&config_path, &mcps).unwrap();
+
+        let content = fs::read_to_string(&config_path).unwrap();
+        assert!(content.contains("\"url\""));
+    }
+
+    #[test]
+    fn test_write_copilot_config_invalid_existing_json() {
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("mcp-config.json");
+
+        fs::write(&config_path, "not valid json").unwrap();
+
+        let mcps: Vec<McpTuple> = vec![];
+        let result = write_copilot_config(&config_path, &mcps);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_backup_config_file_copilot() {
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("mcp-config.json");
+
+        fs::write(&config_path, r#"{"servers": {}}"#).unwrap();
+
+        backup_config_file(&config_path).unwrap();
+
+        let backup_path = config_path.with_extension("json.bak");
+        assert!(backup_path.exists());
+    }
 }

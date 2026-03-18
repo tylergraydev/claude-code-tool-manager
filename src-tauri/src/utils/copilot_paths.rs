@@ -101,4 +101,22 @@ mod tests {
         // Agents dir should end with "agents"
         assert!(paths.agents_dir.ends_with("agents"));
     }
+
+    #[test]
+    fn test_copilot_paths_agents_dir_under_config() {
+        let paths = get_copilot_paths().expect("Should get copilot paths");
+        assert!(paths.agents_dir.starts_with(&paths.config_dir));
+    }
+
+    #[test]
+    fn test_copilot_config_dir_default_path() {
+        // Without XDG_CONFIG_HOME set (or with it), verify config_dir contains "copilot"
+        let paths = get_copilot_paths().expect("Should get copilot paths");
+        let dir_str = paths.config_dir.to_string_lossy();
+        assert!(
+            dir_str.contains("copilot"),
+            "Config dir should contain 'copilot': {}",
+            dir_str
+        );
+    }
 }

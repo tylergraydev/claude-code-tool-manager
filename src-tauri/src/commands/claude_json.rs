@@ -49,6 +49,32 @@ pub fn get_claude_json_mcps() -> Result<Vec<ClaudeJsonMcpInfo>, String> {
         .map_err(|e| e.to_string())
 }
 
+/// Convert raw project data to ClaudeJsonProjectInfo (pure mapping, no I/O)
+pub(crate) fn map_project_to_info(
+    path: String,
+    mcp_servers: HashMap<String, ClaudeJsonMcpServer>,
+    disabled_mcp_servers: &[String],
+) -> ClaudeJsonProjectInfo {
+    let mcps = mcp_servers
+        .into_iter()
+        .map(|(name, server)| {
+            let is_enabled = !disabled_mcp_servers.contains(&name);
+            ClaudeJsonMcpInfo {
+                name,
+                mcp_type: server.mcp_type,
+                command: server.command,
+                args: server.args,
+                url: server.url,
+                headers: server.headers,
+                env: server.env,
+                project_path: Some(path.clone()),
+                is_enabled,
+            }
+        })
+        .collect();
+    ClaudeJsonProjectInfo { path, mcps }
+}
+
 /// Get projects with MCPs from claude.json
 #[tauri::command]
 pub fn get_claude_json_projects() -> Result<Vec<ClaudeJsonProjectInfo>, String> {
@@ -57,25 +83,7 @@ pub fn get_claude_json_projects() -> Result<Vec<ClaudeJsonProjectInfo>, String> 
             projects
                 .into_iter()
                 .map(|(path, project)| {
-                    let mcps = project
-                        .mcp_servers
-                        .into_iter()
-                        .map(|(name, server)| {
-                            let is_enabled = !project.disabled_mcp_servers.contains(&name);
-                            ClaudeJsonMcpInfo {
-                                name,
-                                mcp_type: server.mcp_type,
-                                command: server.command,
-                                args: server.args,
-                                url: server.url,
-                                headers: server.headers,
-                                env: server.env,
-                                project_path: Some(path.clone()),
-                                is_enabled,
-                            }
-                        })
-                        .collect();
-                    ClaudeJsonProjectInfo { path, mcps }
+                    map_project_to_info(path, project.mcp_servers, &project.disabled_mcp_servers)
                 })
                 .collect()
         })
@@ -498,5 +506,118 @@ mod tests {
         assert_eq!(parsed.mcps[0].name, "mcp-a");
         assert_eq!(parsed.mcps[1].name, "mcp-b");
         assert!(!parsed.mcps[1].is_enabled);
+    }
+
+    // =========================================================================
+    // map_project_to_info tests
+    // =========================================================================
+
+    #[test]
+    fn test_map_project_to_info_basic() {
+        let mut servers = HashMap::new();
+        servers.insert(
+            "mcp-1".to_string(),
+            ClaudeJsonMcpServer {
+                mcp_type: "stdio".to_string(),
+                command: Some("npx".to_string()),
+                args: Some(vec!["-y".to_string(), "@test/mcp".to_string()]),
+                url: None,
+                headers: None,
+                env: None,
+            },
+        );
+
+        let result = map_project_to_info("/my/project".to_string(), servers, &[]);
+
+        assert_eq!(result.path, "/my/project");
+        assert_eq!(result.mcps.len(), 1);
+        assert_eq!(result.mcps[0].name, "mcp-1");
+        assert_eq!(result.mcps[0].mcp_type, "stdio");
+        assert!(result.mcps[0].is_enabled);
+        assert_eq!(result.mcps[0].project_path, Some("/my/project".to_string()));
+    }
+
+    #[test]
+    fn test_map_project_to_info_with_disabled() {
+        let mut servers = HashMap::new();
+        servers.insert(
+            "enabled-mcp".to_string(),
+            ClaudeJsonMcpServer {
+                mcp_type: "stdio".to_string(),
+                command: Some("cmd".to_string()),
+                args: None,
+                url: None,
+                headers: None,
+                env: None,
+            },
+        );
+        servers.insert(
+            "disabled-mcp".to_string(),
+            ClaudeJsonMcpServer {
+                mcp_type: "sse".to_string(),
+                command: None,
+                args: None,
+                url: Some("https://example.com".to_string()),
+                headers: None,
+                env: None,
+            },
+        );
+
+        let disabled = vec!["disabled-mcp".to_string()];
+        let result = map_project_to_info("/project".to_string(), servers, &disabled);
+
+        assert_eq!(result.mcps.len(), 2);
+        let enabled = result
+            .mcps
+            .iter()
+            .find(|m| m.name == "enabled-mcp")
+            .unwrap();
+        let disabled = result
+            .mcps
+            .iter()
+            .find(|m| m.name == "disabled-mcp")
+            .unwrap();
+        assert!(enabled.is_enabled);
+        assert!(!disabled.is_enabled);
+    }
+
+    #[test]
+    fn test_map_project_to_info_empty_servers() {
+        let result = map_project_to_info("/empty".to_string(), HashMap::new(), &[]);
+        assert_eq!(result.path, "/empty");
+        assert!(result.mcps.is_empty());
+    }
+
+    #[test]
+    fn test_map_project_to_info_preserves_all_fields() {
+        let mut servers = HashMap::new();
+        servers.insert(
+            "full-mcp".to_string(),
+            ClaudeJsonMcpServer {
+                mcp_type: "http".to_string(),
+                command: None,
+                args: None,
+                url: Some("https://api.example.com".to_string()),
+                headers: Some(HashMap::from([(
+                    "Auth".to_string(),
+                    "Bearer tok".to_string(),
+                )])),
+                env: Some(HashMap::from([("KEY".to_string(), "val".to_string())])),
+            },
+        );
+
+        let result = map_project_to_info("/project".to_string(), servers, &[]);
+        let mcp = &result.mcps[0];
+
+        assert_eq!(mcp.mcp_type, "http");
+        assert_eq!(mcp.url, Some("https://api.example.com".to_string()));
+        assert_eq!(
+            mcp.headers.as_ref().unwrap().get("Auth"),
+            Some(&"Bearer tok".to_string())
+        );
+        assert_eq!(
+            mcp.env.as_ref().unwrap().get("KEY"),
+            Some(&"val".to_string())
+        );
     }
 }

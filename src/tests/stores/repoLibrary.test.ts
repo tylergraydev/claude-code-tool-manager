@@ -430,6 +430,207 @@ describe('Repo Library Store', () => {
 		});
 	});
 
+	describe('syncAllRepos', () => {
+		it('should sync all repos and reload', async () => {
+			const syncResult = createMockSyncResult({ added: 3, updated: 1 });
+			vi.mocked(invoke)
+				.mockResolvedValueOnce(syncResult) // sync_all_repos
+				.mockResolvedValueOnce([])          // loadRepos
+				.mockResolvedValueOnce([]);         // loadItems
+
+			const { repoLibrary } = await import('$lib/stores/repoLibrary.svelte');
+			const result = await repoLibrary.syncAllRepos();
+
+			expect(result.added).toBe(3);
+			expect(result.updated).toBe(1);
+			expect(repoLibrary.isSyncing).toBe(false);
+		});
+
+		it('should set isSyncing during sync', async () => {
+			let resolveSyncInvoke: (value: unknown) => void;
+			const syncPromise = new Promise((resolve) => {
+				resolveSyncInvoke = resolve;
+			});
+
+			vi.mocked(invoke).mockReturnValueOnce(syncPromise as Promise<unknown>);
+
+			const { repoLibrary } = await import('$lib/stores/repoLibrary.svelte');
+			const promise = repoLibrary.syncAllRepos();
+			expect(repoLibrary.isSyncing).toBe(true);
+
+			vi.mocked(invoke)
+				.mockResolvedValueOnce([])  // loadRepos
+				.mockResolvedValueOnce([]); // loadItems
+			resolveSyncInvoke!(createMockSyncResult());
+			await promise;
+
+			expect(repoLibrary.isSyncing).toBe(false);
+		});
+	});
+
+	describe('importItem failure', () => {
+		it('should not update state when import fails', async () => {
+			const items = [createMockRepoItem({ id: 1, itemType: 'mcp', isImported: false })];
+			const failResult = createMockImportResult({ success: false, itemId: 0 });
+
+			vi.mocked(invoke)
+				.mockResolvedValueOnce(items)
+				.mockResolvedValueOnce(failResult);
+
+			const { repoLibrary } = await import('$lib/stores/repoLibrary.svelte');
+			await repoLibrary.loadItems();
+			const result = await repoLibrary.importItem(1);
+
+			expect(result.success).toBe(false);
+			expect(repoLibrary.items[0].isImported).toBe(false);
+		});
+	});
+
+	describe('checkRateLimit', () => {
+		it('should load rate limit info', async () => {
+			const rateLimitInfo = { remaining: 50, limit: 60, resetAt: '2025-01-01T00:00:00Z' };
+			vi.mocked(invoke).mockResolvedValueOnce(rateLimitInfo);
+
+			const { repoLibrary } = await import('$lib/stores/repoLibrary.svelte');
+			await repoLibrary.checkRateLimit();
+
+			expect(repoLibrary.rateLimitInfo).toEqual(rateLimitInfo);
+		});
+
+		it('should handle errors gracefully', async () => {
+			vi.mocked(invoke).mockRejectedValueOnce(new Error('API error'));
+
+			const { repoLibrary } = await import('$lib/stores/repoLibrary.svelte');
+			await repoLibrary.checkRateLimit();
+
+			// Should not throw
+			expect(repoLibrary.rateLimitInfo).toBeNull();
+		});
+	});
+
+	describe('seedDefaultRepos', () => {
+		it('should seed and reload repos', async () => {
+			vi.mocked(invoke)
+				.mockResolvedValueOnce(undefined) // seed_default_repos
+				.mockResolvedValueOnce([createMockRepo({ id: 1 })]); // loadRepos
+
+			const { repoLibrary } = await import('$lib/stores/repoLibrary.svelte');
+			await repoLibrary.seedDefaultRepos();
+
+			expect(repoLibrary.repos).toHaveLength(1);
+		});
+
+		it('should handle errors gracefully', async () => {
+			vi.mocked(invoke).mockRejectedValueOnce(new Error('Seed failed'));
+
+			const { repoLibrary } = await import('$lib/stores/repoLibrary.svelte');
+			await repoLibrary.seedDefaultRepos();
+
+			// Should not throw
+			expect(repoLibrary.repos).toEqual([]);
+		});
+	});
+
+	describe('importFromRegistry', () => {
+		it('should import from registry and reload MCP library', async () => {
+			const entry = createMockRegistryMcp({ registryId: 'test', name: 'test-mcp' });
+			vi.mocked(invoke)
+				.mockResolvedValueOnce(42)  // import_mcp_from_registry returns ID
+				.mockResolvedValueOnce([]); // mcpLibrary.load()
+
+			const { repoLibrary } = await import('$lib/stores/repoLibrary.svelte');
+			const id = await repoLibrary.importFromRegistry(entry);
+
+			expect(id).toBe(42);
+			expect(invoke).toHaveBeenCalledWith('import_mcp_from_registry', { entry });
+		});
+	});
+
+	describe('clearRegistrySearch', () => {
+		it('should reset registry state', async () => {
+			const registryMcps = [createMockRegistryMcp({ registryId: 'a', name: 'mcp-a' })];
+			vi.mocked(invoke).mockResolvedValueOnce(registryMcps);
+
+			const { repoLibrary } = await import('$lib/stores/repoLibrary.svelte');
+			await repoLibrary.searchRegistry('test');
+
+			expect(repoLibrary.registryMcps).toHaveLength(1);
+			expect(repoLibrary.registrySearchQuery).toBe('test');
+
+			repoLibrary.clearRegistrySearch();
+
+			expect(repoLibrary.registrySearchQuery).toBe('');
+			expect(repoLibrary.registryMcps).toEqual([]);
+			expect(repoLibrary.registryNextCursor).toBeNull();
+			expect(repoLibrary.registryError).toBeNull();
+		});
+	});
+
+	describe('filteredRegistryMcps', () => {
+		it('should return all MCPs when no search query', async () => {
+			const result = {
+				entries: [
+					createMockRegistryMcp({ registryId: 'a', name: 'mcp-a' }),
+					createMockRegistryMcp({ registryId: 'b', name: 'mcp-b' })
+				],
+				nextCursor: null
+			};
+			vi.mocked(invoke).mockResolvedValueOnce(result);
+
+			const { repoLibrary } = await import('$lib/stores/repoLibrary.svelte');
+			await repoLibrary.loadRegistryMcps();
+
+			// No search query set, so should return all
+			expect(repoLibrary.filteredRegistryMcps).toHaveLength(2);
+		});
+
+		it('should filter by search query on name', async () => {
+			const registryMcps = [
+				createMockRegistryMcp({ registryId: 'a', name: 'filesystem-mcp' }),
+				createMockRegistryMcp({ registryId: 'b', name: 'github-mcp' })
+			];
+			vi.mocked(invoke).mockResolvedValueOnce(registryMcps);
+
+			const { repoLibrary } = await import('$lib/stores/repoLibrary.svelte');
+			await repoLibrary.searchRegistry('github');
+
+			expect(repoLibrary.filteredRegistryMcps).toHaveLength(1);
+			expect(repoLibrary.filteredRegistryMcps[0].name).toBe('github-mcp');
+		});
+
+		it('should filter by description', async () => {
+			const registryMcps = [
+				createMockRegistryMcp({ registryId: 'a', name: 'mcp-a', description: 'File operations' }),
+				createMockRegistryMcp({ registryId: 'b', name: 'mcp-b', description: 'Git integration' })
+			];
+			vi.mocked(invoke).mockResolvedValueOnce(registryMcps);
+
+			const { repoLibrary } = await import('$lib/stores/repoLibrary.svelte');
+			await repoLibrary.searchRegistry('git');
+
+			expect(repoLibrary.filteredRegistryMcps).toHaveLength(1);
+		});
+	});
+
+	describe('derived item type filters', () => {
+		it('should filter mcpItems, skillItems, subagentItems', async () => {
+			const items = [
+				createMockRepoItem({ id: 1, itemType: 'mcp' }),
+				createMockRepoItem({ id: 2, itemType: 'skill' }),
+				createMockRepoItem({ id: 3, itemType: 'mcp' }),
+				createMockRepoItem({ id: 4, itemType: 'subagent' })
+			];
+			vi.mocked(invoke).mockResolvedValueOnce(items);
+
+			const { repoLibrary } = await import('$lib/stores/repoLibrary.svelte');
+			await repoLibrary.loadItems();
+
+			expect(repoLibrary.mcpItems).toHaveLength(2);
+			expect(repoLibrary.skillItems).toHaveLength(1);
+			expect(repoLibrary.subagentItems).toHaveLength(1);
+		});
+	});
+
 	describe('getRepoById / getItemById', () => {
 		it('should return repo by id', async () => {
 			const repos = [createMockRepo({ id: 1, name: 'test-repo' })];

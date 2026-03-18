@@ -284,12 +284,18 @@ mod tests {
     }
 
     #[test]
-    fn test_get_urls() {
-        // Can't easily test without database, but we can test the URL format logic
-        assert_eq!(
-            format!("http://127.0.0.1:{}", DEFAULT_GATEWAY_PORT),
-            format!("http://127.0.0.1:{}", 23848)
-        );
+    fn test_config_serialize_deserialize() {
+        let config = GatewayServerConfig {
+            enabled: true,
+            port: 9999,
+            auto_start: true,
+        };
+        let json = serde_json::to_string(&config).unwrap();
+        assert!(json.contains("autoStart")); // camelCase
+        let parsed: GatewayServerConfig = serde_json::from_str(&json).unwrap();
+        assert!(parsed.enabled);
+        assert_eq!(parsed.port, 9999);
+        assert!(parsed.auto_start);
     }
 
     #[test]
@@ -299,5 +305,118 @@ mod tests {
         assert_eq!(entry.mcp_type, "http");
         assert!(entry.url.is_some());
         assert!(entry.url.unwrap().contains("23848"));
+        assert!(entry.description.is_some());
+        assert!(entry.tags.is_some());
+        assert!(entry.tags.unwrap().contains(&"gateway".to_string()));
+    }
+
+    #[test]
+    fn test_generate_gateway_mcp_entry_custom_port() {
+        let entry = generate_gateway_mcp_entry(12345);
+        assert!(entry.url.unwrap().contains("12345"));
+    }
+
+    fn make_test_state() -> GatewayServerState {
+        let db = Database::in_memory().unwrap();
+        let db_arc = Arc::new(Mutex::new(db));
+        let config = GatewayServerConfig::default();
+        GatewayServerState::with_config(config, db_arc)
+    }
+
+    #[test]
+    fn test_server_state_initial() {
+        let state = make_test_state();
+        assert!(!state.is_running());
+        assert_eq!(state.get_port(), DEFAULT_GATEWAY_PORT);
+    }
+
+    #[test]
+    fn test_server_state_get_url() {
+        let state = make_test_state();
+        let url = state.get_url();
+        assert_eq!(url, format!("http://127.0.0.1:{}", DEFAULT_GATEWAY_PORT));
+    }
+
+    #[test]
+    fn test_server_state_get_mcp_endpoint() {
+        let state = make_test_state();
+        let endpoint = state.get_mcp_endpoint();
+        assert!(endpoint.ends_with("/mcp"));
+        assert!(endpoint.starts_with("http://127.0.0.1:"));
+    }
+
+    #[test]
+    fn test_server_state_update_config() {
+        let state = make_test_state();
+        let new_config = GatewayServerConfig {
+            enabled: true,
+            port: 5555,
+            auto_start: true,
+        };
+        state.update_config(new_config).unwrap();
+
+        let config = state.get_config().unwrap();
+        assert!(config.enabled);
+        assert_eq!(config.port, 5555);
+        assert!(config.auto_start);
+    }
+
+    #[test]
+    fn test_server_state_get_connection_config() {
+        let state = make_test_state();
+        let config = state.get_connection_config();
+        let gateway = config.get("mcp-gateway").unwrap();
+        assert_eq!(gateway.get("type").unwrap(), "sse");
+        assert!(gateway.get("url").unwrap().as_str().unwrap().contains("/mcp"));
+    }
+
+    #[test]
+    fn test_server_state_custom_port() {
+        let db = Database::in_memory().unwrap();
+        let db_arc = Arc::new(Mutex::new(db));
+        let config = GatewayServerConfig {
+            enabled: true,
+            port: 8080,
+            auto_start: false,
+        };
+        let state = GatewayServerState::with_config(config, db_arc);
+        assert_eq!(state.get_port(), 8080);
+        assert!(state.get_url().contains("8080"));
+    }
+
+    #[tokio::test]
+    async fn test_server_state_get_status() {
+        let state = make_test_state();
+        let status = state.get_status().await;
+        assert!(!status.is_running);
+        assert_eq!(status.port, DEFAULT_GATEWAY_PORT);
+        assert!(status.available_mcps.is_empty());
+        assert!(status.connected_backends.is_empty());
+        assert_eq!(status.total_tools, 0);
+    }
+
+    #[tokio::test]
+    async fn test_server_state_stop_when_not_running() {
+        let state = make_test_state();
+        let result = state.stop().await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("not running"));
+    }
+
+    #[test]
+    fn test_gateway_server_status_serialize() {
+        let status = GatewayServerStatus {
+            is_running: true,
+            port: 23848,
+            url: "http://127.0.0.1:23848".to_string(),
+            mcp_endpoint: "http://127.0.0.1:23848/mcp".to_string(),
+            available_mcps: vec![],
+            connected_backends: vec![],
+            total_tools: 5,
+        };
+        let json = serde_json::to_string(&status).unwrap();
+        assert!(json.contains("isRunning")); // camelCase
+        assert!(json.contains("mcpEndpoint"));
+        assert!(json.contains("totalTools"));
     }
 }

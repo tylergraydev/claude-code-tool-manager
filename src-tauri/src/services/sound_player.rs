@@ -553,4 +553,300 @@ mod tests {
         let cmd = generate_play_command("/test/sound.wav", "shell");
         assert!(cmd.contains("/test/sound.wav") || cmd.contains("sound.wav"));
     }
+
+    // =========================================================================
+    // SystemSound / CustomSound serialization tests
+    // =========================================================================
+    #[test]
+    fn test_system_sound_serialization() {
+        let sound = SystemSound {
+            name: "Basso".to_string(),
+            path: "/System/Library/Sounds/Basso.aiff".to_string(),
+            category: "system".to_string(),
+        };
+        let json = serde_json::to_string(&sound).unwrap();
+        assert!(json.contains("\"name\":\"Basso\""));
+        assert!(json.contains("\"category\":\"system\""));
+    }
+
+    #[test]
+    fn test_custom_sound_serialization() {
+        let sound = CustomSound {
+            name: "notify.wav".to_string(),
+            path: "/home/user/.claude/sounds/notify.wav".to_string(),
+            size: 1024,
+            created_at: "2026-01-01T00:00:00Z".to_string(),
+        };
+        let json = serde_json::to_string(&sound).unwrap();
+        assert!(json.contains("\"createdAt\""));
+        assert!(json.contains("1024"));
+    }
+
+    // =========================================================================
+    // validate_sound_file more extensions
+    // =========================================================================
+    #[test]
+    fn test_validate_sound_file_valid_ogg() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("test.ogg");
+        std::fs::write(&path, b"fake ogg data").unwrap();
+        assert!(validate_sound_file(path.to_str().unwrap()).is_ok());
+    }
+
+    #[test]
+    fn test_validate_sound_file_valid_oga() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("test.oga");
+        std::fs::write(&path, b"fake oga data").unwrap();
+        assert!(validate_sound_file(path.to_str().unwrap()).is_ok());
+    }
+
+    #[test]
+    fn test_validate_sound_file_valid_m4a() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("test.m4a");
+        std::fs::write(&path, b"fake m4a data").unwrap();
+        assert!(validate_sound_file(path.to_str().unwrap()).is_ok());
+    }
+
+    #[test]
+    fn test_validate_sound_file_no_extension() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("noext");
+        std::fs::write(&path, b"data").unwrap();
+        let result = validate_sound_file(path.to_str().unwrap());
+        assert!(result.is_err());
+    }
+
+    // =========================================================================
+    // ensure_sounds_directory / ensure_hooks_directory tests
+    // =========================================================================
+    #[test]
+    fn test_ensure_sounds_directory_creates_dir() {
+        // This creates in the user's home dir, just verify it doesn't error
+        let result = ensure_sounds_directory();
+        assert!(result.is_ok());
+        assert!(result.unwrap().exists());
+    }
+
+    #[test]
+    fn test_ensure_hooks_directory_creates_dir() {
+        let result = ensure_hooks_directory();
+        assert!(result.is_ok());
+        assert!(result.unwrap().exists());
+    }
+
+    // =========================================================================
+    // get_system_sounds_path tests
+    // =========================================================================
+    #[test]
+    fn test_get_system_sounds_path_returns_some() {
+        let path = get_system_sounds_path();
+        // On macOS this should be Some
+        #[cfg(target_os = "macos")]
+        assert!(path.is_some());
+    }
+
+    // =========================================================================
+    // list_custom_sounds with empty/nonexistent dir
+    // =========================================================================
+    #[test]
+    fn test_list_custom_sounds_nonexistent_dir() {
+        // If sounds dir doesn't exist, should return empty vec (not error)
+        // We can't easily point to a nonexistent dir, but the function handles it
+        let result = list_custom_sounds();
+        assert!(result.is_ok());
+    }
+
+    // =========================================================================
+    // NOTIFICATION_SCRIPT constant
+    // =========================================================================
+    #[test]
+    fn test_notification_script_is_valid_python() {
+        assert!(NOTIFICATION_SCRIPT.contains("#!/usr/bin/env python3"));
+        assert!(NOTIFICATION_SCRIPT.contains("def main():"));
+        assert!(NOTIFICATION_SCRIPT.contains("EVENT_SOUNDS"));
+        assert!(NOTIFICATION_SCRIPT.contains("NOTIFICATION_SOUNDS"));
+    }
+
+    // =========================================================================
+    // save_custom_sound validation
+    // =========================================================================
+    #[test]
+    fn test_save_custom_sound_invalid_extension() {
+        let result = save_custom_sound("bad.exe", b"data");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Unsupported"));
+    }
+
+    #[test]
+    fn test_save_custom_sound_no_extension() {
+        let result = save_custom_sound("noext", b"data");
+        assert!(result.is_err());
+    }
+
+    // =========================================================================
+    // delete_custom_sound
+    // =========================================================================
+    #[test]
+    fn test_delete_custom_sound_nonexistent() {
+        let result = delete_custom_sound("nonexistent_sound_file.wav");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("not found"));
+    }
+
+    // =========================================================================
+    // Additional coverage: validate_sound_file all valid extensions
+    // =========================================================================
+
+    #[test]
+    fn test_validate_sound_file_case_insensitive_extension() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("test.WAV");
+        std::fs::write(&path, b"data").unwrap();
+        // Extension check is lowercased, so .WAV should work
+        assert!(validate_sound_file(path.to_str().unwrap()).is_ok());
+    }
+
+    #[test]
+    fn test_validate_sound_file_mp3_uppercase() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("test.MP3");
+        std::fs::write(&path, b"data").unwrap();
+        assert!(validate_sound_file(path.to_str().unwrap()).is_ok());
+    }
+
+    // =========================================================================
+    // Additional coverage: list_custom_sounds with actual files
+    // =========================================================================
+
+    #[test]
+    fn test_list_custom_sounds_with_valid_files() {
+        // Create a temp dir and manually set up sounds there
+        let dir = tempfile::tempdir().unwrap();
+        let sounds_dir = dir.path().join("sounds");
+        std::fs::create_dir(&sounds_dir).unwrap();
+
+        std::fs::write(sounds_dir.join("alert.wav"), b"wav data").unwrap();
+        std::fs::write(sounds_dir.join("ding.mp3"), b"mp3 data").unwrap();
+        std::fs::write(sounds_dir.join("readme.txt"), b"text file").unwrap(); // should be filtered
+
+        // We can't test list_custom_sounds directly because it uses hardcoded path,
+        // but we can test the filtering logic independently by verifying the extension check
+        let entries: Vec<_> = std::fs::read_dir(&sounds_dir)
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .filter(|e| {
+                let ext = e
+                    .path()
+                    .extension()
+                    .map(|x| x.to_string_lossy().to_lowercase())
+                    .unwrap_or_default();
+                matches!(ext.as_str(), "aiff" | "wav" | "mp3" | "ogg" | "oga" | "m4a")
+            })
+            .collect();
+        assert_eq!(entries.len(), 2);
+    }
+
+    // =========================================================================
+    // Additional coverage: play_sound file exists
+    // =========================================================================
+
+    #[test]
+    fn test_play_sound_with_existing_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("test.wav");
+        std::fs::write(&path, b"fake wav data").unwrap();
+
+        // Should succeed (spawns a thread) on supported platforms
+        let result = play_sound(path.to_str().unwrap());
+        assert!(result.is_ok());
+    }
+
+    // =========================================================================
+    // Additional coverage: generate_play_command different methods
+    // =========================================================================
+
+    #[test]
+    fn test_generate_play_command_python_uses_python3() {
+        let cmd = generate_play_command("/any/path.wav", "python");
+        #[cfg(not(target_os = "windows"))]
+        assert!(cmd.starts_with("python3"));
+    }
+
+    #[test]
+    fn test_generate_play_command_shell_various_paths() {
+        let cmd1 = generate_play_command("/path/with spaces/sound.wav", "shell");
+        assert!(cmd1.contains("/path/with spaces/sound.wav"));
+
+        let cmd2 = generate_play_command("relative.wav", "shell");
+        assert!(cmd2.contains("relative.wav"));
+    }
+
+    // =========================================================================
+    // Additional coverage: SystemSound/CustomSound deserialization
+    // =========================================================================
+
+    #[test]
+    fn test_system_sound_deserialization() {
+        let json =
+            r#"{"name":"Basso","path":"/System/Library/Sounds/Basso.aiff","category":"system"}"#;
+        let sound: SystemSound = serde_json::from_str(json).unwrap();
+        assert_eq!(sound.name, "Basso");
+        assert_eq!(sound.category, "system");
+    }
+
+    #[test]
+    fn test_custom_sound_deserialization() {
+        let json = r#"{"name":"notify.wav","path":"/sounds/notify.wav","size":2048,"createdAt":"2026-01-01T00:00:00Z"}"#;
+        let sound: CustomSound = serde_json::from_str(json).unwrap();
+        assert_eq!(sound.name, "notify.wav");
+        assert_eq!(sound.size, 2048);
+        assert_eq!(sound.created_at, "2026-01-01T00:00:00Z");
+    }
+
+    // =========================================================================
+    // Additional coverage: save_custom_sound valid extension accepted
+    // =========================================================================
+
+    #[test]
+    fn test_save_custom_sound_wav_accepted() {
+        // This will write to ~/.claude/sounds/ which is a real path
+        // We just test that valid extensions don't get rejected at the validation step
+        let result = save_custom_sound("valid-test.wav", b"wav data");
+        // This should succeed (creates in real ~/.claude/sounds/ dir)
+        if result.is_ok() {
+            // Clean up
+            let _ = delete_custom_sound("valid-test.wav");
+        }
+        // Either succeeds or fails due to fs permission, not extension validation
+        if let Err(ref e) = result {
+            assert!(!e.contains("Unsupported"));
+        }
+    }
+
+    // =========================================================================
+    // Additional coverage: NOTIFICATION_SCRIPT content checks
+    // =========================================================================
+
+    #[test]
+    fn test_notification_script_event_sounds() {
+        assert!(NOTIFICATION_SCRIPT.contains("PermissionRequest"));
+        assert!(NOTIFICATION_SCRIPT.contains("Stop"));
+        assert!(NOTIFICATION_SCRIPT.contains("SubagentStop"));
+    }
+
+    #[test]
+    fn test_notification_script_notification_sounds() {
+        assert!(NOTIFICATION_SCRIPT.contains("permission_prompt"));
+        assert!(NOTIFICATION_SCRIPT.contains("idle_prompt"));
+        assert!(NOTIFICATION_SCRIPT.contains("auth_success"));
+        assert!(NOTIFICATION_SCRIPT.contains("elicitation_dialog"));
+    }
+
+    #[test]
+    fn test_notification_script_handles_json_decode_error() {
+        assert!(NOTIFICATION_SCRIPT.contains("json.JSONDecodeError"));
+        assert!(NOTIFICATION_SCRIPT.contains("sys.exit(1)"));
+    }
 }

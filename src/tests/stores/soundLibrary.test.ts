@@ -264,7 +264,79 @@ describe('Sound Library Store', () => {
 		});
 	});
 
-	// Note: getSoundByPath and getSoundByName rely on $derived.by which
-	// doesn't work properly in jsdom. The underlying logic is tested through
-	// the load tests and the store implementation uses standard JavaScript methods.
+	describe('getSoundByPath', () => {
+		it('should find a system sound by path', async () => {
+			const mockSystemSounds = [
+				{ name: 'Glass', path: '/System/Library/Sounds/Glass.aiff', category: 'system' as const },
+				{ name: 'Ping', path: '/System/Library/Sounds/Ping.aiff', category: 'system' as const }
+			];
+
+			vi.mocked(invoke)
+				.mockResolvedValueOnce(mockSystemSounds)
+				.mockResolvedValueOnce([])
+				.mockResolvedValueOnce('');
+
+			const { soundLibrary } = await import('$lib/stores/soundLibrary.svelte');
+			await soundLibrary.load();
+
+			const sound = soundLibrary.getSoundByPath('/System/Library/Sounds/Glass.aiff');
+			expect(sound?.name).toBe('Glass');
+		});
+
+		it('should return undefined for non-existent path', async () => {
+			vi.mocked(invoke)
+				.mockResolvedValueOnce([])
+				.mockResolvedValueOnce([])
+				.mockResolvedValueOnce('');
+
+			const { soundLibrary } = await import('$lib/stores/soundLibrary.svelte');
+			await soundLibrary.load();
+
+			const sound = soundLibrary.getSoundByPath('/nonexistent');
+			expect(sound).toBeUndefined();
+		});
+	});
+
+	describe('getSoundByName', () => {
+		it('should find sound by name (case-insensitive)', async () => {
+			const mockSystemSounds = [
+				{ name: 'Glass', path: '/System/Library/Sounds/Glass.aiff', category: 'system' as const }
+			];
+
+			vi.mocked(invoke)
+				.mockResolvedValueOnce(mockSystemSounds)
+				.mockResolvedValueOnce([])
+				.mockResolvedValueOnce('');
+
+			const { soundLibrary } = await import('$lib/stores/soundLibrary.svelte');
+			await soundLibrary.load();
+
+			const sound = soundLibrary.getSoundByName('glass');
+			expect(sound?.name).toBe('Glass');
+		});
+	});
+
+	describe('allSounds', () => {
+		it('should combine system and custom sounds', async () => {
+			const mockSystemSounds = [
+				{ name: 'Glass', path: '/System/Library/Sounds/Glass.aiff', category: 'system' as const }
+			];
+			const mockCustomSounds = [
+				{ name: 'custom-beep', path: '/path/to/custom-beep.aiff', size: 1024, createdAt: '2024-01-01' }
+			];
+
+			vi.mocked(invoke)
+				.mockResolvedValueOnce(mockSystemSounds)
+				.mockResolvedValueOnce(mockCustomSounds)
+				.mockResolvedValueOnce('');
+
+			const { soundLibrary } = await import('$lib/stores/soundLibrary.svelte');
+			await soundLibrary.load();
+
+			expect(soundLibrary.allSounds).toHaveLength(2);
+			expect(soundLibrary.allSounds[0].name).toBe('Glass');
+			expect(soundLibrary.allSounds[1].name).toBe('custom-beep');
+			expect(soundLibrary.allSounds[1].category).toBe('custom');
+		});
+	});
 });

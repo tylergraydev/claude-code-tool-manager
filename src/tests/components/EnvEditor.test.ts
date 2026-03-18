@@ -36,7 +36,7 @@ describe('EnvEditor Component', () => {
 		expect(inputs).toHaveLength(2);
 	});
 
-	it('should render custom placeholders', () => {
+	it('should render custom placeholders', async () => {
 		render(EnvEditor, {
 			props: {
 				values: {},
@@ -47,7 +47,7 @@ describe('EnvEditor Component', () => {
 
 		// Click add to get inputs
 		const addButton = screen.getByText('Add variable');
-		fireEvent.click(addButton);
+		await fireEvent.click(addButton);
 
 		expect(screen.getByPlaceholderText('Header name')).toBeInTheDocument();
 		expect(screen.getByPlaceholderText('Header value')).toBeInTheDocument();

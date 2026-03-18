@@ -594,4 +594,70 @@ mod tests {
         assert!(json.contains("\"resourcesSupported\":true"));
         assert!(json.contains("\"promptsSupported\":false"));
     }
+
+    #[test]
+    fn test_session_manager_default() {
+        let manager = McpSessionManager::default();
+        assert_eq!(manager.session_count(), 0);
+    }
+
+    #[test]
+    fn test_session_manager_cleanup_idle_sessions_empty() {
+        let manager = McpSessionManager::new();
+        let cleaned = manager.cleanup_idle_sessions(60);
+        assert_eq!(cleaned, 0);
+    }
+
+    #[test]
+    fn test_session_info_deserialization() {
+        let json = r#"{
+            "id": "test-id",
+            "mcpId": 1,
+            "mcpName": "Test",
+            "mcpType": "stdio",
+            "serverInfo": null,
+            "toolCount": 0,
+            "createdAt": "0s",
+            "lastUsedAt": "0s"
+        }"#;
+        let info: SessionInfo = serde_json::from_str(json).unwrap();
+        assert_eq!(info.id, "test-id");
+        assert_eq!(info.mcp_id, 1);
+        assert_eq!(info.tool_count, 0);
+    }
+
+    #[test]
+    fn test_start_session_result_with_tools() {
+        let result = StartSessionResult {
+            session_id: "s1".to_string(),
+            server_info: Some(McpServerInfo {
+                name: "test".to_string(),
+                version: Some("1.0".to_string()),
+            }),
+            tools: vec![McpTool {
+                name: "read_file".to_string(),
+                description: Some("Read a file".to_string()),
+                input_schema: Some(serde_json::json!({"type": "object"})),
+            }],
+            resources_supported: false,
+            prompts_supported: true,
+        };
+
+        let json = serde_json::to_string(&result).unwrap();
+        assert!(json.contains("read_file"));
+        assert!(json.contains("\"promptsSupported\":true"));
+    }
+
+    #[test]
+    fn test_session_manager_list_sessions_empty() {
+        let manager = McpSessionManager::new();
+        let sessions = manager.list_sessions();
+        assert!(sessions.is_empty());
+    }
+
+    #[test]
+    fn test_session_manager_get_session_tools_nonexistent() {
+        let manager = McpSessionManager::new();
+        assert!(manager.get_session_tools("none").is_none());
+    }
 }

@@ -80,4 +80,23 @@ mod tests {
         // Home should be a valid directory path
         assert!(!paths.home.as_os_str().is_empty());
     }
+
+    #[test]
+    fn test_codex_config_dir_ends_with_codex() {
+        let paths = get_codex_paths().expect("Should get codex paths");
+        assert!(paths.config_dir.ends_with(".codex"));
+    }
+
+    #[test]
+    fn test_codex_config_file_is_toml() {
+        let paths = get_codex_paths().expect("Should get codex paths");
+        let file_name = paths.config_file.file_name().unwrap().to_str().unwrap();
+        assert!(file_name.ends_with(".toml"));
+    }
+
+    #[test]
+    fn test_codex_config_dir_under_home() {
+        let paths = get_codex_paths().expect("Should get codex paths");
+        assert!(paths.config_dir.starts_with(&paths.home));
+    }
 }

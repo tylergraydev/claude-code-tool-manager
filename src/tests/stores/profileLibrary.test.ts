@@ -233,6 +233,51 @@ describe('Profile Library Store', () => {
 		});
 	});
 
+	describe('getProfile', () => {
+		it('should get profile with items', async () => {
+			const mockProfileWithItems = {
+				profile: createMockProfile({ id: 1, name: 'test-profile' }),
+				mcps: [],
+				skills: [],
+				hooks: [],
+				subagents: []
+			};
+			vi.mocked(invoke).mockResolvedValueOnce(mockProfileWithItems);
+
+			const { profileLibrary } = await import('$lib/stores/profileLibrary.svelte');
+			const result = await profileLibrary.getProfile(1);
+
+			expect(result.profile.name).toBe('test-profile');
+			expect(invoke).toHaveBeenCalledWith('get_profile', { id: 1 });
+		});
+	});
+
+	describe('captureFromCurrent', () => {
+		it('should capture current config and update local state', async () => {
+			const profiles = [
+				createMockProfile({ id: 1, name: 'my-profile' })
+			];
+			const capturedResult = {
+				profile: createMockProfile({ id: 1, name: 'my-profile' }),
+				mcps: [{ id: 10 }],
+				skills: [],
+				hooks: [],
+				subagents: []
+			};
+
+			vi.mocked(invoke)
+				.mockResolvedValueOnce(profiles) // load
+				.mockResolvedValueOnce(capturedResult); // capture
+
+			const { profileLibrary } = await import('$lib/stores/profileLibrary.svelte');
+			await profileLibrary.load();
+			const result = await profileLibrary.captureFromCurrent(1);
+
+			expect(result.mcps).toHaveLength(1);
+			expect(invoke).toHaveBeenCalledWith('capture_profile_from_current', { profileId: 1 });
+		});
+	});
+
 	describe('loadActiveProfile', () => {
 		it('should load active profile', async () => {
 			const active = createMockProfile({ id: 1, isActive: true });
@@ -250,6 +295,16 @@ describe('Profile Library Store', () => {
 			const { profileLibrary } = await import('$lib/stores/profileLibrary.svelte');
 			await profileLibrary.loadActiveProfile();
 
+			expect(profileLibrary.activeProfile).toBeNull();
+		});
+
+		it('should handle errors gracefully', async () => {
+			vi.mocked(invoke).mockRejectedValueOnce(new Error('Active profile error'));
+
+			const { profileLibrary } = await import('$lib/stores/profileLibrary.svelte');
+			await profileLibrary.loadActiveProfile();
+
+			// Should not throw
 			expect(profileLibrary.activeProfile).toBeNull();
 		});
 	});

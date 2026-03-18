@@ -812,6 +812,94 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_gemini_mcps_unknown_type() {
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("settings.json");
+
+        fs::write(
+            &config_path,
+            r#"{
+                "mcpServers": {
+                    "mystery": {
+                        "someField": "value"
+                    }
+                }
+            }"#,
+        )
+        .unwrap();
+
+        let mcps = parse_gemini_mcps(&config_path).unwrap();
+        assert_eq!(mcps.len(), 1);
+        assert_eq!(mcps[0].mcp_type, "stdio");
+        assert!(mcps[0].command.is_none());
+    }
+
+    #[test]
+    fn test_write_gemini_config_unknown_type_skipped() {
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("settings.json");
+
+        let mcps: Vec<McpTuple> = vec![(
+            "unknown".to_string(),
+            "unknown_type".to_string(),
+            None,
+            None,
+            None,
+            None,
+            None,
+        )];
+
+        write_gemini_config(&config_path, &mcps).unwrap();
+
+        let content = fs::read_to_string(&config_path).unwrap();
+        let config: GeminiSettingsConfig = serde_json::from_str(&content).unwrap();
+        assert!(config.mcp_servers.is_empty());
+    }
+
+    #[test]
+    fn test_write_gemini_config_sse_with_headers() {
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("settings.json");
+
+        let mcps: Vec<McpTuple> = vec![(
+            "sse-mcp".to_string(),
+            "sse".to_string(),
+            None,
+            None,
+            Some("https://api.example.com/sse".to_string()),
+            Some(r#"{"Authorization": "Bearer tok"}"#.to_string()),
+            None,
+        )];
+
+        write_gemini_config(&config_path, &mcps).unwrap();
+
+        let content = fs::read_to_string(&config_path).unwrap();
+        assert!(content.contains("\"url\": \"https://api.example.com/sse\""));
+        assert!(content.contains("\"headers\""));
+    }
+
+    #[test]
+    fn test_write_gemini_config_invalid_args_json_skipped() {
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("settings.json");
+
+        let mcps: Vec<McpTuple> = vec![(
+            "test".to_string(),
+            "stdio".to_string(),
+            Some("node".to_string()),
+            Some("not valid json".to_string()),
+            None,
+            None,
+            Some("also not valid".to_string()),
+        )];
+
+        write_gemini_config(&config_path, &mcps).unwrap();
+
+        let content = fs::read_to_string(&config_path).unwrap();
+        assert!(content.contains("\"command\": \"node\""));
+    }
+
+    #[test]
     fn test_remove_mcp_creates_backup() {
         let temp_dir = TempDir::new().unwrap();
         let config_path = temp_dir.path().join("settings.json");

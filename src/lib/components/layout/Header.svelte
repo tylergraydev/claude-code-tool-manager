@@ -1,6 +1,7 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import { RefreshCw, Moon, Sun } from 'lucide-svelte';
-	import { mcpLibrary, projectsStore } from '$lib/stores';
+	import { mcpLibrary, projectsStore, notifications } from '$lib/stores';
 	import type { Snippet } from 'svelte';
 
 	type Props = {
@@ -11,24 +12,41 @@
 
 	let { title, subtitle, children }: Props = $props();
 	let isDark = $state(true);
+	let isRefreshing = $state(false);
+
+	onMount(() => {
+		isDark = document.documentElement.classList.contains('dark');
+	});
 
 	async function handleRefresh() {
-		await Promise.all([
-			mcpLibrary.load(),
-			projectsStore.loadProjects(),
-			projectsStore.loadGlobalMcps()
-		]);
+		if (isRefreshing) return;
+		isRefreshing = true;
+		try {
+			await Promise.all([
+				mcpLibrary.load(),
+				projectsStore.loadProjects(),
+				projectsStore.loadGlobalMcps()
+			]);
+		} catch (e) {
+			notifications.error('Failed to refresh data');
+			console.error('[Header] Refresh failed:', e);
+		} finally {
+			isRefreshing = false;
+		}
 	}
 
 	function toggleTheme() {
 		isDark = !isDark;
 		document.documentElement.classList.toggle('dark', isDark);
+		try {
+			localStorage.setItem('theme', isDark ? 'dark' : 'light');
+		} catch {}
 	}
 </script>
 
 <header class="h-16 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-6 flex items-center justify-between">
 	<div>
-		<h2 class="text-xl font-semibold text-gray-900 dark:text-white">{title}</h2>
+		<h1 class="text-xl font-semibold text-gray-900 dark:text-white">{title}</h1>
 		{#if subtitle}
 			<p class="text-sm text-gray-500 dark:text-gray-400">{subtitle}</p>
 		{/if}
@@ -42,20 +60,21 @@
 		<button
 			onclick={handleRefresh}
 			class="btn btn-ghost"
-			title="Refresh data"
+			aria-label={isRefreshing ? 'Refreshing data' : 'Refresh data'}
+			disabled={isRefreshing}
 		>
-			<RefreshCw class="w-4 h-4" />
+			<RefreshCw class="w-4 h-4 {isRefreshing ? 'animate-spin' : ''}" aria-hidden="true" />
 		</button>
 
 		<button
 			onclick={toggleTheme}
 			class="btn btn-ghost"
-			title="Toggle theme"
+			aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
 		>
 			{#if isDark}
-				<Sun class="w-4 h-4" />
+				<Sun class="w-4 h-4" aria-hidden="true" />
 			{:else}
-				<Moon class="w-4 h-4" />
+				<Moon class="w-4 h-4" aria-hidden="true" />
 			{/if}
 		</button>
 	</div>

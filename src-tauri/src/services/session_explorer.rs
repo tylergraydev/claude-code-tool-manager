@@ -968,4 +968,948 @@ mod tests {
         assert!(!result.exists);
         assert!(result.sessions.is_empty());
     }
+
+    // =========================================================================
+    // Additional coverage for uncovered paths
+    // =========================================================================
+
+    #[test]
+    fn test_decode_project_folder_multiple_segments() {
+        let decoded = decode_project_folder("Users--tyler--Code--project");
+        assert!(decoded.starts_with("Users:"));
+        assert!(decoded.contains("tyler"));
+        assert!(decoded.contains("Code"));
+        assert!(decoded.contains("project"));
+    }
+
+    #[test]
+    fn test_extract_text_content_non_string_non_array() {
+        // Numbers, booleans, etc. should return empty string
+        assert_eq!(extract_text_content(&serde_json::json!(42)), "");
+        assert_eq!(extract_text_content(&serde_json::json!(true)), "");
+        assert_eq!(extract_text_content(&serde_json::json!(null)), "");
+    }
+
+    #[test]
+    fn test_extract_text_content_array_no_text_blocks() {
+        let content = serde_json::json!([
+            {"type": "tool_use", "name": "Read", "id": "123"},
+            {"type": "image", "source": {}}
+        ]);
+        assert_eq!(extract_text_content(&content), "");
+    }
+
+    #[test]
+    fn test_extract_text_content_array_missing_type() {
+        let content = serde_json::json!([
+            {"no_type_key": "text"},
+            {"type": "text", "text": "found"}
+        ]);
+        assert_eq!(extract_text_content(&content), "found");
+    }
+
+    #[test]
+    fn test_extract_tool_calls_non_array() {
+        let tools = extract_tool_calls(&serde_json::json!("not an array"));
+        assert!(tools.is_empty());
+    }
+
+    #[test]
+    fn test_extract_tool_calls_missing_name() {
+        let content = serde_json::json!([
+            {"type": "tool_use"}
+        ]);
+        let tools = extract_tool_calls(&content);
+        assert_eq!(tools.len(), 1);
+        assert_eq!(tools[0].tool_name, "unknown");
+        assert!(tools[0].tool_id.is_none());
+    }
+
+    #[test]
+    fn test_truncate_str_exact_length() {
+        let s = "abcde";
+        assert_eq!(truncate_str(s, 5), "abcde");
+    }
+
+    #[test]
+    fn test_truncate_str_no_space() {
+        let s = "abcdefghijklmnop";
+        let result = truncate_str(s, 10);
+        assert!(result.ends_with("..."));
+        assert_eq!(result, "abcdefghij...");
+    }
+
+    #[test]
+    fn test_truncate_str_whitespace_trimmed() {
+        assert_eq!(truncate_str("  hello  ", 200), "hello");
+    }
+
+    #[test]
+    fn test_parse_session_summary_empty_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let session_file = dir.path().join("empty.jsonl");
+        std::fs::write(&session_file, "").unwrap();
+
+        let summary = parse_session_summary(&session_file, "empty").unwrap();
+        assert_eq!(summary.session_id, "empty");
+        assert_eq!(summary.user_message_count, 0);
+        assert_eq!(summary.assistant_message_count, 0);
+        assert_eq!(summary.duration_ms, 0);
+    }
+
+    #[test]
+    fn test_parse_session_summary_skips_file_history_snapshot() {
+        let dir = tempfile::tempdir().unwrap();
+        let session_file = dir.path().join("test.jsonl");
+        let lines = vec![
+            r#"{"type":"file-history-snapshot","data":{}}"#,
+            r#"{"type":"progress","data":{}}"#,
+            r#"{"type":"bash_progress","data":{}}"#,
+            r#"{"type":"summary","data":{}}"#,
+            r#"{"type":"user","uuid":"u1","timestamp":"2026-01-15T10:00:00.000Z","message":{"role":"user","content":"test"}}"#,
+        ];
+        std::fs::write(&session_file, lines.join("\n")).unwrap();
+
+        let summary = parse_session_summary(&session_file, "test").unwrap();
+        assert_eq!(summary.user_message_count, 1);
+    }
+
+    #[test]
+    fn test_parse_session_summary_skips_invalid_json_lines() {
+        let dir = tempfile::tempdir().unwrap();
+        let session_file = dir.path().join("test.jsonl");
+        let lines = vec![
+            "not valid json",
+            r#"{"type":"user","uuid":"u1","timestamp":"2026-01-15T10:00:00.000Z","message":{"role":"user","content":"ok"}}"#,
+        ];
+        std::fs::write(&session_file, lines.join("\n")).unwrap();
+
+        let summary = parse_session_summary(&session_file, "test").unwrap();
+        assert_eq!(summary.user_message_count, 1);
+    }
+
+    #[test]
+    fn test_parse_session_summary_tool_result_tracked() {
+        let dir = tempfile::tempdir().unwrap();
+        let session_file = dir.path().join("test.jsonl");
+        let lines = vec![
+            r#"{"type":"tool_result","uuid":"t1","timestamp":"2026-01-15T10:00:00.000Z","message":{"role":"tool","content":"result"}}"#,
+        ];
+        std::fs::write(&session_file, lines.join("\n")).unwrap();
+
+        let summary = parse_session_summary(&session_file, "test").unwrap();
+        // tool_result is not user or assistant
+        assert_eq!(summary.user_message_count, 0);
+        assert_eq!(summary.assistant_message_count, 0);
+        // But timestamp should be tracked
+        assert!(summary.first_timestamp.is_some());
+    }
+
+    #[test]
+    fn test_parse_session_summary_assistant_without_request_id() {
+        let dir = tempfile::tempdir().unwrap();
+        let session_file = dir.path().join("test.jsonl");
+        let lines = vec![
+            r#"{"type":"assistant","uuid":"a1","timestamp":"2026-01-15T10:00:00.000Z","message":{"role":"assistant","model":"claude-opus-4-6","content":[{"type":"text","text":"hi"}],"usage":{"input_tokens":50,"output_tokens":25}}}"#,
+        ];
+        std::fs::write(&session_file, lines.join("\n")).unwrap();
+
+        let summary = parse_session_summary(&session_file, "test").unwrap();
+        assert_eq!(summary.assistant_message_count, 1);
+        assert_eq!(summary.total_input_tokens, 50);
+        assert_eq!(summary.total_output_tokens, 25);
+    }
+
+    #[test]
+    fn test_parse_session_summary_assistant_tool_calls_no_request_id() {
+        let dir = tempfile::tempdir().unwrap();
+        let session_file = dir.path().join("test.jsonl");
+        let lines = vec![
+            r#"{"type":"assistant","uuid":"a1","timestamp":"2026-01-15T10:00:00.000Z","message":{"role":"assistant","content":[{"type":"tool_use","name":"Bash","id":"t1"}]}}"#,
+        ];
+        std::fs::write(&session_file, lines.join("\n")).unwrap();
+
+        let summary = parse_session_summary(&session_file, "test").unwrap();
+        assert_eq!(*summary.tool_counts.get("Bash").unwrap(), 1);
+    }
+
+    #[test]
+    fn test_parse_session_detail_tool_result_included() {
+        let dir = tempfile::tempdir().unwrap();
+        let session_file = dir.path().join("test.jsonl");
+        let lines = vec![
+            r#"{"type":"user","uuid":"u1","timestamp":"2026-01-15T10:00:00.000Z","message":{"role":"user","content":"hi"}}"#,
+            r#"{"type":"tool_result","uuid":"t1","timestamp":"2026-01-15T10:00:01.000Z","message":{"role":"tool","content":"result data"}}"#,
+        ];
+        std::fs::write(&session_file, lines.join("\n")).unwrap();
+
+        let detail = parse_session_detail(&session_file, "test").unwrap();
+        assert_eq!(detail.messages.len(), 2);
+        assert_eq!(detail.messages[1].role, "tool_result");
+    }
+
+    #[test]
+    fn test_parse_session_detail_tool_result_empty_content() {
+        let dir = tempfile::tempdir().unwrap();
+        let session_file = dir.path().join("test.jsonl");
+        let lines =
+            vec![r#"{"type":"tool_result","uuid":"t1","timestamp":"2026-01-15T10:00:01.000Z"}"#];
+        std::fs::write(&session_file, lines.join("\n")).unwrap();
+
+        let detail = parse_session_detail(&session_file, "test").unwrap();
+        assert_eq!(detail.messages.len(), 1);
+        assert_eq!(detail.messages[0].content_preview, "(tool result)");
+    }
+
+    #[test]
+    fn test_parse_session_detail_assistant_without_request_id() {
+        let dir = tempfile::tempdir().unwrap();
+        let session_file = dir.path().join("test.jsonl");
+        let lines = vec![
+            r#"{"type":"assistant","uuid":"a1","timestamp":"2026-01-15T10:00:00.000Z","message":{"role":"assistant","model":"claude-opus-4-6","content":[{"type":"text","text":"hello"}],"usage":{"input_tokens":10,"output_tokens":5}}}"#,
+        ];
+        std::fs::write(&session_file, lines.join("\n")).unwrap();
+
+        let detail = parse_session_detail(&session_file, "test").unwrap();
+        assert_eq!(detail.messages.len(), 1);
+        assert_eq!(detail.messages[0].role, "assistant");
+        assert_eq!(detail.messages[0].content_preview, "hello");
+    }
+
+    #[test]
+    fn test_parse_session_detail_unknown_type_skipped() {
+        let dir = tempfile::tempdir().unwrap();
+        let session_file = dir.path().join("test.jsonl");
+        let lines = vec![
+            r#"{"type":"unknown_type","uuid":"x1","timestamp":"2026-01-15T10:00:00.000Z"}"#,
+            r#"{"type":"user","uuid":"u1","timestamp":"2026-01-15T10:00:01.000Z","message":{"role":"user","content":"hi"}}"#,
+        ];
+        std::fs::write(&session_file, lines.join("\n")).unwrap();
+
+        let detail = parse_session_detail(&session_file, "test").unwrap();
+        assert_eq!(detail.messages.len(), 1);
+        assert_eq!(detail.messages[0].role, "user");
+    }
+
+    #[test]
+    fn test_list_sessions_skips_non_jsonl_files() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("readme.txt"), "hello").unwrap();
+        std::fs::write(dir.path().join("config.json"), "{}").unwrap();
+
+        let result = list_sessions_from_dir(dir.path(), "test").unwrap();
+        assert!(result.exists);
+        assert!(result.sessions.is_empty());
+    }
+
+    #[test]
+    fn test_list_projects_skips_non_dirs() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("a-file.txt"), "hello").unwrap();
+
+        let result = list_projects_from_dir(dir.path()).unwrap();
+        assert!(result.exists);
+        assert!(result.projects.is_empty());
+    }
+
+    #[test]
+    fn test_list_projects_skips_empty_project_dirs() {
+        let dir = tempfile::tempdir().unwrap();
+        // Create project dir with no JSONL files
+        let proj = dir.path().join("my-project");
+        std::fs::create_dir(&proj).unwrap();
+        std::fs::write(proj.join("readme.md"), "empty project").unwrap();
+
+        let result = list_projects_from_dir(dir.path()).unwrap();
+        assert!(result.projects.is_empty());
+    }
+
+    #[test]
+    fn test_list_projects_aggregates_sessions() {
+        let dir = tempfile::tempdir().unwrap();
+        let proj = dir.path().join("project-a");
+        std::fs::create_dir(&proj).unwrap();
+
+        let line = r#"{"type":"user","uuid":"u1","sessionId":"s1","timestamp":"2026-01-15T10:00:00.000Z","message":{"role":"user","content":"hello"}}"#;
+        std::fs::write(proj.join("s1.jsonl"), line).unwrap();
+
+        let result = list_projects_from_dir(dir.path()).unwrap();
+        assert_eq!(result.projects.len(), 1);
+        assert_eq!(result.projects[0].session_count, 1);
+    }
+
+    #[test]
+    fn test_session_summary_duration_calculation() {
+        let dir = tempfile::tempdir().unwrap();
+        let session_file = dir.path().join("test.jsonl");
+        let lines = vec![
+            r#"{"type":"user","uuid":"u1","timestamp":"2026-01-15T10:00:00.000Z","message":{"role":"user","content":"start"}}"#,
+            r#"{"type":"user","uuid":"u2","timestamp":"2026-01-15T10:05:00.000Z","message":{"role":"user","content":"end"}}"#,
+        ];
+        std::fs::write(&session_file, lines.join("\n")).unwrap();
+
+        let summary = parse_session_summary(&session_file, "test").unwrap();
+        assert_eq!(summary.duration_ms, 300000); // 5 minutes
+    }
+
+    #[test]
+    fn test_session_summary_invalid_timestamps() {
+        let dir = tempfile::tempdir().unwrap();
+        let session_file = dir.path().join("test.jsonl");
+        let lines = vec![
+            r#"{"type":"user","uuid":"u1","timestamp":"not-a-date","message":{"role":"user","content":"hi"}}"#,
+        ];
+        std::fs::write(&session_file, lines.join("\n")).unwrap();
+
+        let summary = parse_session_summary(&session_file, "test").unwrap();
+        assert_eq!(summary.duration_ms, 0);
+    }
+
+    #[test]
+    fn test_projects_dir_returns_path() {
+        let dir = projects_dir();
+        assert!(dir.to_string_lossy().contains(".claude"));
+        assert!(dir.to_string_lossy().contains("projects"));
+    }
+
+    #[test]
+    fn test_parse_session_summary_earliest_latest_tracking() {
+        let dir = tempfile::tempdir().unwrap();
+        let session_file = dir.path().join("test.jsonl");
+        let lines = vec![
+            r#"{"type":"user","uuid":"u1","timestamp":"2026-01-15T12:00:00.000Z","message":{"role":"user","content":"mid"}}"#,
+            r#"{"type":"user","uuid":"u2","timestamp":"2026-01-15T10:00:00.000Z","message":{"role":"user","content":"early"}}"#,
+            r#"{"type":"user","uuid":"u3","timestamp":"2026-01-15T14:00:00.000Z","message":{"role":"user","content":"late"}}"#,
+        ];
+        std::fs::write(&session_file, lines.join("\n")).unwrap();
+
+        let summary = parse_session_summary(&session_file, "test").unwrap();
+        assert_eq!(
+            summary.first_timestamp,
+            Some("2026-01-15T10:00:00.000Z".to_string())
+        );
+        assert_eq!(
+            summary.last_timestamp,
+            Some("2026-01-15T14:00:00.000Z".to_string())
+        );
+    }
+
+    // =========================================================================
+    // Additional coverage: parse_session_summary with multiple request IDs
+    // =========================================================================
+
+    #[test]
+    fn test_parse_session_summary_multiple_request_ids() {
+        let dir = tempfile::tempdir().unwrap();
+        let session_file = dir.path().join("test.jsonl");
+        let lines = vec![
+            r#"{"type":"user","uuid":"u1","timestamp":"2026-01-15T10:00:00.000Z","message":{"role":"user","content":"q1"}}"#,
+            r#"{"type":"assistant","uuid":"a1","timestamp":"2026-01-15T10:00:01.000Z","requestId":"req_001","message":{"role":"assistant","model":"claude-opus-4-6","content":[{"type":"text","text":"answer 1"}],"usage":{"input_tokens":100,"output_tokens":50}}}"#,
+            r#"{"type":"user","uuid":"u2","timestamp":"2026-01-15T10:01:00.000Z","message":{"role":"user","content":"q2"}}"#,
+            r#"{"type":"assistant","uuid":"a2","timestamp":"2026-01-15T10:01:01.000Z","requestId":"req_002","message":{"role":"assistant","model":"claude-opus-4-6","content":[{"type":"text","text":"answer 2"}],"usage":{"input_tokens":200,"output_tokens":100}}}"#,
+        ];
+        std::fs::write(&session_file, lines.join("\n")).unwrap();
+
+        let summary = parse_session_summary(&session_file, "test").unwrap();
+        assert_eq!(summary.user_message_count, 2);
+        assert_eq!(summary.assistant_message_count, 2);
+        assert_eq!(summary.total_input_tokens, 300);
+        assert_eq!(summary.total_output_tokens, 150);
+    }
+
+    #[test]
+    fn test_parse_session_summary_no_usage_in_assistant() {
+        let dir = tempfile::tempdir().unwrap();
+        let session_file = dir.path().join("test.jsonl");
+        let lines = vec![
+            r#"{"type":"assistant","uuid":"a1","timestamp":"2026-01-15T10:00:00.000Z","requestId":"req_001","message":{"role":"assistant","model":"claude-opus-4-6","content":[{"type":"text","text":"hi"}]}}"#,
+        ];
+        std::fs::write(&session_file, lines.join("\n")).unwrap();
+
+        let summary = parse_session_summary(&session_file, "test").unwrap();
+        assert_eq!(summary.assistant_message_count, 1);
+        assert_eq!(summary.total_input_tokens, 0);
+        assert_eq!(summary.total_output_tokens, 0);
+    }
+
+    #[test]
+    fn test_parse_session_summary_user_message_content_array() {
+        let dir = tempfile::tempdir().unwrap();
+        let session_file = dir.path().join("test.jsonl");
+        let lines = vec![
+            r#"{"type":"user","uuid":"u1","timestamp":"2026-01-15T10:00:00.000Z","message":{"role":"user","content":[{"type":"text","text":"Hello from array content"}]}}"#,
+        ];
+        std::fs::write(&session_file, lines.join("\n")).unwrap();
+
+        let summary = parse_session_summary(&session_file, "test").unwrap();
+        assert_eq!(
+            summary.first_user_message,
+            Some("Hello from array content".to_string())
+        );
+    }
+
+    #[test]
+    fn test_parse_session_summary_first_user_message_empty_content() {
+        let dir = tempfile::tempdir().unwrap();
+        let session_file = dir.path().join("test.jsonl");
+        let lines = vec![
+            r#"{"type":"user","uuid":"u1","timestamp":"2026-01-15T10:00:00.000Z","message":{"role":"user","content":""}}"#,
+            r#"{"type":"user","uuid":"u2","timestamp":"2026-01-15T10:00:01.000Z","message":{"role":"user","content":"Second message"}}"#,
+        ];
+        std::fs::write(&session_file, lines.join("\n")).unwrap();
+
+        let summary = parse_session_summary(&session_file, "test").unwrap();
+        // Empty first message should be skipped, second should be captured
+        assert_eq!(
+            summary.first_user_message,
+            Some("Second message".to_string())
+        );
+    }
+
+    #[test]
+    fn test_parse_session_summary_cwd_and_version() {
+        let dir = tempfile::tempdir().unwrap();
+        let session_file = dir.path().join("test.jsonl");
+        let lines = vec![
+            r#"{"type":"user","uuid":"u1","timestamp":"2026-01-15T10:00:00.000Z","version":"2.3.0","cwd":"/home/user/project","message":{"role":"user","content":"hi"}}"#,
+        ];
+        std::fs::write(&session_file, lines.join("\n")).unwrap();
+
+        let summary = parse_session_summary(&session_file, "test").unwrap();
+        assert_eq!(summary.version, Some("2.3.0".to_string()));
+        assert_eq!(summary.cwd, Some("/home/user/project".to_string()));
+    }
+
+    // =========================================================================
+    // Additional coverage: parse_session_detail streaming with tool calls
+    // =========================================================================
+
+    #[test]
+    fn test_parse_session_detail_streaming_updates_tool_calls() {
+        let dir = tempfile::tempdir().unwrap();
+        let session_file = dir.path().join("test.jsonl");
+        let lines = vec![
+            r#"{"type":"assistant","uuid":"a1","timestamp":"2026-01-15T10:00:00.000Z","requestId":"req_001","message":{"role":"assistant","model":"claude-opus-4-6","content":[{"type":"text","text":"step1"}]}}"#,
+            r#"{"type":"assistant","uuid":"a2","timestamp":"2026-01-15T10:00:01.000Z","requestId":"req_001","message":{"role":"assistant","model":"claude-opus-4-6","content":[{"type":"text","text":"step1 done"},{"type":"tool_use","name":"Read","id":"t1"}],"usage":{"input_tokens":100,"output_tokens":50}}}"#,
+        ];
+        std::fs::write(&session_file, lines.join("\n")).unwrap();
+
+        let detail = parse_session_detail(&session_file, "test").unwrap();
+        assert_eq!(detail.messages.len(), 1);
+        assert_eq!(detail.messages[0].content_preview, "step1 done");
+        assert_eq!(detail.messages[0].tool_calls.len(), 1);
+        assert_eq!(detail.messages[0].tool_calls[0].tool_name, "Read");
+        assert_eq!(detail.messages[0].usage.as_ref().unwrap().output_tokens, 50);
+    }
+
+    #[test]
+    fn test_parse_session_detail_preserves_order() {
+        let dir = tempfile::tempdir().unwrap();
+        let session_file = dir.path().join("test.jsonl");
+        let lines = vec![
+            r#"{"type":"user","uuid":"u1","timestamp":"2026-01-15T10:00:00.000Z","message":{"role":"user","content":"first"}}"#,
+            r#"{"type":"assistant","uuid":"a1","timestamp":"2026-01-15T10:00:01.000Z","requestId":"req_001","message":{"role":"assistant","content":[{"type":"text","text":"response"}]}}"#,
+            r#"{"type":"tool_result","uuid":"t1","timestamp":"2026-01-15T10:00:02.000Z","message":{"role":"tool","content":"result"}}"#,
+            r#"{"type":"user","uuid":"u2","timestamp":"2026-01-15T10:00:03.000Z","message":{"role":"user","content":"followup"}}"#,
+        ];
+        std::fs::write(&session_file, lines.join("\n")).unwrap();
+
+        let detail = parse_session_detail(&session_file, "test").unwrap();
+        assert_eq!(detail.messages.len(), 4);
+        assert_eq!(detail.messages[0].role, "user");
+        assert_eq!(detail.messages[1].role, "assistant");
+        assert_eq!(detail.messages[2].role, "tool_result");
+        assert_eq!(detail.messages[3].role, "user");
+    }
+
+    // =========================================================================
+    // Additional coverage: list_projects_from_dir multiple projects sorting
+    // =========================================================================
+
+    #[test]
+    fn test_list_projects_sorted_by_latest_session() {
+        let dir = tempfile::tempdir().unwrap();
+
+        // Project A: older session
+        let proj_a = dir.path().join("project-a");
+        std::fs::create_dir(&proj_a).unwrap();
+        std::fs::write(
+            proj_a.join("s1.jsonl"),
+            r#"{"type":"user","uuid":"u1","timestamp":"2026-01-10T10:00:00.000Z","message":{"role":"user","content":"old"}}"#,
+        ).unwrap();
+
+        // Project B: newer session
+        let proj_b = dir.path().join("project-b");
+        std::fs::create_dir(&proj_b).unwrap();
+        std::fs::write(
+            proj_b.join("s1.jsonl"),
+            r#"{"type":"user","uuid":"u1","timestamp":"2026-01-20T10:00:00.000Z","message":{"role":"user","content":"new"}}"#,
+        ).unwrap();
+
+        let result = list_projects_from_dir(dir.path()).unwrap();
+        assert_eq!(result.projects.len(), 2);
+        // Project B should be first (more recent)
+        assert_eq!(result.projects[0].folder_name, "project-b");
+        assert_eq!(result.projects[1].folder_name, "project-a");
+    }
+
+    // =========================================================================
+    // Additional coverage: decode_project_folder edge cases
+    // =========================================================================
+
+    #[test]
+    fn test_decode_project_folder_empty() {
+        let decoded = decode_project_folder("");
+        assert_eq!(decoded, "");
+    }
+
+    #[test]
+    fn test_decode_project_folder_no_separator() {
+        let decoded = decode_project_folder("simple-name");
+        assert_eq!(decoded, "simple-name");
+    }
+
+    // =========================================================================
+    // Additional coverage: extract_text_content empty array
+    // =========================================================================
+
+    #[test]
+    fn test_extract_text_content_empty_array() {
+        let content = serde_json::json!([]);
+        assert_eq!(extract_text_content(&content), "");
+    }
+
+    // =========================================================================
+    // Additional coverage: list_sessions sorts by first_timestamp desc
+    // =========================================================================
+
+    #[test]
+    fn test_list_sessions_sorted_by_first_timestamp() {
+        let dir = tempfile::tempdir().unwrap();
+
+        // Session A: earlier
+        std::fs::write(
+            dir.path().join("session-a.jsonl"),
+            r#"{"type":"user","uuid":"u1","timestamp":"2026-01-10T10:00:00.000Z","message":{"role":"user","content":"a"}}"#,
+        ).unwrap();
+
+        // Session B: later
+        std::fs::write(
+            dir.path().join("session-b.jsonl"),
+            r#"{"type":"user","uuid":"u1","timestamp":"2026-01-20T10:00:00.000Z","message":{"role":"user","content":"b"}}"#,
+        ).unwrap();
+
+        let result = list_sessions_from_dir(dir.path(), "test").unwrap();
+        assert_eq!(result.sessions.len(), 2);
+        // Session B should be first (more recent)
+        assert_eq!(result.sessions[0].session_id, "session-b");
+        assert_eq!(result.sessions[1].session_id, "session-a");
+    }
+
+    // =========================================================================
+    // Additional coverage: parse_session_detail empty file
+    // =========================================================================
+
+    #[test]
+    fn test_parse_session_detail_empty_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let session_file = dir.path().join("empty.jsonl");
+        std::fs::write(&session_file, "").unwrap();
+
+        let detail = parse_session_detail(&session_file, "empty").unwrap();
+        assert_eq!(detail.session_id, "empty");
+        assert!(detail.messages.is_empty());
+    }
+
+    #[test]
+    fn test_parse_session_detail_skips_progress_types() {
+        let dir = tempfile::tempdir().unwrap();
+        let session_file = dir.path().join("test.jsonl");
+        let lines = vec![
+            r#"{"type":"file-history-snapshot","data":{}}"#,
+            r#"{"type":"progress","data":{}}"#,
+            r#"{"type":"bash_progress","data":{}}"#,
+            r#"{"type":"summary","data":{}}"#,
+            r#"{"type":"user","uuid":"u1","timestamp":"2026-01-15T10:00:00.000Z","message":{"role":"user","content":"hello"}}"#,
+        ];
+        std::fs::write(&session_file, lines.join("\n")).unwrap();
+
+        let detail = parse_session_detail(&session_file, "test").unwrap();
+        assert_eq!(detail.messages.len(), 1);
+        assert_eq!(detail.messages[0].role, "user");
+    }
+
+    #[test]
+    fn test_parse_session_detail_invalid_json_lines_skipped() {
+        let dir = tempfile::tempdir().unwrap();
+        let session_file = dir.path().join("test.jsonl");
+        let lines = vec![
+            "not json",
+            "",
+            r#"{"type":"user","uuid":"u1","timestamp":"2026-01-15T10:00:00.000Z","message":{"role":"user","content":"ok"}}"#,
+        ];
+        std::fs::write(&session_file, lines.join("\n")).unwrap();
+
+        let detail = parse_session_detail(&session_file, "test").unwrap();
+        assert_eq!(detail.messages.len(), 1);
+    }
+
+    // =========================================================================
+    // Additional coverage: aggregate tool_counts from multiple request IDs
+    // =========================================================================
+
+    #[test]
+    fn test_parse_session_summary_merges_tool_counts() {
+        let dir = tempfile::tempdir().unwrap();
+        let session_file = dir.path().join("test.jsonl");
+        let lines = vec![
+            r#"{"type":"assistant","uuid":"a1","timestamp":"2026-01-15T10:00:00.000Z","requestId":"req_001","message":{"role":"assistant","content":[{"type":"tool_use","name":"Read","id":"t1"},{"type":"tool_use","name":"Read","id":"t2"}]}}"#,
+            r#"{"type":"assistant","uuid":"a2","timestamp":"2026-01-15T10:01:00.000Z","requestId":"req_002","message":{"role":"assistant","content":[{"type":"tool_use","name":"Read","id":"t3"},{"type":"tool_use","name":"Edit","id":"t4"}]}}"#,
+        ];
+        std::fs::write(&session_file, lines.join("\n")).unwrap();
+
+        let summary = parse_session_summary(&session_file, "test").unwrap();
+        // Read: 2 from req_001 + 1 from req_002 = 3
+        assert_eq!(*summary.tool_counts.get("Read").unwrap(), 3);
+        assert_eq!(*summary.tool_counts.get("Edit").unwrap(), 1);
+    }
+
+    // =========================================================================
+    // Struct serialization coverage
+    // =========================================================================
+
+    #[test]
+    fn test_session_message_serialization() {
+        let msg = SessionMessage {
+            uuid: Some("uuid-123".to_string()),
+            role: "user".to_string(),
+            timestamp: Some("2026-01-15T10:00:00Z".to_string()),
+            model: None,
+            content_preview: "Hello".to_string(),
+            tool_calls: vec![],
+            usage: None,
+        };
+
+        let json = serde_json::to_string(&msg).unwrap();
+        assert!(json.contains("\"role\":\"user\""));
+        assert!(json.contains("\"contentPreview\":\"Hello\""));
+    }
+
+    #[test]
+    fn test_message_usage_serialization() {
+        let usage = MessageUsage {
+            input_tokens: 100,
+            output_tokens: 50,
+            cache_read_input_tokens: 10,
+            cache_creation_input_tokens: 5,
+        };
+
+        let json = serde_json::to_string(&usage).unwrap();
+        assert!(json.contains("\"inputTokens\":100"));
+        assert!(json.contains("\"outputTokens\":50"));
+        assert!(json.contains("\"cacheReadInputTokens\":10"));
+        assert!(json.contains("\"cacheCreationInputTokens\":5"));
+    }
+
+    #[test]
+    fn test_tool_call_info_serialization() {
+        let tool = ToolCallInfo {
+            tool_name: "Read".to_string(),
+            tool_id: Some("toolu_abc".to_string()),
+        };
+
+        let json = serde_json::to_string(&tool).unwrap();
+        assert!(json.contains("\"toolName\":\"Read\""));
+        assert!(json.contains("\"toolId\":\"toolu_abc\""));
+    }
+
+    // =========================================================================
+    // Additional struct serialization/deserialization round-trip tests
+    // =========================================================================
+
+    #[test]
+    fn test_project_list_info_serialization() {
+        let info = ProjectListInfo {
+            dir_path: "/home/user/.claude/projects".to_string(),
+            exists: true,
+            projects: vec![],
+        };
+        let json = serde_json::to_string(&info).unwrap();
+        assert!(json.contains("\"dirPath\""));
+        assert!(json.contains("\"exists\":true"));
+
+        let parsed: ProjectListInfo = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.dir_path, info.dir_path);
+        assert_eq!(parsed.exists, info.exists);
+    }
+
+    #[test]
+    fn test_project_summary_serialization_roundtrip() {
+        let mut tool_usage = HashMap::new();
+        tool_usage.insert("Read".to_string(), 42);
+        tool_usage.insert("Write".to_string(), 10);
+
+        let summary = ProjectSummary {
+            folder_name: "my-project".to_string(),
+            inferred_path: "/home/user/my-project".to_string(),
+            session_count: 5,
+            total_input_tokens: 1000,
+            total_output_tokens: 500,
+            total_cache_read_tokens: 200,
+            total_cache_creation_tokens: 50,
+            models_used: vec![
+                "claude-opus-4-6".to_string(),
+                "claude-sonnet-4-20250514".to_string(),
+            ],
+            tool_usage,
+            earliest_session: Some("2026-01-01T00:00:00Z".to_string()),
+            latest_session: Some("2026-03-15T00:00:00Z".to_string()),
+        };
+
+        let json = serde_json::to_string(&summary).unwrap();
+        let parsed: ProjectSummary = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(parsed.folder_name, "my-project");
+        assert_eq!(parsed.session_count, 5);
+        assert_eq!(parsed.total_input_tokens, 1000);
+        assert_eq!(parsed.models_used.len(), 2);
+        assert_eq!(*parsed.tool_usage.get("Read").unwrap(), 42);
+    }
+
+    #[test]
+    fn test_session_list_info_serialization_roundtrip() {
+        let info = SessionListInfo {
+            project_folder: "my-project".to_string(),
+            exists: true,
+            sessions: vec![],
+        };
+
+        let json = serde_json::to_string(&info).unwrap();
+        let parsed: SessionListInfo = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(parsed.project_folder, "my-project");
+        assert!(parsed.exists);
+        assert!(parsed.sessions.is_empty());
+    }
+
+    #[test]
+    fn test_session_summary_serialization_roundtrip() {
+        let mut tool_counts = HashMap::new();
+        tool_counts.insert("Read".to_string(), 5);
+
+        let summary = SessionSummary {
+            session_id: "abc-123".to_string(),
+            first_timestamp: Some("2026-01-15T10:00:00Z".to_string()),
+            last_timestamp: Some("2026-01-15T11:00:00Z".to_string()),
+            duration_ms: 3600000,
+            user_message_count: 10,
+            assistant_message_count: 10,
+            total_input_tokens: 5000,
+            total_output_tokens: 2000,
+            total_cache_read_tokens: 1000,
+            total_cache_creation_tokens: 100,
+            models_used: vec!["claude-opus-4-6".to_string()],
+            git_branch: Some("main".to_string()),
+            cwd: Some("/home/user/project".to_string()),
+            tool_counts,
+            first_user_message: Some("Fix the bug".to_string()),
+            version: Some("2.3.0".to_string()),
+        };
+
+        let json = serde_json::to_string(&summary).unwrap();
+        assert!(json.contains("\"sessionId\":\"abc-123\""));
+        assert!(json.contains("\"gitBranch\":\"main\""));
+        assert!(json.contains("\"firstUserMessage\":\"Fix the bug\""));
+
+        let parsed: SessionSummary = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.session_id, "abc-123");
+        assert_eq!(parsed.duration_ms, 3600000);
+        assert_eq!(parsed.version, Some("2.3.0".to_string()));
+    }
+
+    #[test]
+    fn test_session_detail_serialization_roundtrip() {
+        let detail = SessionDetail {
+            session_id: "detail-1".to_string(),
+            messages: vec![
+                SessionMessage {
+                    uuid: Some("u1".to_string()),
+                    role: "user".to_string(),
+                    timestamp: Some("2026-01-15T10:00:00Z".to_string()),
+                    model: None,
+                    content_preview: "Hello".to_string(),
+                    tool_calls: vec![],
+                    usage: None,
+                },
+                SessionMessage {
+                    uuid: Some("a1".to_string()),
+                    role: "assistant".to_string(),
+                    timestamp: Some("2026-01-15T10:00:01Z".to_string()),
+                    model: Some("claude-opus-4-6".to_string()),
+                    content_preview: "Hi there!".to_string(),
+                    tool_calls: vec![ToolCallInfo {
+                        tool_name: "Read".to_string(),
+                        tool_id: Some("t1".to_string()),
+                    }],
+                    usage: Some(MessageUsage {
+                        input_tokens: 100,
+                        output_tokens: 50,
+                        cache_read_input_tokens: 10,
+                        cache_creation_input_tokens: 5,
+                    }),
+                },
+            ],
+        };
+
+        let json = serde_json::to_string(&detail).unwrap();
+        let parsed: SessionDetail = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(parsed.session_id, "detail-1");
+        assert_eq!(parsed.messages.len(), 2);
+        assert_eq!(parsed.messages[1].tool_calls.len(), 1);
+        assert_eq!(parsed.messages[1].usage.as_ref().unwrap().input_tokens, 100);
+    }
+
+    // =========================================================================
+    // Additional coverage: list_projects_from_dir with tool usage aggregation
+    // =========================================================================
+
+    #[test]
+    fn test_list_projects_aggregates_tool_usage() {
+        let dir = tempfile::tempdir().unwrap();
+        let proj = dir.path().join("project-tools");
+        std::fs::create_dir(&proj).unwrap();
+
+        // Session 1: uses Read and Write
+        let lines1 = vec![
+            r#"{"type":"user","uuid":"u1","timestamp":"2026-01-15T10:00:00.000Z","message":{"role":"user","content":"q1"}}"#,
+            r#"{"type":"assistant","uuid":"a1","timestamp":"2026-01-15T10:00:01.000Z","requestId":"req_001","message":{"role":"assistant","model":"claude-opus-4-6","content":[{"type":"tool_use","name":"Read","id":"t1"},{"type":"tool_use","name":"Write","id":"t2"}],"usage":{"input_tokens":100,"output_tokens":50}}}"#,
+        ];
+        std::fs::write(proj.join("s1.jsonl"), lines1.join("\n")).unwrap();
+
+        // Session 2: uses Read and Bash
+        let lines2 = vec![
+            r#"{"type":"user","uuid":"u1","timestamp":"2026-01-20T10:00:00.000Z","message":{"role":"user","content":"q2"}}"#,
+            r#"{"type":"assistant","uuid":"a1","timestamp":"2026-01-20T10:00:01.000Z","requestId":"req_002","message":{"role":"assistant","model":"claude-sonnet-4-20250514","content":[{"type":"tool_use","name":"Read","id":"t3"},{"type":"tool_use","name":"Bash","id":"t4"}],"usage":{"input_tokens":200,"output_tokens":100}}}"#,
+        ];
+        std::fs::write(proj.join("s2.jsonl"), lines2.join("\n")).unwrap();
+
+        let result = list_projects_from_dir(dir.path()).unwrap();
+        assert_eq!(result.projects.len(), 1);
+
+        let proj_summary = &result.projects[0];
+        assert_eq!(proj_summary.session_count, 2);
+        assert_eq!(proj_summary.total_input_tokens, 300);
+        assert_eq!(proj_summary.total_output_tokens, 150);
+
+        // Tool usage should be aggregated
+        assert_eq!(*proj_summary.tool_usage.get("Read").unwrap(), 2);
+        assert_eq!(*proj_summary.tool_usage.get("Write").unwrap(), 1);
+        assert_eq!(*proj_summary.tool_usage.get("Bash").unwrap(), 1);
+
+        // Models should be sorted
+        assert!(proj_summary
+            .models_used
+            .contains(&"claude-opus-4-6".to_string()));
+        assert!(proj_summary
+            .models_used
+            .contains(&"claude-sonnet-4-20250514".to_string()));
+
+        // Earliest/latest
+        assert_eq!(
+            proj_summary.earliest_session,
+            Some("2026-01-15T10:00:00.000Z".to_string())
+        );
+        assert_eq!(
+            proj_summary.latest_session,
+            Some("2026-01-20T10:00:01.000Z".to_string())
+        );
+    }
+
+    // =========================================================================
+    // Additional coverage: message_usage deserialization
+    // =========================================================================
+
+    #[test]
+    fn test_message_usage_deserialization() {
+        let json = r#"{"inputTokens":100,"outputTokens":50,"cacheReadInputTokens":10,"cacheCreationInputTokens":5}"#;
+        let usage: MessageUsage = serde_json::from_str(json).unwrap();
+        assert_eq!(usage.input_tokens, 100);
+        assert_eq!(usage.output_tokens, 50);
+        assert_eq!(usage.cache_read_input_tokens, 10);
+        assert_eq!(usage.cache_creation_input_tokens, 5);
+    }
+
+    #[test]
+    fn test_tool_call_info_deserialization() {
+        let json = r#"{"toolName":"Bash","toolId":"toolu_xyz"}"#;
+        let tool: ToolCallInfo = serde_json::from_str(json).unwrap();
+        assert_eq!(tool.tool_name, "Bash");
+        assert_eq!(tool.tool_id, Some("toolu_xyz".to_string()));
+    }
+
+    #[test]
+    fn test_tool_call_info_no_id() {
+        let tool = ToolCallInfo {
+            tool_name: "Read".to_string(),
+            tool_id: None,
+        };
+        let json = serde_json::to_string(&tool).unwrap();
+        assert!(json.contains("\"toolName\":\"Read\""));
+        assert!(json.contains("\"toolId\":null"));
+    }
+
+    // =========================================================================
+    // Additional coverage: session_message deserialization
+    // =========================================================================
+
+    #[test]
+    fn test_session_message_deserialization() {
+        let json = r#"{"uuid":"u1","role":"user","timestamp":"2026-01-15T10:00:00Z","model":null,"contentPreview":"Hello","toolCalls":[],"usage":null}"#;
+        let msg: SessionMessage = serde_json::from_str(json).unwrap();
+        assert_eq!(msg.uuid, Some("u1".to_string()));
+        assert_eq!(msg.role, "user");
+        assert_eq!(msg.content_preview, "Hello");
+        assert!(msg.model.is_none());
+    }
+
+    // =========================================================================
+    // Additional coverage: list_sessions_from_dir with unparseable session
+    // =========================================================================
+
+    #[test]
+    fn test_list_sessions_skips_unparseable_sessions() {
+        let dir = tempfile::tempdir().unwrap();
+
+        // Valid session
+        std::fs::write(
+            dir.path().join("good.jsonl"),
+            r#"{"type":"user","uuid":"u1","timestamp":"2026-01-15T10:00:00.000Z","message":{"role":"user","content":"hi"}}"#,
+        ).unwrap();
+
+        // Invalid session (only invalid json lines)
+        std::fs::write(
+            dir.path().join("bad.jsonl"),
+            "not json at all\nalso not json\n",
+        )
+        .unwrap();
+
+        let result = list_sessions_from_dir(dir.path(), "test").unwrap();
+        // Both files are .jsonl so both get attempted, but bad one should still parse
+        // (it just has 0 messages). The function won't error on empty sessions.
+        assert!(result.sessions.len() >= 1);
+    }
+
+    // =========================================================================
+    // Additional coverage: extract_text_content with text blocks missing text field
+    // =========================================================================
+
+    #[test]
+    fn test_extract_text_content_text_block_missing_text_field() {
+        let content = serde_json::json!([
+            {"type": "text"},  // missing "text" key
+            {"type": "text", "text": "found"}
+        ]);
+        assert_eq!(extract_text_content(&content), "found");
+    }
 }

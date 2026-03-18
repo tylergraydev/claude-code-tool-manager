@@ -2551,4 +2551,1402 @@ Content"#,
         assert_eq!(hooks.len(), 1);
         assert_eq!(hooks[0].hook_type, "command");
     }
+
+    // =========================================================================
+    // DB-backed scanner function tests
+    // =========================================================================
+
+    fn setup_test_db() -> crate::db::Database {
+        crate::db::Database::in_memory().unwrap()
+    }
+
+    #[test]
+    fn test_get_or_create_project_creates_new() {
+        let db = setup_test_db();
+        let id = get_or_create_project(&db, "my-project", "/tmp/my-project").unwrap();
+        assert!(id > 0);
+
+        // Verify it's in the database
+        let name: String = db
+            .conn()
+            .query_row("SELECT name FROM projects WHERE id = ?", [id], |row| {
+                row.get(0)
+            })
+            .unwrap();
+        assert_eq!(name, "my-project");
+    }
+
+    #[test]
+    fn test_get_or_create_project_returns_existing() {
+        let db = setup_test_db();
+        let id1 = get_or_create_project(&db, "proj", "/tmp/proj").unwrap();
+        let id2 = get_or_create_project(&db, "proj", "/tmp/proj").unwrap();
+        assert_eq!(id1, id2);
+    }
+
+    #[test]
+    fn test_get_or_create_mcp_creates_new() {
+        let db = setup_test_db();
+        let id = get_or_create_mcp(
+            &db,
+            "test-mcp",
+            "stdio",
+            Some("npx"),
+            Some(&vec!["server".to_string()]),
+            None,
+            None,
+            None,
+            "/source",
+        )
+        .unwrap();
+        assert!(id > 0);
+
+        let name: String = db
+            .conn()
+            .query_row("SELECT name FROM mcps WHERE id = ?", [id], |row| {
+                row.get(0)
+            })
+            .unwrap();
+        assert_eq!(name, "test-mcp");
+    }
+
+    #[test]
+    fn test_get_or_create_mcp_returns_existing() {
+        let db = setup_test_db();
+        let id1 = get_or_create_mcp(&db, "mcp1", "stdio", Some("cmd"), None, None, None, None, "/src1").unwrap();
+        let id2 = get_or_create_mcp(&db, "mcp1", "stdio", Some("cmd2"), None, None, None, None, "/src2").unwrap();
+        assert_eq!(id1, id2);
+    }
+
+    #[test]
+    fn test_assign_mcp_to_project() {
+        let db = setup_test_db();
+        let proj_id = get_or_create_project(&db, "proj", "/tmp/proj").unwrap();
+        let mcp_id = get_or_create_mcp(&db, "mcp", "stdio", Some("cmd"), None, None, None, None, "/src").unwrap();
+
+        assign_mcp_to_project(&db, proj_id, mcp_id, true).unwrap();
+
+        let enabled: bool = db
+            .conn()
+            .query_row(
+                "SELECT is_enabled FROM project_mcps WHERE project_id = ? AND mcp_id = ?",
+                params![proj_id, mcp_id],
+                |row| row.get::<_, i32>(0).map(|v| v != 0),
+            )
+            .unwrap();
+        assert!(enabled);
+    }
+
+    #[test]
+    fn test_assign_mcp_to_project_updates_enabled_state() {
+        let db = setup_test_db();
+        let proj_id = get_or_create_project(&db, "proj", "/tmp/proj").unwrap();
+        let mcp_id = get_or_create_mcp(&db, "mcp", "stdio", Some("cmd"), None, None, None, None, "/src").unwrap();
+
+        assign_mcp_to_project(&db, proj_id, mcp_id, true).unwrap();
+        assign_mcp_to_project(&db, proj_id, mcp_id, false).unwrap();
+
+        let enabled: bool = db
+            .conn()
+            .query_row(
+                "SELECT is_enabled FROM project_mcps WHERE project_id = ? AND mcp_id = ?",
+                params![proj_id, mcp_id],
+                |row| row.get::<_, i32>(0).map(|v| v != 0),
+            )
+            .unwrap();
+        assert!(!enabled);
+    }
+
+    #[test]
+    fn test_assign_mcp_to_project_idempotent() {
+        let db = setup_test_db();
+        let proj_id = get_or_create_project(&db, "proj", "/tmp/proj").unwrap();
+        let mcp_id = get_or_create_mcp(&db, "mcp", "stdio", Some("cmd"), None, None, None, None, "/src").unwrap();
+
+        assign_mcp_to_project(&db, proj_id, mcp_id, true).unwrap();
+        assign_mcp_to_project(&db, proj_id, mcp_id, true).unwrap();
+
+        let count: i64 = db
+            .conn()
+            .query_row(
+                "SELECT COUNT(*) FROM project_mcps WHERE project_id = ? AND mcp_id = ?",
+                params![proj_id, mcp_id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(count, 1);
+    }
+
+    #[test]
+    fn test_get_or_create_skill() {
+        let db = setup_test_db();
+        let skill = ParsedSkill {
+            name: "test-skill".to_string(),
+            description: Some("A skill".to_string()),
+            content: "Do the thing".to_string(),
+            skill_type: "skill".to_string(),
+            allowed_tools: Some("Read, Write".to_string()),
+            argument_hint: None,
+            model: Some("opus".to_string()),
+            disable_model_invocation: false,
+            tags: vec!["test".to_string()],
+        };
+
+        let (id, created) = get_or_create_skill(&db, &skill, "/src/skill").unwrap();
+        assert!(id > 0);
+        assert!(created);
+
+        let (id2, created2) = get_or_create_skill(&db, &skill, "/src/skill").unwrap();
+        assert_eq!(id, id2);
+        assert!(!created2);
+    }
+
+    #[test]
+    fn test_get_or_create_command() {
+        let db = setup_test_db();
+        let cmd = ParsedSkill {
+            name: "test-cmd".to_string(),
+            description: Some("A command".to_string()),
+            content: "Run this".to_string(),
+            skill_type: "command".to_string(),
+            allowed_tools: None,
+            argument_hint: None,
+            model: None,
+            disable_model_invocation: false,
+            tags: vec![],
+        };
+
+        let (id, created) = get_or_create_command(&db, &cmd, "/src/cmd").unwrap();
+        assert!(id > 0);
+        assert!(created);
+
+        let (id2, created2) = get_or_create_command(&db, &cmd, "/src/cmd").unwrap();
+        assert_eq!(id, id2);
+        assert!(!created2);
+    }
+
+    #[test]
+    fn test_get_or_create_agent() {
+        let db = setup_test_db();
+        let agent = ParsedAgent {
+            name: "test-agent".to_string(),
+            description: "An agent".to_string(),
+            content: "Agent instructions".to_string(),
+            tools: vec!["Read".to_string(), "Write".to_string()],
+            model: Some("opus".to_string()),
+            permission_mode: Some("bypassPermissions".to_string()),
+            skills: vec!["lint".to_string()],
+            tags: vec!["dev".to_string()],
+        };
+
+        let id1 = get_or_create_agent(&db, &agent, "/src/agent").unwrap();
+        assert!(id1 > 0);
+
+        let id2 = get_or_create_agent(&db, &agent, "/src/agent").unwrap();
+        assert_eq!(id1, id2);
+    }
+
+    #[test]
+    fn test_assign_skill_to_project() {
+        let db = setup_test_db();
+        let proj_id = get_or_create_project(&db, "proj", "/tmp/proj").unwrap();
+        let skill = ParsedSkill {
+            name: "sk".to_string(),
+            description: None,
+            content: "content".to_string(),
+            skill_type: "skill".to_string(),
+            allowed_tools: None,
+            argument_hint: None,
+            model: None,
+            disable_model_invocation: false,
+            tags: vec![],
+        };
+        let (skill_id, _) = get_or_create_skill(&db, &skill, "/src").unwrap();
+
+        assign_skill_to_project(&db, proj_id, skill_id).unwrap();
+        // Second call is idempotent
+        assign_skill_to_project(&db, proj_id, skill_id).unwrap();
+
+        let count: i64 = db
+            .conn()
+            .query_row(
+                "SELECT COUNT(*) FROM project_skills WHERE project_id = ? AND skill_id = ?",
+                params![proj_id, skill_id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(count, 1);
+    }
+
+    #[test]
+    fn test_assign_command_to_project() {
+        let db = setup_test_db();
+        let proj_id = get_or_create_project(&db, "proj", "/tmp/proj").unwrap();
+        let cmd = ParsedSkill {
+            name: "cmd".to_string(),
+            description: None,
+            content: "content".to_string(),
+            skill_type: "command".to_string(),
+            allowed_tools: None,
+            argument_hint: None,
+            model: None,
+            disable_model_invocation: false,
+            tags: vec![],
+        };
+        let (cmd_id, _) = get_or_create_command(&db, &cmd, "/src").unwrap();
+
+        assign_command_to_project(&db, proj_id, cmd_id).unwrap();
+        assign_command_to_project(&db, proj_id, cmd_id).unwrap();
+
+        let count: i64 = db
+            .conn()
+            .query_row(
+                "SELECT COUNT(*) FROM project_commands WHERE project_id = ? AND command_id = ?",
+                params![proj_id, cmd_id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(count, 1);
+    }
+
+    #[test]
+    fn test_assign_agent_to_project() {
+        let db = setup_test_db();
+        let proj_id = get_or_create_project(&db, "proj", "/tmp/proj").unwrap();
+        let agent = ParsedAgent {
+            name: "ag".to_string(),
+            description: "desc".to_string(),
+            content: "content".to_string(),
+            tools: vec![],
+            model: None,
+            permission_mode: None,
+            skills: vec![],
+            tags: vec![],
+        };
+        let agent_id = get_or_create_agent(&db, &agent, "/src").unwrap();
+
+        assign_agent_to_project(&db, proj_id, agent_id).unwrap();
+        assign_agent_to_project(&db, proj_id, agent_id).unwrap();
+
+        let count: i64 = db
+            .conn()
+            .query_row(
+                "SELECT COUNT(*) FROM project_subagents WHERE project_id = ? AND subagent_id = ?",
+                params![proj_id, agent_id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(count, 1);
+    }
+
+    #[test]
+    fn test_get_or_create_hook() {
+        let db = setup_test_db();
+        let hook = ParsedHook {
+            name: "test-hook".to_string(),
+            description: Some("A hook".to_string()),
+            event_type: "PostToolUse".to_string(),
+            matcher: Some("Write".to_string()),
+            hook_type: "command".to_string(),
+            command: Some("npm run lint".to_string()),
+            prompt: None,
+            timeout: Some(5000),
+        };
+
+        let id1 = get_or_create_hook(&db, &hook).unwrap();
+        assert!(id1 > 0);
+
+        let id2 = get_or_create_hook(&db, &hook).unwrap();
+        assert_eq!(id1, id2);
+    }
+
+    #[test]
+    fn test_assign_hook_to_project() {
+        let db = setup_test_db();
+        let proj_id = get_or_create_project(&db, "proj", "/tmp/proj").unwrap();
+        let hook = ParsedHook {
+            name: "hook1".to_string(),
+            description: None,
+            event_type: "PreToolUse".to_string(),
+            matcher: None,
+            hook_type: "command".to_string(),
+            command: Some("echo hi".to_string()),
+            prompt: None,
+            timeout: None,
+        };
+        let hook_id = get_or_create_hook(&db, &hook).unwrap();
+
+        assign_hook_to_project(&db, proj_id, hook_id).unwrap();
+        assign_hook_to_project(&db, proj_id, hook_id).unwrap();
+
+        let count: i64 = db
+            .conn()
+            .query_row(
+                "SELECT COUNT(*) FROM project_hooks WHERE project_id = ? AND hook_id = ?",
+                params![proj_id, hook_id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(count, 1);
+    }
+
+    #[test]
+    fn test_insert_skill_files() {
+        let db = setup_test_db();
+        let skill = ParsedSkill {
+            name: "skill-with-files".to_string(),
+            description: None,
+            content: "content".to_string(),
+            skill_type: "skill".to_string(),
+            allowed_tools: None,
+            argument_hint: None,
+            model: None,
+            disable_model_invocation: false,
+            tags: vec![],
+        };
+        let (skill_id, _) = get_or_create_skill(&db, &skill, "/src").unwrap();
+
+        let files = vec![
+            ParsedSkillFile {
+                file_type: "reference".to_string(),
+                name: "ref.md".to_string(),
+                content: "reference content".to_string(),
+            },
+            ParsedSkillFile {
+                file_type: "asset".to_string(),
+                name: "data.json".to_string(),
+                content: r#"{"key":"value"}"#.to_string(),
+            },
+        ];
+
+        let count = insert_skill_files(&db, skill_id, &files).unwrap();
+        assert_eq!(count, 2);
+
+        // Inserting same files again should not create duplicates
+        let count2 = insert_skill_files(&db, skill_id, &files).unwrap();
+        assert_eq!(count2, 0);
+    }
+
+    #[test]
+    fn test_scan_project_commands_from_dir() {
+        let db = setup_test_db();
+        let proj_id = get_or_create_project(&db, "proj", "/tmp/proj").unwrap();
+
+        let temp_dir = TempDir::new().unwrap();
+        let commands_dir = temp_dir.path().join("commands");
+        fs::create_dir(&commands_dir).unwrap();
+
+        fs::write(
+            commands_dir.join("deploy.md"),
+            r#"---
+description: Deploy the app
+allowed-tools: Bash
+---
+Deploy instructions here."#,
+        )
+        .unwrap();
+
+        fs::write(
+            commands_dir.join("test.md"),
+            "Run all tests.",
+        )
+        .unwrap();
+
+        // Non-md file should be ignored
+        fs::write(commands_dir.join("readme.txt"), "ignore me").unwrap();
+
+        let count = scan_project_commands(&db, proj_id, &commands_dir).unwrap();
+        assert_eq!(count, 2);
+
+        // Verify commands are assigned to project
+        let assigned: i64 = db
+            .conn()
+            .query_row(
+                "SELECT COUNT(*) FROM project_commands WHERE project_id = ?",
+                [proj_id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(assigned, 2);
+    }
+
+    #[test]
+    fn test_scan_project_skills_from_dir() {
+        let db = setup_test_db();
+        let proj_id = get_or_create_project(&db, "proj", "/tmp/proj").unwrap();
+
+        let temp_dir = TempDir::new().unwrap();
+        let skills_dir = temp_dir.path().join("skills");
+        fs::create_dir(&skills_dir).unwrap();
+
+        // Create a skill directory with SKILL.md
+        let skill1_dir = skills_dir.join("my-skill");
+        fs::create_dir(&skill1_dir).unwrap();
+        fs::write(
+            skill1_dir.join("SKILL.md"),
+            r#"---
+description: My skill
+---
+Skill content."#,
+        )
+        .unwrap();
+
+        // Create references subdir
+        let refs_dir = skill1_dir.join("references");
+        fs::create_dir(&refs_dir).unwrap();
+        fs::write(refs_dir.join("ref.md"), "Reference content").unwrap();
+
+        let count = scan_project_skills(&db, proj_id, &skills_dir).unwrap();
+        assert_eq!(count, 1);
+
+        // Verify skill is assigned to project
+        let assigned: i64 = db
+            .conn()
+            .query_row(
+                "SELECT COUNT(*) FROM project_skills WHERE project_id = ?",
+                [proj_id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(assigned, 1);
+
+        // Verify skill file was created
+        let file_count: i64 = db
+            .conn()
+            .query_row("SELECT COUNT(*) FROM skill_files", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(file_count, 1);
+    }
+
+    #[test]
+    fn test_scan_project_agents_from_dir() {
+        let db = setup_test_db();
+        let proj_id = get_or_create_project(&db, "proj", "/tmp/proj").unwrap();
+
+        let temp_dir = TempDir::new().unwrap();
+        let agents_dir = temp_dir.path().join("agents");
+        fs::create_dir(&agents_dir).unwrap();
+
+        fs::write(
+            agents_dir.join("reviewer.md"),
+            r#"---
+description: Code reviewer
+tools: Read, Grep
+model: opus
+---
+You review code."#,
+        )
+        .unwrap();
+
+        let count = scan_project_agents(&db, proj_id, &agents_dir).unwrap();
+        assert_eq!(count, 1);
+
+        let assigned: i64 = db
+            .conn()
+            .query_row(
+                "SELECT COUNT(*) FROM project_subagents WHERE project_id = ?",
+                [proj_id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(assigned, 1);
+    }
+
+    #[test]
+    fn test_scan_project_hooks_from_settings() {
+        let db = setup_test_db();
+        let proj_id = get_or_create_project(&db, "proj", "/tmp/proj").unwrap();
+
+        let temp_dir = TempDir::new().unwrap();
+        let settings_path = temp_dir.path().join("settings.json");
+
+        fs::write(
+            &settings_path,
+            r#"{
+            "hooks": {
+                "PostToolUse": [
+                    {
+                        "matcher": "Write",
+                        "hooks": [
+                            { "type": "command", "command": "lint" }
+                        ]
+                    }
+                ]
+            }
+        }"#,
+        )
+        .unwrap();
+
+        let count = scan_project_hooks(&db, proj_id, &settings_path).unwrap();
+        assert_eq!(count, 1);
+
+        let assigned: i64 = db
+            .conn()
+            .query_row(
+                "SELECT COUNT(*) FROM project_hooks WHERE project_id = ?",
+                [proj_id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(assigned, 1);
+    }
+
+    #[test]
+    fn test_parse_agent_skill_dir_with_subdirs() {
+        let temp_dir = TempDir::new().unwrap();
+        let skill_dir = temp_dir.path().join("my-skill");
+        fs::create_dir(&skill_dir).unwrap();
+
+        fs::write(
+            skill_dir.join("SKILL.md"),
+            r#"---
+description: Complex skill
+allowed-tools: Bash
+model: sonnet
+---
+Skill body."#,
+        )
+        .unwrap();
+
+        // Create references
+        let refs = skill_dir.join("references");
+        fs::create_dir(&refs).unwrap();
+        fs::write(refs.join("guide.md"), "Guide content").unwrap();
+
+        // Create assets
+        let assets = skill_dir.join("assets");
+        fs::create_dir(&assets).unwrap();
+        fs::write(assets.join("config.json"), r#"{"key":"val"}"#).unwrap();
+
+        // Create scripts
+        let scripts = skill_dir.join("scripts");
+        fs::create_dir(&scripts).unwrap();
+        fs::write(scripts.join("setup.sh"), "#!/bin/bash\necho hi").unwrap();
+
+        let (skill, files) = parse_agent_skill_dir(&skill_dir).unwrap();
+
+        assert_eq!(skill.name, "my-skill");
+        assert_eq!(skill.description, Some("Complex skill".to_string()));
+        assert_eq!(skill.skill_type, "skill"); // Agent skills are always "skill"
+        assert_eq!(skill.allowed_tools, Some("Bash".to_string()));
+        assert_eq!(skill.model, Some("sonnet".to_string()));
+
+        assert_eq!(files.len(), 3);
+        let file_types: Vec<&str> = files.iter().map(|f| f.file_type.as_str()).collect();
+        assert!(file_types.contains(&"reference"));
+        assert!(file_types.contains(&"asset"));
+        assert!(file_types.contains(&"script"));
+    }
+
+    #[test]
+    fn test_parse_agent_skill_dir_no_skill_md() {
+        let temp_dir = TempDir::new().unwrap();
+        let skill_dir = temp_dir.path().join("no-skill");
+        fs::create_dir(&skill_dir).unwrap();
+        // No SKILL.md file
+        fs::write(skill_dir.join("README.md"), "Not a skill").unwrap();
+
+        let result = parse_agent_skill_dir(&skill_dir);
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_get_or_create_mcp_with_env_and_headers() {
+        let db = setup_test_db();
+        let mut env = std::collections::HashMap::new();
+        env.insert("API_KEY".to_string(), "secret".to_string());
+        let mut headers = std::collections::HashMap::new();
+        headers.insert("Authorization".to_string(), "Bearer token".to_string());
+
+        let id = get_or_create_mcp(
+            &db,
+            "http-mcp",
+            "http",
+            None,
+            None,
+            Some("https://example.com/mcp"),
+            Some(&headers),
+            Some(&env),
+            "/source",
+        )
+        .unwrap();
+
+        let (stored_env, stored_headers): (Option<String>, Option<String>) = db
+            .conn()
+            .query_row(
+                "SELECT env, headers FROM mcps WHERE id = ?",
+                [id],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+
+        assert!(stored_env.unwrap().contains("API_KEY"));
+        assert!(stored_headers.unwrap().contains("Authorization"));
+    }
+
+    #[test]
+    fn test_get_or_create_mcp_updates_source_path() {
+        let db = setup_test_db();
+        // Create with empty source_path
+        db.conn()
+            .execute(
+                "INSERT INTO mcps (name, type, source_path) VALUES ('mcp-empty', 'stdio', '')",
+                [],
+            )
+            .unwrap();
+
+        let id = get_or_create_mcp(&db, "mcp-empty", "stdio", None, None, None, None, None, "/new/path").unwrap();
+
+        let source_path: String = db
+            .conn()
+            .query_row("SELECT source_path FROM mcps WHERE id = ?", [id], |row| {
+                row.get(0)
+            })
+            .unwrap();
+        assert_eq!(source_path, "/new/path");
+    }
+
+    // =========================================================================
+    // Additional coverage: parse_skill_file edge cases
+    // =========================================================================
+
+    #[test]
+    fn test_parse_skill_file_with_allowedTools_camelCase() {
+        let temp_dir = TempDir::new().unwrap();
+        let skill_path = temp_dir.path().join("camel.md");
+        fs::write(
+            &skill_path,
+            r#"---
+allowedTools: Read, Write, Bash
+argumentHint: <file>
+---
+Content."#,
+        )
+        .unwrap();
+
+        let skill = parse_skill_file(&skill_path).unwrap();
+        assert_eq!(skill.allowed_tools, Some("Read, Write, Bash".to_string()));
+        assert_eq!(skill.argument_hint, Some("<file>".to_string()));
+    }
+
+    #[test]
+    fn test_parse_skill_file_disable_model_invocation_with_dash() {
+        let temp_dir = TempDir::new().unwrap();
+        let skill_path = temp_dir.path().join("dmi.md");
+        fs::write(
+            &skill_path,
+            r#"---
+disable-model-invocation: true
+---
+Body"#,
+        )
+        .unwrap();
+
+        let skill = parse_skill_file(&skill_path).unwrap();
+        assert!(skill.disable_model_invocation);
+    }
+
+    #[test]
+    fn test_parse_skill_file_disable_model_invocation_value_1() {
+        let temp_dir = TempDir::new().unwrap();
+        let skill_path = temp_dir.path().join("dmi1.md");
+        fs::write(
+            &skill_path,
+            r#"---
+disable-model-invocation: 1
+---
+Body"#,
+        )
+        .unwrap();
+
+        let skill = parse_skill_file(&skill_path).unwrap();
+        assert!(skill.disable_model_invocation);
+    }
+
+    #[test]
+    fn test_parse_skill_file_disable_model_invocation_false_value() {
+        let temp_dir = TempDir::new().unwrap();
+        let skill_path = temp_dir.path().join("dmi_false.md");
+        fs::write(
+            &skill_path,
+            r#"---
+disable-model-invocation: false
+---
+Body"#,
+        )
+        .unwrap();
+
+        let skill = parse_skill_file(&skill_path).unwrap();
+        assert!(!skill.disable_model_invocation);
+    }
+
+    #[test]
+    fn test_parse_skill_file_with_model() {
+        let temp_dir = TempDir::new().unwrap();
+        let skill_path = temp_dir.path().join("model-skill.md");
+        fs::write(
+            &skill_path,
+            r#"---
+model: sonnet
+description: A sonnet skill
+---
+Instructions"#,
+        )
+        .unwrap();
+
+        let skill = parse_skill_file(&skill_path).unwrap();
+        assert_eq!(skill.model, Some("sonnet".to_string()));
+        assert_eq!(skill.description, Some("A sonnet skill".to_string()));
+    }
+
+    // =========================================================================
+    // Additional coverage: parse_agent_file edge cases
+    // =========================================================================
+
+    #[test]
+    fn test_parse_agent_file_empty_tools_and_skills() {
+        let temp_dir = TempDir::new().unwrap();
+        let agent_path = temp_dir.path().join("empty-lists.md");
+        fs::write(
+            &agent_path,
+            r#"---
+description: Agent with no tools
+---
+Simple agent."#,
+        )
+        .unwrap();
+
+        let agent = parse_agent_file(&agent_path).unwrap();
+        assert!(agent.tools.is_empty());
+        assert!(agent.skills.is_empty());
+        assert!(agent.tags.is_empty());
+    }
+
+    // =========================================================================
+    // Additional coverage: parse_agent_skill_dir edge cases
+    // =========================================================================
+
+    #[test]
+    fn test_parse_agent_skill_dir_empty_subdirs() {
+        let temp_dir = TempDir::new().unwrap();
+        let skill_dir = temp_dir.path().join("empty-subdirs");
+        fs::create_dir(&skill_dir).unwrap();
+        fs::write(
+            skill_dir.join("SKILL.md"),
+            r#"---
+description: Skill with empty subdirs
+---
+Content"#,
+        )
+        .unwrap();
+
+        // Create empty subdirs
+        fs::create_dir(skill_dir.join("references")).unwrap();
+        fs::create_dir(skill_dir.join("assets")).unwrap();
+        fs::create_dir(skill_dir.join("scripts")).unwrap();
+
+        let (skill, files) = parse_agent_skill_dir(&skill_dir).unwrap();
+        assert_eq!(skill.name, "empty-subdirs");
+        assert!(files.is_empty()); // No files in empty subdirs
+    }
+
+    #[test]
+    fn test_parse_agent_skill_dir_with_disable_model_invocation() {
+        let temp_dir = TempDir::new().unwrap();
+        let skill_dir = temp_dir.path().join("dmi-skill");
+        fs::create_dir(&skill_dir).unwrap();
+        fs::write(
+            skill_dir.join("SKILL.md"),
+            r#"---
+disableModelInvocation: true
+tags: test, auto
+---
+Body"#,
+        )
+        .unwrap();
+
+        let (skill, _) = parse_agent_skill_dir(&skill_dir).unwrap();
+        assert!(skill.disable_model_invocation);
+        assert_eq!(skill.tags, vec!["test", "auto"]);
+        assert_eq!(skill.skill_type, "skill"); // Always "skill" for agent skills
+    }
+
+    #[test]
+    fn test_parse_agent_skill_dir_skips_dirs_in_subdirs() {
+        let temp_dir = TempDir::new().unwrap();
+        let skill_dir = temp_dir.path().join("nested-dirs");
+        fs::create_dir(&skill_dir).unwrap();
+        fs::write(skill_dir.join("SKILL.md"), "Simple skill").unwrap();
+
+        let refs = skill_dir.join("references");
+        fs::create_dir(&refs).unwrap();
+        // Create a file and a subdirectory
+        fs::write(refs.join("valid.md"), "ref content").unwrap();
+        fs::create_dir(refs.join("subdir")).unwrap();
+
+        let (_, files) = parse_agent_skill_dir(&skill_dir).unwrap();
+        // Only the file should be included, not the directory
+        assert_eq!(files.len(), 1);
+        assert_eq!(files[0].name, "valid.md");
+        assert_eq!(files[0].file_type, "reference");
+    }
+
+    // =========================================================================
+    // Additional coverage: parse_hooks_from_settings name generation
+    // =========================================================================
+
+    #[test]
+    fn test_parse_hooks_name_with_matcher() {
+        let temp_dir = TempDir::new().unwrap();
+        let settings_path = temp_dir.path().join("settings.json");
+        fs::write(
+            &settings_path,
+            r#"{
+            "hooks": {
+                "PostToolUse": [
+                    {
+                        "matcher": "Write|Edit",
+                        "hooks": [
+                            { "type": "command", "command": "lint" }
+                        ]
+                    }
+                ]
+            }
+        }"#,
+        )
+        .unwrap();
+
+        let hooks = parse_hooks_from_settings(&settings_path);
+        assert_eq!(hooks.len(), 1);
+        // Name should use matcher with pipes replaced by dashes
+        assert_eq!(hooks[0].name, "posttooluse-Write-Edit-0");
+    }
+
+    #[test]
+    fn test_parse_hooks_name_without_matcher() {
+        let temp_dir = TempDir::new().unwrap();
+        let settings_path = temp_dir.path().join("settings.json");
+        fs::write(
+            &settings_path,
+            r#"{
+            "hooks": {
+                "PreToolUse": [
+                    {
+                        "hooks": [
+                            { "type": "command", "command": "check" }
+                        ]
+                    }
+                ]
+            }
+        }"#,
+        )
+        .unwrap();
+
+        let hooks = parse_hooks_from_settings(&settings_path);
+        assert_eq!(hooks.len(), 1);
+        // Name should use event_type-idx-inner_idx format
+        assert_eq!(hooks[0].name, "pretooluse-0-0");
+    }
+
+    #[test]
+    fn test_parse_hooks_description_with_matcher() {
+        let temp_dir = TempDir::new().unwrap();
+        let settings_path = temp_dir.path().join("settings.json");
+        fs::write(
+            &settings_path,
+            r#"{
+            "hooks": {
+                "PostToolUse": [
+                    {
+                        "matcher": "Bash",
+                        "hooks": [
+                            { "type": "command", "command": "check" }
+                        ]
+                    }
+                ]
+            }
+        }"#,
+        )
+        .unwrap();
+
+        let hooks = parse_hooks_from_settings(&settings_path);
+        assert_eq!(hooks[0].description, Some("PostToolUse hook for Bash".to_string()));
+    }
+
+    #[test]
+    fn test_parse_hooks_description_without_matcher() {
+        let temp_dir = TempDir::new().unwrap();
+        let settings_path = temp_dir.path().join("settings.json");
+        fs::write(
+            &settings_path,
+            r#"{
+            "hooks": {
+                "Notification": [
+                    {
+                        "hooks": [
+                            { "type": "command", "command": "notify" }
+                        ]
+                    }
+                ]
+            }
+        }"#,
+        )
+        .unwrap();
+
+        let hooks = parse_hooks_from_settings(&settings_path);
+        assert_eq!(hooks[0].description, Some("Notification hook".to_string()));
+    }
+
+    // =========================================================================
+    // Additional DB coverage: get_or_create_project path normalization
+    // =========================================================================
+
+    #[test]
+    fn test_get_or_create_project_finds_by_normalized_path() {
+        let db = setup_test_db();
+        // Create with a tilde path
+        let id1 = get_or_create_project(&db, "proj", "~/projects/myproj").unwrap();
+        // Querying with the same path should find it
+        let id2 = get_or_create_project(&db, "proj", "~/projects/myproj").unwrap();
+        assert_eq!(id1, id2);
+    }
+
+    // =========================================================================
+    // Additional coverage: get_or_create_skill with empty tags
+    // =========================================================================
+
+    #[test]
+    fn test_get_or_create_skill_empty_tags() {
+        let db = setup_test_db();
+        let skill = ParsedSkill {
+            name: "no-tags-skill".to_string(),
+            description: None,
+            content: "content".to_string(),
+            skill_type: "command".to_string(),
+            allowed_tools: None,
+            argument_hint: None,
+            model: None,
+            disable_model_invocation: false,
+            tags: vec![],
+        };
+        let (id, created) = get_or_create_skill(&db, &skill, "/src").unwrap();
+        assert!(id > 0);
+        assert!(created);
+
+        // Verify tags is NULL
+        let tags: Option<String> = db
+            .conn()
+            .query_row("SELECT tags FROM skills WHERE id = ?", [id], |row| {
+                row.get(0)
+            })
+            .unwrap();
+        assert!(tags.is_none());
+    }
+
+    // =========================================================================
+    // Additional coverage: get_or_create_agent with empty lists
+    // =========================================================================
+
+    #[test]
+    fn test_get_or_create_agent_empty_tools_skills_tags() {
+        let db = setup_test_db();
+        let agent = ParsedAgent {
+            name: "empty-agent".to_string(),
+            description: "desc".to_string(),
+            content: "content".to_string(),
+            tools: vec![],
+            model: None,
+            permission_mode: None,
+            skills: vec![],
+            tags: vec![],
+        };
+        let id = get_or_create_agent(&db, &agent, "/src").unwrap();
+        assert!(id > 0);
+
+        // Verify all JSON fields are NULL
+        let (tools, skills, tags): (Option<String>, Option<String>, Option<String>) = db
+            .conn()
+            .query_row(
+                "SELECT tools, skills, tags FROM subagents WHERE id = ?",
+                [id],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .unwrap();
+        assert!(tools.is_none());
+        assert!(skills.is_none());
+        assert!(tags.is_none());
+    }
+
+    // =========================================================================
+    // Additional coverage: get_or_create_command with tags
+    // =========================================================================
+
+    #[test]
+    fn test_get_or_create_command_with_tags() {
+        let db = setup_test_db();
+        let cmd = ParsedSkill {
+            name: "tagged-cmd".to_string(),
+            description: Some("Cmd with tags".to_string()),
+            content: "run it".to_string(),
+            skill_type: "command".to_string(),
+            allowed_tools: Some("Bash".to_string()),
+            argument_hint: Some("<arg>".to_string()),
+            model: Some("opus".to_string()),
+            disable_model_invocation: false,
+            tags: vec!["deploy".to_string(), "ci".to_string()],
+        };
+
+        let (id, created) = get_or_create_command(&db, &cmd, "/src/cmd").unwrap();
+        assert!(id > 0);
+        assert!(created);
+
+        let tags: Option<String> = db
+            .conn()
+            .query_row("SELECT tags FROM commands WHERE id = ?", [id], |row| {
+                row.get(0)
+            })
+            .unwrap();
+        assert!(tags.is_some());
+        assert!(tags.unwrap().contains("deploy"));
+    }
+
+    // =========================================================================
+    // Additional coverage: insert_skill_files empty input
+    // =========================================================================
+
+    #[test]
+    fn test_insert_skill_files_empty() {
+        let db = setup_test_db();
+        let skill = ParsedSkill {
+            name: "empty-files-skill".to_string(),
+            description: None,
+            content: "content".to_string(),
+            skill_type: "skill".to_string(),
+            allowed_tools: None,
+            argument_hint: None,
+            model: None,
+            disable_model_invocation: false,
+            tags: vec![],
+        };
+        let (skill_id, _) = get_or_create_skill(&db, &skill, "/src").unwrap();
+
+        let files: Vec<ParsedSkillFile> = vec![];
+        let count = insert_skill_files(&db, skill_id, &files).unwrap();
+        assert_eq!(count, 0);
+    }
+
+    // =========================================================================
+    // Additional coverage: scan_project_commands ignores non-md
+    // =========================================================================
+
+    #[test]
+    fn test_scan_project_skills_ignores_files() {
+        let db = setup_test_db();
+        let proj_id = get_or_create_project(&db, "proj", "/tmp/proj").unwrap();
+
+        let temp_dir = TempDir::new().unwrap();
+        let skills_dir = temp_dir.path().join("skills");
+        fs::create_dir(&skills_dir).unwrap();
+
+        // Create a regular file (not a directory) - should be ignored
+        fs::write(skills_dir.join("not-a-dir.md"), "some content").unwrap();
+
+        let count = scan_project_skills(&db, proj_id, &skills_dir).unwrap();
+        assert_eq!(count, 0);
+    }
+
+    #[test]
+    fn test_scan_project_agents_ignores_non_md() {
+        let db = setup_test_db();
+        let proj_id = get_or_create_project(&db, "proj", "/tmp/proj").unwrap();
+
+        let temp_dir = TempDir::new().unwrap();
+        let agents_dir = temp_dir.path().join("agents");
+        fs::create_dir(&agents_dir).unwrap();
+
+        // Create a non-md file
+        fs::write(agents_dir.join("readme.txt"), "not an agent").unwrap();
+
+        let count = scan_project_agents(&db, proj_id, &agents_dir).unwrap();
+        assert_eq!(count, 0);
+    }
+
+    // =========================================================================
+    // Additional coverage: parse_frontmatter empty content
+    // =========================================================================
+
+    #[test]
+    fn test_parse_frontmatter_empty_string() {
+        let (fm, body) = parse_frontmatter("");
+        assert!(fm.is_empty());
+        assert_eq!(body, "");
+    }
+
+    #[test]
+    fn test_parse_frontmatter_just_dashes() {
+        let (fm, body) = parse_frontmatter("---");
+        assert!(fm.is_empty());
+        assert_eq!(body, "---");
+    }
+
+    // =========================================================================
+    // Additional coverage: scan_project_hooks with empty hooks
+    // =========================================================================
+
+    #[test]
+    fn test_scan_project_hooks_no_hooks_in_file() {
+        let db = setup_test_db();
+        let proj_id = get_or_create_project(&db, "proj", "/tmp/proj").unwrap();
+
+        let temp_dir = TempDir::new().unwrap();
+        let settings_path = temp_dir.path().join("settings.json");
+        fs::write(&settings_path, r#"{"other": "stuff"}"#).unwrap();
+
+        let count = scan_project_hooks(&db, proj_id, &settings_path).unwrap();
+        assert_eq!(count, 0);
+    }
+
+    // =========================================================================
+    // Additional DB coverage: get_or_create_command source_path update
+    // =========================================================================
+
+    #[test]
+    fn test_get_or_create_command_updates_source_path() {
+        let db = setup_test_db();
+        // Create with empty source_path
+        db.conn()
+            .execute(
+                "INSERT INTO commands (name, content, source_path) VALUES ('cmd-empty', 'content', '')",
+                [],
+            )
+            .unwrap();
+
+        let cmd = ParsedSkill {
+            name: "cmd-empty".to_string(),
+            description: None,
+            content: "updated content".to_string(),
+            skill_type: "command".to_string(),
+            allowed_tools: None,
+            argument_hint: None,
+            model: None,
+            disable_model_invocation: false,
+            tags: vec![],
+        };
+
+        let (id, created) = get_or_create_command(&db, &cmd, "/new/source/path").unwrap();
+        assert!(id > 0);
+        assert!(!created); // existing
+
+        let source_path: String = db
+            .conn()
+            .query_row("SELECT source_path FROM commands WHERE id = ?", [id], |row| {
+                row.get(0)
+            })
+            .unwrap();
+        assert_eq!(source_path, "/new/source/path");
+    }
+
+    #[test]
+    fn test_get_or_create_skill_updates_source_path() {
+        let db = setup_test_db();
+        // Create with empty source_path
+        db.conn()
+            .execute(
+                "INSERT INTO skills (name, content, source_path) VALUES ('skill-empty', 'content', '')",
+                [],
+            )
+            .unwrap();
+
+        let skill = ParsedSkill {
+            name: "skill-empty".to_string(),
+            description: None,
+            content: "content".to_string(),
+            skill_type: "skill".to_string(),
+            allowed_tools: None,
+            argument_hint: None,
+            model: None,
+            disable_model_invocation: false,
+            tags: vec![],
+        };
+
+        let (id, created) = get_or_create_skill(&db, &skill, "/new/skill/path").unwrap();
+        assert!(id > 0);
+        assert!(!created);
+
+        let source_path: String = db
+            .conn()
+            .query_row("SELECT source_path FROM skills WHERE id = ?", [id], |row| {
+                row.get(0)
+            })
+            .unwrap();
+        assert_eq!(source_path, "/new/skill/path");
+    }
+
+    #[test]
+    fn test_get_or_create_agent_updates_source_path() {
+        let db = setup_test_db();
+        // Create with empty source_path
+        db.conn()
+            .execute(
+                "INSERT INTO subagents (name, description, content, source_path) VALUES ('agent-empty', 'desc', 'content', '')",
+                [],
+            )
+            .unwrap();
+
+        let agent = ParsedAgent {
+            name: "agent-empty".to_string(),
+            description: "desc".to_string(),
+            content: "content".to_string(),
+            tools: vec![],
+            model: None,
+            permission_mode: None,
+            skills: vec![],
+            tags: vec![],
+        };
+
+        let id = get_or_create_agent(&db, &agent, "/new/agent/path").unwrap();
+        assert!(id > 0);
+
+        let source_path: String = db
+            .conn()
+            .query_row("SELECT source_path FROM subagents WHERE id = ?", [id], |row| {
+                row.get(0)
+            })
+            .unwrap();
+        assert_eq!(source_path, "/new/agent/path");
+    }
+
+    // =========================================================================
+    // Additional coverage: scan_project_hooks idempotent
+    // =========================================================================
+
+    #[test]
+    fn test_scan_project_hooks_idempotent() {
+        let db = setup_test_db();
+        let proj_id = get_or_create_project(&db, "proj", "/tmp/proj").unwrap();
+
+        let temp_dir = TempDir::new().unwrap();
+        let settings_path = temp_dir.path().join("settings.json");
+        fs::write(
+            &settings_path,
+            r#"{
+            "hooks": {
+                "PostToolUse": [
+                    { "hooks": [{ "type": "command", "command": "lint" }] }
+                ]
+            }
+        }"#,
+        )
+        .unwrap();
+
+        let count1 = scan_project_hooks(&db, proj_id, &settings_path).unwrap();
+        assert_eq!(count1, 1);
+
+        // Second call should not duplicate
+        let count2 = scan_project_hooks(&db, proj_id, &settings_path).unwrap();
+        assert_eq!(count2, 1);
+
+        let total_hooks: i64 = db
+            .conn()
+            .query_row(
+                "SELECT COUNT(*) FROM project_hooks WHERE project_id = ?",
+                [proj_id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(total_hooks, 1);
+    }
+
+    // =========================================================================
+    // Additional coverage: parse_agent_skill_dir frontmatter variations
+    // =========================================================================
+
+    #[test]
+    fn test_parse_agent_skill_dir_with_argument_hint() {
+        let temp_dir = TempDir::new().unwrap();
+        let skill_dir = temp_dir.path().join("hint-skill");
+        fs::create_dir(&skill_dir).unwrap();
+        fs::write(
+            skill_dir.join("SKILL.md"),
+            r#"---
+description: Skill with hint
+argument-hint: <filename>
+allowed_tools: Read, Write
+---
+Body content."#,
+        )
+        .unwrap();
+
+        let (skill, _) = parse_agent_skill_dir(&skill_dir).unwrap();
+        assert_eq!(skill.argument_hint, Some("<filename>".to_string()));
+        assert_eq!(skill.allowed_tools, Some("Read, Write".to_string()));
+    }
+
+    // =========================================================================
+    // Additional coverage: get_or_create_agent with all fields
+    // =========================================================================
+
+    #[test]
+    fn test_get_or_create_agent_with_all_fields() {
+        let db = setup_test_db();
+        let agent = ParsedAgent {
+            name: "full-agent".to_string(),
+            description: "Full description".to_string(),
+            content: "Detailed instructions".to_string(),
+            tools: vec!["Read".to_string(), "Write".to_string(), "Bash".to_string()],
+            model: Some("opus".to_string()),
+            permission_mode: Some("bypassPermissions".to_string()),
+            skills: vec!["lint".to_string(), "format".to_string()],
+            tags: vec!["dev".to_string(), "ci".to_string()],
+        };
+
+        let id = get_or_create_agent(&db, &agent, "/full/path").unwrap();
+        assert!(id > 0);
+
+        let (tools, skills, tags): (Option<String>, Option<String>, Option<String>) = db
+            .conn()
+            .query_row(
+                "SELECT tools, skills, tags FROM subagents WHERE id = ?",
+                [id],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .unwrap();
+
+        assert!(tools.unwrap().contains("Read"));
+        assert!(skills.unwrap().contains("lint"));
+        assert!(tags.unwrap().contains("dev"));
+    }
+
+    // =========================================================================
+    // Additional coverage: scan_project_commands idempotent
+    // =========================================================================
+
+    #[test]
+    fn test_scan_project_commands_idempotent() {
+        let db = setup_test_db();
+        let proj_id = get_or_create_project(&db, "proj", "/tmp/proj").unwrap();
+
+        let temp_dir = TempDir::new().unwrap();
+        let commands_dir = temp_dir.path().join("commands");
+        fs::create_dir(&commands_dir).unwrap();
+        fs::write(commands_dir.join("cmd.md"), "Command content.").unwrap();
+
+        let count1 = scan_project_commands(&db, proj_id, &commands_dir).unwrap();
+        assert_eq!(count1, 1);
+
+        // Second call should still process (assigns to project again)
+        let count2 = scan_project_commands(&db, proj_id, &commands_dir).unwrap();
+        assert_eq!(count2, 1);
+
+        // But project_commands should not have duplicates
+        let assigned: i64 = db
+            .conn()
+            .query_row(
+                "SELECT COUNT(*) FROM project_commands WHERE project_id = ?",
+                [proj_id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(assigned, 1);
+    }
 }

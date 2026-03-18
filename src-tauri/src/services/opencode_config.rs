@@ -803,6 +803,171 @@ mod tests {
         assert!(config.get("mcp").unwrap().get("new-mcp").is_some());
     }
 
+    // =========================================================================
+    // write_opencode_global_config tests
+    // =========================================================================
+
+    #[test]
+    fn test_write_opencode_global_config_creates_file() {
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("opencode.json");
+
+        let mcps: Vec<McpTuple> = vec![(
+            "test".to_string(),
+            "stdio".to_string(),
+            Some("node".to_string()),
+            None,
+            None,
+            None,
+            None,
+        )];
+
+        write_opencode_global_config(&config_path, &mcps).unwrap();
+
+        assert!(config_path.exists());
+        let content = fs::read_to_string(&config_path).unwrap();
+        let config: Value = serde_json::from_str(&content).unwrap();
+        assert!(config.get("mcp").is_some());
+    }
+
+    #[test]
+    fn test_write_opencode_global_config_preserves_existing() {
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("opencode.json");
+
+        fs::write(&config_path, r#"{"custom": "value", "mcp": {}}"#).unwrap();
+
+        let mcps: Vec<McpTuple> = vec![(
+            "new-mcp".to_string(),
+            "http".to_string(),
+            None,
+            None,
+            Some("https://example.com".to_string()),
+            None,
+            None,
+        )];
+
+        write_opencode_global_config(&config_path, &mcps).unwrap();
+
+        let content = fs::read_to_string(&config_path).unwrap();
+        let config: Value = serde_json::from_str(&content).unwrap();
+        assert_eq!(config.get("custom").unwrap(), "value");
+        assert!(config.get("mcp").unwrap().get("new-mcp").is_some());
+    }
+
+    #[test]
+    fn test_write_opencode_global_config_creates_parent_dirs() {
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir
+            .path()
+            .join("nested")
+            .join("deep")
+            .join("opencode.json");
+
+        let mcps: Vec<McpTuple> = vec![];
+        write_opencode_global_config(&config_path, &mcps).unwrap();
+
+        assert!(config_path.exists());
+    }
+
+    #[test]
+    fn test_write_opencode_global_config_invalid_existing_json() {
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("opencode.json");
+
+        fs::write(&config_path, "not valid json").unwrap();
+
+        let mcps: Vec<McpTuple> = vec![];
+        let result = write_opencode_global_config(&config_path, &mcps);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_write_opencode_project_config_invalid_existing_json() {
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("opencode.json");
+
+        fs::write(&config_path, "not valid json").unwrap();
+
+        let mcps: Vec<McpTuple> = vec![];
+        let result = write_opencode_project_config(temp_dir.path(), &mcps);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_opencode_mcps_remote_no_headers() {
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("opencode.json");
+
+        fs::write(
+            &config_path,
+            r#"{
+            "mcp": {
+                "remote-bare": {
+                    "type": "remote",
+                    "url": "https://example.com"
+                }
+            }
+        }"#,
+        )
+        .unwrap();
+
+        let mcps = parse_opencode_mcps(&config_path).unwrap();
+        assert_eq!(mcps.len(), 1);
+        assert_eq!(mcps[0].mcp_type, "http");
+        assert!(mcps[0].headers.is_none());
+    }
+
+    #[test]
+    fn test_parse_opencode_mcps_local_no_env() {
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("opencode.json");
+
+        fs::write(
+            &config_path,
+            r#"{
+            "mcp": {
+                "local-bare": {
+                    "type": "local",
+                    "command": ["python", "-m", "server"]
+                }
+            }
+        }"#,
+        )
+        .unwrap();
+
+        let mcps = parse_opencode_mcps(&config_path).unwrap();
+        assert_eq!(mcps.len(), 1);
+        assert!(mcps[0].env.is_none());
+        assert_eq!(mcps[0].command, Some("python".to_string()));
+        assert_eq!(
+            mcps[0].args,
+            Some(vec!["-m".to_string(), "server".to_string()])
+        );
+    }
+
+    #[test]
+    fn test_backup_config_file_opencode() {
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("opencode.json");
+
+        fs::write(&config_path, r#"{"mcp": {}}"#).unwrap();
+
+        backup_config_file(&config_path).unwrap();
+
+        let backup_path = config_path.with_extension("json.bak");
+        assert!(backup_path.exists());
+    }
+
+    #[test]
+    fn test_backup_config_file_nonexistent() {
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("nonexistent.json");
+
+        let result = backup_config_file(&config_path);
+        assert!(result.is_ok());
+    }
+
     #[test]
     fn test_write_opencode_project_config_valid_json() {
         let temp_dir = TempDir::new().unwrap();

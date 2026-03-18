@@ -319,4 +319,119 @@ mod tests {
         delete_skill_file_opencode(temp_dir.path(), &skill).unwrap();
         assert!(!file_path.exists());
     }
+
+    // =========================================================================
+    // Additional coverage: edge cases
+    // =========================================================================
+    #[test]
+    fn test_generate_skill_markdown_empty_description() {
+        let mut skill = sample_skill();
+        skill.description = Some("".to_string());
+        let md = generate_skill_markdown(&skill);
+        assert!(!md.contains("description:"));
+    }
+
+    #[test]
+    fn test_generate_skill_markdown_empty_tools() {
+        let mut skill = sample_skill();
+        skill.allowed_tools = Some(vec![]);
+        let md = generate_skill_markdown(&skill);
+        assert!(!md.contains("allowed-tools:"));
+    }
+
+    #[test]
+    fn test_generate_skill_markdown_empty_model() {
+        let mut skill = sample_skill();
+        skill.model = Some("".to_string());
+        let md = generate_skill_markdown(&skill);
+        assert!(!md.contains("model:"));
+    }
+
+    #[test]
+    fn test_write_project_skill() {
+        let temp_dir = TempDir::new().unwrap();
+        let skill = sample_skill();
+        write_project_skill(temp_dir.path(), &skill).unwrap();
+
+        let expected = temp_dir
+            .path()
+            .join(".claude")
+            .join("skills")
+            .join("test-agent")
+            .join("SKILL.md");
+        assert!(expected.exists());
+    }
+
+    #[test]
+    fn test_delete_project_skill() {
+        let temp_dir = TempDir::new().unwrap();
+        let skill = sample_skill();
+        write_project_skill(temp_dir.path(), &skill).unwrap();
+        delete_project_skill(temp_dir.path(), &skill).unwrap();
+
+        let expected = temp_dir
+            .path()
+            .join(".claude")
+            .join("skills")
+            .join("test-agent");
+        assert!(!expected.exists());
+    }
+
+    #[test]
+    fn test_write_project_skill_opencode() {
+        let temp_dir = TempDir::new().unwrap();
+        let skill = sample_skill();
+        write_project_skill_opencode(temp_dir.path(), &skill).unwrap();
+
+        let expected = temp_dir
+            .path()
+            .join(".opencode")
+            .join("agent")
+            .join("test-agent.md");
+        assert!(expected.exists());
+    }
+
+    #[test]
+    fn test_delete_project_skill_opencode() {
+        let temp_dir = TempDir::new().unwrap();
+        let skill = sample_skill();
+        write_project_skill_opencode(temp_dir.path(), &skill).unwrap();
+        delete_project_skill_opencode(temp_dir.path(), &skill).unwrap();
+
+        let expected = temp_dir
+            .path()
+            .join(".opencode")
+            .join("agent")
+            .join("test-agent.md");
+        assert!(!expected.exists());
+    }
+
+    #[test]
+    fn test_delete_skill_file_opencode_nonexistent() {
+        let temp_dir = TempDir::new().unwrap();
+        let skill = sample_skill();
+        // Should not error
+        let result = delete_skill_file_opencode(temp_dir.path(), &skill);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_write_skill_overwrite() {
+        let temp_dir = TempDir::new().unwrap();
+        let mut skill = sample_skill();
+        write_skill_file(temp_dir.path(), &skill).unwrap();
+
+        // Update content and write again
+        skill.content = "Updated content".to_string();
+        write_skill_file(temp_dir.path(), &skill).unwrap();
+
+        let file_path = temp_dir
+            .path()
+            .join(".claude")
+            .join("skills")
+            .join("test-agent")
+            .join("SKILL.md");
+        let content = std::fs::read_to_string(file_path).unwrap();
+        assert!(content.contains("Updated content"));
+    }
 }

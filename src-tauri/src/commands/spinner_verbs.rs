@@ -234,4 +234,96 @@ mod tests {
         assert_eq!(v2.display_order, 1);
         assert_eq!(v3.display_order, 2);
     }
+
+    // =========================================================================
+    // Additional spinner verb tests
+    // =========================================================================
+
+    #[test]
+    fn test_get_all_spinner_verbs_empty() {
+        let db = Database::in_memory().unwrap();
+        let verbs = get_all_spinner_verbs_from_db(&db).unwrap();
+        assert!(verbs.is_empty());
+    }
+
+    #[test]
+    fn test_delete_nonexistent_verb() {
+        let db = Database::in_memory().unwrap();
+        // Deleting a non-existent ID - the db method may error
+        let result = delete_spinner_verb_in_db(&db, 9999);
+        // Depending on DB impl, this may succeed or error
+        // Just verify it doesn't panic
+        let _ = result;
+    }
+
+    #[test]
+    fn test_set_spinner_verb_mode_append() {
+        let db = Database::in_memory().unwrap();
+        set_spinner_verb_mode_in_db(&db, "append").unwrap();
+        assert_eq!(get_spinner_verb_mode_from_db(&db).unwrap(), "append");
+    }
+
+    #[test]
+    fn test_set_spinner_verb_mode_replace() {
+        let db = Database::in_memory().unwrap();
+        set_spinner_verb_mode_in_db(&db, "replace").unwrap();
+        assert_eq!(get_spinner_verb_mode_from_db(&db).unwrap(), "replace");
+    }
+
+    #[test]
+    fn test_update_verb_preserves_order() {
+        let db = Database::in_memory().unwrap();
+        let v1 = create_test_verb(&db, "Pondering");
+        let _v2 = create_test_verb(&db, "Crafting");
+
+        let updated = update_spinner_verb_in_db(&db, v1.id, "Wondering", true).unwrap();
+        assert_eq!(updated.verb, "Wondering");
+        assert_eq!(updated.display_order, v1.display_order);
+    }
+
+    #[test]
+    fn test_reorder_with_empty_list() {
+        let db = Database::in_memory().unwrap();
+        let result = reorder_spinner_verbs_in_db(&db, &[]);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_spinner_verb_serde() {
+        let verb = SpinnerVerb {
+            id: 1,
+            verb: "Pondering".to_string(),
+            is_enabled: true,
+            display_order: 0,
+            created_at: "2024-01-01".to_string(),
+            updated_at: "2024-01-01".to_string(),
+        };
+        let json = serde_json::to_string(&verb).unwrap();
+        let deserialized: SpinnerVerb = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.verb, "Pondering");
+        assert!(deserialized.is_enabled);
+    }
+
+    #[test]
+    fn test_sync_spinner_verbs_empty_removes() {
+        let db = Database::in_memory().unwrap();
+        // With no verbs, sync_spinner_verbs_from_db should attempt to remove
+        // This may fail since settings.json doesn't exist in test, but we test the logic path
+        let result = sync_spinner_verbs_from_db(&db);
+        // The function calls remove_spinner_verbs_from_settings which touches the filesystem
+        // so it may fail in test env, but we just verify it doesn't panic
+        let _ = result;
+    }
+
+    #[test]
+    fn test_sync_spinner_verbs_with_disabled_verbs() {
+        let db = Database::in_memory().unwrap();
+        let v1 = create_test_verb(&db, "Pondering");
+        // Disable it
+        update_spinner_verb_in_db(&db, v1.id, "Pondering", false).unwrap();
+
+        // All verbs disabled, should attempt removal
+        let result = sync_spinner_verbs_from_db(&db);
+        let _ = result; // May fail on filesystem in test
+    }
 }

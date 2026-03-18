@@ -381,6 +381,169 @@ mod tests {
     }
 
     #[test]
+    fn test_delete_command_file_cleans_up_empty_dir() {
+        let temp_dir = TempDir::new().unwrap();
+        let command = sample_command();
+
+        // Write and then delete - directory should be cleaned up
+        write_command_file(temp_dir.path(), &command).unwrap();
+        delete_command_file(temp_dir.path(), &command).unwrap();
+
+        // The commands directory should have been removed (it was empty)
+        let commands_dir = temp_dir.path().join(".claude").join("commands");
+        assert!(!commands_dir.exists());
+    }
+
+    #[test]
+    fn test_delete_command_file_keeps_nonempty_dir() {
+        let temp_dir = TempDir::new().unwrap();
+        let command1 = sample_command();
+        let command2 = sample_minimal_command();
+
+        // Write two commands
+        write_command_file(temp_dir.path(), &command1).unwrap();
+        write_command_file(temp_dir.path(), &command2).unwrap();
+
+        // Delete only one
+        delete_command_file(temp_dir.path(), &command1).unwrap();
+
+        // Directory should still exist (has other file)
+        let commands_dir = temp_dir.path().join(".claude").join("commands");
+        assert!(commands_dir.exists());
+    }
+
+    #[test]
+    fn test_generate_command_markdown_empty_description() {
+        let mut command = sample_command();
+        command.description = Some("".to_string());
+        let md = generate_command_markdown(&command);
+        // Empty description should NOT appear in frontmatter
+        assert!(!md.contains("description:"));
+    }
+
+    #[test]
+    fn test_generate_command_markdown_empty_tools() {
+        let mut command = sample_command();
+        command.allowed_tools = Some(vec![]);
+        let md = generate_command_markdown(&command);
+        assert!(!md.contains("allowed-tools:"));
+    }
+
+    #[test]
+    fn test_generate_command_markdown_empty_argument_hint() {
+        let mut command = sample_command();
+        command.argument_hint = Some("".to_string());
+        let md = generate_command_markdown(&command);
+        assert!(!md.contains("argument-hint:"));
+    }
+
+    #[test]
+    fn test_generate_command_markdown_empty_model() {
+        let mut command = sample_command();
+        command.model = Some("".to_string());
+        let md = generate_command_markdown(&command);
+        assert!(!md.contains("model:"));
+    }
+
+    #[test]
+    fn test_generate_command_markdown_opencode_minimal() {
+        let command = sample_minimal_command();
+        let md = generate_command_markdown_opencode(&command);
+
+        assert!(!md.contains("description:"));
+        assert!(!md.contains("model:"));
+        assert!(md.contains("Minimal content."));
+    }
+
+    #[test]
+    fn test_generate_command_markdown_opencode_empty_model() {
+        let mut command = sample_command();
+        command.model = Some("".to_string());
+        let md = generate_command_markdown_opencode(&command);
+        assert!(!md.contains("model:"));
+    }
+
+    #[test]
+    fn test_generate_command_markdown_opencode_empty_description() {
+        let mut command = sample_command();
+        command.description = Some("".to_string());
+        let md = generate_command_markdown_opencode(&command);
+        assert!(!md.contains("description:"));
+    }
+
+    #[test]
+    fn test_delete_command_file_opencode_nonexistent() {
+        let temp_dir = TempDir::new().unwrap();
+        let command = sample_command();
+
+        // Should not error when file doesn't exist
+        let result = delete_command_file_opencode(temp_dir.path(), &command);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_write_project_command() {
+        let temp_dir = TempDir::new().unwrap();
+        let command = sample_command();
+
+        write_project_command(temp_dir.path(), &command).unwrap();
+
+        let expected_path = temp_dir
+            .path()
+            .join(".claude")
+            .join("commands")
+            .join("test-command.md");
+        assert!(expected_path.exists());
+    }
+
+    #[test]
+    fn test_delete_project_command() {
+        let temp_dir = TempDir::new().unwrap();
+        let command = sample_command();
+
+        write_project_command(temp_dir.path(), &command).unwrap();
+        delete_project_command(temp_dir.path(), &command).unwrap();
+
+        let file_path = temp_dir
+            .path()
+            .join(".claude")
+            .join("commands")
+            .join("test-command.md");
+        assert!(!file_path.exists());
+    }
+
+    #[test]
+    fn test_write_project_command_opencode() {
+        let temp_dir = TempDir::new().unwrap();
+        let command = sample_command();
+
+        write_project_command_opencode(temp_dir.path(), &command).unwrap();
+
+        let expected_path = temp_dir
+            .path()
+            .join(".opencode")
+            .join("command")
+            .join("test-command.md");
+        assert!(expected_path.exists());
+    }
+
+    #[test]
+    fn test_delete_project_command_opencode() {
+        let temp_dir = TempDir::new().unwrap();
+        let command = sample_command();
+
+        write_project_command_opencode(temp_dir.path(), &command).unwrap();
+        delete_project_command_opencode(temp_dir.path(), &command).unwrap();
+
+        let file_path = temp_dir
+            .path()
+            .join(".opencode")
+            .join("command")
+            .join("test-command.md");
+        assert!(!file_path.exists());
+    }
+
+    #[test]
     fn test_opencode_command_content_uses_correct_format() {
         let temp_dir = TempDir::new().unwrap();
         let command = sample_command();

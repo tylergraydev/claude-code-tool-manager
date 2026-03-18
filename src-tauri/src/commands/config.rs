@@ -38,66 +38,19 @@ fn row_to_mcp(row: &rusqlite::Row, offset: usize) -> rusqlite::Result<Mcp> {
 #[tauri::command]
 pub fn get_global_mcps(db: State<'_, Arc<Mutex<Database>>>) -> Result<Vec<GlobalMcp>, String> {
     let db = db.lock().map_err(|e| e.to_string())?;
-
-    let mut stmt = db
-        .conn()
-        .prepare(
-            "SELECT gm.id, gm.mcp_id, gm.is_enabled, gm.env_overrides,
-                    m.id, m.name, m.description, m.type, m.command, m.args, m.url, m.headers, m.env,
-                    m.icon, m.tags, m.source, m.source_path, m.is_enabled_global, m.is_favorite, m.created_at, m.updated_at
-             FROM global_mcps gm
-             JOIN mcps m ON gm.mcp_id = m.id
-             ORDER BY gm.display_order",
-        )
-        .map_err(|e| e.to_string())?;
-
-    let global_mcps = stmt
-        .query_map([], |row| {
-            Ok(GlobalMcp {
-                id: row.get(0)?,
-                mcp_id: row.get(1)?,
-                is_enabled: row.get::<_, i32>(2)? != 0,
-                env_overrides: parse_json_map(row.get(3)?),
-                mcp: row_to_mcp(row, 4)?,
-            })
-        })
-        .map_err(|e| e.to_string())?
-        .filter_map(|r| r.ok())
-        .collect();
-
-    Ok(global_mcps)
+    get_global_mcps_from_db(&db)
 }
 
 #[tauri::command]
 pub fn add_global_mcp(db: State<'_, Arc<Mutex<Database>>>, mcp_id: i64) -> Result<(), String> {
     let db = db.lock().map_err(|e| e.to_string())?;
-
-    let order: i32 = db
-        .conn()
-        .query_row(
-            "SELECT COALESCE(MAX(display_order), 0) + 1 FROM global_mcps",
-            [],
-            |row| row.get(0),
-        )
-        .unwrap_or(0);
-
-    db.conn()
-        .execute(
-            "INSERT OR IGNORE INTO global_mcps (mcp_id, display_order) VALUES (?, ?)",
-            params![mcp_id, order],
-        )
-        .map_err(|e| e.to_string())?;
-
-    Ok(())
+    add_global_mcp_in_db(&db, mcp_id)
 }
 
 #[tauri::command]
 pub fn remove_global_mcp(db: State<'_, Arc<Mutex<Database>>>, mcp_id: i64) -> Result<(), String> {
     let db = db.lock().map_err(|e| e.to_string())?;
-    db.conn()
-        .execute("DELETE FROM global_mcps WHERE mcp_id = ?", [mcp_id])
-        .map_err(|e| e.to_string())?;
-    Ok(())
+    remove_global_mcp_from_db(&db, mcp_id)
 }
 
 #[tauri::command]
@@ -107,13 +60,7 @@ pub fn toggle_global_mcp_assignment(
     enabled: bool,
 ) -> Result<(), String> {
     let db = db.lock().map_err(|e| e.to_string())?;
-    db.conn()
-        .execute(
-            "UPDATE global_mcps SET is_enabled = ? WHERE id = ?",
-            params![enabled as i32, id],
-        )
-        .map_err(|e| e.to_string())?;
-    Ok(())
+    toggle_global_mcp_in_db(&db, id, enabled)
 }
 
 #[tauri::command]
@@ -123,7 +70,7 @@ pub fn sync_global_config(db: State<'_, Arc<Mutex<Database>>>) -> Result<(), Str
 }
 
 /// Sync global config from database to disk (reusable helper without Tauri State)
-pub fn sync_global_config_from_db(db: &Database) -> Result<(), String> {
+pub(crate) fn sync_global_config_from_db(db: &Database) -> Result<(), String> {
     use crate::commands::settings::get_enabled_editors_from_db;
     use crate::services::{
         codex_config, copilot_config, cursor_config, gemini_config, opencode_config,
@@ -287,9 +234,8 @@ pub fn backup_configs() -> Result<(), String> {
 // Testable helper functions (no Tauri State dependency)
 // ============================================================================
 
-/// Add a global MCP directly in the database (for testing)
-#[cfg(test)]
-pub fn add_global_mcp_in_db(db: &Database, mcp_id: i64) -> Result<(), String> {
+/// Add a global MCP directly in the database (no Tauri State dependency)
+pub(crate) fn add_global_mcp_in_db(db: &Database, mcp_id: i64) -> Result<(), String> {
     let order: i32 = db
         .conn()
         .query_row(
@@ -309,18 +255,16 @@ pub fn add_global_mcp_in_db(db: &Database, mcp_id: i64) -> Result<(), String> {
     Ok(())
 }
 
-/// Remove a global MCP directly from the database (for testing)
-#[cfg(test)]
-pub fn remove_global_mcp_from_db(db: &Database, mcp_id: i64) -> Result<(), String> {
+/// Remove a global MCP directly from the database (no Tauri State dependency)
+pub(crate) fn remove_global_mcp_from_db(db: &Database, mcp_id: i64) -> Result<(), String> {
     db.conn()
         .execute("DELETE FROM global_mcps WHERE mcp_id = ?", [mcp_id])
         .map_err(|e| e.to_string())?;
     Ok(())
 }
 
-/// Toggle a global MCP directly in the database (for testing)
-#[cfg(test)]
-pub fn toggle_global_mcp_in_db(db: &Database, id: i64, enabled: bool) -> Result<(), String> {
+/// Toggle a global MCP directly in the database (no Tauri State dependency)
+pub(crate) fn toggle_global_mcp_in_db(db: &Database, id: i64, enabled: bool) -> Result<(), String> {
     db.conn()
         .execute(
             "UPDATE global_mcps SET is_enabled = ? WHERE id = ?",
@@ -330,9 +274,8 @@ pub fn toggle_global_mcp_in_db(db: &Database, id: i64, enabled: bool) -> Result<
     Ok(())
 }
 
-/// Get all global MCPs directly from the database (for testing)
-#[cfg(test)]
-pub fn get_global_mcps_from_db(db: &Database) -> Result<Vec<GlobalMcp>, String> {
+/// Get all global MCPs directly from the database (no Tauri State dependency)
+pub(crate) fn get_global_mcps_from_db(db: &Database) -> Result<Vec<GlobalMcp>, String> {
     let mut stmt = db
         .conn()
         .prepare(
@@ -506,6 +449,101 @@ mod tests {
             global_mcps[0].mcp.url,
             Some("https://example.com".to_string())
         );
+    }
+
+    #[test]
+    fn test_global_mcp_display_order() {
+        let db = Database::in_memory().unwrap();
+        let mcp1 = create_test_mcp(&db, "first");
+        let mcp2 = create_test_mcp(&db, "second");
+        let mcp3 = create_test_mcp(&db, "third");
+
+        add_global_mcp_in_db(&db, mcp1).unwrap();
+        add_global_mcp_in_db(&db, mcp2).unwrap();
+        add_global_mcp_in_db(&db, mcp3).unwrap();
+
+        let mcps = get_global_mcps_from_db(&db).unwrap();
+        // Should be in order of insertion (display_order)
+        assert_eq!(mcps[0].mcp_id, mcp1);
+        assert_eq!(mcps[1].mcp_id, mcp2);
+        assert_eq!(mcps[2].mcp_id, mcp3);
+    }
+
+    #[test]
+    fn test_remove_nonexistent_global_mcp() {
+        let db = Database::in_memory().unwrap();
+        // Should succeed silently (DELETE affects 0 rows)
+        let result = remove_global_mcp_from_db(&db, 9999);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_toggle_nonexistent_global_mcp() {
+        let db = Database::in_memory().unwrap();
+        // Should succeed but affect 0 rows
+        let result = toggle_global_mcp_in_db(&db, 9999, false);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_get_global_mcps_empty() {
+        let db = Database::in_memory().unwrap();
+        let mcps = get_global_mcps_from_db(&db).unwrap();
+        assert!(mcps.is_empty());
+    }
+
+    #[test]
+    fn test_parse_json_array_nested_arrays() {
+        let result = parse_json_array(Some(r#"["a", "b", "c"]"#.to_string()));
+        assert_eq!(
+            result,
+            Some(vec!["a".to_string(), "b".to_string(), "c".to_string()])
+        );
+    }
+
+    #[test]
+    fn test_parse_json_map_valid() {
+        let result = parse_json_map(Some(r#"{"key": "value", "key2": "value2"}"#.to_string()));
+        assert!(result.is_some());
+        let map = result.unwrap();
+        assert_eq!(map.get("key"), Some(&"value".to_string()));
+        assert_eq!(map.get("key2"), Some(&"value2".to_string()));
+    }
+
+    #[test]
+    fn test_parse_json_map_none() {
+        let result = parse_json_map(None);
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_parse_json_map_invalid() {
+        let result = parse_json_map(Some("not json".to_string()));
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_parse_json_map_empty() {
+        let result = parse_json_map(Some("{}".to_string()));
+        assert!(result.is_some());
+        assert!(result.unwrap().is_empty());
+    }
+
+    #[test]
+    fn test_claude_paths_serde() {
+        let paths = ClaudePaths {
+            claude_dir: "/home/user/.claude".to_string(),
+            claude_json: "/home/user/.claude.json".to_string(),
+            global_settings: "/home/user/.claude/settings.json".to_string(),
+            plugins_dir: "/home/user/.claude/plugins".to_string(),
+        };
+        let json = serde_json::to_string(&paths).unwrap();
+        assert!(json.contains("claudeDir"));
+        assert!(json.contains("claudeJson"));
+        assert!(json.contains("globalSettings"));
+        assert!(json.contains("pluginsDir"));
+        let deserialized: ClaudePaths = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.claude_dir, "/home/user/.claude");
     }
 
     #[test]

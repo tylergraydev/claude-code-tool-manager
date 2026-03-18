@@ -5,6 +5,18 @@
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		<title>Claude Code Tool Manager</title>
 		<link rel="icon" href="%sveltekit.assets%/favicon.png" />
+		<script>
+			(function() {
+				try {
+					var theme = localStorage.getItem('theme');
+					if (theme === 'light') {
+						document.documentElement.classList.remove('dark');
+					} else if (!theme && window.matchMedia('(prefers-color-scheme: light)').matches) {
+						document.documentElement.classList.remove('dark');
+					}
+				} catch(e) {}
+			})();
+		</script>
 		%sveltekit.head%
 	</head>
 	<body data-sveltekit-preload-data="hover" class="bg-gray-50 dark:bg-gray-900">

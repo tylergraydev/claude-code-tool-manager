@@ -22,6 +22,27 @@
 		entries = Object.entries(values);
 	});
 
+	let duplicateKeys = $derived.by(() => {
+		const seen = new Map<string, number[]>();
+		entries.forEach(([key], i) => {
+			const trimmed = key.trim();
+			if (trimmed) {
+				const indices = seen.get(trimmed) || [];
+				indices.push(i);
+				seen.set(trimmed, indices);
+			}
+		});
+		const dupes = new Set<number>();
+		for (const indices of seen.values()) {
+			if (indices.length > 1) indices.forEach((i) => dupes.add(i));
+		}
+		return dupes;
+	});
+
+	function isValidEnvKey(key: string): boolean {
+		return /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(key);
+	}
+
 	function updateValues() {
 		const newValues: Record<string, string> = {};
 		for (const [key, value] of entries) {
@@ -54,20 +75,30 @@
 
 <div class="space-y-2">
 	{#each entries as [key, value], index}
-		<div class="flex gap-2">
-			<input
-				type="text"
-				{value}
-				onchange={(e) => handleKeyChange(index, e.currentTarget.value)}
-				placeholder={keyPlaceholder}
-				class="input flex-1"
-				disabled={readonly}
-			/>
+		<div class="flex gap-2 items-start">
+			<div class="flex-1">
+				<input
+					type="text"
+					value={key}
+					onchange={(e) => handleKeyChange(index, e.currentTarget.value)}
+					placeholder={keyPlaceholder}
+					aria-label="Variable name for entry {index + 1}"
+					aria-invalid={key.trim() && !isValidEnvKey(key.trim()) ? 'true' : undefined}
+					class="input w-full {duplicateKeys.has(index) ? 'border-yellow-500 dark:border-yellow-400' : ''} {key.trim() && !isValidEnvKey(key.trim()) ? 'border-red-500 dark:border-red-400' : ''}"
+					disabled={readonly}
+				/>
+				{#if key.trim() && !isValidEnvKey(key.trim())}
+					<p class="text-xs text-red-500 mt-0.5" role="alert">Letters, numbers, underscores only</p>
+				{:else if duplicateKeys.has(index)}
+					<p class="text-xs text-yellow-500 mt-0.5" role="alert">Duplicate key</p>
+				{/if}
+			</div>
 			<input
 				type="text"
 				value={value}
 				onchange={(e) => handleValueChange(index, e.currentTarget.value)}
 				placeholder={valuePlaceholder}
+				aria-label="Value for {key.trim() || `entry ${index + 1}`}"
 				class="input flex-[2]"
 				disabled={readonly}
 			/>

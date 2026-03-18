@@ -14,3 +14,19 @@ pub fn get_session_facets() -> Result<SessionFacetsInfo, String> {
     info!("[Insights] Reading session facets");
     insights::read_all_facets().map_err(|e| e.to_string())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_get_insights_report_returns_result() {
+        // Filesystem-dependent; just verify no panic.
+        let _ = get_insights_report();
+    }
+
+    #[test]
+    fn test_get_session_facets_returns_result() {
+        let _ = get_session_facets();
+    }
+}

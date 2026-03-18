@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { Command } from '$lib/types';
-	import { Terminal, MoreVertical, Edit, Trash2, Heart } from 'lucide-svelte';
+	import { Terminal, Edit, Trash2 } from 'lucide-svelte';
+	import { ActionMenu, ActionMenuItem, FavoriteButton, Badge } from '$lib/components/shared';
 
 	type Props = {
 		command: Command;
@@ -18,27 +19,8 @@
 		onFavoriteToggle
 	}: Props = $props();
 
-	let showMenu = $state(false);
-	let menuAbove = $state(false);
-	let menuButton: HTMLButtonElement;
-
-	function closeMenu() {
-		showMenu = false;
-	}
-
-	function toggleMenu(e: MouseEvent) {
-		e.stopPropagation();
-		if (!showMenu) {
-			const rect = menuButton.getBoundingClientRect();
-			const spaceBelow = window.innerHeight - rect.bottom;
-			const menuHeight = 120;
-			menuAbove = spaceBelow < menuHeight;
-		}
-		showMenu = !showMenu;
-	}
+	let actionMenu: ActionMenu;
 </script>
-
-<svelte:window onclick={closeMenu} />
 
 <div class="card group relative hover:shadow-md transition-all duration-200">
 	<div class="flex items-start gap-3">
@@ -52,12 +34,7 @@
 					/{command.name}
 				</h3>
 				{#if command.source === 'auto-detected'}
-					<span
-						class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300 cursor-help"
-						title={command.sourcePath ? `Source: ${command.sourcePath}` : 'Auto-detected from filesystem'}
-					>
-						Auto
-					</span>
+					<Badge variant="auto" title={command.sourcePath ? `Source: ${command.sourcePath}` : 'Auto-detected from filesystem'}>Auto</Badge>
 				{/if}
 			</div>
 
@@ -96,61 +73,20 @@
 		{#if showActions}
 			<div class="flex items-center gap-1">
 				{#if onFavoriteToggle}
-					<button
-						onclick={(e) => {
-							e.stopPropagation();
-							onFavoriteToggle(command, !command.isFavorite);
-						}}
-						class="p-1.5 rounded-lg transition-colors {command.isFavorite
-							? 'text-rose-500 hover:text-rose-600'
-							: 'text-gray-300 hover:text-rose-400 dark:text-gray-600 dark:hover:text-rose-400'}"
-						title={command.isFavorite ? 'Remove from favorites' : 'Add to favorites'}
-					>
-						<Heart class="w-4 h-4" fill={command.isFavorite ? 'currentColor' : 'none'} />
-					</button>
+					<FavoriteButton
+						isFavorite={command.isFavorite}
+						name={command.name}
+						onclick={() => onFavoriteToggle(command, !command.isFavorite)}
+					/>
 				{/if}
-				<div class="relative">
-					<button
-						bind:this={menuButton}
-						onclick={toggleMenu}
-						class="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
-					>
-						<MoreVertical class="w-4 h-4" />
-					</button>
-
-					{#if showMenu}
-						<div
-							class="absolute right-0 w-40 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-10
-								{menuAbove ? 'bottom-full mb-1' : 'top-full mt-1'}"
-							onclick={(e) => e.stopPropagation()}
-						>
-							{#if onEdit}
-								<button
-									onclick={() => {
-										onEdit(command);
-										closeMenu();
-									}}
-									class="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
-								>
-									<Edit class="w-4 h-4" />
-									Edit
-								</button>
-							{/if}
-							{#if onDelete}
-								<button
-									onclick={() => {
-										onDelete(command);
-										closeMenu();
-									}}
-									class="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
-								>
-									<Trash2 class="w-4 h-4" />
-									Delete
-								</button>
-							{/if}
-						</div>
+				<ActionMenu bind:this={actionMenu} label="Actions for {command.name}">
+					{#if onEdit}
+						<ActionMenuItem icon={Edit} label="Edit" onclick={() => { onEdit(command); actionMenu.close(); }} />
 					{/if}
-				</div>
+					{#if onDelete}
+						<ActionMenuItem icon={Trash2} label="Delete" variant="danger" onclick={() => { onDelete(command); actionMenu.close(); }} />
+					{/if}
+				</ActionMenu>
 			</div>
 		{/if}
 	</div>

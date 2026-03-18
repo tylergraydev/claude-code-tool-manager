@@ -711,4 +711,181 @@ command = "python"
         // Should not error if file does not exist
         remove_mcp_from_codex_config(&config_path, "nonexistent").unwrap();
     }
+
+    // =========================================================================
+    // Additional coverage tests
+    // =========================================================================
+
+    #[test]
+    fn test_parse_codex_mcps_unknown_type_entry() {
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("config.toml");
+
+        // Entry with neither command nor url
+        fs::write(
+            &config_path,
+            r#"
+[mcp_servers.mystery]
+enabled = true
+some_other_field = "value"
+"#,
+        )
+        .unwrap();
+
+        let mcps = parse_codex_mcps(&config_path).unwrap();
+        assert_eq!(mcps.len(), 1);
+        assert_eq!(mcps[0].mcp_type, "stdio");
+        assert!(mcps[0].command.is_none());
+        assert!(mcps[0].url.is_none());
+    }
+
+    #[test]
+    fn test_parse_codex_mcps_http_no_headers() {
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("config.toml");
+
+        fs::write(
+            &config_path,
+            r#"
+[mcp_servers.bare-http]
+url = "https://example.com/mcp"
+"#,
+        )
+        .unwrap();
+
+        let mcps = parse_codex_mcps(&config_path).unwrap();
+        assert_eq!(mcps.len(), 1);
+        assert_eq!(mcps[0].mcp_type, "http");
+        assert!(mcps[0].headers.is_none()); // No headers at all
+    }
+
+    #[test]
+    fn test_write_codex_config_sse_type() {
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("config.toml");
+
+        let mcps: Vec<McpTuple> = vec![(
+            "sse-mcp".to_string(),
+            "sse".to_string(),
+            None,
+            None,
+            Some("https://api.example.com/sse".to_string()),
+            Some(r#"{"X-Custom": "value"}"#.to_string()),
+            None,
+        )];
+
+        write_codex_config(&config_path, &mcps).unwrap();
+
+        let content = fs::read_to_string(&config_path).unwrap();
+        assert!(content.contains("[mcp_servers.sse-mcp]"));
+        assert!(content.contains("url = \"https://api.example.com/sse\""));
+    }
+
+    #[test]
+    fn test_write_codex_config_unknown_type_skipped() {
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("config.toml");
+
+        let mcps: Vec<McpTuple> = vec![(
+            "unknown".to_string(),
+            "unknown_type".to_string(),
+            None,
+            None,
+            None,
+            None,
+            None,
+        )];
+
+        write_codex_config(&config_path, &mcps).unwrap();
+
+        let content = fs::read_to_string(&config_path).unwrap();
+        assert!(!content.contains("unknown"));
+    }
+
+    #[test]
+    fn test_backup_config_file_creates_bak() {
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("config.toml");
+
+        fs::write(&config_path, "original content").unwrap();
+
+        backup_config_file(&config_path).unwrap();
+
+        let backup_path = config_path.with_extension("toml.bak");
+        assert!(backup_path.exists());
+        assert_eq!(
+            fs::read_to_string(&backup_path).unwrap(),
+            "original content"
+        );
+    }
+
+    #[test]
+    fn test_backup_config_file_nonexistent() {
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("nonexistent.toml");
+
+        // Should succeed (no-op) when file doesn't exist
+        let result = backup_config_file(&config_path);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_backup_config_file_non_toml_extension() {
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("config.json");
+
+        fs::write(&config_path, "content").unwrap();
+
+        backup_config_file(&config_path).unwrap();
+
+        // Non-toml files should get .bak extension
+        let backup_path = config_path.with_extension("bak");
+        assert!(backup_path.exists());
+    }
+
+    #[test]
+    fn test_write_codex_config_invalid_existing_toml() {
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("config.toml");
+
+        // Write invalid TOML that can't be parsed
+        fs::write(&config_path, "[invalid toml = = =").unwrap();
+
+        let mcps: Vec<McpTuple> = vec![(
+            "test".to_string(),
+            "stdio".to_string(),
+            Some("node".to_string()),
+            None,
+            None,
+            None,
+            None,
+        )];
+
+        // Should return error rather than silently overwrite
+        let result = write_codex_config(&config_path, &mcps);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_write_codex_config_stdio_with_invalid_args_json() {
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("config.toml");
+
+        let mcps: Vec<McpTuple> = vec![(
+            "test".to_string(),
+            "stdio".to_string(),
+            Some("node".to_string()),
+            Some("not valid json".to_string()), // Invalid args JSON
+            None,
+            None,
+            Some("not valid json either".to_string()), // Invalid env JSON
+        )];
+
+        write_codex_config(&config_path, &mcps).unwrap();
+
+        // Should still create file, just skip the invalid args/env
+        let content = fs::read_to_string(&config_path).unwrap();
+        assert!(content.contains("command = \"node\""));
+        assert!(!content.contains("args"));
+    }
 }

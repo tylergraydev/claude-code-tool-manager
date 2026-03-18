@@ -558,6 +558,141 @@ mod tests {
     }
 
     #[test]
+    fn test_get_profile_with_items_empty() {
+        let db = Database::in_memory().unwrap();
+        let profile = create_test_profile(&db, "Empty Profile");
+        let with_items = get_profile_from_db(&db, profile.id).unwrap();
+        assert!(with_items.mcps.is_empty());
+        assert!(with_items.skills.is_empty());
+        assert!(with_items.commands.is_empty());
+        assert!(with_items.subagents.is_empty());
+        assert!(with_items.hooks.is_empty());
+    }
+
+    #[test]
+    fn test_get_profile_not_found() {
+        let db = Database::in_memory().unwrap();
+        let result = get_profile_from_db(&db, 9999);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_profiles_sorted_by_name() {
+        let db = Database::in_memory().unwrap();
+        create_test_profile(&db, "Zebra");
+        create_test_profile(&db, "Alpha");
+        create_test_profile(&db, "Middle");
+
+        let profiles = get_all_profiles_from_db(&db).unwrap();
+        assert_eq!(profiles[0].name, "Alpha");
+        assert_eq!(profiles[1].name, "Middle");
+        assert_eq!(profiles[2].name, "Zebra");
+    }
+
+    #[test]
+    fn test_update_profile_not_found() {
+        let db = Database::in_memory().unwrap();
+        let request = CreateProfileRequest {
+            name: "Ghost".to_string(),
+            description: None,
+            icon: None,
+        };
+        let result = update_profile_in_db(&db, 9999, &request);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_activate_only_one_profile_active() {
+        let db = Database::in_memory().unwrap();
+        let p1 = create_test_profile(&db, "Profile1");
+        let p2 = create_test_profile(&db, "Profile2");
+
+        activate_profile_in_db(&db, p1.id).unwrap();
+        activate_profile_in_db(&db, p2.id).unwrap();
+
+        // Only p2 should be active
+        let active = get_active_profile_from_db(&db).unwrap();
+        assert!(active.is_some());
+        assert_eq!(active.unwrap().id, p2.id);
+
+        // p1 should not be active
+        let all = get_all_profiles_from_db(&db).unwrap();
+        let p1_fresh = all.iter().find(|p| p.id == p1.id).unwrap();
+        assert!(!p1_fresh.is_active);
+    }
+
+    #[test]
+    fn test_deactivate_when_none_active() {
+        let db = Database::in_memory().unwrap();
+        // Should succeed even when no profiles are active
+        deactivate_all_profiles(&db).unwrap();
+        let active = get_active_profile_from_db(&db).unwrap();
+        assert!(active.is_none());
+    }
+
+    #[test]
+    fn test_capture_profile_clears_previous_items() {
+        let db = Database::in_memory().unwrap();
+
+        // Create an MCP, add it globally
+        db.conn()
+            .execute(
+                "INSERT INTO mcps (name, type, source) VALUES ('mcp1', 'stdio', 'manual')",
+                [],
+            )
+            .unwrap();
+        let mcp1_id = db.conn().last_insert_rowid();
+        db.conn()
+            .execute(
+                "INSERT INTO global_mcps (mcp_id) VALUES (?)",
+                params![mcp1_id],
+            )
+            .unwrap();
+
+        let profile = create_test_profile(&db, "Capture Test");
+        let first_capture = capture_profile_from_current_in_db(&db, profile.id).unwrap();
+        assert_eq!(first_capture.mcps.len(), 1);
+
+        // Remove global MCP, add a different one
+        db.conn().execute("DELETE FROM global_mcps", []).unwrap();
+        db.conn()
+            .execute(
+                "INSERT INTO mcps (name, type, source) VALUES ('mcp2', 'stdio', 'manual')",
+                [],
+            )
+            .unwrap();
+        let mcp2_id = db.conn().last_insert_rowid();
+        db.conn()
+            .execute(
+                "INSERT INTO global_mcps (mcp_id) VALUES (?)",
+                params![mcp2_id],
+            )
+            .unwrap();
+
+        // Recapture should replace previous items
+        let second_capture = capture_profile_from_current_in_db(&db, profile.id).unwrap();
+        assert_eq!(second_capture.mcps.len(), 1);
+        assert_eq!(second_capture.mcps[0], mcp2_id);
+    }
+
+    #[test]
+    fn test_profile_serde() {
+        let profile = Profile {
+            id: 1,
+            name: "Test".to_string(),
+            description: Some("Desc".to_string()),
+            icon: Some("🔧".to_string()),
+            is_active: false,
+            created_at: "2024-01-01".to_string(),
+            updated_at: "2024-01-01".to_string(),
+        };
+        let json = serde_json::to_string(&profile).unwrap();
+        assert!(json.contains("isActive"));
+        let deserialized: Profile = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.name, "Test");
+    }
+
+    #[test]
     fn test_activate_handles_deleted_items() {
         let db = Database::in_memory().unwrap();
 

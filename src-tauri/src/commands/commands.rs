@@ -863,4 +863,151 @@ mod tests {
         let result = validate_command_request(&request);
         assert!(result.is_err());
     }
+
+    #[test]
+    fn test_validate_command_request_invalid_description() {
+        let request = CreateCommandRequest {
+            name: "valid-name".to_string(),
+            description: Some("a".repeat(1025)),
+            content: "Content".to_string(),
+            allowed_tools: None,
+            argument_hint: None,
+            model: None,
+            tags: None,
+        };
+        let result = validate_command_request(&request);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_validate_command_request_empty_content() {
+        let request = CreateCommandRequest {
+            name: "valid-name".to_string(),
+            description: None,
+            content: "".to_string(),
+            allowed_tools: None,
+            argument_hint: None,
+            model: None,
+            tags: None,
+        };
+        let result = validate_command_request(&request);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("required"));
+    }
+
+    #[test]
+    fn test_validate_command_request_long_content_warning() {
+        let request = CreateCommandRequest {
+            name: "valid-name".to_string(),
+            description: None,
+            content: "line\n".repeat(501),
+            allowed_tools: None,
+            argument_hint: None,
+            model: None,
+            tags: None,
+        };
+        let result = validate_command_request(&request).unwrap();
+        assert!(result.is_some());
+        assert!(result.unwrap().contains("500 lines"));
+    }
+
+    #[test]
+    fn test_validate_command_name_whitespace_only() {
+        let result = validate_command_name("   ");
+        assert!(!result.is_valid);
+        assert!(result.error.unwrap().contains("required"));
+    }
+
+    #[test]
+    fn test_validate_command_name_max_length_ok() {
+        let name = "a".repeat(64);
+        let result = validate_command_name(&name);
+        assert!(result.is_valid);
+    }
+
+    #[test]
+    fn test_validate_command_description_none() {
+        let result = validate_command_description(&None);
+        assert!(result.is_valid);
+    }
+
+    #[test]
+    fn test_validate_command_content_normal() {
+        let result = validate_command_content("Do something useful.");
+        assert!(result.is_valid);
+        assert!(result.warning.is_none());
+    }
+
+    #[test]
+    fn test_validate_command_content_whitespace_only() {
+        let result = validate_command_content("   ");
+        assert!(!result.is_valid);
+    }
+
+    #[test]
+    fn test_parse_json_array_valid() {
+        let result = parse_json_array(Some(r#"["a","b"]"#.to_string()));
+        assert_eq!(result, Some(vec!["a".to_string(), "b".to_string()]));
+    }
+
+    #[test]
+    fn test_parse_json_array_none() {
+        assert_eq!(parse_json_array(None), None);
+    }
+
+    #[test]
+    fn test_parse_json_array_invalid() {
+        assert_eq!(parse_json_array(Some("bad".to_string())), None);
+    }
+
+    #[test]
+    fn test_validate_command_name_reserved_anthropic() {
+        let result = validate_command_name("my-anthropic-tool");
+        assert!(!result.is_valid);
+        assert!(result.error.unwrap().contains("anthropic"));
+    }
+
+    // =========================================================================
+    // Command serde tests
+    // =========================================================================
+
+    #[test]
+    fn test_command_serde_round_trip() {
+        let cmd = Command {
+            id: 1,
+            name: "test-cmd".to_string(),
+            description: Some("desc".to_string()),
+            content: "content".to_string(),
+            allowed_tools: Some(vec!["Read".to_string()]),
+            argument_hint: Some("$FILE".to_string()),
+            model: Some("opus".to_string()),
+            tags: Some(vec!["tag1".to_string()]),
+            source: "manual".to_string(),
+            source_path: None,
+            is_favorite: false,
+            created_at: "2024-01-01".to_string(),
+            updated_at: "2024-01-01".to_string(),
+        };
+        let json = serde_json::to_string(&cmd).unwrap();
+        let deser: Command = serde_json::from_str(&json).unwrap();
+        assert_eq!(deser.name, "test-cmd");
+        assert_eq!(deser.allowed_tools, Some(vec!["Read".to_string()]));
+        assert_eq!(deser.argument_hint, Some("$FILE".to_string()));
+    }
+
+    #[test]
+    fn test_create_command_request_serde() {
+        let req = CreateCommandRequest {
+            name: "my-cmd".to_string(),
+            description: Some("A command".to_string()),
+            content: "Do stuff".to_string(),
+            allowed_tools: Some(vec!["Bash".to_string()]),
+            argument_hint: None,
+            model: None,
+            tags: None,
+        };
+        let json = serde_json::to_string(&req).unwrap();
+        let deser: CreateCommandRequest = serde_json::from_str(&json).unwrap();
+        assert_eq!(deser.name, "my-cmd");
+    }
 }

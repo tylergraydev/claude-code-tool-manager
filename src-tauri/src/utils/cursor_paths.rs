@@ -99,4 +99,23 @@ mod tests {
         // Config dir should end with ".cursor"
         assert!(paths.config_dir.ends_with(".cursor"));
     }
+
+    #[test]
+    fn test_cursor_mcp_config_is_json_file() {
+        let paths = get_cursor_paths().expect("Should get cursor paths");
+        let file_name = paths.mcp_config_file.file_name().unwrap().to_str().unwrap();
+        assert!(file_name.ends_with(".json"));
+    }
+
+    #[test]
+    fn test_cursor_config_dir_is_under_home() {
+        let paths = get_cursor_paths().expect("Should get cursor paths");
+        assert!(paths.config_dir.starts_with(&paths.home));
+    }
+
+    #[test]
+    fn test_cursor_mcp_config_under_config_dir() {
+        let paths = get_cursor_paths().expect("Should get cursor paths");
+        assert!(paths.mcp_config_file.starts_with(&paths.config_dir));
+    }
 }

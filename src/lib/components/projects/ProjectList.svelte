@@ -1,9 +1,9 @@
 <script lang="ts">
-	import type { Project } from '$lib/types';
+	import type { Project, ProjectSkill, ProjectSubAgent } from '$lib/types';
 	import { goto } from '$app/navigation';
-	import { projectsStore } from '$lib/stores';
+	import { projectsStore, skillLibrary, subagentLibrary } from '$lib/stores';
 	import ProjectCard from './ProjectCard.svelte';
-	import { SearchBar } from '$lib/components/shared';
+	import { SearchBar, LoadingSpinner, EmptyState } from '$lib/components/shared';
 	import { FolderOpen, Plus } from 'lucide-svelte';
 
 	type Props = {
@@ -14,6 +14,34 @@
 	let { onAddProject, onRemoveProject }: Props = $props();
 
 	let searchQuery = $state('');
+
+	// Batch-loaded project data to avoid N+1 IPC calls from each card
+	let projectSkillsMap = $state<Map<number, ProjectSkill[]>>(new Map());
+	let projectAgentsMap = $state<Map<number, ProjectSubAgent[]>>(new Map());
+
+	// Batch load all project skills/agents when projects change
+	$effect(() => {
+		const projects = projectsStore.projects;
+		if (projects.length === 0) return;
+		Promise.all(
+			projects.map(async (p) => {
+				const [skills, agents] = await Promise.all([
+					skillLibrary.getProjectSkills(p.id),
+					subagentLibrary.getProjectSubAgents(p.id)
+				]);
+				return { id: p.id, skills, agents };
+			})
+		).then((results) => {
+			const skillsMap = new Map<number, ProjectSkill[]>();
+			const agentsMap = new Map<number, ProjectSubAgent[]>();
+			for (const r of results) {
+				skillsMap.set(r.id, r.skills);
+				agentsMap.set(r.id, r.agents);
+			}
+			projectSkillsMap = skillsMap;
+			projectAgentsMap = agentsMap;
+		});
+	});
 
 	// Filter projects based on search query
 	let filteredProjects = $derived(
@@ -63,36 +91,29 @@
 
 	<!-- Project List -->
 	{#if projectsStore.isLoading}
-		<div class="flex items-center justify-center py-12">
-			<div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
-		</div>
+		<LoadingSpinner />
 	{:else if projectsStore.projects.length === 0}
-		<div class="text-center py-12 card">
-			<FolderOpen class="w-12 h-12 mx-auto text-gray-300 dark:text-gray-600 mb-4" />
-			<h3 class="text-lg font-medium text-gray-900 dark:text-white">No projects added</h3>
-			<p class="text-gray-500 dark:text-gray-400 mt-1 mb-4">
-				Add a project folder to start managing MCPs
-			</p>
-			{#if onAddProject}
-				<button onclick={onAddProject} class="btn btn-primary">
-					<Plus class="w-4 h-4 mr-2" />
-					Add Your First Project
-				</button>
-			{/if}
+		<div class="card">
+			<EmptyState icon={FolderOpen} title="No projects added" description="Add a project folder to start managing MCPs">
+				{#if onAddProject}
+					<button onclick={onAddProject} class="btn btn-primary">
+						<Plus class="w-4 h-4 mr-2" />
+						Add Your First Project
+					</button>
+				{/if}
+			</EmptyState>
 		</div>
 	{:else if filteredProjects.length === 0}
-		<div class="text-center py-12 card">
-			<FolderOpen class="w-12 h-12 mx-auto text-gray-300 dark:text-gray-600 mb-4" />
-			<h3 class="text-lg font-medium text-gray-900 dark:text-white">No projects found</h3>
-			<p class="text-gray-500 dark:text-gray-400 mt-1">
-				No projects match "{searchQuery}"
-			</p>
+		<div class="card">
+			<EmptyState icon={FolderOpen} title="No projects found" description='No projects match "{searchQuery}"' />
 		</div>
 	{:else}
 		<div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
 			{#each filteredProjects as project (project.id)}
 				<ProjectCard
 					{project}
+					preloadedSkills={projectSkillsMap.get(project.id)}
+					preloadedAgents={projectAgentsMap.get(project.id)}
 					onRemove={onRemoveProject}
 					onClick={() => handleProjectClick(project)}
 					onFavoriteToggle={handleFavoriteToggle}

@@ -36,7 +36,7 @@
 
 @layer components {
 	.btn {
-		@apply inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none;
+		@apply inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50 disabled:pointer-events-none;
 	}
 
 	.btn-primary {
@@ -57,6 +57,38 @@
 
 	.card {
 		@apply rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800;
+		contain: layout style;
+	}
+}
+
+/* Skip to content */
+.skip-to-content {
+	@apply absolute -top-10 left-4 z-[100] bg-primary-600 text-white px-4 py-2 rounded-lg text-sm font-medium;
+	transition: top 0.2s;
+}
+
+.skip-to-content:focus {
+	top: 1rem;
+}
+
+/* Global focus-visible baseline */
+a:focus-visible,
+button:focus-visible,
+[tabindex="0"]:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+	@apply outline-none ring-2 ring-primary-500 ring-offset-2 ring-offset-white dark:ring-offset-gray-900;
+}
+
+/* Respect reduced motion globally */
+@media (prefers-reduced-motion: reduce) {
+	*,
+	*::before,
+	*::after {
+		animation-duration: 0.01ms !important;
+		animation-iteration-count: 1 !important;
+		transition-duration: 0.01ms !important;
+		scroll-behavior: auto !important;
 	}
 }
 

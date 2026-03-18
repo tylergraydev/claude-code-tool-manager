@@ -404,4 +404,104 @@ mod tests {
         assert!(json.get("hooks").is_some());
         assert!(json["hooks"].get("Stop").is_some());
     }
+
+    // =========================================================================
+    // Additional coverage
+    // =========================================================================
+
+    #[test]
+    fn test_write_project_hooks_empty_removes_hooks_key() {
+        let dir = tempfile::tempdir().unwrap();
+        let project_path = dir.path();
+        let claude_dir = project_path.join(".claude");
+        std::fs::create_dir_all(&claude_dir).unwrap();
+        let settings_path = claude_dir.join("settings.local.json");
+        std::fs::write(&settings_path, r#"{"hooks":{"Stop":[]},"other":"val"}"#).unwrap();
+
+        let hooks: Vec<Hook> = vec![];
+        write_project_hooks(project_path, &hooks).unwrap();
+
+        let content = std::fs::read_to_string(&settings_path).unwrap();
+        let json: Value = serde_json::from_str(&content).unwrap();
+        assert!(json.get("hooks").is_none());
+        assert_eq!(json["other"], "val");
+    }
+
+    #[test]
+    fn test_generate_hooks_config_empty_matcher_excluded() {
+        let hooks = vec![Hook {
+            id: 1,
+            name: "empty-matcher".to_string(),
+            description: None,
+            event_type: "PreToolUse".to_string(),
+            matcher: Some("".to_string()), // empty matcher
+            hook_type: "command".to_string(),
+            command: Some("echo test".to_string()),
+            prompt: None,
+            timeout: None,
+            tags: None,
+            source: "manual".to_string(),
+            is_template: false,
+            created_at: "2024-01-01".to_string(),
+            updated_at: "2024-01-01".to_string(),
+        }];
+
+        let config = generate_hooks_config(&hooks);
+        let pre_tool = config.get("PreToolUse").unwrap().as_array().unwrap();
+        // Empty matcher should not be included
+        assert!(pre_tool[0].get("matcher").is_none());
+    }
+
+    #[test]
+    fn test_generate_hooks_config_unknown_hook_type() {
+        let hooks = vec![Hook {
+            id: 1,
+            name: "unknown".to_string(),
+            description: None,
+            event_type: "PreToolUse".to_string(),
+            matcher: None,
+            hook_type: "unknown_type".to_string(),
+            command: None,
+            prompt: None,
+            timeout: None,
+            tags: None,
+            source: "manual".to_string(),
+            is_template: false,
+            created_at: "2024-01-01".to_string(),
+            updated_at: "2024-01-01".to_string(),
+        }];
+
+        let config = generate_hooks_config(&hooks);
+        let pre_tool = config.get("PreToolUse").unwrap().as_array().unwrap();
+        let hook_actions = pre_tool[0].get("hooks").unwrap().as_array().unwrap();
+        assert_eq!(hook_actions[0]["type"], "unknown_type");
+        // Should not have command or prompt
+        assert!(hook_actions[0].get("command").is_none());
+        assert!(hook_actions[0].get("prompt").is_none());
+    }
+
+    #[test]
+    fn test_read_settings_file_nonexistent() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("nonexistent.json");
+        let val = read_settings_file(&path).unwrap();
+        assert_eq!(val, json!({}));
+    }
+
+    #[test]
+    fn test_read_settings_file_invalid_json() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("bad.json");
+        std::fs::write(&path, "not valid json").unwrap();
+        let val = read_settings_file(&path).unwrap();
+        assert_eq!(val, json!({}));
+    }
+
+    #[test]
+    fn test_write_settings_file_creates_parents() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("sub").join("deep").join("settings.json");
+        write_settings_file(&path, &json!({"ok": true})).unwrap();
+        assert!(path.exists());
+    }
 }

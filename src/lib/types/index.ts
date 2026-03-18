@@ -1,4 +1,5 @@
 export * from './command';
+export * from './container';
 export * from './gateway';
 export * from './hook';
 export * from './mcp';

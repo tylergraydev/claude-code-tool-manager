@@ -1,5 +1,12 @@
 import '@testing-library/jest-dom/vitest';
-import { vi } from 'vitest';
+import { vi, afterEach } from 'vitest';
+import { cleanup } from '@testing-library/svelte/pure';
+
+// Cleanup DOM after each test (using pure import to avoid auto-cleanup's
+// async act() which can hang with Svelte 5 $effect / legacy components)
+afterEach(() => {
+	cleanup();
+});
 
 // Mock Tauri API
 vi.mock('@tauri-apps/api/core', () => ({

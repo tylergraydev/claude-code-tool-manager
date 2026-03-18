@@ -24,87 +24,14 @@ pub fn add_repo(
     request: CreateRepoRequest,
 ) -> Result<Repo, String> {
     let db = db.lock().map_err(|e| e.to_string())?;
-
-    let (owner, repo) =
-        parse_github_url(&request.github_url).ok_or_else(|| "Invalid GitHub URL".to_string())?;
-
-    let name = format!("{}/{}", owner, repo);
-
-    db.conn()
-        .execute(
-            r#"INSERT INTO repos (name, owner, repo, repo_type, content_type, github_url)
-               VALUES (?, ?, ?, ?, ?, ?)"#,
-            params![
-                name,
-                owner,
-                repo,
-                request.repo_type,
-                request.content_type,
-                request.github_url
-            ],
-        )
-        .map_err(|e| e.to_string())?;
-
-    let id = db.conn().last_insert_rowid();
-
-    // Fetch and return the created repo
-    let created_repo = db
-        .conn()
-        .query_row(
-            r#"SELECT id, name, owner, repo, repo_type, content_type, github_url, description,
-                      is_default, is_enabled, last_fetched_at, etag, created_at, updated_at
-               FROM repos WHERE id = ?"#,
-            params![id],
-            |row| {
-                Ok(Repo {
-                    id: row.get(0)?,
-                    name: row.get(1)?,
-                    owner: row.get(2)?,
-                    repo: row.get(3)?,
-                    repo_type: row.get(4)?,
-                    content_type: row.get(5)?,
-                    github_url: row.get(6)?,
-                    description: row.get(7)?,
-                    is_default: row.get::<_, i32>(8)? != 0,
-                    is_enabled: row.get::<_, i32>(9)? != 0,
-                    last_fetched_at: row.get(10)?,
-                    etag: row.get(11)?,
-                    created_at: row.get(12)?,
-                    updated_at: row.get(13)?,
-                })
-            },
-        )
-        .map_err(|e| e.to_string())?;
-
-    Ok(created_repo)
+    add_repo_impl(&db, &request)
 }
 
 /// Remove a repository (only non-default repos can be removed)
 #[tauri::command]
 pub fn remove_repo(db: State<'_, Arc<Mutex<Database>>>, id: i64) -> Result<(), String> {
     let db = db.lock().map_err(|e| e.to_string())?;
-
-    // Check if it's a default repo
-    let is_default: bool = db
-        .conn()
-        .query_row(
-            "SELECT is_default FROM repos WHERE id = ?",
-            params![id],
-            |row| row.get::<_, i32>(0).map(|v| v != 0),
-        )
-        .map_err(|e| e.to_string())?;
-
-    if is_default {
-        return Err(
-            "Cannot remove default repositories. You can disable them instead.".to_string(),
-        );
-    }
-
-    db.conn()
-        .execute("DELETE FROM repos WHERE id = ?", params![id])
-        .map_err(|e| e.to_string())?;
-
-    Ok(())
+    remove_repo_impl(&db, id)
 }
 
 /// Toggle repository enabled status
@@ -115,15 +42,7 @@ pub fn toggle_repo(
     enabled: bool,
 ) -> Result<(), String> {
     let db = db.lock().map_err(|e| e.to_string())?;
-
-    db.conn()
-        .execute(
-            "UPDATE repos SET is_enabled = ?, updated_at = ? WHERE id = ?",
-            params![enabled as i32, Utc::now().to_rfc3339(), id],
-        )
-        .map_err(|e| e.to_string())?;
-
-    Ok(())
+    toggle_repo_impl(&db, id, enabled)
 }
 
 /// Get items from a specific repository
@@ -246,14 +165,7 @@ pub async fn sync_all_repos(db: State<'_, Arc<Mutex<Database>>>) -> Result<SyncR
 
 /// Fetch raw content from a GitHub URL (converts blob URLs to raw URLs)
 async fn fetch_content_from_url(url: &str) -> Result<String, String> {
-    // Convert GitHub blob URLs to raw URLs
-    // https://github.com/owner/repo/blob/main/path -> https://raw.githubusercontent.com/owner/repo/main/path
-    let raw_url = if url.contains("github.com") && url.contains("/blob/") {
-        url.replace("github.com", "raw.githubusercontent.com")
-            .replace("/blob/", "/")
-    } else {
-        url.to_string()
-    };
+    let raw_url = convert_to_raw_url(url);
 
     let client = reqwest::Client::new();
     let response = client
@@ -500,9 +412,8 @@ pub fn reset_repos_to_defaults(db: State<'_, Arc<Mutex<Database>>>) -> Result<()
 // Testable helper functions (no Tauri State dependency)
 // ============================================================================
 
-/// Add a repo directly in the database (for testing)
-#[cfg(test)]
-pub fn add_repo_in_db(db: &Database, request: &CreateRepoRequest) -> Result<Repo, String> {
+/// Add a repo in the database
+pub(crate) fn add_repo_impl(db: &Database, request: &CreateRepoRequest) -> Result<Repo, String> {
     let (owner, repo) =
         parse_github_url(&request.github_url).ok_or_else(|| "Invalid GitHub URL".to_string())?;
 
@@ -524,12 +435,11 @@ pub fn add_repo_in_db(db: &Database, request: &CreateRepoRequest) -> Result<Repo
         .map_err(|e| e.to_string())?;
 
     let id = db.conn().last_insert_rowid();
-    get_repo_by_id(db, id)
+    get_repo_impl(db, id)
 }
 
-/// Get a repo by ID directly from the database (for testing)
-#[cfg(test)]
-pub fn get_repo_by_id(db: &Database, id: i64) -> Result<Repo, String> {
+/// Get a repo by ID from the database
+pub(crate) fn get_repo_impl(db: &Database, id: i64) -> Result<Repo, String> {
     db.conn()
         .query_row(
             r#"SELECT id, name, owner, repo, repo_type, content_type, github_url, description,
@@ -558,9 +468,8 @@ pub fn get_repo_by_id(db: &Database, id: i64) -> Result<Repo, String> {
         .map_err(|e| e.to_string())
 }
 
-/// Toggle a repo directly in the database (for testing)
-#[cfg(test)]
-pub fn toggle_repo_in_db(db: &Database, id: i64, enabled: bool) -> Result<(), String> {
+/// Toggle a repo's enabled status in the database
+pub(crate) fn toggle_repo_impl(db: &Database, id: i64, enabled: bool) -> Result<(), String> {
     db.conn()
         .execute(
             "UPDATE repos SET is_enabled = ?, updated_at = ? WHERE id = ?",
@@ -570,9 +479,8 @@ pub fn toggle_repo_in_db(db: &Database, id: i64, enabled: bool) -> Result<(), St
     Ok(())
 }
 
-/// Remove a repo directly in the database (for testing)
-#[cfg(test)]
-pub fn remove_repo_in_db(db: &Database, id: i64) -> Result<(), String> {
+/// Remove a repo from the database (validates non-default)
+pub(crate) fn remove_repo_impl(db: &Database, id: i64) -> Result<(), String> {
     // Check if it's a default repo
     let is_default: bool = db
         .conn()
@@ -596,9 +504,25 @@ pub fn remove_repo_in_db(db: &Database, id: i64) -> Result<(), String> {
     Ok(())
 }
 
-/// Add a repo item directly in the database (for testing)
-#[cfg(test)]
-pub fn add_repo_item_in_db(
+// Convenience aliases (promoted from #[cfg(test)] for cross-module reuse)
+pub(crate) fn add_repo_in_db(db: &Database, request: &CreateRepoRequest) -> Result<Repo, String> {
+    add_repo_impl(db, request)
+}
+
+pub(crate) fn get_repo_by_id(db: &Database, id: i64) -> Result<Repo, String> {
+    get_repo_impl(db, id)
+}
+
+pub(crate) fn toggle_repo_in_db(db: &Database, id: i64, enabled: bool) -> Result<(), String> {
+    toggle_repo_impl(db, id, enabled)
+}
+
+pub(crate) fn remove_repo_in_db(db: &Database, id: i64) -> Result<(), String> {
+    remove_repo_impl(db, id)
+}
+
+/// Add a repo item directly in the database
+pub(crate) fn add_repo_item_in_db(
     db: &Database,
     repo_id: i64,
     item_type: &str,
@@ -618,9 +542,8 @@ pub fn add_repo_item_in_db(
     Ok(db.conn().last_insert_rowid())
 }
 
-/// Get a repo item by ID directly from the database (for testing)
-#[cfg(test)]
-pub fn get_repo_item_by_id(db: &Database, id: i64) -> Result<RepoItem, String> {
+/// Get a repo item by ID directly from the database
+pub(crate) fn get_repo_item_by_id(db: &Database, id: i64) -> Result<RepoItem, String> {
     db.conn()
         .query_row(
             r#"SELECT id, repo_id, item_type, name, description, source_url, raw_content,
@@ -649,9 +572,8 @@ pub fn get_repo_item_by_id(db: &Database, id: i64) -> Result<RepoItem, String> {
         .map_err(|e| e.to_string())
 }
 
-/// Mark a repo item as imported directly in the database (for testing)
-#[cfg(test)]
-pub fn mark_item_imported_in_db(
+/// Mark a repo item as imported directly in the database
+pub(crate) fn mark_item_imported_in_db(
     db: &Database,
     item_id: i64,
     imported_id: i64,
@@ -665,8 +587,7 @@ pub fn mark_item_imported_in_db(
     Ok(())
 }
 
-/// Convert GitHub blob URL to raw URL (for testing)
-#[cfg(test)]
+/// Convert GitHub blob URL to raw URL
 pub(crate) fn convert_to_raw_url(url: &str) -> String {
     if url.contains("github.com") && url.contains("/blob/") {
         url.replace("github.com", "raw.githubusercontent.com")

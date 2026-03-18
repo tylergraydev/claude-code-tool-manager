@@ -665,4 +665,132 @@ mod tests {
         // Should not error if file does not exist
         remove_mcp_from_cursor_config(&config_path, "nonexistent").unwrap();
     }
+
+    // =========================================================================
+    // Additional coverage tests
+    // =========================================================================
+
+    #[test]
+    fn test_parse_cursor_mcps_unknown_type() {
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("mcp.json");
+
+        fs::write(
+            &config_path,
+            r#"{
+                "mcpServers": {
+                    "mystery": {
+                        "someField": "value"
+                    }
+                }
+            }"#,
+        )
+        .unwrap();
+
+        let mcps = parse_cursor_mcps(&config_path).unwrap();
+        assert_eq!(mcps.len(), 1);
+        assert_eq!(mcps[0].mcp_type, "stdio");
+        assert!(mcps[0].command.is_none());
+    }
+
+    #[test]
+    fn test_parse_cursor_mcps_http_no_headers() {
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("mcp.json");
+
+        fs::write(
+            &config_path,
+            r#"{
+                "mcpServers": {
+                    "bare-http": {
+                        "url": "https://example.com"
+                    }
+                }
+            }"#,
+        )
+        .unwrap();
+
+        let mcps = parse_cursor_mcps(&config_path).unwrap();
+        assert_eq!(mcps[0].mcp_type, "http");
+        assert!(mcps[0].headers.is_none());
+    }
+
+    #[test]
+    fn test_write_cursor_config_unknown_type_skipped() {
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("mcp.json");
+
+        let mcps: Vec<McpTuple> = vec![(
+            "unknown".to_string(),
+            "unknown_type".to_string(),
+            None,
+            None,
+            None,
+            None,
+            None,
+        )];
+
+        write_cursor_config(&config_path, &mcps).unwrap();
+
+        let content = fs::read_to_string(&config_path).unwrap();
+        let config: CursorMcpConfig = serde_json::from_str(&content).unwrap();
+        assert!(config.mcp_servers.is_empty());
+    }
+
+    #[test]
+    fn test_write_cursor_config_sse_type() {
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("mcp.json");
+
+        let mcps: Vec<McpTuple> = vec![(
+            "sse-mcp".to_string(),
+            "sse".to_string(),
+            None,
+            None,
+            Some("https://api.example.com/sse".to_string()),
+            Some(r#"{"X-Key": "val"}"#.to_string()),
+            None,
+        )];
+
+        write_cursor_config(&config_path, &mcps).unwrap();
+
+        let content = fs::read_to_string(&config_path).unwrap();
+        assert!(content.contains("\"url\""));
+        assert!(content.contains("\"headers\""));
+    }
+
+    #[test]
+    fn test_write_cursor_config_invalid_existing_json() {
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("mcp.json");
+
+        fs::write(&config_path, "not valid json").unwrap();
+
+        let mcps: Vec<McpTuple> = vec![];
+        let result = write_cursor_config(&config_path, &mcps);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_write_cursor_config_invalid_args_json_skipped() {
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("mcp.json");
+
+        let mcps: Vec<McpTuple> = vec![(
+            "test".to_string(),
+            "stdio".to_string(),
+            Some("node".to_string()),
+            Some("not valid json".to_string()),
+            None,
+            None,
+            Some("also not valid".to_string()),
+        )];
+
+        write_cursor_config(&config_path, &mcps).unwrap();
+
+        let content = fs::read_to_string(&config_path).unwrap();
+        assert!(content.contains("\"command\": \"node\""));
+        // Invalid args/env should be silently skipped
+        assert!(!content.contains("\"args\""));
+    }
 }

@@ -496,6 +496,224 @@ impl GatewayBackendManager {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::services::mcp_client::McpServerInfo;
+
+    /// Helper to create a test Mcp struct
+    fn make_test_mcp(id: i64, name: &str, mcp_type: &str) -> Mcp {
+        Mcp {
+            id,
+            name: name.to_string(),
+            description: Some(format!("Test MCP {}", name)),
+            mcp_type: mcp_type.to_string(),
+            command: Some("echo".to_string()),
+            args: Some(vec!["hello".to_string()]),
+            url: None,
+            headers: None,
+            env: None,
+            icon: None,
+            tags: None,
+            source: "library".to_string(),
+            source_path: None,
+            is_enabled_global: true,
+            is_favorite: false,
+            created_at: "2024-01-01".to_string(),
+            updated_at: "2024-01-01".to_string(),
+        }
+    }
+
+    /// Helper to create an McpTool
+    fn make_test_tool(name: &str, desc: Option<&str>) -> McpTool {
+        McpTool {
+            name: name.to_string(),
+            description: desc.map(|s| s.to_string()),
+            input_schema: None,
+        }
+    }
+
+    // ===== BackendConnection tests =====
+
+    #[test]
+    fn test_backend_connection_new() {
+        let mcp = make_test_mcp(1, "test-server", "stdio");
+        let conn = BackendConnection::new(mcp.clone());
+
+        assert_eq!(conn.mcp.id, 1);
+        assert_eq!(conn.mcp.name, "test-server");
+        assert_eq!(conn.status, BackendStatus::Disconnected);
+        assert!(conn.client.is_none());
+        assert!(conn.tools.is_empty());
+        assert!(conn.server_info.is_none());
+        assert_eq!(conn.restart_count, 0);
+    }
+
+    #[test]
+    fn test_backend_connection_to_info_disconnected() {
+        let mcp = make_test_mcp(42, "my-mcp", "stdio");
+        let conn = BackendConnection::new(mcp);
+        let info = conn.to_info();
+
+        assert_eq!(info.mcp_id, 42);
+        assert_eq!(info.mcp_name, "my-mcp");
+        assert_eq!(info.mcp_type, "stdio");
+        assert_eq!(info.status, BackendStatus::Disconnected);
+        assert_eq!(info.tool_count, 0);
+        assert!(info.server_info.is_none());
+        assert!(info.error_message.is_none());
+        assert_eq!(info.restart_count, 0);
+    }
+
+    #[test]
+    fn test_backend_connection_to_info_failed() {
+        let mcp = make_test_mcp(1, "broken", "stdio");
+        let mut conn = BackendConnection::new(mcp);
+        conn.status = BackendStatus::Failed("connection refused".to_string());
+        conn.restart_count = 3;
+
+        let info = conn.to_info();
+        assert_eq!(info.status, BackendStatus::Failed("connection refused".to_string()));
+        assert_eq!(info.error_message, Some("connection refused".to_string()));
+        assert_eq!(info.restart_count, 3);
+    }
+
+    #[test]
+    fn test_backend_connection_to_info_connected_with_tools() {
+        let mcp = make_test_mcp(5, "toolbox", "stdio");
+        let mut conn = BackendConnection::new(mcp);
+        conn.status = BackendStatus::Connected;
+        conn.tools = vec![
+            make_test_tool("read", Some("Read a file")),
+            make_test_tool("write", Some("Write a file")),
+        ];
+        conn.server_info = Some(McpServerInfo {
+            name: "toolbox".to_string(),
+            version: Some("1.0.0".to_string()),
+        });
+
+        let info = conn.to_info();
+        assert_eq!(info.tool_count, 2);
+        assert!(info.server_info.is_some());
+        assert_eq!(info.server_info.unwrap().version, Some("1.0.0".to_string()));
+        assert!(info.error_message.is_none());
+    }
+
+    #[test]
+    fn test_backend_connection_to_info_non_failed_statuses_have_no_error() {
+        for status in [
+            BackendStatus::Connecting,
+            BackendStatus::Connected,
+            BackendStatus::Disconnected,
+            BackendStatus::Restarting,
+        ] {
+            let mcp = make_test_mcp(1, "test", "stdio");
+            let mut conn = BackendConnection::new(mcp);
+            conn.status = status;
+            let info = conn.to_info();
+            assert!(info.error_message.is_none(), "Status {:?} should not have error_message", info.status);
+        }
+    }
+
+    // ===== BackendStatus tests =====
+
+    #[test]
+    fn test_backend_status_serialize_deserialize() {
+        let cases = vec![
+            (BackendStatus::Connecting, r#""connecting"#),
+            (BackendStatus::Connected, r#""connected"#),
+            (BackendStatus::Disconnected, r#""disconnected"#),
+            (BackendStatus::Restarting, r#""restarting"#),
+        ];
+
+        for (status, expected_prefix) in cases {
+            let json = serde_json::to_string(&status).unwrap();
+            assert!(json.starts_with(expected_prefix), "Serialized {:?} = {}", status, json);
+            let round_tripped: BackendStatus = serde_json::from_str(&json).unwrap();
+            assert_eq!(round_tripped, status);
+        }
+    }
+
+    #[test]
+    fn test_backend_status_failed_serialize_roundtrip() {
+        let status = BackendStatus::Failed("timeout".to_string());
+        let json = serde_json::to_string(&status).unwrap();
+        assert!(json.contains("timeout"));
+        let round_tripped: BackendStatus = serde_json::from_str(&json).unwrap();
+        assert_eq!(round_tripped, BackendStatus::Failed("timeout".to_string()));
+    }
+
+    #[test]
+    fn test_backend_status_equality() {
+        assert_eq!(BackendStatus::Connected, BackendStatus::Connected);
+        assert_ne!(BackendStatus::Connected, BackendStatus::Disconnected);
+        assert_ne!(
+            BackendStatus::Failed("a".to_string()),
+            BackendStatus::Failed("b".to_string())
+        );
+    }
+
+    // ===== AvailableMcp tests =====
+
+    #[test]
+    fn test_available_mcp_serialize_deserialize() {
+        let mcp = AvailableMcp {
+            id: 10,
+            name: "test-mcp".to_string(),
+            description: Some("A test MCP".to_string()),
+            mcp_type: "stdio".to_string(),
+            status: BackendStatus::Disconnected,
+        };
+
+        let json = serde_json::to_string(&mcp).unwrap();
+        assert!(json.contains("test-mcp"));
+        assert!(json.contains("mcpType")); // camelCase
+
+        let parsed: AvailableMcp = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.id, 10);
+        assert_eq!(parsed.name, "test-mcp");
+        assert_eq!(parsed.description, Some("A test MCP".to_string()));
+    }
+
+    #[test]
+    fn test_available_mcp_with_none_description() {
+        let mcp = AvailableMcp {
+            id: 1,
+            name: "minimal".to_string(),
+            description: None,
+            mcp_type: "sse".to_string(),
+            status: BackendStatus::Connected,
+        };
+        let json = serde_json::to_string(&mcp).unwrap();
+        let parsed: AvailableMcp = serde_json::from_str(&json).unwrap();
+        assert!(parsed.description.is_none());
+    }
+
+    // ===== BackendInfo tests =====
+
+    #[test]
+    fn test_backend_info_serialize_deserialize() {
+        let info = BackendInfo {
+            mcp_id: 1,
+            mcp_name: "server".to_string(),
+            mcp_type: "stdio".to_string(),
+            status: BackendStatus::Connected,
+            tool_count: 5,
+            server_info: Some(McpServerInfo {
+                name: "server".to_string(),
+                version: Some("2.0".to_string()),
+            }),
+            error_message: None,
+            restart_count: 0,
+        };
+
+        let json = serde_json::to_string(&info).unwrap();
+        assert!(json.contains("mcpId")); // camelCase
+        assert!(json.contains("toolCount"));
+
+        let parsed: BackendInfo = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.mcp_id, 1);
+        assert_eq!(parsed.tool_count, 5);
+    }
+
+    // ===== namespace_tool tests =====
 
     #[test]
     fn test_namespace_tool() {
@@ -511,5 +729,343 @@ mod tests {
             GatewayBackendManager::namespace_tool("MCP with spaces", "tool"),
             "MCP_with_spaces__tool"
         );
+    }
+
+    #[test]
+    fn test_namespace_tool_special_chars() {
+        // Dots, slashes, etc. become underscores
+        assert_eq!(
+            GatewayBackendManager::namespace_tool("my.mcp/v2", "run"),
+            "my_mcp_v2__run"
+        );
+        // Underscores and hyphens are preserved
+        assert_eq!(
+            GatewayBackendManager::namespace_tool("my_mcp-name", "tool"),
+            "my_mcp-name__tool"
+        );
+    }
+
+    #[test]
+    fn test_namespace_tool_empty_names() {
+        assert_eq!(
+            GatewayBackendManager::namespace_tool("", "tool"),
+            "__tool"
+        );
+        assert_eq!(
+            GatewayBackendManager::namespace_tool("mcp", ""),
+            "mcp__"
+        );
+    }
+
+    // ===== GatewayBackendManager tests =====
+
+    fn make_test_manager() -> GatewayBackendManager {
+        let db = Database::in_memory().unwrap();
+        let db_arc = Arc::new(Mutex::new(db));
+        GatewayBackendManager::new(db_arc)
+    }
+
+    #[test]
+    fn test_manager_new_is_empty() {
+        let manager = make_test_manager();
+        assert!(manager.get_available_mcps().is_empty());
+        assert!(manager.get_backends_info().is_empty());
+        assert_eq!(manager.tool_count(), 0);
+        assert!(manager.get_tools().is_empty());
+    }
+
+    #[test]
+    fn test_manager_get_available_mcps_empty() {
+        let manager = make_test_manager();
+        let mcps = manager.get_available_mcps();
+        assert!(mcps.is_empty());
+    }
+
+    #[test]
+    fn test_manager_get_available_mcps_reflects_backend_status() {
+        let mut manager = make_test_manager();
+
+        // Add an available MCP
+        manager.available_mcps.push(AvailableMcp {
+            id: 1,
+            name: "test-mcp".to_string(),
+            description: None,
+            mcp_type: "stdio".to_string(),
+            status: BackendStatus::Disconnected,
+        });
+
+        // Without a backend, status should be Disconnected
+        let mcps = manager.get_available_mcps();
+        assert_eq!(mcps.len(), 1);
+        assert_eq!(mcps[0].status, BackendStatus::Disconnected);
+
+        // Add a connected backend for this MCP
+        let mcp = make_test_mcp(1, "test-mcp", "stdio");
+        let mut conn = BackendConnection::new(mcp);
+        conn.status = BackendStatus::Connected;
+        manager.backends.insert(1, conn);
+
+        let mcps = manager.get_available_mcps();
+        assert_eq!(mcps[0].status, BackendStatus::Connected);
+    }
+
+    #[test]
+    fn test_manager_get_backends_info() {
+        let mut manager = make_test_manager();
+
+        let mcp1 = make_test_mcp(1, "server-a", "stdio");
+        let mut conn1 = BackendConnection::new(mcp1);
+        conn1.status = BackendStatus::Connected;
+        conn1.tools = vec![make_test_tool("tool1", None)];
+
+        let mcp2 = make_test_mcp(2, "server-b", "stdio");
+        let mut conn2 = BackendConnection::new(mcp2);
+        conn2.status = BackendStatus::Failed("err".to_string());
+
+        manager.backends.insert(1, conn1);
+        manager.backends.insert(2, conn2);
+
+        let infos = manager.get_backends_info();
+        assert_eq!(infos.len(), 2);
+    }
+
+    #[test]
+    fn test_manager_tool_count_empty() {
+        let manager = make_test_manager();
+        assert_eq!(manager.tool_count(), 0);
+    }
+
+    #[test]
+    fn test_manager_build_tool_index_and_get_tools() {
+        let mut manager = make_test_manager();
+
+        // Add a connected backend with tools
+        let mcp = make_test_mcp(1, "fs", "stdio");
+        let mut conn = BackendConnection::new(mcp);
+        conn.status = BackendStatus::Connected;
+        conn.tools = vec![
+            make_test_tool("read_file", Some("Read a file")),
+            make_test_tool("write_file", None),
+        ];
+        manager.backends.insert(1, conn);
+
+        // Build the tool index
+        manager.build_tool_index();
+
+        assert_eq!(manager.tool_count(), 2);
+
+        let tools = manager.get_tools();
+        assert_eq!(tools.len(), 2);
+
+        // Check namespaced names
+        let names: Vec<&str> = tools.iter().map(|t| t.name.as_str()).collect();
+        assert!(names.contains(&"fs__read_file"));
+        assert!(names.contains(&"fs__write_file"));
+
+        // Check description prepend
+        let read_tool = tools.iter().find(|t| t.name == "fs__read_file").unwrap();
+        assert_eq!(read_tool.description, Some("[fs] Read a file".to_string()));
+
+        let write_tool = tools.iter().find(|t| t.name == "fs__write_file").unwrap();
+        assert_eq!(write_tool.description, Some("[fs]".to_string()));
+    }
+
+    #[test]
+    fn test_manager_build_tool_index_skips_disconnected() {
+        let mut manager = make_test_manager();
+
+        let mcp = make_test_mcp(1, "offline", "stdio");
+        let mut conn = BackendConnection::new(mcp);
+        conn.status = BackendStatus::Disconnected;
+        conn.tools = vec![make_test_tool("tool1", None)];
+        manager.backends.insert(1, conn);
+
+        manager.build_tool_index();
+        assert_eq!(manager.tool_count(), 0);
+    }
+
+    #[test]
+    fn test_manager_build_tool_index_skips_failed() {
+        let mut manager = make_test_manager();
+
+        let mcp = make_test_mcp(1, "broken", "stdio");
+        let mut conn = BackendConnection::new(mcp);
+        conn.status = BackendStatus::Failed("error".to_string());
+        conn.tools = vec![make_test_tool("tool1", None)];
+        manager.backends.insert(1, conn);
+
+        manager.build_tool_index();
+        assert_eq!(manager.tool_count(), 0);
+    }
+
+    #[test]
+    fn test_manager_build_tool_index_multiple_backends() {
+        let mut manager = make_test_manager();
+
+        // Backend 1: connected with 2 tools
+        let mcp1 = make_test_mcp(1, "fs", "stdio");
+        let mut conn1 = BackendConnection::new(mcp1);
+        conn1.status = BackendStatus::Connected;
+        conn1.tools = vec![
+            make_test_tool("read", None),
+            make_test_tool("write", None),
+        ];
+        manager.backends.insert(1, conn1);
+
+        // Backend 2: connected with 1 tool
+        let mcp2 = make_test_mcp(2, "db", "stdio");
+        let mut conn2 = BackendConnection::new(mcp2);
+        conn2.status = BackendStatus::Connected;
+        conn2.tools = vec![make_test_tool("query", Some("Run a query"))];
+        manager.backends.insert(2, conn2);
+
+        manager.build_tool_index();
+        assert_eq!(manager.tool_count(), 3);
+
+        let tools = manager.get_tools();
+        let names: Vec<String> = tools.iter().map(|t| t.name.clone()).collect();
+        assert!(names.contains(&"fs__read".to_string()));
+        assert!(names.contains(&"fs__write".to_string()));
+        assert!(names.contains(&"db__query".to_string()));
+    }
+
+    #[test]
+    fn test_manager_get_backend_tools_connected() {
+        let mut manager = make_test_manager();
+
+        let mcp = make_test_mcp(1, "test-server", "stdio");
+        let mut conn = BackendConnection::new(mcp);
+        conn.status = BackendStatus::Connected;
+        conn.tools = vec![make_test_tool("tool_a", None)];
+        manager.backends.insert(1, conn);
+
+        let tools = manager.get_backend_tools("test-server");
+        assert!(tools.is_some());
+        assert_eq!(tools.unwrap().len(), 1);
+    }
+
+    #[test]
+    fn test_manager_get_backend_tools_disconnected() {
+        let mut manager = make_test_manager();
+
+        let mcp = make_test_mcp(1, "test-server", "stdio");
+        let conn = BackendConnection::new(mcp);
+        // status is Disconnected by default
+        manager.backends.insert(1, conn);
+
+        let tools = manager.get_backend_tools("test-server");
+        assert!(tools.is_none());
+    }
+
+    #[test]
+    fn test_manager_get_backend_tools_not_found() {
+        let manager = make_test_manager();
+        let tools = manager.get_backend_tools("nonexistent");
+        assert!(tools.is_none());
+    }
+
+    #[test]
+    fn test_manager_shutdown() {
+        let mut manager = make_test_manager();
+
+        // Add a connected backend with tools in the index
+        let mcp = make_test_mcp(1, "server", "stdio");
+        let mut conn = BackendConnection::new(mcp);
+        conn.status = BackendStatus::Connected;
+        conn.tools = vec![make_test_tool("tool1", None)];
+        manager.backends.insert(1, conn);
+        manager.build_tool_index();
+
+        assert_eq!(manager.tool_count(), 1);
+
+        manager.shutdown();
+
+        // After shutdown, tool_index should be empty and backends disconnected
+        assert_eq!(manager.tool_count(), 0);
+        for backend in manager.backends.values() {
+            assert_eq!(backend.status, BackendStatus::Disconnected);
+            assert!(backend.client.is_none());
+        }
+    }
+
+    #[test]
+    fn test_manager_shutdown_empty() {
+        // Shutting down with no backends should not panic
+        let mut manager = make_test_manager();
+        manager.shutdown();
+        assert_eq!(manager.tool_count(), 0);
+    }
+
+    #[test]
+    fn test_manager_build_tool_index_clears_old() {
+        let mut manager = make_test_manager();
+
+        // Add connected backend
+        let mcp = make_test_mcp(1, "a", "stdio");
+        let mut conn = BackendConnection::new(mcp);
+        conn.status = BackendStatus::Connected;
+        conn.tools = vec![make_test_tool("t1", None), make_test_tool("t2", None)];
+        manager.backends.insert(1, conn);
+        manager.build_tool_index();
+        assert_eq!(manager.tool_count(), 2);
+
+        // Now disconnect and rebuild
+        manager.backends.get_mut(&1).unwrap().status = BackendStatus::Disconnected;
+        manager.build_tool_index();
+        assert_eq!(manager.tool_count(), 0);
+    }
+
+    #[test]
+    fn test_manager_call_tool_on_mcp_not_connected() {
+        let mut manager = make_test_manager();
+
+        let result = manager.call_tool_on_mcp("nonexistent", "tool", serde_json::json!({}));
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("not connected"));
+    }
+
+    #[test]
+    fn test_manager_call_tool_on_mcp_disconnected_status() {
+        let mut manager = make_test_manager();
+
+        let mcp = make_test_mcp(1, "my-server", "stdio");
+        let conn = BackendConnection::new(mcp);
+        manager.backends.insert(1, conn);
+
+        let result = manager.call_tool_on_mcp("my-server", "tool", serde_json::json!({}));
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("not connected"));
+    }
+
+    #[test]
+    fn test_manager_call_tool_on_mcp_connected_no_client() {
+        let mut manager = make_test_manager();
+
+        let mcp = make_test_mcp(1, "my-server", "stdio");
+        let mut conn = BackendConnection::new(mcp);
+        conn.status = BackendStatus::Connected;
+        // client is None
+        manager.backends.insert(1, conn);
+
+        let result = manager.call_tool_on_mcp("my-server", "tool", serde_json::json!({}));
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("no active client"));
+    }
+
+    #[test]
+    fn test_manager_call_tool_unknown_namespaced() {
+        let mut manager = make_test_manager();
+
+        let result = manager.call_tool("nonexistent__tool", serde_json::json!({}));
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("Unknown tool"));
+    }
+
+    #[test]
+    fn test_manager_load_available_mcps_empty_db() {
+        let mut manager = make_test_manager();
+        let result = manager.load_available_mcps();
+        assert!(result.is_ok());
+        assert!(manager.get_available_mcps().is_empty());
     }
 }

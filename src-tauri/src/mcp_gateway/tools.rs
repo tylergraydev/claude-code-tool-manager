@@ -310,3 +310,111 @@ impl ServerHandler for GatewayServer {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::db::Database;
+    use crate::mcp_gateway::backend::GatewayBackendManager;
+    use std::sync::Mutex;
+
+    fn make_test_gateway_server() -> GatewayServer {
+        let db = Database::in_memory().unwrap();
+        let db_arc = Arc::new(Mutex::new(db));
+        let manager = GatewayBackendManager::new(db_arc);
+        let backend_manager = Arc::new(tokio::sync::Mutex::new(manager));
+        GatewayServer::new(backend_manager)
+    }
+
+    #[test]
+    fn test_gateway_server_new() {
+        let server = make_test_gateway_server();
+        // Just verify it constructs without panicking
+        assert!(format!("{:?}", server).contains("GatewayServer"));
+    }
+
+    #[test]
+    fn test_gateway_server_clone() {
+        let server = make_test_gateway_server();
+        let cloned = server.clone();
+        // Both should have the same debug representation
+        assert_eq!(format!("{:?}", server), format!("{:?}", cloned));
+    }
+
+    #[test]
+    fn test_gateway_server_debug() {
+        let server = make_test_gateway_server();
+        let debug_str = format!("{:?}", server);
+        assert_eq!(debug_str, "GatewayServer");
+    }
+
+    #[test]
+    fn test_gateway_server_get_info() {
+        let server = make_test_gateway_server();
+        let info = server.get_info();
+
+        assert!(info.instructions.is_some());
+        let instructions = info.instructions.unwrap();
+        assert!(instructions.contains("list_available_mcps"));
+        assert!(instructions.contains("load_mcp_tools"));
+        assert!(instructions.contains("call_mcp_tool"));
+        assert!(instructions.contains("lazy-loading"));
+    }
+
+    #[test]
+    fn test_gateway_server_get_info_has_tool_capabilities() {
+        let server = make_test_gateway_server();
+        let info = server.get_info();
+        // Capabilities should have tools enabled
+        assert!(info.capabilities.tools.is_some());
+    }
+
+    // ===== Internal struct tests =====
+
+    #[test]
+    fn test_load_mcp_tools_args_deserialize() {
+        let json = r#"{"mcp_name": "test-server"}"#;
+        let args: LoadMcpToolsArgs = serde_json::from_str(json).unwrap();
+        assert_eq!(args.mcp_name, "test-server");
+    }
+
+    #[test]
+    fn test_call_mcp_tool_args_deserialize() {
+        let json = r#"{"mcp_name": "server", "tool_name": "read", "arguments": {"path": "/tmp"}}"#;
+        let args: CallMcpToolArgs = serde_json::from_str(json).unwrap();
+        assert_eq!(args.mcp_name, "server");
+        assert_eq!(args.tool_name, "read");
+        assert_eq!(args.arguments, json!({"path": "/tmp"}));
+    }
+
+    #[test]
+    fn test_call_mcp_tool_args_default_arguments() {
+        let json = r#"{"mcp_name": "server", "tool_name": "ping"}"#;
+        let args: CallMcpToolArgs = serde_json::from_str(json).unwrap();
+        assert_eq!(args.arguments, Value::Null);
+    }
+
+    #[test]
+    fn test_tool_info_serialize() {
+        let info = ToolInfo {
+            name: "read_file".to_string(),
+            description: Some("Read a file".to_string()),
+            input_schema: Some(json!({"type": "object"})),
+        };
+        let json = serde_json::to_string(&info).unwrap();
+        assert!(json.contains("read_file"));
+        assert!(json.contains("Read a file"));
+        assert!(json.contains("input_schema"));
+    }
+
+    #[test]
+    fn test_tool_info_serialize_skip_none_schema() {
+        let info = ToolInfo {
+            name: "ping".to_string(),
+            description: None,
+            input_schema: None,
+        };
+        let json = serde_json::to_string(&info).unwrap();
+        assert!(!json.contains("input_schema"));
+    }
+}

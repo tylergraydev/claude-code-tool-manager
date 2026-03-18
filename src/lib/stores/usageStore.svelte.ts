@@ -7,6 +7,7 @@ class UsageStoreState {
 	isLoading = $state(false);
 	error = $state<string | null>(null);
 	dateRange = $state<DateRangeFilter>('30d');
+	private pollInterval: ReturnType<typeof setInterval> | null = null;
 
 	stats = $derived(this.data?.stats ?? null);
 	exists = $derived(this.data?.exists ?? false);
@@ -88,6 +89,18 @@ class UsageStoreState {
 			console.error('[usageStore] Failed to load usage stats:', e);
 		} finally {
 			this.isLoading = false;
+		}
+	}
+
+	startPolling(intervalMs: number) {
+		this.stopPolling();
+		this.pollInterval = setInterval(() => this.load(), intervalMs);
+	}
+
+	stopPolling() {
+		if (this.pollInterval) {
+			clearInterval(this.pollInterval);
+			this.pollInterval = null;
 		}
 	}
 

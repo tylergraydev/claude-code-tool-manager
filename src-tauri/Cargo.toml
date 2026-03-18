@@ -40,6 +40,9 @@ walkdir = "2"
 # SQLite
 rusqlite = { version = "0.38", features = ["bundled"] }
 
+# Docker
+bollard = "0.18"
+
 # Time
 chrono = { version = "0.4", features = ["serde"] }
 

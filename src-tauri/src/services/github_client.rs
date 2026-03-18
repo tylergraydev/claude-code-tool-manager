@@ -870,4 +870,125 @@ mod tests {
         assert_eq!(client.api_base, "https://api.github.com");
         assert_eq!(client.raw_base, "https://raw.githubusercontent.com");
     }
+
+    // =========================================================================
+    // decode_content tests
+    // =========================================================================
+
+    #[test]
+    fn test_decode_content_base64() {
+        let client = GitHubClient::new(None);
+        let file_content = FileContent {
+            name: "test.md".to_string(),
+            path: "test.md".to_string(),
+            sha: "abc".to_string(),
+            size: 12,
+            content: Some(STANDARD.encode("Hello World!").to_string()),
+            encoding: Some("base64".to_string()),
+        };
+
+        let decoded = client.decode_content(&file_content).unwrap();
+        assert_eq!(decoded, "Hello World!");
+    }
+
+    #[test]
+    fn test_decode_content_base64_with_newlines() {
+        let client = GitHubClient::new(None);
+        let base64_with_newlines = STANDARD.encode("Hello World!");
+        let with_newlines = format!("{}\n{}", &base64_with_newlines[..4], &base64_with_newlines[4..]);
+
+        let file_content = FileContent {
+            name: "test.md".to_string(),
+            path: "test.md".to_string(),
+            sha: "abc".to_string(),
+            size: 12,
+            content: Some(with_newlines),
+            encoding: Some("base64".to_string()),
+        };
+
+        let decoded = client.decode_content(&file_content).unwrap();
+        assert_eq!(decoded, "Hello World!");
+    }
+
+    #[test]
+    fn test_decode_content_plain() {
+        let client = GitHubClient::new(None);
+        let file_content = FileContent {
+            name: "test.md".to_string(),
+            path: "test.md".to_string(),
+            sha: "abc".to_string(),
+            size: 5,
+            content: Some("plain text".to_string()),
+            encoding: Some("utf-8".to_string()),
+        };
+
+        let decoded = client.decode_content(&file_content).unwrap();
+        assert_eq!(decoded, "plain text");
+    }
+
+    #[test]
+    fn test_decode_content_no_content() {
+        let client = GitHubClient::new(None);
+        let file_content = FileContent {
+            name: "test.md".to_string(),
+            path: "test.md".to_string(),
+            sha: "abc".to_string(),
+            size: 0,
+            content: None,
+            encoding: None,
+        };
+
+        let result = client.decode_content(&file_content);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("No content"));
+    }
+
+    #[test]
+    fn test_build_headers_without_token() {
+        let client = GitHubClient::new(None);
+        let headers = client.build_headers();
+        assert!(headers.get(header::ACCEPT).is_some());
+        assert!(headers.get(header::AUTHORIZATION).is_none());
+    }
+
+    #[test]
+    fn test_build_headers_with_token() {
+        let client = GitHubClient::new(Some("test-token".to_string()));
+        let headers = client.build_headers();
+        assert!(headers.get(header::ACCEPT).is_some());
+        let auth = headers.get(header::AUTHORIZATION).unwrap();
+        assert_eq!(auth.to_str().unwrap(), "Bearer test-token");
+    }
+
+    #[tokio::test]
+    async fn test_get_contents_error() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("GET"))
+            .and(path("/repos/owner/repo/contents/missing"))
+            .respond_with(ResponseTemplate::new(404).set_body_string("Not Found"))
+            .mount(&mock_server)
+            .await;
+
+        let client = GitHubClient::with_base_urls(None, mock_server.uri(), mock_server.uri());
+
+        let result = client.get_contents("owner", "repo", "missing").await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_get_rate_limit_error() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("GET"))
+            .and(path("/rate_limit"))
+            .respond_with(ResponseTemplate::new(403).set_body_string("Forbidden"))
+            .mount(&mock_server)
+            .await;
+
+        let client = GitHubClient::with_base_urls(None, mock_server.uri(), mock_server.uri());
+
+        let result = client.get_rate_limit().await;
+        assert!(result.is_err());
+    }
 }
