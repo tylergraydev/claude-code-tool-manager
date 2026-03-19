@@ -62,3 +62,80 @@ export interface DockerHost {
 	createdAt: string;
 	updatedAt: string;
 }
+
+export interface CreateContainerRequest {
+	name: string;
+	description?: string;
+	containerType: string;
+	dockerHostId?: number;
+	image?: string;
+	dockerfile?: string;
+	devcontainerJson?: string;
+	env?: Record<string, string>;
+	ports?: PortMapping[];
+	volumes?: VolumeMapping[];
+	mounts?: string[];
+	features?: string[];
+	postCreateCommand?: string;
+	postStartCommand?: string;
+	workingDir?: string;
+	templateId?: string;
+	icon?: string;
+	tags?: string[];
+}
+
+export interface CreateDockerHostRequest {
+	name: string;
+	hostType: string;
+	connectionUri?: string;
+	sshKeyPath?: string;
+	tlsCaCert?: string;
+	tlsCert?: string;
+	tlsKey?: string;
+	isDefault?: boolean;
+}
+
+export interface ContainerTemplate {
+	id: string;
+	name: string;
+	description?: string;
+	containerType?: string;
+	image?: string;
+	dockerfile?: string;
+	devcontainerJson?: string;
+	env?: Record<string, string>;
+	ports?: PortMapping[];
+	volumes?: VolumeMapping[];
+	features?: string[];
+	postCreateCommand?: string;
+	postStartCommand?: string;
+	icon?: string;
+	tags?: string[];
+}
+
+export interface ContainerLog {
+	timestamp: string;
+	message: string;
+	stream: string;
+}
+
+export interface ContainerStats {
+	cpuPercent: number;
+	memoryUsageMb: number;
+	memoryLimitMb?: number;
+	networkRxBytes?: number;
+	networkTxBytes?: number;
+	blockReadBytes?: number;
+	blockWriteBytes?: number;
+}
+
+export interface ExecResult {
+	exitCode: number;
+	stdout: string;
+	stderr: string;
+}
+
+export interface ProjectContainer {
+	containerId: number;
+	isDefault: boolean;
+}

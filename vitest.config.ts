@@ -44,7 +44,8 @@ import { resolve } from 'path';
 		conditions: ['browser'],
 		alias: {
 			$lib: resolve('./src/lib'),
-			$app: resolve('./src/tests/mocks/app')
+			$app: resolve('./src/tests/mocks/app'),
+			'lucide-svelte': resolve('./src/tests/mocks/lucide-svelte.ts')
 		}
 	}
 });

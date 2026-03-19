@@ -142,7 +142,10 @@
 
 	async function loadAppSettings() {
 		try {
-			appSettings = await invoke<AppSettings>('get_app_settings');
+			const result = await invoke<AppSettings>('get_app_settings');
+			if (result) {
+				appSettings = result;
+			}
 		} catch (err) {
 			console.error('Failed to load app settings:', err);
 		}

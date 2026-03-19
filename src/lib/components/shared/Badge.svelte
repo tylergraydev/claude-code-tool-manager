@@ -1,14 +1,28 @@
 <script lang="ts">
-	export let variant: 'default' | 'success' | 'warning' | 'error' = 'default';
+	import type { Snippet } from 'svelte';
+
+	type Props = {
+		variant?: 'default' | 'success' | 'warning' | 'error';
+		title?: string;
+		children?: Snippet;
+	};
+
+	let { variant = 'default', title, children }: Props = $props();
 
 	const variantClasses: Record<string, string> = {
-		default: 'bg-muted',
-		success: 'bg-green-500/20 text-green-400',
-		warning: 'bg-yellow-500/20 text-yellow-400',
-		error: 'bg-red-500/20 text-red-400'
+		default: 'bg-gray-100 text-gray-700',
+		success: 'bg-green-100 text-green-700',
+		warning: 'bg-yellow-100 text-yellow-700',
+		error: 'bg-red-100 text-red-700'
 	};
 </script>
 
-<span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium {variantClasses[variant] ?? ''}">
-	<slot />
+<span
+	class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium {variantClasses[variant] ?? ''}"
+	{title}
+	class:cursor-help={!!title}
+>
+	{#if children}
+		{@render children()}
+	{/if}
 </span>

@@ -1,13 +1,27 @@
 <script lang="ts">
-	export let isFavorite: boolean = false;
-	export let onClick: () => void = () => {};
+	import { Star } from 'lucide-svelte';
+
+	type Props = {
+		isFavorite?: boolean;
+		name?: string;
+		onclick?: () => void;
+	};
+
+	let { isFavorite = false, name = '', onclick }: Props = $props();
+
+	const label = $derived(
+		isFavorite
+			? name ? `Remove ${name} from favorites` : 'Remove from favorites'
+			: name ? `Add ${name} to favorites` : 'Add to favorites'
+	);
 </script>
 
 <button
 	class="p-1 hover:text-yellow-500 transition-colors"
 	class:text-yellow-500={isFavorite}
-	on:click|stopPropagation={onClick}
-	title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+	{onclick}
+	title={label}
+	aria-label={label}
 >
-	{isFavorite ? '★' : '☆'}
+	<Star class="w-4 h-4" fill={isFavorite ? 'currentColor' : 'none'} />
 </button>

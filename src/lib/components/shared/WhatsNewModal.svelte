@@ -102,7 +102,7 @@
 			<div class="flex-1 overflow-y-auto p-4">
 				{#if whatsNew.isLoading}
 					<div class="flex items-center justify-center py-8">
-						<Loader2 class="w-8 h-8 text-primary-500 animate-spin" />
+						<div class="w-8 h-8 text-primary-500 animate-spin"><Loader2 class="w-8 h-8" /></div>
 					</div>
 				{:else if whatsNew.release}
 					{#if whatsNew.release.publishedAt}
