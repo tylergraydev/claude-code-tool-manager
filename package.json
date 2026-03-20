@@ -21,7 +21,8 @@
     "coverage:all": "npm run coverage:svelte:text && cd src-tauri && cargo llvm-cov --html --output-dir target/coverage && start ..\\coverage\\index.html && start target\\coverage\\html\\index.html",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
-    "test:all": "npm run test:run && npm run test:e2e"
+    "test:all": "npm run test:run && npm run test:e2e",
+    "prepare": "git config core.hooksPath .githooks"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",
