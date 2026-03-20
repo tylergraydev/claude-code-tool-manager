@@ -3506,13 +3506,11 @@ data: "result":{}}
                 name: "full".to_string(),
                 version: Some("3.0".to_string()),
             },
-            vec![
-                McpTool {
-                    name: "t1".to_string(),
-                    description: None,
-                    input_schema: None,
-                },
-            ],
+            vec![McpTool {
+                name: "t1".to_string(),
+                description: None,
+                input_schema: None,
+            }],
             true,
             true,
             0,
@@ -3734,10 +3732,7 @@ data: "result":{}}
         assert!(!parsed.success);
         assert!(parsed.is_error);
         assert_eq!(parsed.content.len(), 1);
-        assert_eq!(
-            parsed.error,
-            Some("Process exited with code 1".to_string())
-        );
+        assert_eq!(parsed.error, Some("Process exited with code 1".to_string()));
     }
 
     // =========================================================================
@@ -4127,7 +4122,13 @@ data: "result":{}}
     fn test_build_http_request_basic() {
         let client = reqwest::blocking::Client::new();
         let body = r#"{"jsonrpc":"2.0","id":1,"method":"initialize"}"#.to_string();
-        let builder = build_http_request(&client, "http://localhost:8080/mcp", body.clone(), None, None);
+        let builder = build_http_request(
+            &client,
+            "http://localhost:8080/mcp",
+            body.clone(),
+            None,
+            None,
+        );
         let req = builder.build().unwrap();
         assert_eq!(req.method(), "POST");
         assert_eq!(req.url().as_str(), "http://localhost:8080/mcp");
@@ -4154,7 +4155,12 @@ data: "result":{}}
             None,
         );
         let req = builder.build().unwrap();
-        let sid = req.headers().get("mcp-session-id").unwrap().to_str().unwrap();
+        let sid = req
+            .headers()
+            .get("mcp-session-id")
+            .unwrap()
+            .to_str()
+            .unwrap();
         assert_eq!(sid, "session-abc-123");
     }
 
@@ -4173,7 +4179,12 @@ data: "result":{}}
             Some(&custom_headers),
         );
         let req = builder.build().unwrap();
-        let auth = req.headers().get("Authorization").unwrap().to_str().unwrap();
+        let auth = req
+            .headers()
+            .get("Authorization")
+            .unwrap()
+            .to_str()
+            .unwrap();
         assert_eq!(auth, "Bearer token123");
         let custom = req.headers().get("X-Custom").unwrap().to_str().unwrap();
         assert_eq!(custom, "value");
@@ -4194,7 +4205,11 @@ data: "result":{}}
         );
         let req = builder.build().unwrap();
         assert_eq!(
-            req.headers().get("mcp-session-id").unwrap().to_str().unwrap(),
+            req.headers()
+                .get("mcp-session-id")
+                .unwrap()
+                .to_str()
+                .unwrap(),
             "sess-xyz"
         );
         assert_eq!(
@@ -4211,7 +4226,8 @@ data: "result":{}}
     fn test_sse_endpoint_url_absolute_http() {
         let endpoint_url = "http://other-server.com/messages";
         // Absolute URL should be used as-is
-        let result = if endpoint_url.starts_with("http://") || endpoint_url.starts_with("https://") {
+        let result = if endpoint_url.starts_with("http://") || endpoint_url.starts_with("https://")
+        {
             endpoint_url.to_string()
         } else {
             let base_url = reqwest::Url::parse("http://localhost:8080/sse").unwrap();
@@ -4223,7 +4239,8 @@ data: "result":{}}
     #[test]
     fn test_sse_endpoint_url_absolute_https() {
         let endpoint_url = "https://secure.example.com/msg";
-        let result = if endpoint_url.starts_with("http://") || endpoint_url.starts_with("https://") {
+        let result = if endpoint_url.starts_with("http://") || endpoint_url.starts_with("https://")
+        {
             endpoint_url.to_string()
         } else {
             let base_url = reqwest::Url::parse("http://localhost/sse").unwrap();
@@ -4235,7 +4252,8 @@ data: "result":{}}
     #[test]
     fn test_sse_endpoint_url_relative_path() {
         let endpoint_url = "/messages?sessionId=abc";
-        let result = if endpoint_url.starts_with("http://") || endpoint_url.starts_with("https://") {
+        let result = if endpoint_url.starts_with("http://") || endpoint_url.starts_with("https://")
+        {
             endpoint_url.to_string()
         } else {
             let base_url = reqwest::Url::parse("http://localhost:3000/sse").unwrap();
@@ -4247,7 +4265,8 @@ data: "result":{}}
     #[test]
     fn test_sse_endpoint_url_relative_no_leading_slash() {
         let endpoint_url = "messages";
-        let result = if endpoint_url.starts_with("http://") || endpoint_url.starts_with("https://") {
+        let result = if endpoint_url.starts_with("http://") || endpoint_url.starts_with("https://")
+        {
             endpoint_url.to_string()
         } else {
             let base_url = reqwest::Url::parse("http://localhost:3000/api/sse").unwrap();
@@ -4303,16 +4322,16 @@ data: "result":{}}
     #[test]
     fn test_endpoint_json_encoded_string() {
         let data = r#""/messages?sid=123""#;
-        let endpoint_str = serde_json::from_str::<String>(data)
-            .unwrap_or_else(|_| data.to_string());
+        let endpoint_str =
+            serde_json::from_str::<String>(data).unwrap_or_else(|_| data.to_string());
         assert_eq!(endpoint_str, "/messages?sid=123");
     }
 
     #[test]
     fn test_endpoint_raw_string() {
         let data = "/messages?sid=456";
-        let endpoint_str = serde_json::from_str::<String>(data)
-            .unwrap_or_else(|_| data.to_string());
+        let endpoint_str =
+            serde_json::from_str::<String>(data).unwrap_or_else(|_| data.to_string());
         assert_eq!(endpoint_str, "/messages?sid=456");
     }
 
@@ -4331,7 +4350,8 @@ data: "result":{}}
     #[test]
     fn test_parse_sse_response_data_with_colon_in_value() {
         // The data after "data:" may itself contain colons
-        let sse_text = r#"data: {"jsonrpc":"2.0","id":1,"result":{"url":"http://example.com:8080"}}"#;
+        let sse_text =
+            r#"data: {"jsonrpc":"2.0","id":1,"result":{"url":"http://example.com:8080"}}"#;
         let result = parse_sse_response(sse_text).unwrap();
         let res = result.result.unwrap();
         assert_eq!(res["url"], "http://example.com:8080");
@@ -4339,7 +4359,8 @@ data: "result":{}}
 
     #[test]
     fn test_parse_sse_response_with_comments_interspersed() {
-        let sse_text = ": keep-alive\n: heartbeat\ndata: {\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{}}\n";
+        let sse_text =
+            ": keep-alive\n: heartbeat\ndata: {\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{}}\n";
         let result = parse_sse_response(sse_text).unwrap();
         assert!(result.result.is_some());
     }
@@ -4383,7 +4404,10 @@ data: "result":{}}
         assert_eq!(serialized["jsonrpc"], "2.0");
         assert_eq!(serialized["method"], "initialize");
         assert_eq!(serialized["params"]["protocolVersion"], "2024-11-05");
-        assert_eq!(serialized["params"]["clientInfo"]["name"], "claude-code-tool-manager");
+        assert_eq!(
+            serialized["params"]["clientInfo"]["name"],
+            "claude-code-tool-manager"
+        );
         assert!(serialized["params"]["capabilities"].is_object());
     }
 
@@ -4480,7 +4504,8 @@ data: "result":{}}
 
     #[test]
     fn test_json_rpc_error_without_data_field() {
-        let json = r#"{"jsonrpc":"2.0","id":1,"error":{"code":-32601,"message":"Method not found"}}"#;
+        let json =
+            r#"{"jsonrpc":"2.0","id":1,"error":{"code":-32601,"message":"Method not found"}}"#;
         let response: JsonRpcResponse = serde_json::from_str(json).unwrap();
         let error = response.error.unwrap();
         assert_eq!(error.code, -32601);
@@ -4571,7 +4596,11 @@ data: "result":{}}
         let result = StdioMcpClient::parse_tool_result(result_json, 30).unwrap();
         assert_eq!(result.content.len(), 1);
         match &result.content[0] {
-            ToolContent::Resource { uri, mime_type, text } => {
+            ToolContent::Resource {
+                uri,
+                mime_type,
+                text,
+            } => {
                 assert_eq!(uri, "file:///tmp/out.txt");
                 assert_eq!(mime_type, &Some("text/plain".to_string()));
                 assert_eq!(text, &Some("file data".to_string()));
@@ -4615,7 +4644,10 @@ data: "result":{}}
             error: Some(format!("HTTP error: {}", body)),
             execution_time_ms: elapsed,
         };
-        assert_eq!(result.error, Some("HTTP error: Internal Server Error".to_string()));
+        assert_eq!(
+            result.error,
+            Some("HTTP error: Internal Server Error".to_string())
+        );
     }
 
     // =========================================================================
@@ -4629,7 +4661,10 @@ data: "result":{}}
             0,
         );
         assert!(!result.success);
-        assert!(result.error.unwrap().contains("Failed to create async runtime"));
+        assert!(result
+            .error
+            .unwrap()
+            .contains("Failed to create async runtime"));
         assert_eq!(result.response_time_ms, 0);
     }
 
@@ -4656,7 +4691,8 @@ data: "result":{}}
     #[test]
     fn test_mcp_test_result_error_ssl() {
         let result = McpTestResult::error(
-            "SSL/TLS error: certificate verify failed. The server may have an invalid certificate.".to_string(),
+            "SSL/TLS error: certificate verify failed. The server may have an invalid certificate."
+                .to_string(),
             300,
         );
         assert!(!result.success);
@@ -4704,8 +4740,15 @@ data: "result":{}}
 
         let server_info = if let Some(info) = init_result.get("serverInfo") {
             Some(McpServerInfo {
-                name: info.get("name").and_then(|v| v.as_str()).unwrap_or("unknown").to_string(),
-                version: info.get("version").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                name: info
+                    .get("name")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("unknown")
+                    .to_string(),
+                version: info
+                    .get("version")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string()),
             })
         } else {
             None
@@ -4730,8 +4773,15 @@ data: "result":{}}
 
         let server_info = if let Some(info) = init_result.get("serverInfo") {
             Some(McpServerInfo {
-                name: info.get("name").and_then(|v| v.as_str()).unwrap_or("unknown").to_string(),
-                version: info.get("version").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                name: info
+                    .get("name")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("unknown")
+                    .to_string(),
+                version: info
+                    .get("version")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string()),
             })
         } else {
             None
@@ -4747,8 +4797,15 @@ data: "result":{}}
         });
 
         let info = init_result.get("serverInfo").unwrap();
-        let name = info.get("name").and_then(|v| v.as_str()).unwrap_or("unknown").to_string();
-        let version = info.get("version").and_then(|v| v.as_str()).map(|s| s.to_string());
+        let name = info
+            .get("name")
+            .and_then(|v| v.as_str())
+            .unwrap_or("unknown")
+            .to_string();
+        let version = info
+            .get("version")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string());
         assert_eq!(name, "unknown");
         assert!(version.is_none());
     }
@@ -4937,7 +4994,11 @@ data: "result":{}}
             _ => panic!("Expected Image"),
         }
         match &contents[2] {
-            ToolContent::Resource { uri, mime_type, text } => {
+            ToolContent::Resource {
+                uri,
+                mime_type,
+                text,
+            } => {
                 assert_eq!(uri, "https://example.com");
                 assert_eq!(mime_type, &Some("text/html".to_string()));
                 assert_eq!(text, &Some("<html></html>".to_string()));
@@ -4961,25 +5022,27 @@ data: "result":{}}
     fn test_npm_auth_error_detection() {
         // Test the patterns that would be detected in stderr parsing
         let stderr_msg = "Access token expired for @company/mcp-server";
-        let contains_auth_error = stderr_msg.contains("Access token expired")
-            || stderr_msg.contains("token revoked");
+        let contains_auth_error =
+            stderr_msg.contains("Access token expired") || stderr_msg.contains("token revoked");
         assert!(contains_auth_error);
 
         let stderr_msg2 = "npm ERR! token revoked";
-        let contains_auth_error2 = stderr_msg2.contains("Access token expired")
-            || stderr_msg2.contains("token revoked");
+        let contains_auth_error2 =
+            stderr_msg2.contains("Access token expired") || stderr_msg2.contains("token revoked");
         assert!(contains_auth_error2);
 
         let stderr_msg3 = "some other error";
-        let contains_auth_error3 = stderr_msg3.contains("Access token expired")
-            || stderr_msg3.contains("token revoked");
+        let contains_auth_error3 =
+            stderr_msg3.contains("Access token expired") || stderr_msg3.contains("token revoked");
         assert!(!contains_auth_error3);
     }
 
     #[test]
     fn test_http_error_categorization_dns() {
         let err_str = "dns error: failed to lookup hostname";
-        let is_dns = err_str.contains("dns error") || err_str.contains("resolve") || err_str.contains("No such host");
+        let is_dns = err_str.contains("dns error")
+            || err_str.contains("resolve")
+            || err_str.contains("No such host");
         assert!(is_dns);
     }
 
@@ -5004,21 +5067,27 @@ data: "result":{}}
     #[test]
     fn test_http_error_categorization_ssl() {
         let err_str = "SSL certificate problem: unable to get local issuer certificate";
-        let is_ssl = err_str.contains("certificate") || err_str.contains("SSL") || err_str.contains("TLS");
+        let is_ssl =
+            err_str.contains("certificate") || err_str.contains("SSL") || err_str.contains("TLS");
         assert!(is_ssl);
 
         let err_str2 = "TLS handshake failed";
-        let is_ssl2 = err_str2.contains("certificate") || err_str2.contains("SSL") || err_str2.contains("TLS");
+        let is_ssl2 = err_str2.contains("certificate")
+            || err_str2.contains("SSL")
+            || err_str2.contains("TLS");
         assert!(is_ssl2);
     }
 
     #[test]
     fn test_http_error_categorization_generic() {
         let err_str = "unexpected error happened";
-        let is_dns = err_str.contains("dns error") || err_str.contains("resolve") || err_str.contains("No such host");
+        let is_dns = err_str.contains("dns error")
+            || err_str.contains("resolve")
+            || err_str.contains("No such host");
         let is_refused = err_str.contains("connection refused");
         let is_timeout = err_str.contains("timed out") || err_str.contains("timeout");
-        let is_ssl = err_str.contains("certificate") || err_str.contains("SSL") || err_str.contains("TLS");
+        let is_ssl =
+            err_str.contains("certificate") || err_str.contains("SSL") || err_str.contains("TLS");
         assert!(!is_dns && !is_refused && !is_timeout && !is_ssl);
     }
 
@@ -5028,11 +5097,15 @@ data: "result":{}}
 
     #[test]
     fn test_mcp_test_result_with_many_tools() {
-        let tools: Vec<McpTool> = (0..100).map(|i| McpTool {
-            name: format!("tool_{}", i),
-            description: Some(format!("Tool number {}", i)),
-            input_schema: Some(json!({"type": "object", "properties": {"arg": {"type": "string"}}})),
-        }).collect();
+        let tools: Vec<McpTool> = (0..100)
+            .map(|i| McpTool {
+                name: format!("tool_{}", i),
+                description: Some(format!("Tool number {}", i)),
+                input_schema: Some(
+                    json!({"type": "object", "properties": {"arg": {"type": "string"}}}),
+                ),
+            })
+            .collect();
 
         let result = McpTestResult::success(
             McpServerInfo {
@@ -5068,8 +5141,15 @@ data: "result":{}}
         // Parse server info
         let info = result.get("serverInfo").unwrap();
         let server_info = McpServerInfo {
-            name: info.get("name").and_then(|v| v.as_str()).unwrap_or("unknown").to_string(),
-            version: info.get("version").and_then(|v| v.as_str()).map(|s| s.to_string()),
+            name: info
+                .get("name")
+                .and_then(|v| v.as_str())
+                .unwrap_or("unknown")
+                .to_string(),
+            version: info
+                .get("version")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string()),
         };
         assert_eq!(server_info.name, "my-mcp");
         assert_eq!(server_info.version, Some("1.2.3".to_string()));
@@ -5189,11 +5269,17 @@ data: "result":{}}
         // Check for status acknowledgment
         let ack_text = r#"{"status":"accepted"}"#;
         let status_obj: serde_json::Value = serde_json::from_str(ack_text).unwrap();
-        assert_eq!(status_obj.get("status").and_then(|s| s.as_str()), Some("accepted"));
+        assert_eq!(
+            status_obj.get("status").and_then(|s| s.as_str()),
+            Some("accepted")
+        );
 
         // Non-acknowledgment
         let non_ack = r#"{"status":"processing"}"#;
         let status_obj2: serde_json::Value = serde_json::from_str(non_ack).unwrap();
-        assert_ne!(status_obj2.get("status").and_then(|s| s.as_str()), Some("accepted"));
+        assert_ne!(
+            status_obj2.get("status").and_then(|s| s.as_str()),
+            Some("accepted")
+        );
     }
 }

@@ -367,7 +367,12 @@ mod tests {
         let config = state.get_connection_config();
         let gateway = config.get("mcp-gateway").unwrap();
         assert_eq!(gateway.get("type").unwrap(), "sse");
-        assert!(gateway.get("url").unwrap().as_str().unwrap().contains("/mcp"));
+        assert!(gateway
+            .get("url")
+            .unwrap()
+            .as_str()
+            .unwrap()
+            .contains("/mcp"));
     }
 
     #[test]

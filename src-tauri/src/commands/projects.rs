@@ -604,7 +604,11 @@ pub fn toggle_project_favorite(
 }
 
 /// Toggle project favorite status in the database
-pub(crate) fn toggle_project_favorite_in_db(db: &Database, id: i64, favorite: bool) -> Result<(), String> {
+pub(crate) fn toggle_project_favorite_in_db(
+    db: &Database,
+    id: i64,
+    favorite: bool,
+) -> Result<(), String> {
     db.conn()
         .execute(
             "UPDATE projects SET is_favorite = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
@@ -670,7 +674,10 @@ pub(crate) fn toggle_project_mcp_in_db(
 }
 
 /// Get project MCP assignments from the database
-pub(crate) fn get_project_mcps_from_db(db: &Database, project_id: i64) -> Result<Vec<ProjectMcp>, String> {
+pub(crate) fn get_project_mcps_from_db(
+    db: &Database,
+    project_id: i64,
+) -> Result<Vec<ProjectMcp>, String> {
     let mut stmt = db
         .conn()
         .prepare(

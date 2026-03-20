@@ -411,10 +411,7 @@ mod tests {
 
         let tool_manager = conn_config.get("tool-manager").unwrap();
         assert_eq!(tool_manager["type"], "sse");
-        assert!(tool_manager["url"]
-            .as_str()
-            .unwrap()
-            .contains("11111"));
+        assert!(tool_manager["url"].as_str().unwrap().contains("11111"));
     }
 
     #[test]

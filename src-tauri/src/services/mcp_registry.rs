@@ -1314,10 +1314,7 @@ mod tests {
         let entry = server.to_mcp_entry().unwrap();
         let env = entry.env.unwrap();
         assert_eq!(env.get("REQUIRED_KEY"), Some(&"".to_string())); // no default -> empty
-        assert_eq!(
-            env.get("OPTIONAL_KEY"),
-            Some(&"default-value".to_string())
-        );
+        assert_eq!(env.get("OPTIONAL_KEY"), Some(&"default-value".to_string()));
 
         let placeholders = entry.env_placeholders.unwrap();
         assert!(placeholders[0].is_required);
@@ -1531,10 +1528,7 @@ mod tests {
         let result = client.search("test", 10).await;
 
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("No servers array"));
+        assert!(result.unwrap_err().to_string().contains("No servers array"));
     }
 
     #[test]

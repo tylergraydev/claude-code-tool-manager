@@ -895,7 +895,11 @@ mod tests {
     fn test_decode_content_base64_with_newlines() {
         let client = GitHubClient::new(None);
         let base64_with_newlines = STANDARD.encode("Hello World!");
-        let with_newlines = format!("{}\n{}", &base64_with_newlines[..4], &base64_with_newlines[4..]);
+        let with_newlines = format!(
+            "{}\n{}",
+            &base64_with_newlines[..4],
+            &base64_with_newlines[4..]
+        );
 
         let file_content = FileContent {
             name: "test.md".to_string(),

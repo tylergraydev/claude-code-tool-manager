@@ -293,7 +293,10 @@ mod tests {
 
         assert_eq!(db.get_setting("gateway_enabled"), Some("true".to_string()));
         assert_eq!(db.get_setting("gateway_port"), Some("8080".to_string()));
-        assert_eq!(db.get_setting("gateway_auto_start"), Some("false".to_string()));
+        assert_eq!(
+            db.get_setting("gateway_auto_start"),
+            Some("false".to_string())
+        );
     }
 
     #[test]

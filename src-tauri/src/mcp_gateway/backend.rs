@@ -570,7 +570,10 @@ mod tests {
         conn.restart_count = 3;
 
         let info = conn.to_info();
-        assert_eq!(info.status, BackendStatus::Failed("connection refused".to_string()));
+        assert_eq!(
+            info.status,
+            BackendStatus::Failed("connection refused".to_string())
+        );
         assert_eq!(info.error_message, Some("connection refused".to_string()));
         assert_eq!(info.restart_count, 3);
     }
@@ -608,7 +611,11 @@ mod tests {
             let mut conn = BackendConnection::new(mcp);
             conn.status = status;
             let info = conn.to_info();
-            assert!(info.error_message.is_none(), "Status {:?} should not have error_message", info.status);
+            assert!(
+                info.error_message.is_none(),
+                "Status {:?} should not have error_message",
+                info.status
+            );
         }
     }
 
@@ -625,7 +632,12 @@ mod tests {
 
         for (status, expected_prefix) in cases {
             let json = serde_json::to_string(&status).unwrap();
-            assert!(json.starts_with(expected_prefix), "Serialized {:?} = {}", status, json);
+            assert!(
+                json.starts_with(expected_prefix),
+                "Serialized {:?} = {}",
+                status,
+                json
+            );
             let round_tripped: BackendStatus = serde_json::from_str(&json).unwrap();
             assert_eq!(round_tripped, status);
         }
@@ -747,14 +759,8 @@ mod tests {
 
     #[test]
     fn test_namespace_tool_empty_names() {
-        assert_eq!(
-            GatewayBackendManager::namespace_tool("", "tool"),
-            "__tool"
-        );
-        assert_eq!(
-            GatewayBackendManager::namespace_tool("mcp", ""),
-            "mcp__"
-        );
+        assert_eq!(GatewayBackendManager::namespace_tool("", "tool"), "__tool");
+        assert_eq!(GatewayBackendManager::namespace_tool("mcp", ""), "mcp__");
     }
 
     // ===== GatewayBackendManager tests =====
@@ -906,10 +912,7 @@ mod tests {
         let mcp1 = make_test_mcp(1, "fs", "stdio");
         let mut conn1 = BackendConnection::new(mcp1);
         conn1.status = BackendStatus::Connected;
-        conn1.tools = vec![
-            make_test_tool("read", None),
-            make_test_tool("write", None),
-        ];
+        conn1.tools = vec![make_test_tool("read", None), make_test_tool("write", None)];
         manager.backends.insert(1, conn1);
 
         // Backend 2: connected with 1 tool

@@ -2603,9 +2603,7 @@ Content"#,
 
         let name: String = db
             .conn()
-            .query_row("SELECT name FROM mcps WHERE id = ?", [id], |row| {
-                row.get(0)
-            })
+            .query_row("SELECT name FROM mcps WHERE id = ?", [id], |row| row.get(0))
             .unwrap();
         assert_eq!(name, "test-mcp");
     }
@@ -2613,8 +2611,30 @@ Content"#,
     #[test]
     fn test_get_or_create_mcp_returns_existing() {
         let db = setup_test_db();
-        let id1 = get_or_create_mcp(&db, "mcp1", "stdio", Some("cmd"), None, None, None, None, "/src1").unwrap();
-        let id2 = get_or_create_mcp(&db, "mcp1", "stdio", Some("cmd2"), None, None, None, None, "/src2").unwrap();
+        let id1 = get_or_create_mcp(
+            &db,
+            "mcp1",
+            "stdio",
+            Some("cmd"),
+            None,
+            None,
+            None,
+            None,
+            "/src1",
+        )
+        .unwrap();
+        let id2 = get_or_create_mcp(
+            &db,
+            "mcp1",
+            "stdio",
+            Some("cmd2"),
+            None,
+            None,
+            None,
+            None,
+            "/src2",
+        )
+        .unwrap();
         assert_eq!(id1, id2);
     }
 
@@ -2622,7 +2642,18 @@ Content"#,
     fn test_assign_mcp_to_project() {
         let db = setup_test_db();
         let proj_id = get_or_create_project(&db, "proj", "/tmp/proj").unwrap();
-        let mcp_id = get_or_create_mcp(&db, "mcp", "stdio", Some("cmd"), None, None, None, None, "/src").unwrap();
+        let mcp_id = get_or_create_mcp(
+            &db,
+            "mcp",
+            "stdio",
+            Some("cmd"),
+            None,
+            None,
+            None,
+            None,
+            "/src",
+        )
+        .unwrap();
 
         assign_mcp_to_project(&db, proj_id, mcp_id, true).unwrap();
 
@@ -2641,7 +2672,18 @@ Content"#,
     fn test_assign_mcp_to_project_updates_enabled_state() {
         let db = setup_test_db();
         let proj_id = get_or_create_project(&db, "proj", "/tmp/proj").unwrap();
-        let mcp_id = get_or_create_mcp(&db, "mcp", "stdio", Some("cmd"), None, None, None, None, "/src").unwrap();
+        let mcp_id = get_or_create_mcp(
+            &db,
+            "mcp",
+            "stdio",
+            Some("cmd"),
+            None,
+            None,
+            None,
+            None,
+            "/src",
+        )
+        .unwrap();
 
         assign_mcp_to_project(&db, proj_id, mcp_id, true).unwrap();
         assign_mcp_to_project(&db, proj_id, mcp_id, false).unwrap();
@@ -2661,7 +2703,18 @@ Content"#,
     fn test_assign_mcp_to_project_idempotent() {
         let db = setup_test_db();
         let proj_id = get_or_create_project(&db, "proj", "/tmp/proj").unwrap();
-        let mcp_id = get_or_create_mcp(&db, "mcp", "stdio", Some("cmd"), None, None, None, None, "/src").unwrap();
+        let mcp_id = get_or_create_mcp(
+            &db,
+            "mcp",
+            "stdio",
+            Some("cmd"),
+            None,
+            None,
+            None,
+            None,
+            "/src",
+        )
+        .unwrap();
 
         assign_mcp_to_project(&db, proj_id, mcp_id, true).unwrap();
         assign_mcp_to_project(&db, proj_id, mcp_id, true).unwrap();
@@ -2946,11 +2999,7 @@ Deploy instructions here."#,
         )
         .unwrap();
 
-        fs::write(
-            commands_dir.join("test.md"),
-            "Run all tests.",
-        )
-        .unwrap();
+        fs::write(commands_dir.join("test.md"), "Run all tests.").unwrap();
 
         // Non-md file should be ignored
         fs::write(commands_dir.join("readme.txt"), "ignore me").unwrap();
@@ -3173,11 +3222,9 @@ Skill body."#,
 
         let (stored_env, stored_headers): (Option<String>, Option<String>) = db
             .conn()
-            .query_row(
-                "SELECT env, headers FROM mcps WHERE id = ?",
-                [id],
-                |row| Ok((row.get(0)?, row.get(1)?)),
-            )
+            .query_row("SELECT env, headers FROM mcps WHERE id = ?", [id], |row| {
+                Ok((row.get(0)?, row.get(1)?))
+            })
             .unwrap();
 
         assert!(stored_env.unwrap().contains("API_KEY"));
@@ -3195,7 +3242,18 @@ Skill body."#,
             )
             .unwrap();
 
-        let id = get_or_create_mcp(&db, "mcp-empty", "stdio", None, None, None, None, None, "/new/path").unwrap();
+        let id = get_or_create_mcp(
+            &db,
+            "mcp-empty",
+            "stdio",
+            None,
+            None,
+            None,
+            None,
+            None,
+            "/new/path",
+        )
+        .unwrap();
 
         let source_path: String = db
             .conn()
@@ -3470,7 +3528,10 @@ Body"#,
         .unwrap();
 
         let hooks = parse_hooks_from_settings(&settings_path);
-        assert_eq!(hooks[0].description, Some("PostToolUse hook for Bash".to_string()));
+        assert_eq!(
+            hooks[0].description,
+            Some("PostToolUse hook for Bash".to_string())
+        );
     }
 
     #[test]
@@ -3739,9 +3800,11 @@ Body"#,
 
         let source_path: String = db
             .conn()
-            .query_row("SELECT source_path FROM commands WHERE id = ?", [id], |row| {
-                row.get(0)
-            })
+            .query_row(
+                "SELECT source_path FROM commands WHERE id = ?",
+                [id],
+                |row| row.get(0),
+            )
             .unwrap();
         assert_eq!(source_path, "/new/source/path");
     }
@@ -3809,9 +3872,11 @@ Body"#,
 
         let source_path: String = db
             .conn()
-            .query_row("SELECT source_path FROM subagents WHERE id = ?", [id], |row| {
-                row.get(0)
-            })
+            .query_row(
+                "SELECT source_path FROM subagents WHERE id = ?",
+                [id],
+                |row| row.get(0),
+            )
             .unwrap();
         assert_eq!(source_path, "/new/agent/path");
     }

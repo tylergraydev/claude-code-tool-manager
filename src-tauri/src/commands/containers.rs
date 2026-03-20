@@ -106,10 +106,7 @@ pub fn get_container_stats_cmd(id: i64) -> Result<ContainerStats, String> {
 }
 
 #[tauri::command]
-pub fn exec_in_container_cmd(
-    id: i64,
-    command: String,
-) -> Result<ExecResult, String> {
+pub fn exec_in_container_cmd(id: i64, command: String) -> Result<ExecResult, String> {
     Err("Container feature not yet implemented".to_string())
 }
 
