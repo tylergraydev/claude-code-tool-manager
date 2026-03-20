@@ -305,6 +305,55 @@ describe('SubAgent Library Store', () => {
 		});
 	});
 
+	describe('updateSubAgent (local)', () => {
+		it('should update a subagent in local state', async () => {
+			const mockSubAgents = [
+				{ id: 1, name: 'old-name', description: 'Old', isFavorite: false },
+				{ id: 2, name: 'keep', description: 'Keep', isFavorite: false }
+			];
+			vi.mocked(invoke).mockResolvedValueOnce(mockSubAgents);
+
+			const { subagentLibrary } = await import('$lib/stores/subagentLibrary.svelte');
+			await subagentLibrary.load();
+
+			subagentLibrary.updateSubAgent({ id: 1, name: 'updated', description: 'Updated', isFavorite: true } as any);
+
+			expect(subagentLibrary.subagents[0].name).toBe('updated');
+			expect(subagentLibrary.subagents[0].isFavorite).toBe(true);
+			expect(subagentLibrary.subagents[1].name).toBe('keep');
+		});
+	});
+
+	describe('loadGlobalSubAgents error handling', () => {
+		it('should handle errors gracefully', async () => {
+			vi.mocked(invoke).mockRejectedValueOnce(new Error('Global load error'));
+
+			const { subagentLibrary } = await import('$lib/stores/subagentLibrary.svelte');
+			await subagentLibrary.loadGlobalSubAgents();
+
+			expect(subagentLibrary.globalSubAgents).toEqual([]);
+		});
+	});
+
+	describe('filteredSubAgents sorting', () => {
+		it('should sort favorites first then by name', async () => {
+			const mockSubAgents = [
+				{ id: 1, name: 'Zeta', isFavorite: false },
+				{ id: 2, name: 'Alpha', isFavorite: true },
+				{ id: 3, name: 'Beta', isFavorite: false }
+			];
+			vi.mocked(invoke).mockResolvedValueOnce(mockSubAgents);
+
+			const { subagentLibrary } = await import('$lib/stores/subagentLibrary.svelte');
+			await subagentLibrary.load();
+
+			const filtered = subagentLibrary.filteredSubAgents;
+			expect(filtered[0].name).toBe('Alpha'); // favorite
+			expect(filtered[1].name).toBe('Beta');
+			expect(filtered[2].name).toBe('Zeta');
+		});
+	});
+
 	describe('project subagents', () => {
 		it('should assign subagent to project', async () => {
 			vi.mocked(invoke).mockResolvedValueOnce(undefined);

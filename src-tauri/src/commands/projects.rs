@@ -175,12 +175,10 @@ pub fn add_project(
 pub fn remove_project(db: State<'_, Arc<Mutex<Database>>>, id: i64) -> Result<(), String> {
     info!("[Projects] Removing project id={}", id);
     let db = db.lock().map_err(|e| e.to_string())?;
-    db.conn()
-        .execute("DELETE FROM projects WHERE id = ?", [id])
-        .map_err(|e| {
-            error!("[Projects] Failed to remove project id={}: {}", id, e);
-            e.to_string()
-        })?;
+    delete_project_from_db(&db, id).map_err(|e| {
+        error!("[Projects] Failed to remove project id={}: {}", id, e);
+        e
+    })?;
     info!("[Projects] Removed project id={}", id);
     Ok(())
 }
@@ -208,25 +206,7 @@ pub fn assign_mcp_to_project(
     mcp_id: i64,
 ) -> Result<(), String> {
     let db = db.lock().map_err(|e| e.to_string())?;
-
-    // Get next display order
-    let order: i32 = db
-        .conn()
-        .query_row(
-            "SELECT COALESCE(MAX(display_order), 0) + 1 FROM project_mcps WHERE project_id = ?",
-            [project_id],
-            |row| row.get(0),
-        )
-        .unwrap_or(0);
-
-    db.conn()
-        .execute(
-            "INSERT OR IGNORE INTO project_mcps (project_id, mcp_id, display_order) VALUES (?, ?, ?)",
-            params![project_id, mcp_id, order],
-        )
-        .map_err(|e| e.to_string())?;
-
-    Ok(())
+    assign_mcp_to_project_in_db(&db, project_id, mcp_id)
 }
 
 #[tauri::command]
@@ -236,13 +216,7 @@ pub fn remove_mcp_from_project(
     mcp_id: i64,
 ) -> Result<(), String> {
     let db = db.lock().map_err(|e| e.to_string())?;
-    db.conn()
-        .execute(
-            "DELETE FROM project_mcps WHERE project_id = ? AND mcp_id = ?",
-            params![project_id, mcp_id],
-        )
-        .map_err(|e| e.to_string())?;
-    Ok(())
+    remove_mcp_from_project_in_db(&db, project_id, mcp_id)
 }
 
 #[tauri::command]
@@ -252,13 +226,7 @@ pub fn toggle_project_mcp(
     enabled: bool,
 ) -> Result<(), String> {
     let db = db.lock().map_err(|e| e.to_string())?;
-    db.conn()
-        .execute(
-            "UPDATE project_mcps SET is_enabled = ? WHERE id = ?",
-            params![enabled as i32, assignment_id],
-        )
-        .map_err(|e| e.to_string())?;
-    Ok(())
+    toggle_project_mcp_in_db(&db, assignment_id, enabled)
 }
 
 #[tauri::command]
@@ -513,9 +481,8 @@ pub fn sync_project_config(
 // Testable helper functions (no Tauri State dependency)
 // ============================================================================
 
-/// Create a project directly in the database (for testing)
-#[cfg(test)]
-pub fn create_project_in_db(
+/// Create a project in the database
+pub(crate) fn create_project_in_db(
     db: &Database,
     project: &CreateProjectRequest,
 ) -> Result<Project, String> {
@@ -531,9 +498,8 @@ pub fn create_project_in_db(
     get_project_by_id(db, id)
 }
 
-/// Get a project by ID directly from the database (for testing)
-#[cfg(test)]
-pub fn get_project_by_id(db: &Database, id: i64) -> Result<Project, String> {
+/// Get a project by ID from the database
+pub(crate) fn get_project_by_id(db: &Database, id: i64) -> Result<Project, String> {
     db.conn()
         .query_row(
             "SELECT id, name, path, has_mcp_file, has_settings_file, last_scanned_at, editor_type, is_favorite, created_at, updated_at
@@ -558,9 +524,8 @@ pub fn get_project_by_id(db: &Database, id: i64) -> Result<Project, String> {
         .map_err(|e| e.to_string())
 }
 
-/// Get a project by path directly from the database (for testing)
-#[cfg(test)]
-pub fn get_project_by_path(db: &Database, path: &str) -> Result<Project, String> {
+/// Get a project by path from the database
+pub(crate) fn get_project_by_path(db: &Database, path: &str) -> Result<Project, String> {
     db.conn()
         .query_row(
             "SELECT id, name, path, has_mcp_file, has_settings_file, last_scanned_at, editor_type, is_favorite, created_at, updated_at
@@ -585,9 +550,8 @@ pub fn get_project_by_path(db: &Database, path: &str) -> Result<Project, String>
         .map_err(|e| e.to_string())
 }
 
-/// Get all projects directly from the database (for testing)
-#[cfg(test)]
-pub fn get_all_projects_from_db(db: &Database) -> Result<Vec<Project>, String> {
+/// Get all projects from the database
+pub(crate) fn get_all_projects_from_db(db: &Database) -> Result<Vec<Project>, String> {
     let mut stmt = db
         .conn()
         .prepare(
@@ -621,9 +585,8 @@ pub fn get_all_projects_from_db(db: &Database) -> Result<Vec<Project>, String> {
     Ok(projects)
 }
 
-/// Delete a project directly from the database (for testing)
-#[cfg(test)]
-pub fn delete_project_from_db(db: &Database, id: i64) -> Result<(), String> {
+/// Delete a project from the database
+pub(crate) fn delete_project_from_db(db: &Database, id: i64) -> Result<(), String> {
     db.conn()
         .execute("DELETE FROM projects WHERE id = ?", [id])
         .map_err(|e| e.to_string())?;
@@ -637,6 +600,11 @@ pub fn toggle_project_favorite(
     favorite: bool,
 ) -> Result<(), String> {
     let db = db.lock().map_err(|e| e.to_string())?;
+    toggle_project_favorite_in_db(&db, id, favorite)
+}
+
+/// Toggle project favorite status in the database
+pub(crate) fn toggle_project_favorite_in_db(db: &Database, id: i64, favorite: bool) -> Result<(), String> {
     db.conn()
         .execute(
             "UPDATE projects SET is_favorite = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
@@ -646,9 +614,8 @@ pub fn toggle_project_favorite(
     Ok(())
 }
 
-/// Assign an MCP to a project directly in the database (for testing)
-#[cfg(test)]
-pub fn assign_mcp_to_project_in_db(
+/// Assign an MCP to a project in the database
+pub(crate) fn assign_mcp_to_project_in_db(
     db: &Database,
     project_id: i64,
     mcp_id: i64,
@@ -672,9 +639,8 @@ pub fn assign_mcp_to_project_in_db(
     Ok(())
 }
 
-/// Remove an MCP from a project directly in the database (for testing)
-#[cfg(test)]
-pub fn remove_mcp_from_project_in_db(
+/// Remove an MCP from a project in the database
+pub(crate) fn remove_mcp_from_project_in_db(
     db: &Database,
     project_id: i64,
     mcp_id: i64,
@@ -688,9 +654,8 @@ pub fn remove_mcp_from_project_in_db(
     Ok(())
 }
 
-/// Toggle a project MCP directly in the database (for testing)
-#[cfg(test)]
-pub fn toggle_project_mcp_in_db(
+/// Toggle a project MCP in the database
+pub(crate) fn toggle_project_mcp_in_db(
     db: &Database,
     assignment_id: i64,
     enabled: bool,
@@ -704,9 +669,8 @@ pub fn toggle_project_mcp_in_db(
     Ok(())
 }
 
-/// Get project MCP assignments directly from the database (for testing)
-#[cfg(test)]
-pub fn get_project_mcps_from_db(db: &Database, project_id: i64) -> Result<Vec<ProjectMcp>, String> {
+/// Get project MCP assignments from the database
+pub(crate) fn get_project_mcps_from_db(db: &Database, project_id: i64) -> Result<Vec<ProjectMcp>, String> {
     let mut stmt = db
         .conn()
         .prepare(

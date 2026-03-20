@@ -75,3 +75,40 @@ pub fn get_sounds_directory() -> Result<String, String> {
 pub fn validate_sound_file(path: String) -> Result<(), String> {
     sound_player::validate_sound_file(&path)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_generate_sound_hook_command_python() {
+        let result =
+            generate_sound_hook_command("/path/to/sound.wav".to_string(), "python".to_string());
+        assert!(result.is_ok());
+        let cmd = result.unwrap();
+        assert!(cmd.contains("notification-hook.py"));
+    }
+
+    #[test]
+    fn test_generate_sound_hook_command_shell() {
+        let result =
+            generate_sound_hook_command("/path/to/sound.wav".to_string(), "shell".to_string());
+        assert!(result.is_ok());
+        let cmd = result.unwrap();
+        assert!(cmd.contains("/path/to/sound.wav"));
+    }
+
+    #[test]
+    fn test_validate_sound_file_nonexistent() {
+        let result = validate_sound_file("/nonexistent/path/sound.wav".to_string());
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_get_sounds_directory_returns_path() {
+        let result = get_sounds_directory();
+        assert!(result.is_ok());
+        let path = result.unwrap();
+        assert!(path.contains("sounds"));
+    }
+}

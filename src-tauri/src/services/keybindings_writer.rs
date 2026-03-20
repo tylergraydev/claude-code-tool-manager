@@ -238,4 +238,109 @@ mod tests {
         write_keybindings_to_path(&path, &kb).unwrap();
         assert!(path.exists());
     }
+
+    // =========================================================================
+    // Additional coverage
+    // =========================================================================
+
+    #[test]
+    fn test_write_empty_bindings() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("keybindings.json");
+
+        let kb = KeybindingsFile {
+            schema: None,
+            bindings: vec![],
+        };
+
+        write_keybindings_to_path(&path, &kb).unwrap();
+        let read_back = read_keybindings_from_path(&path).unwrap();
+        assert!(read_back.bindings.is_empty());
+    }
+
+    #[test]
+    fn test_multiple_contexts() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("keybindings.json");
+
+        let kb = KeybindingsFile {
+            schema: None,
+            bindings: vec![
+                KeybindingBlock {
+                    context: "Chat".to_string(),
+                    bindings: HashMap::from([("ctrl+e".to_string(), Some("edit".to_string()))]),
+                },
+                KeybindingBlock {
+                    context: "Global".to_string(),
+                    bindings: HashMap::from([("ctrl+q".to_string(), Some("quit".to_string()))]),
+                },
+            ],
+        };
+
+        write_keybindings_to_path(&path, &kb).unwrap();
+        let read_back = read_keybindings_from_path(&path).unwrap();
+        assert_eq!(read_back.bindings.len(), 2);
+    }
+
+    #[test]
+    fn test_keybinding_block_serialization() {
+        let block = KeybindingBlock {
+            context: "Chat".to_string(),
+            bindings: HashMap::from([
+                ("ctrl+a".to_string(), Some("action_a".to_string())),
+                ("ctrl+b".to_string(), None),
+            ]),
+        };
+
+        let json = serde_json::to_string(&block).unwrap();
+        assert!(json.contains("\"context\":\"Chat\""));
+    }
+
+    #[test]
+    fn test_keybindings_file_deserialization() {
+        let json = r#"{
+            "$schema": "https://example.com/schema.json",
+            "bindings": [
+                {
+                    "context": "Chat",
+                    "bindings": {
+                        "ctrl+e": "chat:externalEditor",
+                        "ctrl+u": null
+                    }
+                }
+            ]
+        }"#;
+
+        let kb: KeybindingsFile = serde_json::from_str(json).unwrap();
+        assert_eq!(
+            kb.schema,
+            Some("https://example.com/schema.json".to_string())
+        );
+        assert_eq!(kb.bindings.len(), 1);
+        assert_eq!(kb.bindings[0].context, "Chat");
+    }
+
+    #[test]
+    fn test_write_all_empty_contexts_results_in_empty_file() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("keybindings.json");
+
+        let kb = KeybindingsFile {
+            schema: None,
+            bindings: vec![
+                KeybindingBlock {
+                    context: "Chat".to_string(),
+                    bindings: HashMap::new(),
+                },
+                KeybindingBlock {
+                    context: "Global".to_string(),
+                    bindings: HashMap::new(),
+                },
+            ],
+        };
+
+        write_keybindings_to_path(&path, &kb).unwrap();
+        let read_back = read_keybindings_from_path(&path).unwrap();
+        assert!(read_back.bindings.is_empty());
+    }
 }

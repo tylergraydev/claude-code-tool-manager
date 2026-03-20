@@ -2,7 +2,7 @@
 	import type { Mcp } from '$lib/types';
 	import { mcpLibrary } from '$lib/stores';
 	import McpCard from './McpCard.svelte';
-	import { SearchBar } from '$lib/components/shared';
+	import { SearchBar, LoadingSpinner, EmptyState } from '$lib/components/shared';
 	import { Plug, Globe, Server, Package } from 'lucide-svelte';
 	import { invoke } from '@tauri-apps/api/core';
 
@@ -66,24 +66,13 @@
 
 	<!-- MCP Grid -->
 	{#if mcpLibrary.isLoading}
-		<div class="flex items-center justify-center py-12">
-			<div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
-		</div>
+		<LoadingSpinner />
 	{:else if mcpLibrary.filteredMcps.length === 0}
-		<div class="text-center py-12">
-			<Package class="w-12 h-12 mx-auto text-gray-300 dark:text-gray-600 mb-4" />
-			{#if mcpLibrary.searchQuery || mcpLibrary.selectedType !== 'all'}
-				<h3 class="text-lg font-medium text-gray-900 dark:text-white">No matching MCPs</h3>
-				<p class="text-gray-500 dark:text-gray-400 mt-1">
-					Try adjusting your search or filters
-				</p>
-			{:else}
-				<h3 class="text-lg font-medium text-gray-900 dark:text-white">No MCPs in library</h3>
-				<p class="text-gray-500 dark:text-gray-400 mt-1">
-					Add your first MCP to get started
-				</p>
-			{/if}
-		</div>
+		{#if mcpLibrary.searchQuery || mcpLibrary.selectedType !== 'all'}
+			<EmptyState icon={Package} title="No matching MCPs" description="Try adjusting your search or filters" />
+		{:else}
+			<EmptyState icon={Package} title="No MCPs in library" description="Add your first MCP to get started" />
+		{/if}
 	{:else}
 		<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
 			{#each mcpLibrary.filteredMcps as mcp (mcp.id)}

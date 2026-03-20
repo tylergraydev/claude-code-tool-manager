@@ -52,34 +52,7 @@ pub fn update_statusline(
         .map_err(|e| e.to_string())?
         .ok_or_else(|| "StatusLine not found".to_string())?;
 
-    let tags_json = request
-        .tags
-        .as_ref()
-        .map(|t| serde_json::to_string(t).unwrap());
-    let _ = tags_json; // tags handled by update_statusline
-
-    let updated = StatusLine {
-        id: existing.id,
-        name: request.name,
-        description: request.description,
-        statusline_type: request.statusline_type,
-        package_name: request.package_name,
-        install_command: request.install_command,
-        run_command: request.run_command,
-        raw_command: request.raw_command,
-        padding: request.padding.unwrap_or(existing.padding),
-        is_active: existing.is_active,
-        segments_json: request.segments_json,
-        generated_script: request.generated_script,
-        icon: request.icon,
-        author: request.author,
-        homepage_url: request.homepage_url,
-        tags: request.tags,
-        source: existing.source,
-        created_at: existing.created_at,
-        updated_at: existing.updated_at,
-    };
-
+    let updated = merge_statusline_update(existing, request);
     db.update_statusline(&updated).map_err(|e| e.to_string())
 }
 
@@ -142,21 +115,10 @@ pub fn activate_statusline(
             updated.generated_script = Some(script);
             let _ = db.update_statusline(&updated);
 
-            let python_cmd = if cfg!(target_os = "windows") {
-                "python"
-            } else {
-                "python3"
-            };
-            format!("{} {}", python_cmd, script_path.display())
+            format!("{} {}", python_command(), script_path.display())
         }
-        "premade" => sl
-            .run_command
-            .clone()
-            .ok_or_else(|| "Premade statusline has no run_command".to_string())?,
-        "raw" => sl
-            .raw_command
-            .clone()
-            .ok_or_else(|| "Raw statusline has no raw_command".to_string())?,
+        "premade" => resolve_premade_command(&sl)?,
+        "raw" => resolve_raw_command(&sl)?,
         _ => return Err(format!("Unknown statusline type: {}", sl.statusline_type)),
     };
 
@@ -245,24 +207,7 @@ pub fn install_premade_statusline(
 ) -> Result<StatusLine, String> {
     info!("[StatusLine] Installing premade: {}", entry.name);
     let db = db.lock().map_err(|e| e.to_string())?;
-
-    let request = CreateStatusLineRequest {
-        name: entry.name,
-        description: entry.description,
-        statusline_type: "premade".to_string(),
-        package_name: entry.package_name,
-        install_command: entry.install_command,
-        run_command: entry.run_command,
-        raw_command: None,
-        padding: None,
-        segments_json: None,
-        generated_script: None,
-        icon: entry.icon,
-        author: entry.author,
-        homepage_url: entry.homepage_url,
-        tags: entry.tags,
-    };
-
+    let request = gallery_entry_to_create_request(entry);
     db.create_statusline(&request).map_err(|e| e.to_string())
 }
 
@@ -299,6 +244,83 @@ pub fn generate_statusline_preview(
 #[tauri::command]
 pub fn read_current_statusline_config() -> Result<Option<serde_json::Value>, String> {
     statusline_writer::read_current_statusline_config().map_err(|e| e.to_string())
+}
+
+// ============================================================================
+// Extracted business logic (no Tauri State dependency)
+// ============================================================================
+
+/// Merge an update request with an existing StatusLine, preserving immutable fields
+pub(crate) fn merge_statusline_update(
+    existing: StatusLine,
+    request: CreateStatusLineRequest,
+) -> StatusLine {
+    StatusLine {
+        id: existing.id,
+        name: request.name,
+        description: request.description,
+        statusline_type: request.statusline_type,
+        package_name: request.package_name,
+        install_command: request.install_command,
+        run_command: request.run_command,
+        raw_command: request.raw_command,
+        padding: request.padding.unwrap_or(existing.padding),
+        is_active: existing.is_active,
+        segments_json: request.segments_json,
+        generated_script: request.generated_script,
+        icon: request.icon,
+        author: request.author,
+        homepage_url: request.homepage_url,
+        tags: request.tags,
+        source: existing.source,
+        created_at: existing.created_at,
+        updated_at: existing.updated_at,
+    }
+}
+
+/// Get the platform-appropriate Python command
+pub(crate) fn python_command() -> &'static str {
+    if cfg!(target_os = "windows") {
+        "python"
+    } else {
+        "python3"
+    }
+}
+
+/// Resolve the run command for a premade statusline
+pub(crate) fn resolve_premade_command(sl: &StatusLine) -> Result<String, String> {
+    sl.run_command
+        .clone()
+        .ok_or_else(|| "Premade statusline has no run_command".to_string())
+}
+
+/// Resolve the raw command for a raw statusline
+pub(crate) fn resolve_raw_command(sl: &StatusLine) -> Result<String, String> {
+    sl.raw_command
+        .clone()
+        .ok_or_else(|| "Raw statusline has no raw_command".to_string())
+}
+
+/// Convert a gallery entry to a create request for installation
+pub(crate) fn gallery_entry_to_create_request(
+    entry: StatusLineGalleryEntry,
+) -> CreateStatusLineRequest {
+    CreateStatusLineRequest {
+        name: entry.name,
+        description: entry.description,
+        statusline_type: "premade".to_string(),
+        package_name: entry.package_name,
+        install_command: entry.install_command,
+        run_command: entry.run_command,
+        raw_command: None,
+        padding: None,
+        segments_json: None,
+        generated_script: None,
+        icon: entry.icon,
+        author: entry.author,
+        homepage_url: entry.homepage_url,
+        tags: entry.tags,
+    }
 }
 
 // ============================================================================
@@ -680,6 +702,133 @@ mod tests {
     }
 
     #[test]
+    fn test_generate_script_disabled_segments() {
+        let segments = vec![
+            StatusLineSegment {
+                id: "1".to_string(),
+                segment_type: "model".to_string(),
+                enabled: true,
+                label: None,
+                format: Some("short".to_string()),
+                color: Some("cyan".to_string()),
+                bg_color: None,
+                separator_char: None,
+                custom_text: None,
+                position: 0,
+            },
+            StatusLineSegment {
+                id: "2".to_string(),
+                segment_type: "cost".to_string(),
+                enabled: false, // Disabled
+                label: None,
+                format: None,
+                color: None,
+                bg_color: None,
+                separator_char: None,
+                custom_text: None,
+                position: 1,
+            },
+        ];
+
+        let script = statusline_writer::generate_script_from_segments(&segments);
+        assert!(script.contains("#!/usr/bin/env python3"));
+        assert!(script.contains("model"));
+    }
+
+    #[test]
+    fn test_generate_script_empty_segments() {
+        let segments: Vec<StatusLineSegment> = vec![];
+        let script = statusline_writer::generate_script_from_segments(&segments);
+        assert!(script.contains("#!/usr/bin/env python3"));
+        assert!(script.contains("def main():"));
+    }
+
+    #[test]
+    fn test_generate_script_with_theme() {
+        let segments = vec![StatusLineSegment {
+            id: "1".to_string(),
+            segment_type: "model".to_string(),
+            enabled: true,
+            label: None,
+            format: Some("short".to_string()),
+            color: Some("cyan".to_string()),
+            bg_color: None,
+            separator_char: None,
+            custom_text: None,
+            position: 0,
+        }];
+
+        let script =
+            statusline_writer::generate_script_from_segments_with_theme(&segments, "powerline");
+        assert!(script.contains("#!/usr/bin/env python3"));
+    }
+
+    #[test]
+    fn test_statusline_segment_serde() {
+        let segment = StatusLineSegment {
+            id: "seg1".to_string(),
+            segment_type: "model".to_string(),
+            enabled: true,
+            label: Some("Model: ".to_string()),
+            format: Some("short".to_string()),
+            color: Some("cyan".to_string()),
+            bg_color: Some("black".to_string()),
+            separator_char: None,
+            custom_text: None,
+            position: 0,
+        };
+        let json = serde_json::to_string(&segment).unwrap();
+        let deserialized: StatusLineSegment = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.segment_type, "model");
+        assert_eq!(deserialized.bg_color, Some("black".to_string()));
+    }
+
+    #[test]
+    fn test_create_statusline_request_serde() {
+        let req = make_premade_request("test-sl");
+        let json = serde_json::to_string(&req).unwrap();
+        let deserialized: CreateStatusLineRequest = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.name, "test-sl");
+        assert_eq!(deserialized.statusline_type, "premade");
+    }
+
+    #[test]
+    fn test_statusline_default_padding() {
+        let db = Database::in_memory().unwrap();
+        let mut req = make_raw_request("no-padding");
+        req.padding = None;
+        let sl = db.create_statusline(&req).unwrap();
+        // Default padding is 0
+        assert_eq!(sl.padding, 0);
+    }
+
+    #[test]
+    fn test_multiple_statuslines_get_all() {
+        let db = Database::in_memory().unwrap();
+        for i in 0..5 {
+            db.create_statusline(&make_raw_request(&format!("SL-{}", i)))
+                .unwrap();
+        }
+        let all = db.get_all_statuslines().unwrap();
+        assert_eq!(all.len(), 5);
+    }
+
+    #[test]
+    fn test_delete_nonexistent_statusline() {
+        let db = Database::in_memory().unwrap();
+        // Deleting a non-existent ID should succeed but affect 0 rows
+        let result = db.delete_statusline(9999);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_get_active_statusline_none_by_default() {
+        let db = Database::in_memory().unwrap();
+        let active = db.get_active_statusline().unwrap();
+        assert!(active.is_none());
+    }
+
+    #[test]
     fn test_tags_serialization() {
         let db = Database::in_memory().unwrap();
         let req = make_premade_request("TaggedSL");
@@ -689,5 +838,287 @@ mod tests {
             sl.tags,
             Some(vec!["premade".to_string(), "powerline".to_string()])
         );
+    }
+
+    // ========================================================================
+    // Extracted logic tests
+    // ========================================================================
+
+    #[test]
+    fn test_merge_statusline_update_preserves_immutable_fields() {
+        use crate::commands::statusline::merge_statusline_update;
+        use crate::db::models::StatusLine;
+
+        let existing = StatusLine {
+            id: 42,
+            name: "old-name".to_string(),
+            description: Some("old desc".to_string()),
+            statusline_type: "custom".to_string(),
+            package_name: None,
+            install_command: None,
+            run_command: None,
+            raw_command: None,
+            padding: 2,
+            is_active: true,
+            segments_json: None,
+            generated_script: None,
+            icon: None,
+            author: None,
+            homepage_url: None,
+            tags: None,
+            source: "manual".to_string(),
+            created_at: "2024-01-01T00:00:00Z".to_string(),
+            updated_at: "2024-01-02T00:00:00Z".to_string(),
+        };
+
+        let request = CreateStatusLineRequest {
+            name: "new-name".to_string(),
+            description: Some("new desc".to_string()),
+            statusline_type: "raw".to_string(),
+            package_name: None,
+            install_command: None,
+            run_command: None,
+            raw_command: Some("echo test".to_string()),
+            padding: None, // should inherit existing
+            segments_json: None,
+            generated_script: None,
+            icon: None,
+            author: None,
+            homepage_url: None,
+            tags: Some(vec!["new".to_string()]),
+        };
+
+        let merged = merge_statusline_update(existing, request);
+
+        // Mutable fields updated
+        assert_eq!(merged.name, "new-name");
+        assert_eq!(merged.description, Some("new desc".to_string()));
+        assert_eq!(merged.statusline_type, "raw");
+        assert_eq!(merged.raw_command, Some("echo test".to_string()));
+        assert_eq!(merged.tags, Some(vec!["new".to_string()]));
+
+        // Immutable fields preserved
+        assert_eq!(merged.id, 42);
+        assert!(merged.is_active);
+        assert_eq!(merged.source, "manual");
+        assert_eq!(merged.created_at, "2024-01-01T00:00:00Z");
+        assert_eq!(merged.updated_at, "2024-01-02T00:00:00Z");
+
+        // Padding falls back to existing when None
+        assert_eq!(merged.padding, 2);
+    }
+
+    #[test]
+    fn test_merge_statusline_update_overrides_padding() {
+        use crate::commands::statusline::merge_statusline_update;
+        use crate::db::models::StatusLine;
+
+        let existing = StatusLine {
+            id: 1,
+            name: "sl".to_string(),
+            description: None,
+            statusline_type: "custom".to_string(),
+            package_name: None,
+            install_command: None,
+            run_command: None,
+            raw_command: None,
+            padding: 2,
+            is_active: false,
+            segments_json: None,
+            generated_script: None,
+            icon: None,
+            author: None,
+            homepage_url: None,
+            tags: None,
+            source: "manual".to_string(),
+            created_at: "".to_string(),
+            updated_at: "".to_string(),
+        };
+
+        let request = CreateStatusLineRequest {
+            name: "sl".to_string(),
+            description: None,
+            statusline_type: "custom".to_string(),
+            package_name: None,
+            install_command: None,
+            run_command: None,
+            raw_command: None,
+            padding: Some(5),
+            segments_json: None,
+            generated_script: None,
+            icon: None,
+            author: None,
+            homepage_url: None,
+            tags: None,
+        };
+
+        let merged = merge_statusline_update(existing, request);
+        assert_eq!(merged.padding, 5);
+    }
+
+    #[test]
+    fn test_python_command() {
+        use crate::commands::statusline::python_command;
+        let cmd = python_command();
+        if cfg!(target_os = "windows") {
+            assert_eq!(cmd, "python");
+        } else {
+            assert_eq!(cmd, "python3");
+        }
+    }
+
+    #[test]
+    fn test_resolve_premade_command_present() {
+        use crate::commands::statusline::resolve_premade_command;
+        use crate::db::models::StatusLine;
+
+        let sl = StatusLine {
+            id: 1,
+            name: "test".to_string(),
+            description: None,
+            statusline_type: "premade".to_string(),
+            package_name: None,
+            install_command: None,
+            run_command: Some("my-command".to_string()),
+            raw_command: None,
+            padding: 0,
+            is_active: false,
+            segments_json: None,
+            generated_script: None,
+            icon: None,
+            author: None,
+            homepage_url: None,
+            tags: None,
+            source: "manual".to_string(),
+            created_at: "".to_string(),
+            updated_at: "".to_string(),
+        };
+
+        assert_eq!(resolve_premade_command(&sl).unwrap(), "my-command");
+    }
+
+    #[test]
+    fn test_resolve_premade_command_missing() {
+        use crate::commands::statusline::resolve_premade_command;
+        use crate::db::models::StatusLine;
+
+        let sl = StatusLine {
+            id: 1,
+            name: "test".to_string(),
+            description: None,
+            statusline_type: "premade".to_string(),
+            package_name: None,
+            install_command: None,
+            run_command: None,
+            raw_command: None,
+            padding: 0,
+            is_active: false,
+            segments_json: None,
+            generated_script: None,
+            icon: None,
+            author: None,
+            homepage_url: None,
+            tags: None,
+            source: "manual".to_string(),
+            created_at: "".to_string(),
+            updated_at: "".to_string(),
+        };
+
+        let result = resolve_premade_command(&sl);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("no run_command"));
+    }
+
+    #[test]
+    fn test_resolve_raw_command_present() {
+        use crate::commands::statusline::resolve_raw_command;
+        use crate::db::models::StatusLine;
+
+        let sl = StatusLine {
+            id: 1,
+            name: "test".to_string(),
+            description: None,
+            statusline_type: "raw".to_string(),
+            package_name: None,
+            install_command: None,
+            run_command: None,
+            raw_command: Some("echo hello".to_string()),
+            padding: 0,
+            is_active: false,
+            segments_json: None,
+            generated_script: None,
+            icon: None,
+            author: None,
+            homepage_url: None,
+            tags: None,
+            source: "manual".to_string(),
+            created_at: "".to_string(),
+            updated_at: "".to_string(),
+        };
+
+        assert_eq!(resolve_raw_command(&sl).unwrap(), "echo hello");
+    }
+
+    #[test]
+    fn test_resolve_raw_command_missing() {
+        use crate::commands::statusline::resolve_raw_command;
+        use crate::db::models::StatusLine;
+
+        let sl = StatusLine {
+            id: 1,
+            name: "test".to_string(),
+            description: None,
+            statusline_type: "raw".to_string(),
+            package_name: None,
+            install_command: None,
+            run_command: None,
+            raw_command: None,
+            padding: 0,
+            is_active: false,
+            segments_json: None,
+            generated_script: None,
+            icon: None,
+            author: None,
+            homepage_url: None,
+            tags: None,
+            source: "manual".to_string(),
+            created_at: "".to_string(),
+            updated_at: "".to_string(),
+        };
+
+        let result = resolve_raw_command(&sl);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("no raw_command"));
+    }
+
+    #[test]
+    fn test_gallery_entry_to_create_request() {
+        use crate::commands::statusline::gallery_entry_to_create_request;
+        use crate::db::models::StatusLineGalleryEntry;
+
+        let entry = StatusLineGalleryEntry {
+            name: "test-sl".to_string(),
+            description: Some("A gallery entry".to_string()),
+            package_name: Some("test-pkg".to_string()),
+            install_command: Some("npm i -g test-pkg".to_string()),
+            run_command: Some("test-pkg".to_string()),
+            icon: Some("*".to_string()),
+            author: Some("author".to_string()),
+            homepage_url: Some("https://example.com".to_string()),
+            tags: Some(vec!["tag1".to_string()]),
+            preview_text: None,
+        };
+
+        let request = gallery_entry_to_create_request(entry);
+
+        assert_eq!(request.name, "test-sl");
+        assert_eq!(request.description, Some("A gallery entry".to_string()));
+        assert_eq!(request.statusline_type, "premade");
+        assert_eq!(request.package_name, Some("test-pkg".to_string()));
+        assert_eq!(request.run_command, Some("test-pkg".to_string()));
+        assert!(request.raw_command.is_none());
+        assert!(request.padding.is_none());
+        assert!(request.segments_json.is_none());
+        assert_eq!(request.tags, Some(vec!["tag1".to_string()]));
     }
 }

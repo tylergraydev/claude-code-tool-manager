@@ -88,4 +88,17 @@ mod tests {
         // Config dir should end with ".gemini"
         assert!(paths.config_dir.ends_with(".gemini"));
     }
+
+    #[test]
+    fn test_gemini_config_dir_under_home() {
+        let paths = get_gemini_paths().expect("Should get gemini paths");
+        assert!(paths.config_dir.starts_with(&paths.home));
+    }
+
+    #[test]
+    fn test_gemini_settings_file_is_json() {
+        let paths = get_gemini_paths().expect("Should get gemini paths");
+        let file_name = paths.settings_file.file_name().unwrap().to_str().unwrap();
+        assert!(file_name.ends_with(".json"));
+    }
 }

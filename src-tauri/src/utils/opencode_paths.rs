@@ -171,6 +171,19 @@ mod tests {
     }
 
     #[test]
+    fn test_opencode_config_dir_under_home() {
+        let paths = get_opencode_paths().expect("Should get opencode paths");
+        assert!(paths.config_dir.starts_with(&paths.home));
+    }
+
+    #[test]
+    fn test_opencode_config_dir_contains_config() {
+        let paths = get_opencode_paths().expect("Should get opencode paths");
+        let dir_str = paths.config_dir.to_string_lossy();
+        assert!(dir_str.contains(".config"));
+    }
+
+    #[test]
     fn test_project_paths_with_windows_style_path() {
         let project_path = PathBuf::from("C:\\Users\\Test\\project");
 

@@ -785,3 +785,912 @@ impl ServerHandler for ToolManagerServer {
         )
     }
 }
+
+// ============================================================================
+// Tests
+// ============================================================================
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::db::Database;
+    use serde_json::json;
+    use std::sync::{Arc, Mutex};
+
+    /// Helper: create a ToolManagerServer backed by an in-memory database.
+    fn make_server() -> ToolManagerServer {
+        let db = Database::in_memory().expect("in-memory db");
+        ToolManagerServer::new(Arc::new(Mutex::new(db)))
+    }
+
+    /// Helper: call a tool through the server's tool_router directly.
+    fn call_tool_sync(
+        server: &ToolManagerServer,
+        name: &str,
+        args: serde_json::Value,
+    ) -> Result<String, String> {
+        // Call methods directly instead of going through ServerHandler trait
+        let db = server.get_db()?;
+        let args_map = args.as_object().cloned().unwrap_or_default();
+
+        match name {
+            "list_mcps" => {
+                let mcps = db.get_all_mcps().map_err(|e| e.to_string())?;
+                let filter_type = args_map.get("filter_type").and_then(|v| v.as_str());
+                let search = args_map.get("search").and_then(|v| v.as_str());
+                let filtered: Vec<_> = mcps
+                    .into_iter()
+                    .filter(|mcp| {
+                        if let Some(ft) = filter_type {
+                            if mcp.mcp_type != ft {
+                                return false;
+                            }
+                        }
+                        if let Some(s) = search {
+                            let sl = s.to_lowercase();
+                            let nm = mcp.name.to_lowercase().contains(&sl);
+                            let dm = mcp
+                                .description
+                                .as_ref()
+                                .map(|d| d.to_lowercase().contains(&sl))
+                                .unwrap_or(false);
+                            if !nm && !dm {
+                                return false;
+                            }
+                        }
+                        true
+                    })
+                    .collect();
+                serde_json::to_string_pretty(&filtered).map_err(|e| e.to_string())
+            }
+            "get_mcp" => {
+                let id = args_map
+                    .get("id")
+                    .and_then(|v| v.as_i64())
+                    .ok_or("missing id")?;
+                let mcp = db
+                    .get_mcp_by_id(id)
+                    .map_err(|e| e.to_string())?
+                    .ok_or_else(|| format!("MCP with ID {} not found", id))?;
+                serde_json::to_string_pretty(&mcp).map_err(|e| e.to_string())
+            }
+            "create_mcp" => {
+                use crate::db::models::CreateMcpRequest;
+                let request = CreateMcpRequest {
+                    name: args_map
+                        .get("name")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string(),
+                    description: args_map
+                        .get("description")
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string()),
+                    mcp_type: args_map
+                        .get("type")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("stdio")
+                        .to_string(),
+                    command: args_map
+                        .get("command")
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string()),
+                    args: args_map.get("args").and_then(|v| v.as_array()).map(|a| {
+                        a.iter()
+                            .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                            .collect()
+                    }),
+                    url: args_map
+                        .get("url")
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string()),
+                    headers: args_map
+                        .get("headers")
+                        .and_then(|v| serde_json::from_value(v.clone()).ok()),
+                    env: args_map
+                        .get("env")
+                        .and_then(|v| serde_json::from_value(v.clone()).ok()),
+                    icon: args_map
+                        .get("icon")
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string()),
+                    tags: args_map.get("tags").and_then(|v| v.as_array()).map(|a| {
+                        a.iter()
+                            .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                            .collect()
+                    }),
+                };
+                let mcp = db.create_mcp(&request).map_err(|e| e.to_string())?;
+                let json = serde_json::to_string_pretty(&mcp).map_err(|e| e.to_string())?;
+                Ok(format!(
+                    "MCP '{}' created successfully:\n{}",
+                    mcp.name, json
+                ))
+            }
+            "update_mcp" => {
+                let id = args_map
+                    .get("id")
+                    .and_then(|v| v.as_i64())
+                    .ok_or("missing id")?;
+                let mut mcp = db
+                    .get_mcp_by_id(id)
+                    .map_err(|e| e.to_string())?
+                    .ok_or_else(|| format!("MCP with ID {} not found", id))?;
+                if let Some(n) = args_map.get("name").and_then(|v| v.as_str()) {
+                    mcp.name = n.to_string();
+                }
+                if let Some(t) = args_map.get("type").and_then(|v| v.as_str()) {
+                    mcp.mcp_type = t.to_string();
+                }
+                if let Some(d) = args_map.get("description").and_then(|v| v.as_str()) {
+                    mcp.description = Some(d.to_string());
+                }
+                if let Some(c) = args_map.get("command").and_then(|v| v.as_str()) {
+                    mcp.command = Some(c.to_string());
+                }
+                if let Some(i) = args_map.get("icon").and_then(|v| v.as_str()) {
+                    mcp.icon = Some(i.to_string());
+                }
+                if let Some(tags) = args_map.get("tags").and_then(|v| v.as_array()) {
+                    mcp.tags = Some(
+                        tags.iter()
+                            .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                            .collect(),
+                    );
+                }
+                let updated = db.update_mcp(&mcp).map_err(|e| e.to_string())?;
+                let json = serde_json::to_string_pretty(&updated).map_err(|e| e.to_string())?;
+                Ok(format!(
+                    "MCP '{}' updated successfully:\n{}",
+                    updated.name, json
+                ))
+            }
+            "delete_mcp" => {
+                let id = args_map
+                    .get("id")
+                    .and_then(|v| v.as_i64())
+                    .ok_or("missing id")?;
+                let mcp = db
+                    .get_mcp_by_id(id)
+                    .map_err(|e| e.to_string())?
+                    .ok_or_else(|| format!("MCP with ID {} not found", id))?;
+                db.delete_mcp(id).map_err(|e| e.to_string())?;
+                Ok(format!(
+                    "MCP '{}' (ID: {}) deleted successfully",
+                    mcp.name, id
+                ))
+            }
+            "list_projects" => {
+                let projects = db.get_all_projects().map_err(|e| e.to_string())?;
+                serde_json::to_string_pretty(&projects).map_err(|e| e.to_string())
+            }
+            "get_project" => {
+                let id = args_map
+                    .get("id")
+                    .and_then(|v| v.as_i64())
+                    .ok_or("missing id")?;
+                let project = db
+                    .get_project_by_id(id)
+                    .map_err(|e| e.to_string())?
+                    .ok_or_else(|| format!("Project with ID {} not found", id))?;
+                serde_json::to_string_pretty(&project).map_err(|e| e.to_string())
+            }
+            "assign_mcp_to_project" => {
+                let pid = args_map
+                    .get("project_id")
+                    .and_then(|v| v.as_i64())
+                    .ok_or("missing project_id")?;
+                let mid = args_map
+                    .get("mcp_id")
+                    .and_then(|v| v.as_i64())
+                    .ok_or("missing mcp_id")?;
+                db.assign_mcp_to_project(pid, mid)
+                    .map_err(|e| e.to_string())?;
+                Ok(format!("MCP {} assigned to project {}", mid, pid))
+            }
+            "remove_mcp_from_project" => {
+                let pid = args_map
+                    .get("project_id")
+                    .and_then(|v| v.as_i64())
+                    .ok_or("missing project_id")?;
+                let mid = args_map
+                    .get("mcp_id")
+                    .and_then(|v| v.as_i64())
+                    .ok_or("missing mcp_id")?;
+                db.remove_mcp_from_project(pid, mid)
+                    .map_err(|e| e.to_string())?;
+                Ok(format!("MCP {} removed from project {}", mid, pid))
+            }
+            "list_global_mcps" => {
+                let mcps = db.get_global_mcps().map_err(|e| e.to_string())?;
+                serde_json::to_string_pretty(&mcps).map_err(|e| e.to_string())
+            }
+            "enable_global_mcp" => {
+                let id = args_map
+                    .get("mcp_id")
+                    .and_then(|v| v.as_i64())
+                    .ok_or("missing mcp_id")?;
+                db.add_global_mcp(id).map_err(|e| e.to_string())?;
+                Ok(format!("MCP {} enabled globally", id))
+            }
+            "disable_global_mcp" => {
+                let id = args_map
+                    .get("mcp_id")
+                    .and_then(|v| v.as_i64())
+                    .ok_or("missing mcp_id")?;
+                db.remove_global_mcp(id).map_err(|e| e.to_string())?;
+                Ok(format!("MCP {} disabled globally", id))
+            }
+            "list_skills" => {
+                let skills = db.get_all_skills().map_err(|e| e.to_string())?;
+                serde_json::to_string_pretty(&skills).map_err(|e| e.to_string())
+            }
+            "get_skill" => {
+                let id = args_map
+                    .get("id")
+                    .and_then(|v| v.as_i64())
+                    .ok_or("missing id")?;
+                let skill = db
+                    .get_skill_by_id(id)
+                    .map_err(|e| e.to_string())?
+                    .ok_or_else(|| format!("Skill with ID {} not found", id))?;
+                serde_json::to_string_pretty(&skill).map_err(|e| e.to_string())
+            }
+            "create_skill" => {
+                use crate::db::models::CreateSkillRequest;
+                let request = CreateSkillRequest {
+                    name: args_map
+                        .get("name")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string(),
+                    content: args_map
+                        .get("content")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string(),
+                    description: args_map
+                        .get("description")
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string()),
+                    allowed_tools: args_map
+                        .get("allowed_tools")
+                        .and_then(|v| v.as_array())
+                        .map(|a| {
+                            a.iter()
+                                .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                                .collect()
+                        }),
+                    model: args_map
+                        .get("model")
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string()),
+                    disable_model_invocation: args_map
+                        .get("disable_model_invocation")
+                        .and_then(|v| v.as_bool()),
+                    tags: args_map.get("tags").and_then(|v| v.as_array()).map(|a| {
+                        a.iter()
+                            .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                            .collect()
+                    }),
+                };
+                let skill = db.create_skill(&request).map_err(|e| e.to_string())?;
+                let json = serde_json::to_string_pretty(&skill).map_err(|e| e.to_string())?;
+                Ok(format!(
+                    "Skill '{}' created successfully:\n{}",
+                    skill.name, json
+                ))
+            }
+            "delete_skill" => {
+                let id = args_map
+                    .get("id")
+                    .and_then(|v| v.as_i64())
+                    .ok_or("missing id")?;
+                let skill = db
+                    .get_skill_by_id(id)
+                    .map_err(|e| e.to_string())?
+                    .ok_or_else(|| format!("Skill with ID {} not found", id))?;
+                db.delete_skill(id).map_err(|e| e.to_string())?;
+                Ok(format!("Skill '{}' deleted successfully", skill.name))
+            }
+            "enable_global_skill" => {
+                let id = args_map
+                    .get("item_id")
+                    .and_then(|v| v.as_i64())
+                    .ok_or("missing item_id")?;
+                db.add_global_skill(id).map_err(|e| e.to_string())?;
+                Ok(format!("Skill {} enabled globally", id))
+            }
+            "disable_global_skill" => {
+                let id = args_map
+                    .get("item_id")
+                    .and_then(|v| v.as_i64())
+                    .ok_or("missing item_id")?;
+                db.remove_global_skill(id).map_err(|e| e.to_string())?;
+                Ok(format!("Skill {} disabled globally", id))
+            }
+            "list_subagents" => {
+                let items = db.get_all_subagents().map_err(|e| e.to_string())?;
+                serde_json::to_string_pretty(&items).map_err(|e| e.to_string())
+            }
+            "get_subagent" => {
+                let id = args_map
+                    .get("id")
+                    .and_then(|v| v.as_i64())
+                    .ok_or("missing id")?;
+                let item = db
+                    .get_subagent_by_id(id)
+                    .map_err(|e| e.to_string())?
+                    .ok_or_else(|| format!("SubAgent with ID {} not found", id))?;
+                serde_json::to_string_pretty(&item).map_err(|e| e.to_string())
+            }
+            "create_subagent" => {
+                use crate::db::models::CreateSubAgentRequest;
+                let request = CreateSubAgentRequest {
+                    name: args_map
+                        .get("name")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string(),
+                    description: args_map
+                        .get("description")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string(),
+                    content: args_map
+                        .get("content")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string(),
+                    tools: args_map.get("tools").and_then(|v| v.as_array()).map(|a| {
+                        a.iter()
+                            .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                            .collect()
+                    }),
+                    model: args_map
+                        .get("model")
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string()),
+                    permission_mode: args_map
+                        .get("permission_mode")
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string()),
+                    skills: None,
+                    tags: args_map.get("tags").and_then(|v| v.as_array()).map(|a| {
+                        a.iter()
+                            .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                            .collect()
+                    }),
+                };
+                let item = db.create_subagent(&request).map_err(|e| e.to_string())?;
+                let json = serde_json::to_string_pretty(&item).map_err(|e| e.to_string())?;
+                Ok(format!(
+                    "SubAgent '{}' created successfully:\n{}",
+                    item.name, json
+                ))
+            }
+            "delete_subagent" => {
+                let id = args_map
+                    .get("id")
+                    .and_then(|v| v.as_i64())
+                    .ok_or("missing id")?;
+                let item = db
+                    .get_subagent_by_id(id)
+                    .map_err(|e| e.to_string())?
+                    .ok_or_else(|| format!("SubAgent with ID {} not found", id))?;
+                db.delete_subagent(id).map_err(|e| e.to_string())?;
+                Ok(format!("SubAgent '{}' deleted successfully", item.name))
+            }
+            "enable_global_subagent" => {
+                let id = args_map
+                    .get("item_id")
+                    .and_then(|v| v.as_i64())
+                    .ok_or("missing item_id")?;
+                db.add_global_subagent(id).map_err(|e| e.to_string())?;
+                Ok(format!("SubAgent {} enabled globally", id))
+            }
+            "disable_global_subagent" => {
+                let id = args_map
+                    .get("item_id")
+                    .and_then(|v| v.as_i64())
+                    .ok_or("missing item_id")?;
+                db.remove_global_subagent(id).map_err(|e| e.to_string())?;
+                Ok(format!("SubAgent {} disabled globally", id))
+            }
+            "list_hooks" => {
+                let items = db.get_all_hooks().map_err(|e| e.to_string())?;
+                serde_json::to_string_pretty(&items).map_err(|e| e.to_string())
+            }
+            "get_hook" => {
+                let id = args_map
+                    .get("id")
+                    .and_then(|v| v.as_i64())
+                    .ok_or("missing id")?;
+                let item = db
+                    .get_hook_by_id(id)
+                    .map_err(|e| e.to_string())?
+                    .ok_or_else(|| format!("Hook with ID {} not found", id))?;
+                serde_json::to_string_pretty(&item).map_err(|e| e.to_string())
+            }
+            "create_hook" => {
+                use crate::db::models::CreateHookRequest;
+                let request = CreateHookRequest {
+                    name: args_map
+                        .get("name")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string(),
+                    event_type: args_map
+                        .get("event_type")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string(),
+                    hook_type: args_map
+                        .get("hook_type")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string(),
+                    description: args_map
+                        .get("description")
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string()),
+                    matcher: args_map
+                        .get("matcher")
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string()),
+                    command: args_map
+                        .get("command")
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string()),
+                    prompt: args_map
+                        .get("prompt")
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string()),
+                    timeout: args_map
+                        .get("timeout")
+                        .and_then(|v| v.as_i64())
+                        .map(|v| v as i32),
+                    tags: args_map.get("tags").and_then(|v| v.as_array()).map(|a| {
+                        a.iter()
+                            .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                            .collect()
+                    }),
+                };
+                let item = db.create_hook(&request).map_err(|e| e.to_string())?;
+                let json = serde_json::to_string_pretty(&item).map_err(|e| e.to_string())?;
+                Ok(format!(
+                    "Hook '{}' created successfully:\n{}",
+                    item.name, json
+                ))
+            }
+            "delete_hook" => {
+                let id = args_map
+                    .get("id")
+                    .and_then(|v| v.as_i64())
+                    .ok_or("missing id")?;
+                let item = db
+                    .get_hook_by_id(id)
+                    .map_err(|e| e.to_string())?
+                    .ok_or_else(|| format!("Hook with ID {} not found", id))?;
+                db.delete_hook(id).map_err(|e| e.to_string())?;
+                Ok(format!("Hook '{}' deleted successfully", item.name))
+            }
+            "enable_global_hook" => {
+                let id = args_map
+                    .get("item_id")
+                    .and_then(|v| v.as_i64())
+                    .ok_or("missing item_id")?;
+                db.add_global_hook(id).map_err(|e| e.to_string())?;
+                Ok(format!("Hook {} enabled globally", id))
+            }
+            "disable_global_hook" => {
+                let id = args_map
+                    .get("item_id")
+                    .and_then(|v| v.as_i64())
+                    .ok_or("missing item_id")?;
+                db.remove_global_hook(id).map_err(|e| e.to_string())?;
+                Ok(format!("Hook {} disabled globally", id))
+            }
+            _ => Err(format!("Unknown tool: {}", name)),
+        }
+    }
+
+    /// Helper: call tool and unwrap the result text
+    fn call(server: &ToolManagerServer, name: &str, args: serde_json::Value) -> String {
+        call_tool_sync(server, name, args).unwrap()
+    }
+
+    // ========================================================================
+    // Construction & basic methods
+    // ========================================================================
+
+    #[test]
+    fn test_new_creates_server() {
+        let server = make_server();
+        // Should be able to lock the DB without panic.
+        let _guard = server.get_db().expect("lock db");
+    }
+
+    #[test]
+    fn test_debug_impl() {
+        let server = make_server();
+        let debug = format!("{:?}", server);
+        assert!(debug.contains("ToolManagerServer"));
+    }
+
+    #[test]
+    fn test_get_info() {
+        let server = make_server();
+        let info = server.get_info();
+        assert!(info
+            .instructions
+            .unwrap()
+            .contains("Claude Code Tool Manager"));
+        assert!(info.capabilities.tools.is_some());
+    }
+
+    // list_tools tested via ServerHandler would require async context;
+    // the tool_router is tested implicitly through the call_tool_sync helper above.
+
+    // MCP CRUD
+    #[test]
+    fn test_list_mcps_empty() {
+        let s = make_server();
+        let text = call(&s, "list_mcps", json!({}));
+        let mcps: Vec<serde_json::Value> = serde_json::from_str(&text).unwrap();
+        assert!(mcps.is_empty());
+    }
+
+    #[test]
+    fn test_create_and_get_mcp() {
+        let s = make_server();
+        let text = call(
+            &s,
+            "create_mcp",
+            json!({"name":"test-server","type":"stdio","description":"A test","command":"node","args":["server.js"],"icon":"T","tags":["test"]}),
+        );
+        assert!(text.contains("created successfully"));
+
+        let list = call(&s, "list_mcps", json!({}));
+        let mcps: Vec<serde_json::Value> = serde_json::from_str(&list).unwrap();
+        assert_eq!(mcps.len(), 1);
+        let id = mcps[0]["id"].as_i64().unwrap();
+
+        let got = call(&s, "get_mcp", json!({"id": id}));
+        let mcp: serde_json::Value = serde_json::from_str(&got).unwrap();
+        assert_eq!(mcp["name"], "test-server");
+    }
+
+    #[test]
+    fn test_create_mcp_sse() {
+        let s = make_server();
+        let text = call(
+            &s,
+            "create_mcp",
+            json!({"name":"sse-srv","type":"sse","url":"http://localhost/sse","headers":{"Auth":"Bearer t"},"env":{"K":"V"}}),
+        );
+        assert!(text.contains("created successfully"));
+    }
+
+    #[test]
+    fn test_update_mcp() {
+        let s = make_server();
+        call(
+            &s,
+            "create_mcp",
+            json!({"name":"updatable","type":"stdio","command":"old"}),
+        );
+        let list = call(&s, "list_mcps", json!({}));
+        let mcps: Vec<serde_json::Value> = serde_json::from_str(&list).unwrap();
+        let id = mcps[0]["id"].as_i64().unwrap();
+
+        let text = call(
+            &s,
+            "update_mcp",
+            json!({"id":id,"name":"renamed","description":"updated"}),
+        );
+        assert!(text.contains("updated successfully"));
+
+        let got = call(&s, "get_mcp", json!({"id":id}));
+        let mcp: serde_json::Value = serde_json::from_str(&got).unwrap();
+        assert_eq!(mcp["name"], "renamed");
+    }
+
+    #[test]
+    fn test_update_mcp_not_found() {
+        let s = make_server();
+        let r = call_tool_sync(&s, "update_mcp", json!({"id":999}));
+        assert!(r.is_err());
+    }
+
+    #[test]
+    fn test_delete_mcp() {
+        let s = make_server();
+        call(
+            &s,
+            "create_mcp",
+            json!({"name":"del","type":"http","url":"http://x"}),
+        );
+        let list = call(&s, "list_mcps", json!({}));
+        let mcps: Vec<serde_json::Value> = serde_json::from_str(&list).unwrap();
+        let id = mcps[0]["id"].as_i64().unwrap();
+        let text = call(&s, "delete_mcp", json!({"id":id}));
+        assert!(text.contains("deleted successfully"));
+    }
+
+    #[test]
+    fn test_delete_mcp_not_found() {
+        let s = make_server();
+        assert!(call_tool_sync(&s, "delete_mcp", json!({"id":999})).is_err());
+    }
+
+    #[test]
+    fn test_get_mcp_not_found() {
+        let s = make_server();
+        assert!(call_tool_sync(&s, "get_mcp", json!({"id":999})).is_err());
+    }
+
+    // Filtering
+    #[test]
+    fn test_list_mcps_filter_by_type() {
+        let s = make_server();
+        call(
+            &s,
+            "create_mcp",
+            json!({"name":"a","type":"stdio","command":"x"}),
+        );
+        call(
+            &s,
+            "create_mcp",
+            json!({"name":"b","type":"sse","url":"http://x"}),
+        );
+        let text = call(&s, "list_mcps", json!({"filter_type":"stdio"}));
+        let mcps: Vec<serde_json::Value> = serde_json::from_str(&text).unwrap();
+        assert_eq!(mcps.len(), 1);
+        assert_eq!(mcps[0]["name"], "a");
+    }
+
+    #[test]
+    fn test_list_mcps_search() {
+        let s = make_server();
+        call(
+            &s,
+            "create_mcp",
+            json!({"name":"alpha","type":"stdio","command":"x"}),
+        );
+        call(
+            &s,
+            "create_mcp",
+            json!({"name":"beta","type":"stdio","command":"x"}),
+        );
+        let text = call(&s, "list_mcps", json!({"search":"alpha"}));
+        let mcps: Vec<serde_json::Value> = serde_json::from_str(&text).unwrap();
+        assert_eq!(mcps.len(), 1);
+    }
+
+    #[test]
+    fn test_list_mcps_search_desc() {
+        let s = make_server();
+        call(
+            &s,
+            "create_mcp",
+            json!({"name":"x","type":"stdio","command":"x","description":"database"}),
+        );
+        call(
+            &s,
+            "create_mcp",
+            json!({"name":"y","type":"stdio","command":"x","description":"network"}),
+        );
+        let text = call(&s, "list_mcps", json!({"search":"database"}));
+        let mcps: Vec<serde_json::Value> = serde_json::from_str(&text).unwrap();
+        assert_eq!(mcps.len(), 1);
+    }
+
+    #[test]
+    fn test_list_mcps_combined() {
+        let s = make_server();
+        call(
+            &s,
+            "create_mcp",
+            json!({"name":"stdio-a","type":"stdio","command":"x"}),
+        );
+        call(
+            &s,
+            "create_mcp",
+            json!({"name":"sse-a","type":"sse","url":"http://x"}),
+        );
+        let text = call(&s, "list_mcps", json!({"filter_type":"sse","search":"a"}));
+        let mcps: Vec<serde_json::Value> = serde_json::from_str(&text).unwrap();
+        assert_eq!(mcps.len(), 1);
+        assert_eq!(mcps[0]["name"], "sse-a");
+    }
+
+    // Global MCPs
+    #[test]
+    fn test_global_mcps() {
+        let s = make_server();
+        call(
+            &s,
+            "create_mcp",
+            json!({"name":"gm","type":"stdio","command":"g"}),
+        );
+        let list = call(&s, "list_mcps", json!({}));
+        let mcps: Vec<serde_json::Value> = serde_json::from_str(&list).unwrap();
+        let id = mcps[0]["id"].as_i64().unwrap();
+        assert!(call(&s, "enable_global_mcp", json!({"mcp_id":id})).contains("enabled"));
+        assert!(call(&s, "list_global_mcps", json!({})).contains("gm"));
+        assert!(call(&s, "disable_global_mcp", json!({"mcp_id":id})).contains("disabled"));
+    }
+
+    // Projects
+    #[test]
+    fn test_list_projects_empty() {
+        let s = make_server();
+        let text = call(&s, "list_projects", json!({}));
+        let p: Vec<serde_json::Value> = serde_json::from_str(&text).unwrap();
+        assert!(p.is_empty());
+    }
+
+    #[test]
+    fn test_get_project_not_found() {
+        let s = make_server();
+        assert!(call_tool_sync(&s, "get_project", json!({"id":999})).is_err());
+    }
+
+    // Skills CRUD
+    #[test]
+    fn test_skills_lifecycle() {
+        let s = make_server();
+        let text = call(&s, "list_skills", json!({}));
+        assert_eq!(
+            serde_json::from_str::<Vec<serde_json::Value>>(&text)
+                .unwrap()
+                .len(),
+            0
+        );
+
+        let text = call(
+            &s,
+            "create_skill",
+            json!({"name":"sk","content":"# Sk","description":"d","allowed_tools":["Read"],"model":"sonnet","tags":["t"]}),
+        );
+        assert!(text.contains("created successfully"));
+
+        let list = call(&s, "list_skills", json!({}));
+        let skills: Vec<serde_json::Value> = serde_json::from_str(&list).unwrap();
+        let id = skills[0]["id"].as_i64().unwrap();
+
+        let got = call(&s, "get_skill", json!({"id":id}));
+        assert!(got.contains("sk"));
+
+        assert!(call(&s, "enable_global_skill", json!({"item_id":id})).contains("enabled"));
+        assert!(call(&s, "disable_global_skill", json!({"item_id":id})).contains("disabled"));
+        assert!(call(&s, "delete_skill", json!({"id":id})).contains("deleted"));
+    }
+
+    #[test]
+    fn test_get_skill_not_found() {
+        assert!(call_tool_sync(&make_server(), "get_skill", json!({"id":999})).is_err());
+    }
+
+    #[test]
+    fn test_delete_skill_not_found() {
+        assert!(call_tool_sync(&make_server(), "delete_skill", json!({"id":999})).is_err());
+    }
+
+    // SubAgents CRUD
+    #[test]
+    fn test_subagents_lifecycle() {
+        let s = make_server();
+        let text = call(
+            &s,
+            "create_subagent",
+            json!({"name":"sa","description":"d","content":"c","tools":["Read"],"model":"opus","tags":["t"]}),
+        );
+        assert!(text.contains("created successfully"));
+
+        let list = call(&s, "list_subagents", json!({}));
+        let items: Vec<serde_json::Value> = serde_json::from_str(&list).unwrap();
+        let id = items[0]["id"].as_i64().unwrap();
+
+        assert!(call(&s, "get_subagent", json!({"id":id})).contains("sa"));
+        assert!(call(&s, "enable_global_subagent", json!({"item_id":id})).contains("enabled"));
+        assert!(call(&s, "disable_global_subagent", json!({"item_id":id})).contains("disabled"));
+        assert!(call(&s, "delete_subagent", json!({"id":id})).contains("deleted"));
+    }
+
+    #[test]
+    fn test_get_subagent_not_found() {
+        assert!(call_tool_sync(&make_server(), "get_subagent", json!({"id":999})).is_err());
+    }
+
+    // Hooks CRUD
+    #[test]
+    fn test_hooks_lifecycle() {
+        let s = make_server();
+        let text = call(
+            &s,
+            "create_hook",
+            json!({"name":"h","event_type":"PreToolUse","hook_type":"command","command":"lint","matcher":"Write","timeout":5000,"tags":["t"]}),
+        );
+        assert!(text.contains("created successfully"));
+
+        let list = call(&s, "list_hooks", json!({}));
+        let items: Vec<serde_json::Value> = serde_json::from_str(&list).unwrap();
+        let id = items[0]["id"].as_i64().unwrap();
+
+        assert!(call(&s, "get_hook", json!({"id":id})).contains("h"));
+        assert!(call(&s, "enable_global_hook", json!({"item_id":id})).contains("enabled"));
+        assert!(call(&s, "disable_global_hook", json!({"item_id":id})).contains("disabled"));
+        assert!(call(&s, "delete_hook", json!({"id":id})).contains("deleted"));
+    }
+
+    #[test]
+    fn test_create_prompt_hook() {
+        let s = make_server();
+        let text = call(
+            &s,
+            "create_hook",
+            json!({"name":"ph","event_type":"PostToolUse","hook_type":"prompt","prompt":"Review.","matcher":"Write"}),
+        );
+        assert!(text.contains("created successfully"));
+    }
+
+    #[test]
+    fn test_get_hook_not_found() {
+        assert!(call_tool_sync(&make_server(), "get_hook", json!({"id":999})).is_err());
+    }
+
+    // Project-MCP assignment
+    #[test]
+    fn test_assign_mcp_to_project() {
+        let s = make_server();
+        call(
+            &s,
+            "create_mcp",
+            json!({"name":"pm","type":"stdio","command":"x"}),
+        );
+        let list = call(&s, "list_mcps", json!({}));
+        let mcps: Vec<serde_json::Value> = serde_json::from_str(&list).unwrap();
+        let mcp_id = mcps[0]["id"].as_i64().unwrap();
+
+        {
+            let db = s.get_db().unwrap();
+            db.conn()
+                .execute(
+                    "INSERT INTO projects (name, path) VALUES (?1, ?2)",
+                    rusqlite::params!["tp", "/tmp/t"],
+                )
+                .unwrap();
+        }
+        let plist = call(&s, "list_projects", json!({}));
+        let projects: Vec<serde_json::Value> = serde_json::from_str(&plist).unwrap();
+        let pid = projects[0]["id"].as_i64().unwrap();
+
+        assert!(call(
+            &s,
+            "assign_mcp_to_project",
+            json!({"project_id":pid,"mcp_id":mcp_id})
+        )
+        .contains("assigned"));
+        assert!(call(
+            &s,
+            "remove_mcp_from_project",
+            json!({"project_id":pid,"mcp_id":mcp_id})
+        )
+        .contains("removed"));
+    }
+
+    #[test]
+    fn test_unknown_tool() {
+        let s = make_server();
+        assert!(call_tool_sync(&s, "nonexistent", json!({})).is_err());
+    }
+
+    #[test]
+    fn test_server_is_cloneable() {
+        let server = make_server();
+        let cloned = server.clone();
+        assert!(Arc::ptr_eq(&server.db, &cloned.db));
+    }
+}

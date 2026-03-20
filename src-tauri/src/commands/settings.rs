@@ -123,21 +123,7 @@ pub fn toggle_editor(
 ) -> Result<(), String> {
     info!("[Settings] Toggling editor {} to {}", editor_id, enabled);
     let db = db.lock().map_err(|e| e.to_string())?;
-
-    let mut editors = get_enabled_editors_from_db(&db);
-
-    if enabled {
-        if !editors.contains(&editor_id) {
-            editors.push(editor_id);
-        }
-    } else {
-        editors.retain(|e| e != &editor_id);
-    }
-
-    let settings = AppSettings {
-        enabled_editors: editors,
-    };
-    update_app_settings_in_db(&db, &settings)
+    toggle_editor_in_db(&db, &editor_id, enabled)
 }
 
 /// Set GitHub personal access token
@@ -145,11 +131,7 @@ pub fn toggle_editor(
 pub fn set_github_token(db: State<'_, Arc<Mutex<Database>>>, token: String) -> Result<(), String> {
     info!("[Settings] Setting GitHub token");
     let db = db.lock().map_err(|e| e.to_string())?;
-    let value = if token.trim().is_empty() {
-        ""
-    } else {
-        token.trim()
-    };
+    let value = sanitize_github_token(&token);
     db.set_setting("github_token", value)
         .map_err(|e| e.to_string())
 }
@@ -272,10 +254,37 @@ pub fn update_app_settings_in_db(db: &Database, settings: &AppSettings) -> Resul
         .map_err(|e| e.to_string())
 }
 
+/// Toggle editor enabled status in the database
+pub fn toggle_editor_in_db(db: &Database, editor_id: &str, enabled: bool) -> Result<(), String> {
+    let mut editors = get_enabled_editors_from_db(db);
+
+    if enabled {
+        if !editors.contains(&editor_id.to_string()) {
+            editors.push(editor_id.to_string());
+        }
+    } else {
+        editors.retain(|e| e != editor_id);
+    }
+
+    let settings = AppSettings {
+        enabled_editors: editors,
+    };
+    update_app_settings_in_db(db, &settings)
+}
+
 /// Check if a specific editor is enabled
-#[cfg(test)]
 pub fn is_editor_enabled(db: &Database, editor_id: &str) -> bool {
     get_enabled_editors_from_db(db).contains(&editor_id.to_string())
+}
+
+/// Sanitize a GitHub token value (trim whitespace, return empty string for blank)
+pub(crate) fn sanitize_github_token(token: &str) -> &str {
+    let trimmed = token.trim();
+    if trimmed.is_empty() {
+        ""
+    } else {
+        trimmed
+    }
 }
 
 #[cfg(test)]
@@ -404,6 +413,141 @@ mod tests {
     // OpenCodePaths tests
     // =========================================================================
 
+    // =========================================================================
+    // GitHub token tests
+    // =========================================================================
+
+    #[test]
+    fn test_get_github_token_none_by_default() {
+        let db = Database::in_memory().unwrap();
+        assert!(get_github_token_from_db(&db).is_none());
+    }
+
+    #[test]
+    fn test_get_github_token_set_and_retrieve() {
+        let db = Database::in_memory().unwrap();
+        db.set_setting("github_token", "ghp_abc123").unwrap();
+        let token = get_github_token_from_db(&db);
+        assert_eq!(token, Some("ghp_abc123".to_string()));
+    }
+
+    #[test]
+    fn test_get_github_token_empty_returns_none() {
+        let db = Database::in_memory().unwrap();
+        db.set_setting("github_token", "").unwrap();
+        assert!(get_github_token_from_db(&db).is_none());
+    }
+
+    #[test]
+    fn test_get_github_token_whitespace_returns_none() {
+        let db = Database::in_memory().unwrap();
+        db.set_setting("github_token", "   ").unwrap();
+        assert!(get_github_token_from_db(&db).is_none());
+    }
+
+    // =========================================================================
+    // Enabled editors edge case tests
+    // =========================================================================
+
+    #[test]
+    fn test_get_enabled_editors_invalid_json_returns_default() {
+        let db = Database::in_memory().unwrap();
+        db.set_setting("enabled_editors", "not valid json").unwrap();
+        let editors = get_enabled_editors_from_db(&db);
+        assert_eq!(editors, vec!["claude_code".to_string()]);
+    }
+
+    #[test]
+    fn test_update_and_get_multiple_editors() {
+        let db = Database::in_memory().unwrap();
+        let settings = AppSettings {
+            enabled_editors: vec![
+                "claude_code".to_string(),
+                "opencode".to_string(),
+                "codex".to_string(),
+                "copilot".to_string(),
+                "cursor".to_string(),
+                "gemini".to_string(),
+            ],
+        };
+        update_app_settings_in_db(&db, &settings).unwrap();
+        let fetched = get_app_settings_from_db(&db).unwrap();
+        assert_eq!(fetched.enabled_editors.len(), 6);
+    }
+
+    #[test]
+    fn test_is_editor_enabled_after_disable() {
+        let db = Database::in_memory().unwrap();
+        let settings = AppSettings {
+            enabled_editors: vec!["opencode".to_string()],
+        };
+        update_app_settings_in_db(&db, &settings).unwrap();
+        assert!(!is_editor_enabled(&db, "claude_code"));
+        assert!(is_editor_enabled(&db, "opencode"));
+    }
+
+    // =========================================================================
+    // Path model serde tests
+    // =========================================================================
+
+    #[test]
+    fn test_codex_paths_serde() {
+        let paths = CodexPaths {
+            config_dir: "/home/user/.codex".to_string(),
+            config_file: "/home/user/.codex/config.json".to_string(),
+        };
+        let json = serde_json::to_string(&paths).unwrap();
+        assert!(json.contains("configDir"));
+        assert!(json.contains("configFile"));
+        let deserialized: CodexPaths = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.config_dir, "/home/user/.codex");
+    }
+
+    #[test]
+    fn test_copilot_paths_serde() {
+        let paths = CopilotPaths {
+            config_dir: "/home/user/.copilot".to_string(),
+            config_file: "/home/user/.copilot/config.json".to_string(),
+            mcp_config_file: "/home/user/.copilot/mcp.json".to_string(),
+            agents_dir: "/home/user/.copilot/agents".to_string(),
+        };
+        let json = serde_json::to_string(&paths).unwrap();
+        assert!(json.contains("configDir"));
+        assert!(json.contains("mcpConfigFile"));
+        assert!(json.contains("agentsDir"));
+        let deserialized: CopilotPaths = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.agents_dir, "/home/user/.copilot/agents");
+    }
+
+    #[test]
+    fn test_cursor_paths_serde() {
+        let paths = CursorPaths {
+            config_dir: "/home/user/.cursor".to_string(),
+            mcp_config_file: "/home/user/.cursor/mcp.json".to_string(),
+        };
+        let json = serde_json::to_string(&paths).unwrap();
+        assert!(json.contains("configDir"));
+        assert!(json.contains("mcpConfigFile"));
+        let deserialized: CursorPaths = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.config_dir, "/home/user/.cursor");
+    }
+
+    #[test]
+    fn test_gemini_paths_serde() {
+        let paths = GeminiPaths {
+            config_dir: "/home/user/.gemini".to_string(),
+            settings_file: "/home/user/.gemini/settings.json".to_string(),
+        };
+        let json = serde_json::to_string(&paths).unwrap();
+        assert!(json.contains("configDir"));
+        assert!(json.contains("settingsFile"));
+        let deserialized: GeminiPaths = serde_json::from_str(&json).unwrap();
+        assert_eq!(
+            deserialized.settings_file,
+            "/home/user/.gemini/settings.json"
+        );
+    }
+
     #[test]
     fn test_opencode_paths_serde() {
         let paths = OpenCodePaths {
@@ -428,5 +572,65 @@ mod tests {
 
         let deserialized: OpenCodePaths = serde_json::from_str(&json).unwrap();
         assert!(deserialized.config_dir.contains("opencode"));
+    }
+
+    // =========================================================================
+    // Toggle editor tests
+    // =========================================================================
+
+    #[test]
+    fn test_toggle_editor_enable() {
+        let db = Database::in_memory().unwrap();
+        assert!(!is_editor_enabled(&db, "opencode"));
+
+        toggle_editor_in_db(&db, "opencode", true).unwrap();
+        assert!(is_editor_enabled(&db, "opencode"));
+        // claude_code should still be enabled (default)
+        assert!(is_editor_enabled(&db, "claude_code"));
+    }
+
+    #[test]
+    fn test_toggle_editor_disable() {
+        let db = Database::in_memory().unwrap();
+        assert!(is_editor_enabled(&db, "claude_code"));
+
+        toggle_editor_in_db(&db, "claude_code", false).unwrap();
+        assert!(!is_editor_enabled(&db, "claude_code"));
+    }
+
+    #[test]
+    fn test_toggle_editor_enable_idempotent() {
+        let db = Database::in_memory().unwrap();
+        // Enable twice should not duplicate
+        toggle_editor_in_db(&db, "opencode", true).unwrap();
+        toggle_editor_in_db(&db, "opencode", true).unwrap();
+
+        let editors = get_enabled_editors_from_db(&db);
+        let count = editors.iter().filter(|e| *e == "opencode").count();
+        assert_eq!(count, 1);
+    }
+
+    // =========================================================================
+    // Sanitize GitHub token tests
+    // =========================================================================
+
+    #[test]
+    fn test_sanitize_github_token_normal() {
+        assert_eq!(sanitize_github_token("ghp_abc123"), "ghp_abc123");
+    }
+
+    #[test]
+    fn test_sanitize_github_token_whitespace() {
+        assert_eq!(sanitize_github_token("  ghp_abc123  "), "ghp_abc123");
+    }
+
+    #[test]
+    fn test_sanitize_github_token_empty() {
+        assert_eq!(sanitize_github_token(""), "");
+    }
+
+    #[test]
+    fn test_sanitize_github_token_only_spaces() {
+        assert_eq!(sanitize_github_token("   "), "");
     }
 }

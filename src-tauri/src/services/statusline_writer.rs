@@ -1616,4 +1616,882 @@ mod tests {
         let fg = get_ansi_fg_color_num("magenta");
         assert_eq!(fg, "38;2;188;63;188");
     }
+
+    // =========================================================================
+    // Helper to build a segment quickly
+    // =========================================================================
+    fn seg(segment_type: &str, enabled: bool) -> StatusLineSegment {
+        StatusLineSegment {
+            id: "t".to_string(),
+            segment_type: segment_type.to_string(),
+            enabled,
+            label: None,
+            format: None,
+            color: None,
+            bg_color: None,
+            separator_char: None,
+            custom_text: None,
+            position: 0,
+        }
+    }
+
+    fn seg_with(
+        segment_type: &str,
+        format: Option<&str>,
+        label: Option<&str>,
+        color: Option<&str>,
+        bg_color: Option<&str>,
+    ) -> StatusLineSegment {
+        StatusLineSegment {
+            id: "t".to_string(),
+            segment_type: segment_type.to_string(),
+            enabled: true,
+            label: label.map(|s| s.to_string()),
+            format: format.map(|s| s.to_string()),
+            color: color.map(|s| s.to_string()),
+            bg_color: bg_color.map(|s| s.to_string()),
+            separator_char: None,
+            custom_text: None,
+            position: 0,
+        }
+    }
+
+    // =========================================================================
+    // read_settings_file / write_settings_file tests
+    // =========================================================================
+    #[test]
+    fn test_read_settings_file_nonexistent() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings.json");
+        let val = read_settings_file(&path).unwrap();
+        assert_eq!(val, serde_json::json!({}));
+    }
+
+    #[test]
+    fn test_read_settings_file_existing() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings.json");
+        std::fs::write(&path, r#"{"foo":"bar"}"#).unwrap();
+        let val = read_settings_file(&path).unwrap();
+        assert_eq!(val["foo"], "bar");
+    }
+
+    #[test]
+    fn test_read_settings_file_invalid_json_returns_empty() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings.json");
+        std::fs::write(&path, "not json {{{").unwrap();
+        let val = read_settings_file(&path).unwrap();
+        assert_eq!(val, serde_json::json!({}));
+    }
+
+    #[test]
+    fn test_write_settings_file_creates_parents() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("sub").join("settings.json");
+        let val = serde_json::json!({"key": "val"});
+        write_settings_file(&path, &val).unwrap();
+        assert!(path.exists());
+        let content = std::fs::read_to_string(&path).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&content).unwrap();
+        assert_eq!(parsed["key"], "val");
+    }
+
+    // =========================================================================
+    // Segment type coverage: each segment type produces expected Python code
+    // =========================================================================
+    #[test]
+    fn test_segment_context_fraction() {
+        let segs = vec![seg_with("context", Some("fraction"), None, None, None)];
+        let script = generate_script_from_segments(&segs);
+        assert!(script.contains("fmt_tokens"));
+        assert!(script.contains("context_window_size"));
+    }
+
+    #[test]
+    fn test_segment_context_bar() {
+        let segs = vec![seg_with("context", Some("bar"), None, None, None)];
+        let script = generate_script_from_segments(&segs);
+        assert!(script.contains("used_percentage"));
+        assert!(script.contains("filled_bar"));
+    }
+
+    #[test]
+    fn test_segment_context_percentage_default() {
+        let segs = vec![seg_with("context", None, None, None, None)];
+        let script = generate_script_from_segments(&segs);
+        assert!(script.contains("used_percentage"));
+    }
+
+    #[test]
+    fn test_segment_cwd_full() {
+        let segs = vec![seg_with("cwd", Some("full"), None, None, None)];
+        let script = generate_script_from_segments(&segs);
+        assert!(script.contains("current_dir"));
+        assert!(!script.contains("os.path.basename"));
+    }
+
+    #[test]
+    fn test_segment_cwd_short() {
+        let segs = vec![seg_with("cwd", Some("short"), None, None, None)];
+        let script = generate_script_from_segments(&segs);
+        assert!(script.contains("expanduser"));
+    }
+
+    #[test]
+    fn test_segment_cwd_basename_default() {
+        let segs = vec![seg_with("cwd", None, None, None, None)];
+        let script = generate_script_from_segments(&segs);
+        assert!(script.contains("os.path.basename"));
+    }
+
+    #[test]
+    fn test_segment_tokens_in_full() {
+        let segs = vec![seg_with("tokens_in", Some("full"), None, None, None)];
+        let script = generate_script_from_segments(&segs);
+        assert!(script.contains("total_input_tokens"));
+        assert!(script.contains("str(tokens)"));
+    }
+
+    #[test]
+    fn test_segment_tokens_in_compact() {
+        let segs = vec![seg_with("tokens_in", None, None, None, None)];
+        let script = generate_script_from_segments(&segs);
+        assert!(script.contains("total_input_tokens"));
+    }
+
+    #[test]
+    fn test_segment_tokens_out_full() {
+        let segs = vec![seg_with("tokens_out", Some("full"), None, None, None)];
+        let script = generate_script_from_segments(&segs);
+        assert!(script.contains("total_output_tokens"));
+    }
+
+    #[test]
+    fn test_segment_tokens_out_compact() {
+        let segs = vec![seg_with("tokens_out", None, None, None, None)];
+        let script = generate_script_from_segments(&segs);
+        assert!(script.contains("total_output_tokens"));
+    }
+
+    #[test]
+    fn test_segment_vim_mode() {
+        let segs = vec![seg("vim_mode", true)];
+        let script = generate_script_from_segments(&segs);
+        assert!(script.contains("vim"));
+        assert!(script.contains("mode"));
+    }
+
+    #[test]
+    fn test_segment_custom_text() {
+        let mut s = seg("custom_text", true);
+        s.custom_text = Some("Hello World".to_string());
+        let script = generate_script_from_segments(&[s]);
+        assert!(script.contains("Hello World"));
+    }
+
+    #[test]
+    fn test_segment_context_remaining_percentage() {
+        let segs = vec![seg_with("context_remaining", None, None, None, None)];
+        let script = generate_script_from_segments(&segs);
+        assert!(script.contains("remaining_percentage"));
+    }
+
+    #[test]
+    fn test_segment_context_remaining_bar() {
+        let segs = vec![seg_with("context_remaining", Some("bar"), None, None, None)];
+        let script = generate_script_from_segments(&segs);
+        assert!(script.contains("remaining_percentage"));
+        assert!(script.contains("filled_bar"));
+    }
+
+    #[test]
+    fn test_segment_project_dir_basename() {
+        let segs = vec![seg_with("project_dir", None, None, None, None)];
+        let script = generate_script_from_segments(&segs);
+        assert!(script.contains("project_dir"));
+        assert!(script.contains("os.path.basename"));
+    }
+
+    #[test]
+    fn test_segment_project_dir_full() {
+        let segs = vec![seg_with("project_dir", Some("full"), None, None, None)];
+        let script = generate_script_from_segments(&segs);
+        assert!(script.contains("project_dir"));
+    }
+
+    #[test]
+    fn test_segment_duration_short() {
+        let segs = vec![seg_with("duration", None, None, None, None)];
+        let script = generate_script_from_segments(&segs);
+        assert!(script.contains("total_duration_ms"));
+    }
+
+    #[test]
+    fn test_segment_duration_hms() {
+        let segs = vec![seg_with("duration", Some("hms"), None, None, None)];
+        let script = generate_script_from_segments(&segs);
+        assert!(script.contains("divmod(secs, 3600)"));
+    }
+
+    #[test]
+    fn test_segment_api_duration_short() {
+        let segs = vec![seg_with("api_duration", None, None, None, None)];
+        let script = generate_script_from_segments(&segs);
+        assert!(script.contains("total_api_duration_ms"));
+    }
+
+    #[test]
+    fn test_segment_api_duration_hms() {
+        let segs = vec![seg_with("api_duration", Some("hms"), None, None, None)];
+        let script = generate_script_from_segments(&segs);
+        assert!(script.contains("total_api_duration_ms"));
+        assert!(script.contains("divmod(secs, 3600)"));
+    }
+
+    #[test]
+    fn test_segment_lines_changed_both() {
+        let segs = vec![seg_with("lines_changed", None, None, None, None)];
+        let script = generate_script_from_segments(&segs);
+        assert!(script.contains("total_lines_added"));
+        assert!(script.contains("total_lines_removed"));
+    }
+
+    #[test]
+    fn test_segment_lines_changed_net() {
+        let segs = vec![seg_with("lines_changed", Some("net"), None, None, None)];
+        let script = generate_script_from_segments(&segs);
+        assert!(script.contains("net = added - removed"));
+    }
+
+    #[test]
+    fn test_segment_git_branch() {
+        let segs = vec![seg("git_branch", true)];
+        let script = generate_script_from_segments(&segs);
+        assert!(script.contains("git"));
+        assert!(script.contains("branch"));
+    }
+
+    #[test]
+    fn test_segment_git_status_compact() {
+        let segs = vec![seg_with("git_status", None, None, None, None)];
+        let script = generate_script_from_segments(&segs);
+        assert!(script.contains("staged"));
+        assert!(script.contains("modified"));
+    }
+
+    #[test]
+    fn test_segment_git_status_verbose() {
+        let segs = vec![seg_with("git_status", Some("verbose"), None, None, None)];
+        let script = generate_script_from_segments(&segs);
+        assert!(script.contains("staged"));
+        assert!(script.contains("modified"));
+    }
+
+    #[test]
+    fn test_segment_session_id_short() {
+        let segs = vec![seg_with("session_id", None, None, None, None)];
+        let script = generate_script_from_segments(&segs);
+        assert!(script.contains("session_id"));
+        assert!(script.contains("[:8]"));
+    }
+
+    #[test]
+    fn test_segment_session_id_full() {
+        let segs = vec![seg_with("session_id", Some("full"), None, None, None)];
+        let script = generate_script_from_segments(&segs);
+        assert!(script.contains("session_id"));
+        assert!(!script.contains("[:8]"));
+    }
+
+    #[test]
+    fn test_segment_version() {
+        let segs = vec![seg("version", true)];
+        let script = generate_script_from_segments(&segs);
+        assert!(script.contains("version"));
+    }
+
+    #[test]
+    fn test_segment_agent_name() {
+        let segs = vec![seg("agent_name", true)];
+        let script = generate_script_from_segments(&segs);
+        assert!(script.contains("agent"));
+    }
+
+    #[test]
+    fn test_segment_five_hour_usage_text() {
+        let segs = vec![seg_with("five_hour_usage", None, None, None, None)];
+        let script = generate_script_from_segments(&segs);
+        assert!(script.contains("_get_usage_data"));
+        assert!(script.contains("five_hour"));
+        assert!(script.contains("_get_oauth_token"));
+    }
+
+    #[test]
+    fn test_segment_five_hour_usage_bar() {
+        let segs = vec![seg_with("five_hour_usage", Some("bar"), None, None, None)];
+        let script = generate_script_from_segments(&segs);
+        assert!(script.contains("filled_bar"));
+        assert!(script.contains("five_hour"));
+    }
+
+    #[test]
+    fn test_segment_five_hour_usage_percent_only() {
+        let segs = vec![seg_with(
+            "five_hour_usage",
+            Some("percent_only"),
+            None,
+            None,
+            None,
+        )];
+        let script = generate_script_from_segments(&segs);
+        assert!(script.contains("five_hour"));
+        assert!(script.contains("utilization"));
+    }
+
+    #[test]
+    fn test_segment_weekly_usage_text() {
+        let segs = vec![seg_with("weekly_usage", None, None, None, None)];
+        let script = generate_script_from_segments(&segs);
+        assert!(script.contains("seven_day"));
+    }
+
+    #[test]
+    fn test_segment_weekly_usage_bar() {
+        let segs = vec![seg_with("weekly_usage", Some("bar"), None, None, None)];
+        let script = generate_script_from_segments(&segs);
+        assert!(script.contains("seven_day"));
+        assert!(script.contains("filled_bar"));
+    }
+
+    #[test]
+    fn test_segment_weekly_usage_percent_only() {
+        let segs = vec![seg_with(
+            "weekly_usage",
+            Some("percent_only"),
+            None,
+            None,
+            None,
+        )];
+        let script = generate_script_from_segments(&segs);
+        assert!(script.contains("seven_day"));
+    }
+
+    #[test]
+    fn test_segment_model_full_format() {
+        let segs = vec![seg_with("model", Some("full"), None, None, None)];
+        let script = generate_script_from_segments(&segs);
+        assert!(script.contains("\"id\""));
+    }
+
+    #[test]
+    fn test_segment_with_label() {
+        let segs = vec![seg_with("model", None, Some("Model:"), None, None)];
+        let script = generate_script_from_segments(&segs);
+        assert!(script.contains("Model:"));
+    }
+
+    #[test]
+    fn test_line_break_segment() {
+        let segs = vec![
+            seg("model", true),
+            seg("line_break", true),
+            seg("cost", true),
+        ];
+        let script = generate_script_from_segments(&segs);
+        assert!(script.contains("lines.append"));
+        assert!(script.contains("lines = []"));
+    }
+
+    #[test]
+    fn test_unknown_segment_type_ignored() {
+        let segs = vec![seg("nonexistent_type", true)];
+        let script = generate_script_from_segments(&segs);
+        // Should still produce a valid script
+        assert!(script.contains("def main():"));
+    }
+
+    // =========================================================================
+    // Powerline theme coverage
+    // =========================================================================
+    #[test]
+    fn test_powerline_round_theme() {
+        let segs = vec![seg_with("model", None, None, Some("white"), Some("blue"))];
+        let script = generate_script_from_segments_with_theme(&segs, "powerline_round");
+        assert!(script.contains("Powerline"));
+        assert!(script.contains("\u{E0B4}"));
+    }
+
+    #[test]
+    fn test_powerline_filters_separators() {
+        let mut s = seg("separator", true);
+        s.separator_char = Some("|".to_string());
+        let segs = vec![seg("model", true), s];
+        let script = generate_script_from_segments_with_theme(&segs, "powerline");
+        // Separators are filtered in powerline mode
+        assert!(script.contains("seg_0"));
+        assert!(!script.contains("seg_1")); // separator excluded
+    }
+
+    #[test]
+    fn test_powerline_all_segment_types() {
+        let types = [
+            "model",
+            "cost",
+            "context",
+            "context_remaining",
+            "cwd",
+            "project_dir",
+            "tokens_in",
+            "tokens_out",
+            "duration",
+            "api_duration",
+            "lines_changed",
+            "git_branch",
+            "git_status",
+            "session_id",
+            "version",
+            "agent_name",
+            "vim_mode",
+            "custom_text",
+            "five_hour_usage",
+            "weekly_usage",
+        ];
+        for t in types {
+            let mut s = seg(t, true);
+            s.custom_text = Some("test".to_string());
+            let script = generate_script_from_segments_with_theme(&[s], "powerline");
+            assert!(
+                script.contains("render_powerline"),
+                "Powerline script missing for type: {}",
+                t
+            );
+        }
+    }
+
+    #[test]
+    fn test_powerline_context_fraction() {
+        let segs = vec![seg_with("context", Some("fraction"), None, None, None)];
+        let script = generate_script_from_segments_with_theme(&segs, "powerline");
+        assert!(script.contains("fmt_tokens"));
+    }
+
+    #[test]
+    fn test_powerline_context_bar() {
+        let segs = vec![seg_with("context", Some("bar"), None, None, None)];
+        let script = generate_script_from_segments_with_theme(&segs, "powerline");
+        assert!(script.contains("filled_bar"));
+    }
+
+    #[test]
+    fn test_powerline_context_remaining_bar() {
+        let segs = vec![seg_with("context_remaining", Some("bar"), None, None, None)];
+        let script = generate_script_from_segments_with_theme(&segs, "powerline");
+        assert!(script.contains("remaining_percentage"));
+    }
+
+    #[test]
+    fn test_powerline_cwd_short() {
+        let segs = vec![seg_with("cwd", Some("short"), None, None, None)];
+        let script = generate_script_from_segments_with_theme(&segs, "powerline");
+        assert!(script.contains("expanduser"));
+    }
+
+    #[test]
+    fn test_powerline_cwd_full() {
+        let segs = vec![seg_with("cwd", Some("full"), None, None, None)];
+        let script = generate_script_from_segments_with_theme(&segs, "powerline");
+        assert!(script.contains("current_dir"));
+    }
+
+    #[test]
+    fn test_powerline_project_dir_full() {
+        let segs = vec![seg_with("project_dir", Some("full"), None, None, None)];
+        let script = generate_script_from_segments_with_theme(&segs, "powerline");
+        assert!(script.contains("project_dir"));
+    }
+
+    #[test]
+    fn test_powerline_duration_hms() {
+        let segs = vec![seg_with("duration", Some("hms"), None, None, None)];
+        let script = generate_script_from_segments_with_theme(&segs, "powerline");
+        assert!(script.contains("divmod(secs, 3600)"));
+    }
+
+    #[test]
+    fn test_powerline_api_duration_hms() {
+        let segs = vec![seg_with("api_duration", Some("hms"), None, None, None)];
+        let script = generate_script_from_segments_with_theme(&segs, "powerline");
+        assert!(script.contains("divmod(secs, 3600)"));
+    }
+
+    #[test]
+    fn test_powerline_lines_changed_net() {
+        let segs = vec![seg_with("lines_changed", Some("net"), None, None, None)];
+        let script = generate_script_from_segments_with_theme(&segs, "powerline");
+        assert!(script.contains("net = added - removed"));
+    }
+
+    #[test]
+    fn test_powerline_git_status_verbose() {
+        let segs = vec![seg_with("git_status", Some("verbose"), None, None, None)];
+        let script = generate_script_from_segments_with_theme(&segs, "powerline");
+        assert!(script.contains("staged"));
+    }
+
+    #[test]
+    fn test_powerline_session_id_full() {
+        let segs = vec![seg_with("session_id", Some("full"), None, None, None)];
+        let script = generate_script_from_segments_with_theme(&segs, "powerline");
+        assert!(script.contains("session_id"));
+    }
+
+    #[test]
+    fn test_powerline_tokens_full() {
+        let segs = vec![seg_with("tokens_in", Some("full"), None, None, None)];
+        let script = generate_script_from_segments_with_theme(&segs, "powerline");
+        assert!(script.contains("str(tokens)"));
+    }
+
+    #[test]
+    fn test_powerline_five_hour_usage_bar() {
+        let segs = vec![seg_with("five_hour_usage", Some("bar"), None, None, None)];
+        let script = generate_script_from_segments_with_theme(&segs, "powerline");
+        assert!(script.contains("five_hour"));
+        assert!(script.contains("filled_bar"));
+    }
+
+    #[test]
+    fn test_powerline_five_hour_usage_percent_only() {
+        let segs = vec![seg_with(
+            "five_hour_usage",
+            Some("percent_only"),
+            None,
+            None,
+            None,
+        )];
+        let script = generate_script_from_segments_with_theme(&segs, "powerline");
+        assert!(script.contains("five_hour"));
+    }
+
+    #[test]
+    fn test_powerline_weekly_usage_bar() {
+        let segs = vec![seg_with("weekly_usage", Some("bar"), None, None, None)];
+        let script = generate_script_from_segments_with_theme(&segs, "powerline");
+        assert!(script.contains("seven_day"));
+    }
+
+    #[test]
+    fn test_powerline_weekly_usage_percent_only() {
+        let segs = vec![seg_with(
+            "weekly_usage",
+            Some("percent_only"),
+            None,
+            None,
+            None,
+        )];
+        let script = generate_script_from_segments_with_theme(&segs, "powerline");
+        assert!(script.contains("seven_day"));
+    }
+
+    #[test]
+    fn test_powerline_unknown_segment_type_is_none() {
+        let segs = vec![seg("nonexistent_type", true)];
+        let script = generate_script_from_segments_with_theme(&segs, "powerline");
+        assert!(script.contains("seg_0 = None"));
+    }
+
+    #[test]
+    fn test_powerline_cost_4_decimals() {
+        let segs = vec![seg_with("cost", Some("$0.0000"), None, None, None)];
+        let script = generate_script_from_segments_with_theme(&segs, "powerline");
+        assert!(script.contains(":.4f"));
+    }
+
+    // =========================================================================
+    // get_powerline_default_bg
+    // =========================================================================
+    #[test]
+    fn test_get_powerline_default_bg_known_types() {
+        assert_eq!(get_powerline_default_bg("model"), "blue");
+        assert_eq!(get_powerline_default_bg("cost"), "green");
+        assert_eq!(get_powerline_default_bg("context"), "yellow");
+        assert_eq!(get_powerline_default_bg("cwd"), "blue");
+        assert_eq!(get_powerline_default_bg("tokens_in"), "magenta");
+        assert_eq!(get_powerline_default_bg("duration"), "cyan");
+        assert_eq!(get_powerline_default_bg("session_id"), "gray");
+        assert_eq!(get_powerline_default_bg("unknown"), "gray");
+    }
+
+    // =========================================================================
+    // color_name_to_rgb exhaustive
+    // =========================================================================
+    #[test]
+    fn test_color_name_to_rgb_all_colors() {
+        assert_eq!(color_name_to_rgb("red"), (205, 49, 49));
+        assert_eq!(color_name_to_rgb("green"), (13, 188, 121));
+        assert_eq!(color_name_to_rgb("yellow"), (229, 229, 16));
+        assert_eq!(color_name_to_rgb("magenta"), (188, 63, 188));
+        assert_eq!(color_name_to_rgb("cyan"), (17, 168, 205));
+        assert_eq!(color_name_to_rgb("white"), (229, 229, 229));
+        assert_eq!(color_name_to_rgb("bright_red"), (241, 76, 76));
+        assert_eq!(color_name_to_rgb("bright_green"), (35, 209, 139));
+        assert_eq!(color_name_to_rgb("bright_yellow"), (245, 245, 67));
+        assert_eq!(color_name_to_rgb("bright_blue"), (59, 142, 234));
+        assert_eq!(color_name_to_rgb("bright_magenta"), (214, 112, 214));
+        assert_eq!(color_name_to_rgb("bright_cyan"), (41, 184, 219));
+        assert_eq!(color_name_to_rgb("bright_white"), (255, 255, 255));
+        assert_eq!(color_name_to_rgb("grey"), (128, 128, 128));
+    }
+
+    // =========================================================================
+    // get_usage_api_code
+    // =========================================================================
+    #[test]
+    fn test_get_usage_api_code_contains_expected_code() {
+        let code = get_usage_api_code();
+        assert!(code.contains("_get_oauth_token"));
+        assert!(code.contains("_get_usage_data"));
+        assert!(code.contains("urllib.request"));
+        assert!(code.contains("oauth"));
+    }
+
+    // =========================================================================
+    // Additional coverage: separator segment
+    // =========================================================================
+
+    #[test]
+    fn test_segment_separator_default_char() {
+        let segs = vec![seg("separator", true)];
+        let script = generate_script_from_segments(&segs);
+        assert!(script.contains("|")); // default separator char
+    }
+
+    #[test]
+    fn test_segment_separator_custom_char() {
+        let mut s = seg("separator", true);
+        s.separator_char = Some("·".to_string());
+        let script = generate_script_from_segments(&[s]);
+        assert!(script.contains("·"));
+    }
+
+    // =========================================================================
+    // Additional coverage: custom_text empty
+    // =========================================================================
+
+    #[test]
+    fn test_segment_custom_text_empty() {
+        let mut s = seg("custom_text", true);
+        s.custom_text = None; // No custom text set
+        let script = generate_script_from_segments(&[s]);
+        // Should still produce valid Python
+        assert!(script.contains("def main():"));
+    }
+
+    // =========================================================================
+    // Additional coverage: write_settings_file and read roundtrip
+    // =========================================================================
+
+    #[test]
+    fn test_settings_file_roundtrip() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings.json");
+
+        let original = serde_json::json!({
+            "statusLine": {"type": "command", "command": "python3 script.py"},
+            "other": "preserved"
+        });
+
+        write_settings_file(&path, &original).unwrap();
+        let read_back = read_settings_file(&path).unwrap();
+
+        assert_eq!(read_back["other"], "preserved");
+        assert_eq!(read_back["statusLine"]["type"], "command");
+    }
+
+    // =========================================================================
+    // Additional coverage: write_statusline_script
+    // =========================================================================
+
+    #[test]
+    fn test_write_statusline_script_creates_file() {
+        // This writes to ~/.claude/statusline.py in real fs
+        let result = write_statusline_script("#!/usr/bin/env python3\nprint('test')");
+        if let Ok(path) = result {
+            assert!(path.exists());
+            let content = std::fs::read_to_string(&path).unwrap();
+            assert!(content.contains("print('test')"));
+            // Clean up
+            let _ = std::fs::remove_file(&path);
+        }
+    }
+
+    // =========================================================================
+    // Additional coverage: get_statusline_script_path
+    // =========================================================================
+
+    #[test]
+    fn test_get_statusline_script_path_contains_expected() {
+        let path = get_statusline_script_path().unwrap();
+        assert!(path.to_string_lossy().contains(".claude"));
+        assert!(path.to_string_lossy().contains("statusline.py"));
+    }
+
+    // =========================================================================
+    // Additional coverage: powerline with empty segments
+    // =========================================================================
+
+    #[test]
+    fn test_powerline_empty_segments() {
+        let segments: Vec<StatusLineSegment> = vec![];
+        let script = generate_script_from_segments_with_theme(&segments, "powerline");
+        assert!(script.contains("#!/usr/bin/env python3"));
+        assert!(script.contains("render_powerline"));
+    }
+
+    // =========================================================================
+    // Additional coverage: model segment with label
+    // =========================================================================
+
+    #[test]
+    fn test_powerline_model_with_label() {
+        let segs = vec![seg_with(
+            "model",
+            Some("short"),
+            Some("M:"),
+            Some("white"),
+            Some("blue"),
+        )];
+        let script = generate_script_from_segments_with_theme(&segs, "powerline");
+        assert!(script.contains("M: "));
+    }
+
+    // =========================================================================
+    // Additional coverage: cost segment 2 decimals default
+    // =========================================================================
+
+    #[test]
+    fn test_segment_cost_2_decimals_default() {
+        let segs = vec![seg_with("cost", Some("$0.00"), None, None, None)];
+        let script = generate_script_from_segments(&segs);
+        assert!(script.contains(":.2f"));
+    }
+
+    #[test]
+    fn test_segment_cost_4_decimals() {
+        let segs = vec![seg_with("cost", Some("$0.0000"), None, None, None)];
+        let script = generate_script_from_segments(&segs);
+        assert!(script.contains(":.4f"));
+    }
+
+    // =========================================================================
+    // Additional coverage: generate_script with usage API (five_hour_usage)
+    // =========================================================================
+
+    #[test]
+    fn test_generate_script_includes_usage_api_when_needed() {
+        let segs = vec![seg("five_hour_usage", true)];
+        let script = generate_script_from_segments(&segs);
+        assert!(script.contains("_get_oauth_token"));
+        assert!(script.contains("_get_usage_data"));
+    }
+
+    #[test]
+    fn test_generate_script_no_usage_api_when_not_needed() {
+        let segs = vec![seg("model", true)];
+        let script = generate_script_from_segments(&segs);
+        assert!(!script.contains("_get_oauth_token"));
+    }
+
+    // =========================================================================
+    // Additional coverage: weekly_usage also triggers usage API
+    // =========================================================================
+
+    #[test]
+    fn test_weekly_usage_triggers_usage_api() {
+        let segs = vec![seg("weekly_usage", true)];
+        let script = generate_script_from_segments(&segs);
+        assert!(script.contains("_get_usage_data"));
+    }
+
+    // =========================================================================
+    // Additional coverage: line breaks with multiline output
+    // =========================================================================
+
+    #[test]
+    fn test_line_break_produces_multiline_output() {
+        let segs = vec![
+            seg("model", true),
+            seg("line_break", true),
+            seg("cost", true),
+            seg("line_break", true),
+            seg("context", true),
+        ];
+        let script = generate_script_from_segments(&segs);
+        // Should have lines = [] init
+        assert!(script.contains("lines = []"));
+        // Should have multiple lines.append calls
+        let append_count = script.matches("lines.append").count();
+        assert!(
+            append_count >= 2,
+            "Expected multiple lines.append, got {}",
+            append_count
+        );
+    }
+
+    // =========================================================================
+    // Additional coverage: powerline with multiple segments
+    // =========================================================================
+
+    #[test]
+    fn test_powerline_multiple_segments_renders_all() {
+        let segs = vec![
+            seg_with("model", Some("short"), None, Some("white"), Some("blue")),
+            seg_with("cost", None, None, Some("white"), Some("green")),
+            seg_with("context", None, None, Some("black"), Some("yellow")),
+        ];
+        let script = generate_script_from_segments_with_theme(&segs, "powerline");
+        assert!(script.contains("seg_0"));
+        assert!(script.contains("seg_1"));
+        assert!(script.contains("seg_2"));
+    }
+
+    // =========================================================================
+    // Additional coverage: color edge cases
+    // =========================================================================
+
+    #[test]
+    fn test_build_color_code_unknown_color_uses_default() {
+        let code = build_color_code("nonexistent", None);
+        // Should fall through to white default (229,229,229)
+        assert!(code.contains("229;229;229"));
+    }
+
+    #[test]
+    fn test_get_ansi_color_code_hex_like_name() {
+        // Unknown names should default to white
+        let code = get_ansi_color_code("purple");
+        assert!(code.contains("229;229;229")); // defaults to white
+    }
+
+    // =========================================================================
+    // Additional coverage: get_powerline_default_bg additional types
+    // =========================================================================
+
+    #[test]
+    fn test_get_powerline_default_bg_all_types() {
+        assert_eq!(get_powerline_default_bg("git_status"), "yellow");
+        assert_eq!(get_powerline_default_bg("vim_mode"), "yellow");
+        assert_eq!(get_powerline_default_bg("context_remaining"), "green");
+        assert_eq!(get_powerline_default_bg("lines_changed"), "green");
+        assert_eq!(get_powerline_default_bg("weekly_usage"), "green");
+        assert_eq!(get_powerline_default_bg("git_branch"), "green");
+        assert_eq!(get_powerline_default_bg("project_dir"), "blue");
+        assert_eq!(get_powerline_default_bg("tokens_out"), "magenta");
+        assert_eq!(get_powerline_default_bg("api_duration"), "cyan");
+        assert_eq!(get_powerline_default_bg("agent_name"), "cyan");
+        assert_eq!(get_powerline_default_bg("five_hour_usage"), "cyan");
+        assert_eq!(get_powerline_default_bg("version"), "gray");
+        assert_eq!(get_powerline_default_bg("custom_text"), "gray");
+    }
 }

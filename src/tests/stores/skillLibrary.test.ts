@@ -307,6 +307,109 @@ describe('Skill Library Store', () => {
 		});
 	});
 
+	describe('updateSkill (local)', () => {
+		it('should update a skill in local state', async () => {
+			const mockSkills = [
+				{ id: 1, name: 'old-name', isFavorite: false },
+				{ id: 2, name: 'keep', isFavorite: false }
+			];
+			vi.mocked(invoke).mockResolvedValueOnce(mockSkills);
+
+			const { skillLibrary } = await import('$lib/stores/skillLibrary.svelte');
+			await skillLibrary.load();
+
+			skillLibrary.updateSkill({ id: 1, name: 'updated-name', isFavorite: true } as any);
+
+			expect(skillLibrary.skills[0].name).toBe('updated-name');
+			expect(skillLibrary.skills[0].isFavorite).toBe(true);
+			expect(skillLibrary.skills[1].name).toBe('keep');
+		});
+	});
+
+	describe('loadGlobalSkills error handling', () => {
+		it('should handle errors gracefully', async () => {
+			vi.mocked(invoke).mockRejectedValueOnce(new Error('Global load error'));
+
+			const { skillLibrary } = await import('$lib/stores/skillLibrary.svelte');
+			await skillLibrary.loadGlobalSkills();
+
+			expect(skillLibrary.globalSkills).toEqual([]);
+		});
+	});
+
+	describe('skill files', () => {
+		it('should get skill files', async () => {
+			const mockFiles = [
+				{ id: 1, skillId: 1, name: 'test.md', content: 'content' }
+			];
+			vi.mocked(invoke).mockResolvedValueOnce(mockFiles);
+
+			const { skillLibrary } = await import('$lib/stores/skillLibrary.svelte');
+			const files = await skillLibrary.getSkillFiles(1);
+
+			expect(files).toHaveLength(1);
+			expect(invoke).toHaveBeenCalledWith('get_skill_files', { skillId: 1 });
+		});
+
+		it('should create a skill file', async () => {
+			const mockFile = { id: 1, skillId: 1, name: 'test.md', content: 'content' };
+			vi.mocked(invoke).mockResolvedValueOnce(mockFile);
+
+			const { skillLibrary } = await import('$lib/stores/skillLibrary.svelte');
+			const file = await skillLibrary.createSkillFile({
+				skillId: 1,
+				name: 'test.md',
+				content: 'content'
+			} as any);
+
+			expect(file.id).toBe(1);
+			expect(invoke).toHaveBeenCalledWith('create_skill_file', {
+				file: { skillId: 1, name: 'test.md', content: 'content' }
+			});
+		});
+
+		it('should update a skill file', async () => {
+			const mockFile = { id: 1, skillId: 1, name: 'updated.md', content: 'new content' };
+			vi.mocked(invoke).mockResolvedValueOnce(mockFile);
+
+			const { skillLibrary } = await import('$lib/stores/skillLibrary.svelte');
+			const file = await skillLibrary.updateSkillFile(1, 'updated.md', 'new content');
+
+			expect(file.name).toBe('updated.md');
+			expect(invoke).toHaveBeenCalledWith('update_skill_file', {
+				id: 1, name: 'updated.md', content: 'new content'
+			});
+		});
+
+		it('should delete a skill file', async () => {
+			vi.mocked(invoke).mockResolvedValueOnce(undefined);
+
+			const { skillLibrary } = await import('$lib/stores/skillLibrary.svelte');
+			await skillLibrary.deleteSkillFile(1);
+
+			expect(invoke).toHaveBeenCalledWith('delete_skill_file', { id: 1 });
+		});
+	});
+
+	describe('filteredSkills sorting', () => {
+		it('should sort favorites first then by name', async () => {
+			const mockSkills = [
+				{ id: 1, name: 'Zeta', isFavorite: false },
+				{ id: 2, name: 'Alpha', isFavorite: true },
+				{ id: 3, name: 'Beta', isFavorite: false }
+			];
+			vi.mocked(invoke).mockResolvedValueOnce(mockSkills);
+
+			const { skillLibrary } = await import('$lib/stores/skillLibrary.svelte');
+			await skillLibrary.load();
+
+			const filtered = skillLibrary.filteredSkills;
+			expect(filtered[0].name).toBe('Alpha'); // favorite
+			expect(filtered[1].name).toBe('Beta');
+			expect(filtered[2].name).toBe('Zeta');
+		});
+	});
+
 	describe('project skills', () => {
 		it('should assign skill to project', async () => {
 			vi.mocked(invoke).mockResolvedValueOnce(undefined);

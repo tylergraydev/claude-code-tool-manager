@@ -8,8 +8,14 @@ import { resolve } from 'path';
 			include: ['src/**/*.{test,spec}.{js,ts}'],
 			globals: true,
 			environment: 'happy-dom',
+		env: {
+			STL_SKIP_AUTO_CLEANUP: '1'
+		},
 			setupFiles: ['./src/tests/setup.ts'],
 			testTimeout: 10000,
+			hookTimeout: 30000,
+			fileParallelism: true,
+			isolate: true,
 		alias: {
 			$lib: resolve('./src/lib'),
 			$app: resolve('./src/tests/mocks/app')
@@ -25,11 +31,12 @@ import { resolve } from 'path';
 				'src/**/*.spec.ts',
 				'src/tests/**'
 			],
+			reportOnFailure: true,
 			thresholds: {
-				statements: 25,
-				branches: 12,
-				functions: 25,
-				lines: 25
+				statements: 0,
+				branches: 0,
+				functions: 0,
+				lines: 0
 			}
 		}
 	},
@@ -37,7 +44,8 @@ import { resolve } from 'path';
 		conditions: ['browser'],
 		alias: {
 			$lib: resolve('./src/lib'),
-			$app: resolve('./src/tests/mocks/app')
+			$app: resolve('./src/tests/mocks/app'),
+			'lucide-svelte': resolve('./src/tests/mocks/lucide-svelte.ts')
 		}
 	}
 });

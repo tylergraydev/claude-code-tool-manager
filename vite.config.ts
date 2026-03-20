@@ -9,5 +9,16 @@ export default defineConfig({
 		port: 5173,
 		strictPort: true
 	},
-	envPrefix: ['VITE_', 'TAURI_']
+	envPrefix: ['VITE_', 'TAURI_'],
+	build: {
+		target: 'esnext',
+		rollupOptions: {
+			output: {
+				manualChunks(id) {
+					if (id.includes('lucide-svelte')) return 'icons';
+					if (id.includes('@tauri-apps')) return 'tauri';
+				}
+			}
+		}
+	}
 });

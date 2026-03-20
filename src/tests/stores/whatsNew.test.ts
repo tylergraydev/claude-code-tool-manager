@@ -156,6 +156,87 @@ describe('WhatsNew Store', () => {
 		});
 	});
 
+	describe('showCurrentReleaseNotes', () => {
+		it('should fetch and display release notes for current version', async () => {
+			vi.mocked(getVersion).mockResolvedValueOnce('3.0.0');
+
+			const mockResponse = {
+				ok: true,
+				json: vi.fn().mockResolvedValue({
+					tag_name: 'v3.0.0',
+					name: 'Version 3.0.0',
+					body: 'Big update',
+					published_at: '2024-02-01T00:00:00Z',
+					html_url: 'https://github.com/example/releases/v3.0.0'
+				})
+			};
+			vi.mocked(fetch).mockResolvedValueOnce(mockResponse as any);
+
+			const { whatsNew } = await import('$lib/stores/whatsNew.svelte');
+			await whatsNew.showCurrentReleaseNotes();
+
+			expect(whatsNew.isOpen).toBe(true);
+			expect(whatsNew.release?.version).toBe('3.0.0');
+		});
+
+		it('should handle errors gracefully', async () => {
+			vi.mocked(getVersion).mockRejectedValueOnce(new Error('No version'));
+
+			const { whatsNew } = await import('$lib/stores/whatsNew.svelte');
+			await whatsNew.showCurrentReleaseNotes();
+
+			// Should not throw
+			expect(whatsNew.isOpen).toBe(false);
+		});
+	});
+
+	describe('dismiss without release', () => {
+		it('should close modal without saving version if no release', async () => {
+			const { whatsNew } = await import('$lib/stores/whatsNew.svelte');
+			whatsNew.dismiss();
+
+			expect(whatsNew.isOpen).toBe(false);
+			// setItem should not be called since release is null
+		});
+	});
+
+	describe('parseRelease edge cases', () => {
+		it('should handle empty name and body in release', async () => {
+			vi.mocked(getVersion).mockResolvedValueOnce('2.0.0');
+			mockLocalStorage['claude-tool-manager-last-seen-version'] = '1.0.0';
+
+			const mockResponse = {
+				ok: true,
+				json: vi.fn().mockResolvedValue({
+					tag_name: 'v2.0.0',
+					name: '',
+					body: '',
+					published_at: '2024-01-15T00:00:00Z',
+					html_url: 'https://github.com/example/releases/v2.0.0'
+				})
+			};
+			vi.mocked(fetch).mockResolvedValueOnce(mockResponse as any);
+
+			const { whatsNew } = await import('$lib/stores/whatsNew.svelte');
+			await whatsNew.checkForWhatsNew();
+
+			expect(whatsNew.release?.name).toBe('Version v2.0.0');
+			expect(whatsNew.release?.body).toBe('No release notes available.');
+		});
+	});
+
+	describe('checkForWhatsNew error handling', () => {
+		it('should handle getVersion errors gracefully', async () => {
+			vi.mocked(getVersion).mockRejectedValueOnce(new Error('Version error'));
+
+			const { whatsNew } = await import('$lib/stores/whatsNew.svelte');
+			await whatsNew.checkForWhatsNew();
+
+			// Should not throw
+			expect(whatsNew.isOpen).toBe(false);
+		});
+	});
+
 	describe('fetchReleaseNotes', () => {
 		it('should set isLoading while fetching', async () => {
 			let resolveResponse: (value: unknown) => void;

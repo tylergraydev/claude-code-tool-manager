@@ -95,3 +95,43 @@ pub fn detect_project_memory_location(project_path: String) -> Result<(String, S
 pub fn render_markdown(content: String) -> Result<String, String> {
     memory_writer::render_markdown(&content).map_err(|e| e.to_string())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_scope_user() {
+        assert!(matches!(parse_scope("user"), Ok(MemoryScope::User)));
+    }
+
+    #[test]
+    fn test_parse_scope_project() {
+        assert!(matches!(parse_scope("project"), Ok(MemoryScope::Project)));
+    }
+
+    #[test]
+    fn test_parse_scope_local() {
+        assert!(matches!(parse_scope("local"), Ok(MemoryScope::Local)));
+    }
+
+    #[test]
+    fn test_parse_scope_invalid() {
+        let result = parse_scope("invalid");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Invalid scope"));
+    }
+
+    #[test]
+    fn test_parse_scope_empty() {
+        assert!(parse_scope("").is_err());
+    }
+
+    #[test]
+    fn test_render_markdown_basic() {
+        let result = render_markdown("# Hello".to_string());
+        assert!(result.is_ok());
+        let html = result.unwrap();
+        assert!(html.contains("Hello"));
+    }
+}

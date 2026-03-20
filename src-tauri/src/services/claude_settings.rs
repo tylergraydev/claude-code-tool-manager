@@ -2188,6 +2188,223 @@ mod tests {
     }
 
     #[test]
+    fn test_read_settings_file_invalid_json_returns_empty() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings.json");
+        std::fs::write(&path, "not valid json {{{").unwrap();
+
+        let result = read_settings_file(&path).unwrap();
+        assert_eq!(result, json!({}));
+    }
+
+    #[test]
+    fn test_read_settings_file_nonexistent() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("nonexistent.json");
+
+        let result = read_settings_file(&path).unwrap();
+        assert_eq!(result, json!({}));
+    }
+
+    #[test]
+    fn test_write_settings_file_creates_parent_dirs() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("nested").join("deep").join("settings.json");
+
+        write_settings_file(&path, &json!({"test": true})).unwrap();
+
+        assert!(path.exists());
+        let content = std::fs::read_to_string(&path).unwrap();
+        assert!(content.contains("\"test\""));
+    }
+
+    #[test]
+    fn test_extract_string_array_missing_key() {
+        let value = json!({"other": "value"});
+        let result = extract_string_array(&value, "nonexistent");
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn test_extract_string_array_with_mixed_types() {
+        let value = json!({"items": ["a", 42, "b", null, "c"]});
+        let result = extract_string_array(&value, "items");
+        assert_eq!(result, vec!["a", "b", "c"]);
+    }
+
+    #[test]
+    fn test_extract_optional_string_array_absent_key() {
+        let value = json!({"other": "value"});
+        let result = extract_optional_string_array(&value, "nonexistent");
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_extract_optional_string_array_present() {
+        let value = json!({"items": ["x", "y"]});
+        let result = extract_optional_string_array(&value, "items");
+        assert_eq!(result, Some(vec!["x".to_string(), "y".to_string()]));
+    }
+
+    #[test]
+    fn test_read_managed_only_keys() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings.json");
+        std::fs::write(
+            &path,
+            r#"{
+                "allowManagedHooksOnly": true,
+                "allowManagedPermissionRulesOnly": false,
+                "disableBypassPermissionsMode": true,
+                "allowedMcpServers": ["server1", "server2"],
+                "deniedMcpServers": ["bad-server"],
+                "strictKnownMarketplaces": true,
+                "companyAnnouncements": ["Welcome!"],
+                "forceLoginMethod": "oauth",
+                "forceLoginOrgUUID": "uuid-123"
+            }"#,
+        )
+        .unwrap();
+
+        let settings = read_claude_settings_from_file(&path, "user").unwrap();
+        assert_eq!(settings.allow_managed_hooks_only, Some(true));
+        assert_eq!(settings.allow_managed_permission_rules_only, Some(false));
+        assert_eq!(settings.disable_bypass_permissions_mode, Some(true));
+        assert_eq!(
+            settings.allowed_mcp_servers,
+            Some(vec!["server1".to_string(), "server2".to_string()])
+        );
+        assert_eq!(
+            settings.denied_mcp_servers,
+            Some(vec!["bad-server".to_string()])
+        );
+        assert_eq!(settings.strict_known_marketplaces, Some(true));
+        assert_eq!(
+            settings.company_announcements,
+            Some(vec!["Welcome!".to_string()])
+        );
+        assert_eq!(settings.force_login_method, Some("oauth".to_string()));
+        assert_eq!(settings.force_login_org_uuid, Some("uuid-123".to_string()));
+    }
+
+    #[test]
+    fn test_write_sandbox_with_network_all_null() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings.json");
+        std::fs::write(&path, "{}").unwrap();
+
+        let settings = ClaudeSettings {
+            scope: "user".to_string(),
+            model: None,
+            available_models: vec![],
+            output_style: None,
+            language: None,
+            always_thinking_enabled: None,
+            attribution_commit: None,
+            attribution_pr: None,
+            sandbox: Some(SandboxSettings {
+                enabled: Some(true),
+                auto_allow_bash_if_sandboxed: None,
+                excluded_commands: None,
+                allow_unsandboxed_commands: None,
+                enable_weaker_nested_sandbox: None,
+                network: Some(SandboxNetworkSettings {
+                    allow_unix_sockets: None,
+                    allow_all_unix_sockets: None,
+                    allow_local_binding: None,
+                    allowed_domains: None,
+                    http_proxy_port: None,
+                    socks_proxy_port: None,
+                }),
+            }),
+            enabled_plugins: None,
+            extra_known_marketplaces: None,
+            env: None,
+            show_turn_duration: None,
+            spinner_tips_enabled: None,
+            terminal_progress_bar_enabled: None,
+            prefers_reduced_motion: None,
+            respect_gitignore: None,
+            file_suggestion_type: None,
+            file_suggestion_command: None,
+            cleanup_period_days: None,
+            auto_updates_channel: None,
+            teammate_mode: None,
+            plans_directory: None,
+            api_key_helper: None,
+            otel_headers_helper: None,
+            aws_auth_refresh: None,
+            aws_credential_export: None,
+            enable_all_project_mcp_servers: None,
+            enabled_mcpjson_servers: None,
+            disabled_mcpjson_servers: None,
+            allow_managed_hooks_only: None,
+            allow_managed_permission_rules_only: None,
+            disable_bypass_permissions_mode: None,
+            allowed_mcp_servers: None,
+            denied_mcp_servers: None,
+            strict_known_marketplaces: None,
+            company_announcements: None,
+            force_login_method: None,
+            force_login_org_uuid: None,
+        };
+
+        // Write directly to file (bypassing scope resolution)
+        let mut file_settings = read_settings_file(&path).unwrap();
+
+        // Test sandbox serialization with null network
+        let sandbox_value = serde_json::to_value(&settings.sandbox.as_ref().unwrap()).unwrap();
+        assert!(sandbox_value.get("enabled").is_some());
+
+        // Verify the sandbox has an enabled field
+        let content: Value =
+            serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+        // File should still be empty since we haven't written
+        assert_eq!(content, json!({}));
+    }
+
+    #[test]
+    fn test_set_or_remove_helpers() {
+        // Test set_or_remove_value
+        let mut settings = json!({});
+        set_or_remove_value(&mut settings, "key", &Some(json!("value")));
+        assert_eq!(settings.get("key").unwrap(), "value");
+        set_or_remove_value(&mut settings, "key", &None);
+        assert!(settings.get("key").is_none());
+
+        // Test set_or_remove_bool
+        set_or_remove_bool(&mut settings, "flag", &Some(true));
+        assert_eq!(settings.get("flag").unwrap(), true);
+        set_or_remove_bool(&mut settings, "flag", &None);
+        assert!(settings.get("flag").is_none());
+
+        // Test set_or_remove_string
+        set_or_remove_string(&mut settings, "name", &Some("test".to_string()));
+        assert_eq!(settings.get("name").unwrap(), "test");
+        set_or_remove_string(&mut settings, "name", &None);
+        assert!(settings.get("name").is_none());
+
+        // Test set_or_remove_string_in
+        let mut parent = json!({});
+        set_or_remove_string_in(&mut parent, "child", &Some("val".to_string()));
+        assert_eq!(parent.get("child").unwrap(), "val");
+        set_or_remove_string_in(&mut parent, "child", &None);
+        assert!(parent.get("child").is_none());
+
+        // Test set_or_remove_number_u32
+        set_or_remove_number_u32(&mut settings, "count", &Some(42));
+        assert_eq!(settings.get("count").unwrap(), 42);
+        set_or_remove_number_u32(&mut settings, "count", &None);
+        assert!(settings.get("count").is_none());
+
+        // Test set_or_remove_string_array
+        set_or_remove_string_array(&mut settings, "list", &Some(vec!["a".to_string()]));
+        assert!(settings.get("list").unwrap().is_array());
+        set_or_remove_string_array(&mut settings, "list", &None);
+        assert!(settings.get("list").is_none());
+    }
+
+    #[test]
     fn test_write_clears_new_tier3_fields_when_none() {
         let dir = tempfile::tempdir().unwrap();
         let project_path = dir.path();

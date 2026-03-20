@@ -294,5 +294,76 @@ describe('StatusLine Library Store', () => {
 			expect(statuslineLibrary.gallery).toHaveLength(2);
 			expect(statuslineLibrary.isGalleryLoading).toBe(false);
 		});
+
+		it('should handle cache load error gracefully', async () => {
+			vi.mocked(invoke).mockRejectedValueOnce(new Error('Cache error'));
+
+			const { statuslineLibrary } = await import('$lib/stores/statuslineLibrary.svelte');
+			await statuslineLibrary.loadGallery();
+
+			expect(statuslineLibrary.isGalleryLoading).toBe(false);
+		});
+
+		it('should handle background fetch failure gracefully', async () => {
+			const entries = [createMockGalleryEntry({ name: 'cached-entry' })];
+
+			vi.mocked(invoke)
+				.mockResolvedValueOnce(entries) // cache
+				.mockRejectedValueOnce(new Error('Network error')); // background fetch
+
+			const { statuslineLibrary } = await import('$lib/stores/statuslineLibrary.svelte');
+			await statuslineLibrary.loadGallery();
+
+			// Should still have cache data
+			expect(statuslineLibrary.gallery).toHaveLength(1);
+
+			// Wait for background fetch to settle
+			await new Promise((r) => setTimeout(r, 10));
+		});
+	});
+
+	describe('installPremade', () => {
+		it('should install premade statusline and add to list', async () => {
+			const entry = createMockGalleryEntry({ name: 'cool-statusline' });
+			const installed = createMockStatusLine({ id: 5, name: 'cool-statusline' });
+
+			vi.mocked(invoke).mockResolvedValueOnce(installed);
+
+			const { statuslineLibrary } = await import('$lib/stores/statuslineLibrary.svelte');
+			const result = await statuslineLibrary.installPremade(entry);
+
+			expect(result.id).toBe(5);
+			expect(statuslineLibrary.statuslines).toHaveLength(1);
+			expect(invoke).toHaveBeenCalledWith('install_premade_statusline', { entry });
+		});
+	});
+
+	describe('generatePreview', () => {
+		it('should generate preview with segments', async () => {
+			const mockPreview = '<span>status preview</span>';
+			vi.mocked(invoke).mockResolvedValueOnce(mockPreview);
+
+			const { statuslineLibrary } = await import('$lib/stores/statuslineLibrary.svelte');
+			const segments = [{ type: 'text', content: 'hello' }] as any;
+			const result = await statuslineLibrary.generatePreview(segments);
+
+			expect(result).toBe(mockPreview);
+			expect(invoke).toHaveBeenCalledWith('generate_statusline_preview', {
+				segments,
+				theme: 'default'
+			});
+		});
+
+		it('should pass theme when provided', async () => {
+			vi.mocked(invoke).mockResolvedValueOnce('preview');
+
+			const { statuslineLibrary } = await import('$lib/stores/statuslineLibrary.svelte');
+			await statuslineLibrary.generatePreview([], 'dark' as any);
+
+			expect(invoke).toHaveBeenCalledWith('generate_statusline_preview', {
+				segments: [],
+				theme: 'dark'
+			});
+		});
 	});
 });

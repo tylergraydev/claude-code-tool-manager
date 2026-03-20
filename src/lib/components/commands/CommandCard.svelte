@@ -19,27 +19,23 @@
 		onFavoriteToggle
 	}: Props = $props();
 
+	let menuButton = $state<HTMLButtonElement>();
 	let showMenu = $state(false);
 	let menuAbove = $state(false);
-	let menuButton: HTMLButtonElement;
+
+	function toggleMenu(e: MouseEvent) {
+		e.stopPropagation();
+		showMenu = !showMenu;
+		if (showMenu && menuButton) {
+			const rect = menuButton.getBoundingClientRect();
+			menuAbove = rect.bottom + 200 > window.innerHeight;
+		}
+	}
 
 	function closeMenu() {
 		showMenu = false;
 	}
-
-	function toggleMenu(e: MouseEvent) {
-		e.stopPropagation();
-		if (!showMenu) {
-			const rect = menuButton.getBoundingClientRect();
-			const spaceBelow = window.innerHeight - rect.bottom;
-			const menuHeight = 120;
-			menuAbove = spaceBelow < menuHeight;
-		}
-		showMenu = !showMenu;
-	}
 </script>
-
-<svelte:window onclick={closeMenu} />
 
 <div class="card group relative hover:shadow-md transition-all duration-200">
 	<div class="flex items-start gap-3">

@@ -293,4 +293,142 @@ mod tests {
         assert!(entry.url.is_some());
         assert!(entry.url.unwrap().contains("23847"));
     }
+
+    #[test]
+    fn test_generate_self_mcp_entry_custom_port() {
+        let entry = generate_self_mcp_entry(9999);
+        assert!(entry.url.as_ref().unwrap().contains("9999"));
+        assert!(entry.url.as_ref().unwrap().contains("/mcp"));
+        assert!(entry.description.is_some());
+        assert!(entry.tags.is_some());
+        assert!(entry.tags.unwrap().contains(&"tool-manager".to_string()));
+    }
+
+    #[test]
+    fn test_config_serde() {
+        let config = McpServerConfig {
+            enabled: false,
+            port: 12345,
+            auto_start: false,
+        };
+        let json = serde_json::to_string(&config).unwrap();
+        assert!(json.contains("autoStart")); // camelCase
+        assert!(json.contains("12345"));
+
+        let deserialized: McpServerConfig = serde_json::from_str(&json).unwrap();
+        assert!(!deserialized.enabled);
+        assert_eq!(deserialized.port, 12345);
+        assert!(!deserialized.auto_start);
+    }
+
+    #[test]
+    fn test_config_deserialize_from_json() {
+        let json = r#"{"enabled":true,"port":8080,"autoStart":false}"#;
+        let config: McpServerConfig = serde_json::from_str(json).unwrap();
+        assert!(config.enabled);
+        assert_eq!(config.port, 8080);
+        assert!(!config.auto_start);
+    }
+
+    #[test]
+    fn test_server_status_serde() {
+        let status = McpServerStatus {
+            is_running: true,
+            port: 23847,
+            url: "http://127.0.0.1:23847".to_string(),
+            mcp_endpoint: "http://127.0.0.1:23847/mcp".to_string(),
+        };
+        let json = serde_json::to_string(&status).unwrap();
+        assert!(json.contains("isRunning"));
+        assert!(json.contains("mcpEndpoint"));
+
+        let deserialized: McpServerStatus = serde_json::from_str(&json).unwrap();
+        assert!(deserialized.is_running);
+        assert_eq!(deserialized.port, 23847);
+    }
+
+    #[test]
+    fn test_server_state_with_config() {
+        let config = McpServerConfig {
+            enabled: true,
+            port: 9999,
+            auto_start: false,
+        };
+        let state = McpServerState::with_config(config);
+        assert!(!state.is_running());
+        assert_eq!(state.get_port(), 9999);
+        assert_eq!(state.get_url(), "http://127.0.0.1:9999");
+        assert_eq!(state.get_mcp_endpoint(), "http://127.0.0.1:9999/mcp");
+    }
+
+    #[test]
+    fn test_server_state_get_status() {
+        let state = McpServerState::new();
+        let status = state.get_status();
+        assert!(!status.is_running);
+        assert_eq!(status.port, DEFAULT_MCP_SERVER_PORT);
+        assert!(status.url.contains(&DEFAULT_MCP_SERVER_PORT.to_string()));
+        assert!(status.mcp_endpoint.ends_with("/mcp"));
+    }
+
+    #[test]
+    fn test_server_state_update_config() {
+        let state = McpServerState::new();
+        let new_config = McpServerConfig {
+            enabled: false,
+            port: 5555,
+            auto_start: false,
+        };
+        state.update_config(new_config).unwrap();
+        let config = state.get_config().unwrap();
+        assert!(!config.enabled);
+        assert_eq!(config.port, 5555);
+    }
+
+    #[test]
+    fn test_server_state_get_config() {
+        let config = McpServerConfig {
+            enabled: true,
+            port: 7777,
+            auto_start: true,
+        };
+        let state = McpServerState::with_config(config.clone());
+        let fetched = state.get_config().unwrap();
+        assert_eq!(fetched.port, 7777);
+        assert!(fetched.enabled);
+        assert!(fetched.auto_start);
+    }
+
+    #[test]
+    fn test_server_state_connection_config_format() {
+        let config = McpServerConfig {
+            enabled: true,
+            port: 11111,
+            auto_start: true,
+        };
+        let state = McpServerState::with_config(config);
+        let conn_config = state.get_connection_config();
+
+        let tool_manager = conn_config.get("tool-manager").unwrap();
+        assert_eq!(tool_manager["type"], "sse");
+        assert!(tool_manager["url"]
+            .as_str()
+            .unwrap()
+            .contains("11111"));
+    }
+
+    #[test]
+    fn test_stop_when_not_running() {
+        let state = McpServerState::new();
+        let result = state.stop();
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("not running"));
+    }
+
+    #[test]
+    fn test_default_trait() {
+        let state = McpServerState::default();
+        assert!(!state.is_running());
+        assert_eq!(state.get_port(), DEFAULT_MCP_SERVER_PORT);
+    }
 }

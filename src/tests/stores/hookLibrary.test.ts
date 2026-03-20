@@ -612,4 +612,152 @@ describe('Hook Library Store', () => {
 			expect(hookLibrary.viewMode).toBe('all');
 		});
 	});
+
+	describe('loadAllProjectHooks', () => {
+		it('should load hooks for all projects', async () => {
+			const mockProjects = [
+				{ id: 1, name: 'proj-1', path: '/a', assignedMcps: [] },
+				{ id: 2, name: 'proj-2', path: '/b', assignedMcps: [] }
+			];
+			const proj1Hooks = [
+				{ id: 10, hookId: 1, isEnabled: true, hook: { id: 1, name: 'hook-1', eventType: 'Stop', hookType: 'command', source: 'user', isTemplate: false } }
+			];
+			const proj2Hooks: any[] = [];
+
+			vi.mocked(invoke)
+				.mockResolvedValueOnce(mockProjects) // get_all_projects
+				.mockResolvedValueOnce(proj1Hooks)    // get_project_hooks for proj 1
+				.mockResolvedValueOnce(proj2Hooks);   // get_project_hooks for proj 2
+
+			const { hookLibrary } = await import('$lib/stores/hookLibrary.svelte');
+			await hookLibrary.loadAllProjectHooks();
+
+			// Only project 1 has hooks
+			expect(hookLibrary.projectsWithHooks).toHaveLength(1);
+			expect(hookLibrary.projectsWithHooks[0].project.name).toBe('proj-1');
+			expect(hookLibrary.projectsWithHooks[0].hooks).toHaveLength(1);
+		});
+
+		it('should handle errors gracefully', async () => {
+			vi.mocked(invoke).mockRejectedValueOnce(new Error('Load failed'));
+
+			const { hookLibrary } = await import('$lib/stores/hookLibrary.svelte');
+			await hookLibrary.loadAllProjectHooks();
+
+			expect(hookLibrary.projectsWithHooks).toEqual([]);
+		});
+	});
+
+	describe('loadTemplates error handling', () => {
+		it('should handle template load errors', async () => {
+			vi.mocked(invoke).mockRejectedValueOnce(new Error('Template error'));
+
+			const { hookLibrary } = await import('$lib/stores/hookLibrary.svelte');
+			await hookLibrary.loadTemplates();
+
+			// Should not throw, templates remain empty
+			expect(hookLibrary.templates).toEqual([]);
+		});
+	});
+
+	describe('seedTemplates error handling', () => {
+		it('should handle seed errors', async () => {
+			vi.mocked(invoke).mockRejectedValueOnce(new Error('Seed error'));
+
+			const { hookLibrary } = await import('$lib/stores/hookLibrary.svelte');
+			await hookLibrary.seedTemplates();
+
+			// Should not throw
+			expect(hookLibrary.templates).toEqual([]);
+		});
+	});
+
+	describe('loadGlobalHooks error handling', () => {
+		it('should handle global hooks load errors', async () => {
+			vi.mocked(invoke).mockRejectedValueOnce(new Error('Global load error'));
+
+			const { hookLibrary } = await import('$lib/stores/hookLibrary.svelte');
+			await hookLibrary.loadGlobalHooks();
+
+			expect(hookLibrary.globalHooks).toEqual([]);
+		});
+	});
+
+	describe('unassignedHooks', () => {
+		it('should return hooks not assigned to global or projects', async () => {
+			const mockHooks = [
+				{ id: 1, name: 'assigned-global', eventType: 'Stop', hookType: 'command', source: 'user', isTemplate: false },
+				{ id: 2, name: 'assigned-project', eventType: 'Notification', hookType: 'command', source: 'user', isTemplate: false },
+				{ id: 3, name: 'unassigned', eventType: 'PreToolUse', hookType: 'command', source: 'user', isTemplate: false }
+			];
+			const mockGlobalHooks = [
+				{ id: 10, hookId: 1, isEnabled: true, hook: mockHooks[0] }
+			];
+			const mockProjects = [
+				{ id: 1, name: 'proj-1', path: '/a', assignedMcps: [] }
+			];
+			const mockProjectHooks = [
+				{ id: 20, hookId: 2, isEnabled: true, hook: mockHooks[1] }
+			];
+
+			vi.mocked(invoke)
+				.mockResolvedValueOnce(mockHooks)       // load hooks
+				.mockResolvedValueOnce(mockGlobalHooks)  // loadGlobalHooks
+				.mockResolvedValueOnce(mockProjects)     // get_all_projects (loadAllProjectHooks)
+				.mockResolvedValueOnce(mockProjectHooks); // get_project_hooks
+
+			const { hookLibrary } = await import('$lib/stores/hookLibrary.svelte');
+			await hookLibrary.load();
+			await hookLibrary.loadGlobalHooks();
+			await hookLibrary.loadAllProjectHooks();
+
+			expect(hookLibrary.unassignedHooks).toHaveLength(1);
+			expect(hookLibrary.unassignedHooks[0].name).toBe('unassigned');
+		});
+	});
+
+	describe('hooksByEventType', () => {
+		it('should group hooks by event type in lifecycle order', async () => {
+			const mockHooks = [
+				{ id: 1, name: 'stop-hook', eventType: 'Stop', hookType: 'command', source: 'user', isTemplate: false },
+				{ id: 2, name: 'pre-tool', eventType: 'PreToolUse', hookType: 'command', source: 'user', isTemplate: false },
+				{ id: 3, name: 'notification', eventType: 'Notification', hookType: 'command', source: 'user', isTemplate: false },
+				{ id: 4, name: 'another-stop', eventType: 'Stop', hookType: 'command', source: 'user', isTemplate: false }
+			];
+
+			vi.mocked(invoke).mockResolvedValueOnce(mockHooks);
+
+			const { hookLibrary } = await import('$lib/stores/hookLibrary.svelte');
+			await hookLibrary.load();
+
+			const groups = hookLibrary.hooksByEventType;
+			// Should be ordered: PreToolUse, Notification, Stop
+			expect(groups).toHaveLength(3);
+			expect(groups[0].eventType).toBe('PreToolUse');
+			expect(groups[0].hooks).toHaveLength(1);
+			expect(groups[1].eventType).toBe('Notification');
+			expect(groups[1].hooks).toHaveLength(1);
+			expect(groups[2].eventType).toBe('Stop');
+			expect(groups[2].hooks).toHaveLength(2);
+		});
+
+		it('should return empty array when no hooks', async () => {
+			vi.mocked(invoke).mockResolvedValueOnce([]);
+
+			const { hookLibrary } = await import('$lib/stores/hookLibrary.svelte');
+			await hookLibrary.load();
+
+			expect(hookLibrary.hooksByEventType).toEqual([]);
+		});
+	});
+
+	describe('setEventFilter', () => {
+		it('should set event filter', async () => {
+			const { hookLibrary } = await import('$lib/stores/hookLibrary.svelte');
+			hookLibrary.setEventFilter('Stop');
+			expect(hookLibrary.eventFilter).toBe('Stop');
+			hookLibrary.setEventFilter('');
+			expect(hookLibrary.eventFilter).toBe('');
+		});
+	});
 });

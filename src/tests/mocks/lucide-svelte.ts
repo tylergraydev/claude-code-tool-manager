@@ -1,0 +1,130 @@
+// Mock for lucide-svelte that provides stub components for all icon imports
+// This avoids the slow import of the full lucide-svelte package in tests
+
+// A simple stub function component for Svelte 5
+// Svelte 5 components are functions, not classes
+function StubIcon() {
+	// no-op stub
+}
+
+// Re-export everything as StubIcon
+// This handles: import { Save, Plus, X } from 'lucide-svelte'
+export const Activity = StubIcon;
+export const AlertCircle = StubIcon;
+export const AlertTriangle = StubIcon;
+export const ArrowDown = StubIcon;
+export const ArrowLeft = StubIcon;
+export const ArrowUp = StubIcon;
+export const ArrowUpDown = StubIcon;
+export const BarChart3 = StubIcon;
+export const Bell = StubIcon;
+export const BellRing = StubIcon;
+export const BookOpen = StubIcon;
+export const Bot = StubIcon;
+export const Bug = StubIcon;
+export const Building = StubIcon;
+export const Calendar = StubIcon;
+export const Camera = StubIcon;
+export const Check = StubIcon;
+export const CheckCircle = StubIcon;
+export const CheckSquare = StubIcon;
+export const ChevronDown = StubIcon;
+export const ChevronLeft = StubIcon;
+export const ChevronRight = StubIcon;
+export const Clipboard = StubIcon;
+export const Clock = StubIcon;
+export const Code = StubIcon;
+export const Container = StubIcon;
+export const Copy = StubIcon;
+export const CornerDownLeft = StubIcon;
+export const Cpu = StubIcon;
+export const Database = StubIcon;
+export const DollarSign = StubIcon;
+export const Download = StubIcon;
+export const Edit = StubIcon;
+export const ExternalLink = StubIcon;
+export const Eye = StubIcon;
+export const EyeOff = StubIcon;
+export const FileCode = StubIcon;
+export const FileJson = StubIcon;
+export const FileSearch = StubIcon;
+export const FileText = StubIcon;
+export const FileUp = StubIcon;
+export const FileWarning = StubIcon;
+export const FolderOpen = StubIcon;
+export const FolderSearch = StubIcon;
+export const FolderTree = StubIcon;
+export const GitBranch = StubIcon;
+export const GitCompareArrows = StubIcon;
+export const Globe = StubIcon;
+export const GripVertical = StubIcon;
+export const Hash = StubIcon;
+export const Heart = StubIcon;
+export const History = StubIcon;
+export const Image = StubIcon;
+export const Inbox = StubIcon;
+export const Info = StubIcon;
+export const Key = StubIcon;
+export const Keyboard = StubIcon;
+export const KeyRound = StubIcon;
+export const Languages = StubIcon;
+export const Layers = StubIcon;
+export const Library = StubIcon;
+export const List = StubIcon;
+export const Loader2 = StubIcon;
+export const Lock = StubIcon;
+export const MessageSquare = StubIcon;
+export const Minus = StubIcon;
+export const Monitor = StubIcon;
+export const Moon = StubIcon;
+export const MoreVertical = StubIcon;
+export const Network = StubIcon;
+export const Package = StubIcon;
+export const PanelBottom = StubIcon;
+export const PanelLeftClose = StubIcon;
+export const PanelLeftOpen = StubIcon;
+export const Pause = StubIcon;
+export const Pencil = StubIcon;
+export const Play = StubIcon;
+export const Plus = StubIcon;
+export const Plug = StubIcon;
+export const Puzzle = StubIcon;
+export const Radio = StubIcon;
+export const RefreshCw = StubIcon;
+export const RotateCcw = StubIcon;
+export const RotateCw = StubIcon;
+export const Save = StubIcon;
+export const Search = StubIcon;
+export const SeparatorVertical = StubIcon;
+export const Server = StubIcon;
+export const ServerCog = StubIcon;
+export const Settings = StubIcon;
+export const Shield = StubIcon;
+export const ShieldAlert = StubIcon;
+export const ShieldCheck = StubIcon;
+export const ShieldQuestion = StubIcon;
+export const Sliders = StubIcon;
+export const Sparkles = StubIcon;
+export const Square = StubIcon;
+export const Star = StubIcon;
+export const Store = StubIcon;
+export const Sun = StubIcon;
+export const Terminal = StubIcon;
+export const ToggleRight = StubIcon;
+export const Trash2 = StubIcon;
+export const TrendingDown = StubIcon;
+export const TrendingUp = StubIcon;
+export const TriangleAlert = StubIcon;
+export const Undo2 = StubIcon;
+export const Upload = StubIcon;
+export const User = StubIcon;
+export const Variable = StubIcon;
+export const Volume2 = StubIcon;
+export const Wand2 = StubIcon;
+export const WrapText = StubIcon;
+export const Wrench = StubIcon;
+export const X = StubIcon;
+export const XCircle = StubIcon;
+export const Zap = StubIcon;
+
+export default StubIcon;

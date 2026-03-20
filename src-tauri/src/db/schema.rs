@@ -749,6 +749,82 @@ impl Database {
             )?;
         }
 
+        // Migration 16: Add docker_hosts, containers, and project_containers tables
+        let has_docker_hosts_table: bool = self
+            .conn
+            .query_row(
+                "SELECT COUNT(*) > 0 FROM sqlite_master WHERE type='table' AND name='docker_hosts'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap_or(false);
+
+        if !has_docker_hosts_table {
+            self.conn.execute_batch(
+                r#"
+                CREATE TABLE docker_hosts (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL UNIQUE,
+                    host_type TEXT NOT NULL CHECK (host_type IN ('local', 'ssh', 'tcp')),
+                    connection_uri TEXT,
+                    ssh_key_path TEXT,
+                    tls_ca_cert TEXT,
+                    tls_cert TEXT,
+                    tls_key TEXT,
+                    is_default INTEGER DEFAULT 0,
+                    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+                );
+
+                -- Seed default local Docker host
+                INSERT INTO docker_hosts (name, host_type, is_default)
+                VALUES ('Local Docker', 'local', 1);
+
+                CREATE TABLE containers (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL UNIQUE,
+                    description TEXT,
+                    container_type TEXT NOT NULL CHECK (container_type IN ('devcontainer', 'docker', 'custom')),
+                    docker_host_id INTEGER NOT NULL DEFAULT 1,
+                    docker_container_id TEXT,
+                    image TEXT,
+                    dockerfile TEXT,
+                    devcontainer_json TEXT,
+                    env TEXT,
+                    ports TEXT,
+                    volumes TEXT,
+                    mounts TEXT,
+                    features TEXT,
+                    post_create_command TEXT,
+                    post_start_command TEXT,
+                    working_dir TEXT,
+                    template_id TEXT,
+                    icon TEXT,
+                    tags TEXT,
+                    is_favorite INTEGER DEFAULT 0,
+                    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (docker_host_id) REFERENCES docker_hosts(id) ON DELETE SET DEFAULT
+                );
+
+                CREATE TABLE project_containers (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    project_id INTEGER NOT NULL,
+                    container_id INTEGER NOT NULL,
+                    is_default INTEGER DEFAULT 0,
+                    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+                    FOREIGN KEY (container_id) REFERENCES containers(id) ON DELETE CASCADE,
+                    UNIQUE (project_id, container_id)
+                );
+
+                CREATE INDEX idx_containers_docker_host ON containers(docker_host_id);
+                CREATE INDEX idx_project_containers_project ON project_containers(project_id);
+                CREATE INDEX idx_project_containers_container ON project_containers(container_id);
+                "#,
+            )?;
+        }
+
         Ok(())
     }
 
@@ -1943,5 +2019,1579 @@ impl Database {
             )?;
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::db::models::*;
+
+    fn setup_db() -> Database {
+        Database::in_memory().unwrap()
+    }
+
+    // =========================================================================
+    // Migration / Setup tests
+    // =========================================================================
+
+    #[test]
+    fn test_in_memory_db_creation() {
+        let db = setup_db();
+        // Should have all tables
+        let table_count: i64 = db
+            .conn()
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert!(table_count > 10);
+    }
+
+    #[test]
+    fn test_migrations_idempotent() {
+        let db = setup_db();
+        // Running migrations again should not fail
+        db.run_migrations().unwrap();
+        db.run_schema_migrations().unwrap();
+    }
+
+    // =========================================================================
+    // App Settings tests
+    // =========================================================================
+
+    #[test]
+    fn test_get_setting_default_editor() {
+        let db = setup_db();
+        let val = db.get_setting("default_editor");
+        assert_eq!(val, Some("claude_code".to_string()));
+    }
+
+    #[test]
+    fn test_set_and_get_setting() {
+        let db = setup_db();
+        db.set_setting("my_key", "my_value").unwrap();
+        assert_eq!(db.get_setting("my_key"), Some("my_value".to_string()));
+
+        // Overwrite
+        db.set_setting("my_key", "new_value").unwrap();
+        assert_eq!(db.get_setting("my_key"), Some("new_value".to_string()));
+    }
+
+    #[test]
+    fn test_get_setting_nonexistent() {
+        let db = setup_db();
+        assert_eq!(db.get_setting("nonexistent_key"), None);
+    }
+
+    // =========================================================================
+    // MCP CRUD tests
+    // =========================================================================
+
+    fn create_test_mcp_request(name: &str) -> CreateMcpRequest {
+        CreateMcpRequest {
+            name: name.to_string(),
+            description: Some("Test MCP".to_string()),
+            mcp_type: "stdio".to_string(),
+            command: Some("npx".to_string()),
+            args: Some(vec!["server".to_string()]),
+            url: None,
+            headers: None,
+            env: None,
+            icon: None,
+            tags: None,
+        }
+    }
+
+    #[test]
+    fn test_create_and_get_mcp() {
+        let db = setup_db();
+        let req = create_test_mcp_request("test-mcp");
+        let mcp = db.create_mcp(&req).unwrap();
+
+        assert_eq!(mcp.name, "test-mcp");
+        assert_eq!(mcp.mcp_type, "stdio");
+        assert_eq!(mcp.command, Some("npx".to_string()));
+        assert_eq!(mcp.source, "manual".to_string());
+
+        let fetched = db.get_mcp_by_id(mcp.id).unwrap().unwrap();
+        assert_eq!(fetched.name, "test-mcp");
+    }
+
+    #[test]
+    fn test_get_mcp_by_name() {
+        let db = setup_db();
+        db.create_mcp(&create_test_mcp_request("findme")).unwrap();
+
+        let mcp = db.get_mcp_by_name("findme").unwrap().unwrap();
+        assert_eq!(mcp.name, "findme");
+
+        let none = db.get_mcp_by_name("nonexistent").unwrap();
+        assert!(none.is_none());
+    }
+
+    #[test]
+    fn test_get_mcp_by_id_nonexistent() {
+        let db = setup_db();
+        let result = db.get_mcp_by_id(99999).unwrap();
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_create_mcp_duplicate_name() {
+        let db = setup_db();
+        db.create_mcp(&create_test_mcp_request("dup")).unwrap();
+        let result = db.create_mcp(&create_test_mcp_request("dup"));
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_update_mcp() {
+        let db = setup_db();
+        let mut mcp = db.create_mcp(&create_test_mcp_request("upd")).unwrap();
+        mcp.description = Some("Updated desc".to_string());
+        mcp.command = Some("node".to_string());
+
+        let updated = db.update_mcp(&mcp).unwrap();
+        assert_eq!(updated.description, Some("Updated desc".to_string()));
+        assert_eq!(updated.command, Some("node".to_string()));
+    }
+
+    #[test]
+    fn test_delete_mcp() {
+        let db = setup_db();
+        let mcp = db.create_mcp(&create_test_mcp_request("del")).unwrap();
+        db.delete_mcp(mcp.id).unwrap();
+        assert!(db.get_mcp_by_id(mcp.id).unwrap().is_none());
+    }
+
+    #[test]
+    fn test_get_all_mcps() {
+        let db = setup_db();
+        db.create_mcp(&create_test_mcp_request("a")).unwrap();
+        db.create_mcp(&create_test_mcp_request("b")).unwrap();
+        db.create_mcp(&create_test_mcp_request("c")).unwrap();
+
+        let all = db.get_all_mcps().unwrap();
+        assert_eq!(all.len(), 3);
+        // Should be ordered by name
+        assert_eq!(all[0].name, "a");
+        assert_eq!(all[1].name, "b");
+        assert_eq!(all[2].name, "c");
+    }
+
+    #[test]
+    fn test_create_system_mcp() {
+        let db = setup_db();
+        let req = create_test_mcp_request("sys-mcp");
+        let mcp = db.create_system_mcp(&req).unwrap();
+        assert_eq!(mcp.source, "system".to_string());
+    }
+
+    // =========================================================================
+    // Project tests
+    // =========================================================================
+
+    #[test]
+    fn test_get_all_projects() {
+        let db = setup_db();
+        db.conn()
+            .execute(
+                "INSERT INTO projects (name, path) VALUES ('proj1', '/tmp/proj1')",
+                [],
+            )
+            .unwrap();
+        db.conn()
+            .execute(
+                "INSERT INTO projects (name, path) VALUES ('proj2', '/tmp/proj2')",
+                [],
+            )
+            .unwrap();
+
+        let projects = db.get_all_projects().unwrap();
+        assert_eq!(projects.len(), 2);
+    }
+
+    #[test]
+    fn test_get_project_by_id() {
+        let db = setup_db();
+        db.conn()
+            .execute(
+                "INSERT INTO projects (name, path) VALUES ('proj', '/tmp/proj')",
+                [],
+            )
+            .unwrap();
+        let id = db.conn().last_insert_rowid();
+
+        let proj = db.get_project_by_id(id).unwrap().unwrap();
+        assert_eq!(proj.name, "proj");
+        assert_eq!(proj.path, "/tmp/proj");
+
+        let none = db.get_project_by_id(99999).unwrap();
+        assert!(none.is_none());
+    }
+
+    #[test]
+    fn test_assign_and_remove_mcp_from_project() {
+        let db = setup_db();
+        db.conn()
+            .execute(
+                "INSERT INTO projects (name, path) VALUES ('p', '/tmp/p')",
+                [],
+            )
+            .unwrap();
+        let proj_id = db.conn().last_insert_rowid();
+        let mcp = db.create_mcp(&create_test_mcp_request("m")).unwrap();
+
+        db.assign_mcp_to_project(proj_id, mcp.id).unwrap();
+
+        let count: i64 = db
+            .conn()
+            .query_row(
+                "SELECT COUNT(*) FROM project_mcps WHERE project_id = ? AND mcp_id = ?",
+                [proj_id, mcp.id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(count, 1);
+
+        db.remove_mcp_from_project(proj_id, mcp.id).unwrap();
+        let count: i64 = db
+            .conn()
+            .query_row(
+                "SELECT COUNT(*) FROM project_mcps WHERE project_id = ? AND mcp_id = ?",
+                [proj_id, mcp.id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(count, 0);
+    }
+
+    // =========================================================================
+    // Global MCP tests
+    // =========================================================================
+
+    #[test]
+    fn test_add_and_remove_global_mcp() {
+        let db = setup_db();
+        let mcp = db.create_mcp(&create_test_mcp_request("gm")).unwrap();
+
+        db.add_global_mcp(mcp.id).unwrap();
+        let globals = db.get_global_mcps().unwrap();
+        assert_eq!(globals.len(), 1);
+        assert_eq!(globals[0].mcp.name, "gm");
+
+        db.remove_global_mcp(mcp.id).unwrap();
+        let globals = db.get_global_mcps().unwrap();
+        assert!(globals.is_empty());
+    }
+
+    #[test]
+    fn test_add_global_mcp_idempotent() {
+        let db = setup_db();
+        let mcp = db.create_mcp(&create_test_mcp_request("gm2")).unwrap();
+
+        db.add_global_mcp(mcp.id).unwrap();
+        db.add_global_mcp(mcp.id).unwrap(); // Should not fail
+        let globals = db.get_global_mcps().unwrap();
+        assert_eq!(globals.len(), 1);
+    }
+
+    // =========================================================================
+    // Gateway MCP tests
+    // =========================================================================
+
+    #[test]
+    fn test_gateway_mcp_lifecycle() {
+        let db = setup_db();
+        let mcp = db.create_mcp(&create_test_mcp_request("gw")).unwrap();
+
+        db.add_gateway_mcp(mcp.id).unwrap();
+        assert!(db.is_mcp_in_gateway(mcp.id).unwrap());
+
+        let gateways = db.get_gateway_mcps().unwrap();
+        assert_eq!(gateways.len(), 1);
+        assert!(gateways[0].is_enabled);
+
+        // Toggle off
+        db.toggle_gateway_mcp(gateways[0].id, false).unwrap();
+        let enabled = db.get_enabled_gateway_mcps().unwrap();
+        assert!(enabled.is_empty());
+
+        // Toggle on
+        db.toggle_gateway_mcp(gateways[0].id, true).unwrap();
+        let enabled = db.get_enabled_gateway_mcps().unwrap();
+        assert_eq!(enabled.len(), 1);
+
+        // Auto restart
+        db.set_gateway_mcp_auto_restart(gateways[0].id, false)
+            .unwrap();
+        let gw = db.get_gateway_mcps().unwrap();
+        assert!(!gw[0].auto_restart);
+
+        // Remove
+        db.remove_gateway_mcp(mcp.id).unwrap();
+        assert!(!db.is_mcp_in_gateway(mcp.id).unwrap());
+    }
+
+    #[test]
+    fn test_add_gateway_mcp_idempotent() {
+        let db = setup_db();
+        let mcp = db.create_mcp(&create_test_mcp_request("gw2")).unwrap();
+        db.add_gateway_mcp(mcp.id).unwrap();
+        db.add_gateway_mcp(mcp.id).unwrap();
+        let gateways = db.get_gateway_mcps().unwrap();
+        assert_eq!(gateways.len(), 1);
+    }
+
+    // =========================================================================
+    // Skill CRUD tests
+    // =========================================================================
+
+    fn create_test_skill_request(name: &str) -> CreateSkillRequest {
+        CreateSkillRequest {
+            name: name.to_string(),
+            description: Some("Test skill".to_string()),
+            content: "Skill content".to_string(),
+            allowed_tools: Some(vec!["Read".to_string()]),
+            model: None,
+            disable_model_invocation: None,
+            tags: None,
+        }
+    }
+
+    #[test]
+    fn test_create_and_get_skill() {
+        let db = setup_db();
+        let skill = db.create_skill(&create_test_skill_request("sk1")).unwrap();
+        assert_eq!(skill.name, "sk1");
+        assert_eq!(skill.content, "Skill content");
+
+        let fetched = db.get_skill_by_id(skill.id).unwrap().unwrap();
+        assert_eq!(fetched.name, "sk1");
+    }
+
+    #[test]
+    fn test_get_skill_by_id_nonexistent() {
+        let db = setup_db();
+        assert!(db.get_skill_by_id(99999).unwrap().is_none());
+    }
+
+    #[test]
+    fn test_delete_skill() {
+        let db = setup_db();
+        let skill = db
+            .create_skill(&create_test_skill_request("del-sk"))
+            .unwrap();
+        db.delete_skill(skill.id).unwrap();
+        assert!(db.get_skill_by_id(skill.id).unwrap().is_none());
+    }
+
+    #[test]
+    fn test_get_all_skills() {
+        let db = setup_db();
+        db.create_skill(&create_test_skill_request("sk-a")).unwrap();
+        db.create_skill(&create_test_skill_request("sk-b")).unwrap();
+        let all = db.get_all_skills().unwrap();
+        assert_eq!(all.len(), 2);
+    }
+
+    #[test]
+    fn test_add_and_remove_global_skill() {
+        let db = setup_db();
+        let skill = db.create_skill(&create_test_skill_request("gs")).unwrap();
+        db.add_global_skill(skill.id).unwrap();
+
+        let count: i64 = db
+            .conn()
+            .query_row(
+                "SELECT COUNT(*) FROM global_skills WHERE skill_id = ?",
+                [skill.id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(count, 1);
+
+        db.remove_global_skill(skill.id).unwrap();
+        let count: i64 = db
+            .conn()
+            .query_row(
+                "SELECT COUNT(*) FROM global_skills WHERE skill_id = ?",
+                [skill.id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(count, 0);
+    }
+
+    // =========================================================================
+    // SubAgent CRUD tests
+    // =========================================================================
+
+    fn create_test_subagent_request(name: &str) -> CreateSubAgentRequest {
+        CreateSubAgentRequest {
+            name: name.to_string(),
+            description: "Test agent".to_string(),
+            content: "Agent instructions".to_string(),
+            tools: Some(vec!["Read".to_string(), "Write".to_string()]),
+            model: Some("opus".to_string()),
+            permission_mode: None,
+            skills: None,
+            tags: None,
+        }
+    }
+
+    #[test]
+    fn test_create_and_get_subagent() {
+        let db = setup_db();
+        let agent = db
+            .create_subagent(&create_test_subagent_request("agent1"))
+            .unwrap();
+        assert_eq!(agent.name, "agent1");
+        assert_eq!(agent.model, Some("opus".to_string()));
+
+        let fetched = db.get_subagent_by_id(agent.id).unwrap().unwrap();
+        assert_eq!(fetched.name, "agent1");
+        assert_eq!(
+            fetched.tools,
+            Some(vec!["Read".to_string(), "Write".to_string()])
+        );
+    }
+
+    #[test]
+    fn test_get_subagent_by_id_nonexistent() {
+        let db = setup_db();
+        assert!(db.get_subagent_by_id(99999).unwrap().is_none());
+    }
+
+    #[test]
+    fn test_delete_subagent() {
+        let db = setup_db();
+        let agent = db
+            .create_subagent(&create_test_subagent_request("del-ag"))
+            .unwrap();
+        db.delete_subagent(agent.id).unwrap();
+        assert!(db.get_subagent_by_id(agent.id).unwrap().is_none());
+    }
+
+    #[test]
+    fn test_get_all_subagents() {
+        let db = setup_db();
+        db.create_subagent(&create_test_subagent_request("a1"))
+            .unwrap();
+        db.create_subagent(&create_test_subagent_request("a2"))
+            .unwrap();
+        let all = db.get_all_subagents().unwrap();
+        assert_eq!(all.len(), 2);
+    }
+
+    #[test]
+    fn test_add_and_remove_global_subagent() {
+        let db = setup_db();
+        let agent = db
+            .create_subagent(&create_test_subagent_request("gsa"))
+            .unwrap();
+        db.add_global_subagent(agent.id).unwrap();
+        db.add_global_subagent(agent.id).unwrap(); // idempotent
+
+        let count: i64 = db
+            .conn()
+            .query_row(
+                "SELECT COUNT(*) FROM global_subagents WHERE subagent_id = ?",
+                [agent.id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(count, 1);
+
+        db.remove_global_subagent(agent.id).unwrap();
+        let count: i64 = db
+            .conn()
+            .query_row(
+                "SELECT COUNT(*) FROM global_subagents WHERE subagent_id = ?",
+                [agent.id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(count, 0);
+    }
+
+    // =========================================================================
+    // Hook CRUD tests
+    // =========================================================================
+
+    fn create_test_hook_request(name: &str) -> CreateHookRequest {
+        CreateHookRequest {
+            name: name.to_string(),
+            description: Some("Test hook".to_string()),
+            event_type: "PostToolUse".to_string(),
+            matcher: Some("Write".to_string()),
+            hook_type: "command".to_string(),
+            command: Some("npm run lint".to_string()),
+            prompt: None,
+            timeout: Some(5000),
+            tags: None,
+        }
+    }
+
+    #[test]
+    fn test_create_and_get_hook() {
+        let db = setup_db();
+        let hook = db.create_hook(&create_test_hook_request("h1")).unwrap();
+        assert_eq!(hook.name, "h1");
+        assert_eq!(hook.event_type, "PostToolUse");
+        assert_eq!(hook.hook_type, "command");
+        assert_eq!(hook.command, Some("npm run lint".to_string()));
+        assert_eq!(hook.timeout, Some(5000));
+        assert!(!hook.is_template);
+
+        let fetched = db.get_hook_by_id(hook.id).unwrap().unwrap();
+        assert_eq!(fetched.name, "h1");
+    }
+
+    #[test]
+    fn test_get_hook_by_id_nonexistent() {
+        let db = setup_db();
+        assert!(db.get_hook_by_id(99999).unwrap().is_none());
+    }
+
+    #[test]
+    fn test_delete_hook() {
+        let db = setup_db();
+        let hook = db.create_hook(&create_test_hook_request("del-h")).unwrap();
+        db.delete_hook(hook.id).unwrap();
+        assert!(db.get_hook_by_id(hook.id).unwrap().is_none());
+    }
+
+    #[test]
+    fn test_get_all_hooks_excludes_templates() {
+        let db = setup_db();
+        db.create_hook(&create_test_hook_request("h-reg")).unwrap();
+        // Insert a template hook directly
+        db.conn()
+            .execute(
+                "INSERT INTO hooks (name, event_type, hook_type, is_template) VALUES ('tmpl', 'PreToolUse', 'command', 1)",
+                [],
+            )
+            .unwrap();
+
+        let all = db.get_all_hooks().unwrap();
+        assert_eq!(all.len(), 1);
+        assert_eq!(all[0].name, "h-reg");
+    }
+
+    #[test]
+    fn test_add_and_remove_global_hook() {
+        let db = setup_db();
+        let hook = db.create_hook(&create_test_hook_request("gh")).unwrap();
+        db.add_global_hook(hook.id).unwrap();
+        db.add_global_hook(hook.id).unwrap(); // idempotent
+
+        let count: i64 = db
+            .conn()
+            .query_row(
+                "SELECT COUNT(*) FROM global_hooks WHERE hook_id = ?",
+                [hook.id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(count, 1);
+
+        db.remove_global_hook(hook.id).unwrap();
+        let count: i64 = db
+            .conn()
+            .query_row(
+                "SELECT COUNT(*) FROM global_hooks WHERE hook_id = ?",
+                [hook.id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(count, 0);
+    }
+
+    // =========================================================================
+    // StatusLine tests
+    // =========================================================================
+
+    fn create_test_statusline_request(name: &str) -> CreateStatusLineRequest {
+        CreateStatusLineRequest {
+            name: name.to_string(),
+            description: Some("Test statusline".to_string()),
+            statusline_type: "custom".to_string(),
+            package_name: None,
+            install_command: None,
+            run_command: Some("echo status".to_string()),
+            raw_command: None,
+            padding: Some(1),
+            segments_json: None,
+            generated_script: None,
+            icon: None,
+            author: None,
+            homepage_url: None,
+            tags: None,
+        }
+    }
+
+    #[test]
+    fn test_create_and_get_statusline() {
+        let db = setup_db();
+        let sl = db
+            .create_statusline(&create_test_statusline_request("sl1"))
+            .unwrap();
+        assert_eq!(sl.name, "sl1");
+        assert_eq!(sl.statusline_type, "custom");
+
+        let fetched = db.get_statusline_by_id(sl.id).unwrap().unwrap();
+        assert_eq!(fetched.name, "sl1");
+    }
+
+    #[test]
+    fn test_get_statusline_by_id_nonexistent() {
+        let db = setup_db();
+        assert!(db.get_statusline_by_id(99999).unwrap().is_none());
+    }
+
+    #[test]
+    fn test_update_statusline() {
+        let db = setup_db();
+        let mut sl = db
+            .create_statusline(&create_test_statusline_request("upd-sl"))
+            .unwrap();
+        sl.description = Some("Updated".to_string());
+        sl.run_command = Some("new cmd".to_string());
+
+        let updated = db.update_statusline(&sl).unwrap();
+        assert_eq!(updated.description, Some("Updated".to_string()));
+        assert_eq!(updated.run_command, Some("new cmd".to_string()));
+    }
+
+    #[test]
+    fn test_delete_statusline() {
+        let db = setup_db();
+        let sl = db
+            .create_statusline(&create_test_statusline_request("del-sl"))
+            .unwrap();
+        db.delete_statusline(sl.id).unwrap();
+        assert!(db.get_statusline_by_id(sl.id).unwrap().is_none());
+    }
+
+    #[test]
+    fn test_get_all_statuslines() {
+        let db = setup_db();
+        db.create_statusline(&create_test_statusline_request("sl-a"))
+            .unwrap();
+        db.create_statusline(&create_test_statusline_request("sl-b"))
+            .unwrap();
+        let all = db.get_all_statuslines().unwrap();
+        assert_eq!(all.len(), 2);
+    }
+
+    #[test]
+    fn test_set_and_get_active_statusline() {
+        let db = setup_db();
+        let sl1 = db
+            .create_statusline(&create_test_statusline_request("active-1"))
+            .unwrap();
+        let sl2 = db
+            .create_statusline(&create_test_statusline_request("active-2"))
+            .unwrap();
+
+        // No active statusline initially
+        assert!(db.get_active_statusline().unwrap().is_none());
+
+        db.set_active_statusline(sl1.id).unwrap();
+        let active = db.get_active_statusline().unwrap().unwrap();
+        assert_eq!(active.id, sl1.id);
+
+        // Switch active
+        db.set_active_statusline(sl2.id).unwrap();
+        let active = db.get_active_statusline().unwrap().unwrap();
+        assert_eq!(active.id, sl2.id);
+
+        db.deactivate_all_statuslines().unwrap();
+        assert!(db.get_active_statusline().unwrap().is_none());
+    }
+
+    // =========================================================================
+    // Spinner Verb tests
+    // =========================================================================
+
+    #[test]
+    fn test_create_and_get_spinner_verb() {
+        let db = setup_db();
+        let verb = db.create_spinner_verb("Pondering").unwrap();
+        assert_eq!(verb.verb, "Pondering");
+        assert!(verb.is_enabled);
+
+        let fetched = db.get_spinner_verb_by_id(verb.id).unwrap();
+        assert_eq!(fetched.verb, "Pondering");
+    }
+
+    #[test]
+    fn test_update_spinner_verb() {
+        let db = setup_db();
+        let verb = db.create_spinner_verb("Old").unwrap();
+        let updated = db.update_spinner_verb(verb.id, "New", false).unwrap();
+        assert_eq!(updated.verb, "New");
+        assert!(!updated.is_enabled);
+    }
+
+    #[test]
+    fn test_delete_spinner_verb() {
+        let db = setup_db();
+        let verb = db.create_spinner_verb("Temp").unwrap();
+        db.delete_spinner_verb(verb.id).unwrap();
+        assert!(db.get_spinner_verb_by_id(verb.id).is_err());
+    }
+
+    #[test]
+    fn test_get_all_spinner_verbs() {
+        let db = setup_db();
+        db.create_spinner_verb("V1").unwrap();
+        db.create_spinner_verb("V2").unwrap();
+        db.create_spinner_verb("V3").unwrap();
+        let all = db.get_all_spinner_verbs().unwrap();
+        assert_eq!(all.len(), 3);
+    }
+
+    #[test]
+    fn test_spinner_verb_mode() {
+        let db = setup_db();
+        // Default should be append
+        let mode = db.get_spinner_verb_mode().unwrap();
+        assert_eq!(mode, "append");
+
+        db.set_spinner_verb_mode("replace").unwrap();
+        let mode = db.get_spinner_verb_mode().unwrap();
+        assert_eq!(mode, "replace");
+    }
+
+    #[test]
+    fn test_reorder_spinner_verbs() {
+        let db = setup_db();
+        let v1 = db.create_spinner_verb("A").unwrap();
+        let v2 = db.create_spinner_verb("B").unwrap();
+        let v3 = db.create_spinner_verb("C").unwrap();
+
+        // Reverse order
+        db.reorder_spinner_verbs(&[v3.id, v2.id, v1.id]).unwrap();
+
+        let all = db.get_all_spinner_verbs().unwrap();
+        assert_eq!(all[0].verb, "C");
+        assert_eq!(all[1].verb, "B");
+        assert_eq!(all[2].verb, "A");
+    }
+
+    // =========================================================================
+    // Cascade delete tests
+    // =========================================================================
+
+    #[test]
+    fn test_delete_mcp_cascades_to_global_mcps() {
+        let db = setup_db();
+        let mcp = db.create_mcp(&create_test_mcp_request("cascade")).unwrap();
+        db.add_global_mcp(mcp.id).unwrap();
+        db.add_gateway_mcp(mcp.id).unwrap();
+
+        db.delete_mcp(mcp.id).unwrap();
+
+        let global_count: i64 = db
+            .conn()
+            .query_row("SELECT COUNT(*) FROM global_mcps", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(global_count, 0);
+
+        let gateway_count: i64 = db
+            .conn()
+            .query_row("SELECT COUNT(*) FROM gateway_mcps", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(gateway_count, 0);
+    }
+
+    #[test]
+    fn test_delete_skill_cascades_to_global_skills() {
+        let db = setup_db();
+        let skill = db.create_skill(&create_test_skill_request("cs")).unwrap();
+        db.add_global_skill(skill.id).unwrap();
+
+        db.delete_skill(skill.id).unwrap();
+
+        let count: i64 = db
+            .conn()
+            .query_row("SELECT COUNT(*) FROM global_skills", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(count, 0);
+    }
+
+    #[test]
+    fn test_delete_hook_cascades_to_global_hooks() {
+        let db = setup_db();
+        let hook = db.create_hook(&create_test_hook_request("ch")).unwrap();
+        db.add_global_hook(hook.id).unwrap();
+
+        db.delete_hook(hook.id).unwrap();
+
+        let count: i64 = db
+            .conn()
+            .query_row("SELECT COUNT(*) FROM global_hooks", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(count, 0);
+    }
+
+    // =========================================================================
+    // MCP with complex fields tests
+    // =========================================================================
+
+    #[test]
+    fn test_mcp_with_env_and_headers() {
+        let db = setup_db();
+        let mut env = std::collections::HashMap::new();
+        env.insert("KEY".to_string(), "val".to_string());
+        let mut headers = std::collections::HashMap::new();
+        headers.insert("Auth".to_string(), "Bearer xxx".to_string());
+
+        let req = CreateMcpRequest {
+            name: "http-mcp".to_string(),
+            description: None,
+            mcp_type: "http".to_string(),
+            command: None,
+            args: None,
+            url: Some("https://example.com".to_string()),
+            headers: Some(headers.clone()),
+            env: Some(env.clone()),
+            icon: None,
+            tags: Some(vec!["web".to_string()]),
+        };
+
+        let mcp = db.create_mcp(&req).unwrap();
+        let fetched = db.get_mcp_by_id(mcp.id).unwrap().unwrap();
+
+        assert_eq!(fetched.url, Some("https://example.com".to_string()));
+        assert_eq!(fetched.env.unwrap().get("KEY").unwrap(), "val");
+        assert_eq!(fetched.headers.unwrap().get("Auth").unwrap(), "Bearer xxx");
+        assert_eq!(fetched.tags.unwrap(), vec!["web".to_string()]);
+    }
+
+    // =========================================================================
+    // Skill with disable_model_invocation test
+    // =========================================================================
+
+    #[test]
+    fn test_skill_with_disable_model_invocation() {
+        let db = setup_db();
+        let req = CreateSkillRequest {
+            name: "no-invoke".to_string(),
+            description: None,
+            content: "c".to_string(),
+            allowed_tools: None,
+            model: Some("sonnet".to_string()),
+            disable_model_invocation: Some(true),
+            tags: None,
+        };
+
+        let skill = db.create_skill(&req).unwrap();
+        assert!(skill.disable_model_invocation);
+        assert_eq!(skill.model, Some("sonnet".to_string()));
+    }
+
+    // =========================================================================
+    // Profile tests (via raw SQL since no convenience methods)
+    // =========================================================================
+
+    #[test]
+    fn test_profiles_table_exists() {
+        let db = setup_db();
+        db.conn()
+            .execute(
+                "INSERT INTO profiles (name, description) VALUES ('Dev', 'Development profile')",
+                [],
+            )
+            .unwrap();
+        let id = db.conn().last_insert_rowid();
+
+        let name: String = db
+            .conn()
+            .query_row("SELECT name FROM profiles WHERE id = ?", [id], |row| {
+                row.get(0)
+            })
+            .unwrap();
+        assert_eq!(name, "Dev");
+    }
+
+    #[test]
+    fn test_profile_items() {
+        let db = setup_db();
+        db.conn()
+            .execute("INSERT INTO profiles (name) VALUES ('Test')", [])
+            .unwrap();
+        let profile_id = db.conn().last_insert_rowid();
+
+        let mcp = db.create_mcp(&create_test_mcp_request("pi-mcp")).unwrap();
+
+        db.conn()
+            .execute(
+                "INSERT INTO profile_items (profile_id, item_type, item_id) VALUES (?, 'mcp', ?)",
+                rusqlite::params![profile_id, mcp.id],
+            )
+            .unwrap();
+
+        let count: i64 = db
+            .conn()
+            .query_row(
+                "SELECT COUNT(*) FROM profile_items WHERE profile_id = ?",
+                [profile_id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(count, 1);
+
+        // Unique constraint: same item cannot be added twice
+        let result = db.conn().execute(
+            "INSERT INTO profile_items (profile_id, item_type, item_id) VALUES (?, 'mcp', ?)",
+            rusqlite::params![profile_id, mcp.id],
+        );
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_delete_profile_cascades_items() {
+        let db = setup_db();
+        db.conn()
+            .execute("INSERT INTO profiles (name) VALUES ('Del')", [])
+            .unwrap();
+        let profile_id = db.conn().last_insert_rowid();
+
+        let mcp = db.create_mcp(&create_test_mcp_request("pi2")).unwrap();
+        db.conn()
+            .execute(
+                "INSERT INTO profile_items (profile_id, item_type, item_id) VALUES (?, 'mcp', ?)",
+                rusqlite::params![profile_id, mcp.id],
+            )
+            .unwrap();
+
+        db.conn()
+            .execute("DELETE FROM profiles WHERE id = ?", [profile_id])
+            .unwrap();
+
+        let count: i64 = db
+            .conn()
+            .query_row(
+                "SELECT COUNT(*) FROM profile_items WHERE profile_id = ?",
+                [profile_id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(count, 0);
+    }
+
+    // =========================================================================
+    // Docker hosts table seeding test
+    // =========================================================================
+
+    #[test]
+    fn test_docker_hosts_default_seeded() {
+        let db = setup_db();
+        let count: i64 = db
+            .conn()
+            .query_row("SELECT COUNT(*) FROM docker_hosts", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(count, 1);
+
+        let name: String = db
+            .conn()
+            .query_row(
+                "SELECT name FROM docker_hosts WHERE is_default = 1",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(name, "Local Docker");
+    }
+
+    // =========================================================================
+    // App settings default values
+    // =========================================================================
+
+    #[test]
+    fn test_default_gateway_settings() {
+        let db = setup_db();
+        assert_eq!(db.get_setting("gateway_enabled"), Some("false".to_string()));
+        assert_eq!(db.get_setting("gateway_port"), Some("23848".to_string()));
+        assert_eq!(
+            db.get_setting("gateway_auto_start"),
+            Some("false".to_string())
+        );
+    }
+
+    #[test]
+    fn test_set_setting_overwrite() {
+        let db = setup_db();
+        // Overwrite a default setting
+        db.set_setting("gateway_port", "9999").unwrap();
+        assert_eq!(db.get_setting("gateway_port"), Some("9999".to_string()));
+    }
+
+    // =========================================================================
+    // Gateway MCP additional edge cases
+    // =========================================================================
+
+    #[test]
+    fn test_is_mcp_in_gateway_false() {
+        let db = setup_db();
+        let mcp = db.create_mcp(&create_test_mcp_request("not-gw")).unwrap();
+        assert!(!db.is_mcp_in_gateway(mcp.id).unwrap());
+    }
+
+    #[test]
+    fn test_get_enabled_gateway_mcps_mixed() {
+        let db = setup_db();
+        let mcp1 = db.create_mcp(&create_test_mcp_request("gw-en")).unwrap();
+        let mcp2 = db.create_mcp(&create_test_mcp_request("gw-dis")).unwrap();
+
+        db.add_gateway_mcp(mcp1.id).unwrap();
+        db.add_gateway_mcp(mcp2.id).unwrap();
+
+        // Disable one
+        let gateways = db.get_gateway_mcps().unwrap();
+        let gw2 = gateways.iter().find(|g| g.mcp.name == "gw-dis").unwrap();
+        db.toggle_gateway_mcp(gw2.id, false).unwrap();
+
+        let enabled = db.get_enabled_gateway_mcps().unwrap();
+        assert_eq!(enabled.len(), 1);
+        assert_eq!(enabled[0].mcp.name, "gw-en");
+    }
+
+    // =========================================================================
+    // MCP update edge cases
+    // =========================================================================
+
+    #[test]
+    fn test_update_mcp_with_complex_fields() {
+        let db = setup_db();
+        let req = CreateMcpRequest {
+            name: "complex".to_string(),
+            description: Some("Desc".to_string()),
+            mcp_type: "sse".to_string(),
+            command: None,
+            args: None,
+            url: Some("https://example.com/sse".to_string()),
+            headers: Some({
+                let mut m = std::collections::HashMap::new();
+                m.insert("X-Key".to_string(), "val".to_string());
+                m
+            }),
+            env: Some({
+                let mut m = std::collections::HashMap::new();
+                m.insert("API_KEY".to_string(), "secret".to_string());
+                m
+            }),
+            icon: Some("🔌".to_string()),
+            tags: Some(vec!["web".to_string(), "api".to_string()]),
+        };
+
+        let mut mcp = db.create_mcp(&req).unwrap();
+
+        // Update all fields
+        mcp.name = "complex-updated".to_string();
+        mcp.url = Some("https://new.example.com".to_string());
+        mcp.tags = Some(vec!["updated".to_string()]);
+
+        let updated = db.update_mcp(&mcp).unwrap();
+        assert_eq!(updated.name, "complex-updated");
+        assert_eq!(updated.url, Some("https://new.example.com".to_string()));
+        assert_eq!(updated.tags, Some(vec!["updated".to_string()]));
+        assert_eq!(
+            updated.env.as_ref().unwrap().get("API_KEY").unwrap(),
+            "secret"
+        );
+    }
+
+    // =========================================================================
+    // Skill with all fields
+    // =========================================================================
+
+    #[test]
+    fn test_create_skill_with_all_fields() {
+        let db = setup_db();
+        let req = CreateSkillRequest {
+            name: "full-skill".to_string(),
+            description: Some("Full skill".to_string()),
+            content: "Full content".to_string(),
+            allowed_tools: Some(vec!["Read".to_string(), "Grep".to_string()]),
+            model: Some("opus".to_string()),
+            disable_model_invocation: Some(true),
+            tags: Some(vec!["tag1".to_string(), "tag2".to_string()]),
+        };
+
+        let skill = db.create_skill(&req).unwrap();
+        assert_eq!(skill.name, "full-skill");
+        assert_eq!(skill.model, Some("opus".to_string()));
+        assert!(skill.disable_model_invocation);
+        assert_eq!(
+            skill.allowed_tools,
+            Some(vec!["Read".to_string(), "Grep".to_string()])
+        );
+        assert_eq!(
+            skill.tags,
+            Some(vec!["tag1".to_string(), "tag2".to_string()])
+        );
+    }
+
+    // =========================================================================
+    // SubAgent with all fields
+    // =========================================================================
+
+    #[test]
+    fn test_create_subagent_with_all_fields() {
+        let db = setup_db();
+        let req = CreateSubAgentRequest {
+            name: "full-agent".to_string(),
+            description: "Full agent".to_string(),
+            content: "Agent content".to_string(),
+            tools: Some(vec!["Read".to_string(), "Write".to_string()]),
+            model: Some("opus".to_string()),
+            permission_mode: Some("bypassPermissions".to_string()),
+            skills: Some(vec!["lint".to_string()]),
+            tags: Some(vec!["review".to_string()]),
+        };
+
+        let agent = db.create_subagent(&req).unwrap();
+        assert_eq!(agent.name, "full-agent");
+        assert_eq!(agent.permission_mode, Some("bypassPermissions".to_string()));
+        assert_eq!(agent.skills, Some(vec!["lint".to_string()]));
+        assert_eq!(agent.tags, Some(vec!["review".to_string()]));
+    }
+
+    // =========================================================================
+    // Hook with prompt type
+    // =========================================================================
+
+    #[test]
+    fn test_create_prompt_hook() {
+        let db = setup_db();
+        let req = CreateHookRequest {
+            name: "prompt-h".to_string(),
+            description: Some("A prompt hook".to_string()),
+            event_type: "Notification".to_string(),
+            matcher: None,
+            hook_type: "prompt".to_string(),
+            command: None,
+            prompt: Some("Please confirm".to_string()),
+            timeout: None,
+            tags: Some(vec!["safety".to_string()]),
+        };
+
+        let hook = db.create_hook(&req).unwrap();
+        assert_eq!(hook.hook_type, "prompt");
+        assert_eq!(hook.prompt, Some("Please confirm".to_string()));
+        assert!(hook.command.is_none());
+        assert!(hook.timeout.is_none());
+        assert_eq!(hook.tags, Some(vec!["safety".to_string()]));
+    }
+
+    // =========================================================================
+    // Spinner verb auto-incrementing display_order
+    // =========================================================================
+
+    #[test]
+    fn test_spinner_verb_auto_display_order() {
+        let db = setup_db();
+        let v1 = db.create_spinner_verb("First").unwrap();
+        let v2 = db.create_spinner_verb("Second").unwrap();
+        let v3 = db.create_spinner_verb("Third").unwrap();
+
+        assert_eq!(v1.display_order, 0);
+        assert_eq!(v2.display_order, 1);
+        assert_eq!(v3.display_order, 2);
+    }
+
+    // =========================================================================
+    // StatusLine raw command type
+    // =========================================================================
+
+    #[test]
+    fn test_create_statusline_raw_type() {
+        let db = setup_db();
+        let req = CreateStatusLineRequest {
+            name: "raw-sl".to_string(),
+            description: None,
+            statusline_type: "raw".to_string(),
+            package_name: None,
+            install_command: None,
+            run_command: None,
+            raw_command: Some("echo 'model: $MODEL'".to_string()),
+            padding: None,
+            segments_json: None,
+            generated_script: Some("#!/bin/bash\necho 'model'".to_string()),
+            icon: None,
+            author: None,
+            homepage_url: None,
+            tags: None,
+        };
+
+        let sl = db.create_statusline(&req).unwrap();
+        assert_eq!(sl.statusline_type, "raw");
+        assert_eq!(sl.raw_command, Some("echo 'model: $MODEL'".to_string()));
+        assert!(sl.generated_script.is_some());
+        assert_eq!(sl.padding, 0); // default
+    }
+
+    // =========================================================================
+    // Containers table exists and constraints work
+    // =========================================================================
+
+    #[test]
+    fn test_containers_table_exists() {
+        let db = setup_db();
+        db.conn()
+            .execute(
+                "INSERT INTO containers (name, container_type, docker_host_id, image) VALUES ('test-c', 'docker', 1, 'alpine')",
+                [],
+            )
+            .unwrap();
+        let id = db.conn().last_insert_rowid();
+
+        let name: String = db
+            .conn()
+            .query_row("SELECT name FROM containers WHERE id = ?", [id], |row| {
+                row.get(0)
+            })
+            .unwrap();
+        assert_eq!(name, "test-c");
+    }
+
+    #[test]
+    fn test_project_containers_table() {
+        let db = setup_db();
+
+        // Create project and container
+        db.conn()
+            .execute(
+                "INSERT INTO projects (name, path) VALUES ('proj', '/tmp/proj')",
+                [],
+            )
+            .unwrap();
+        let proj_id = db.conn().last_insert_rowid();
+
+        db.conn()
+            .execute(
+                "INSERT INTO containers (name, container_type, docker_host_id) VALUES ('c1', 'docker', 1)",
+                [],
+            )
+            .unwrap();
+        let container_id = db.conn().last_insert_rowid();
+
+        // Assign container to project
+        db.conn()
+            .execute(
+                "INSERT INTO project_containers (project_id, container_id) VALUES (?, ?)",
+                [proj_id, container_id],
+            )
+            .unwrap();
+
+        let count: i64 = db
+            .conn()
+            .query_row(
+                "SELECT COUNT(*) FROM project_containers WHERE project_id = ?",
+                [proj_id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(count, 1);
+    }
+
+    // =========================================================================
+    // Permission templates table
+    // =========================================================================
+
+    #[test]
+    fn test_permission_templates_table_exists() {
+        let db = setup_db();
+        db.conn()
+            .execute(
+                "INSERT INTO permission_templates (name, category, rule) VALUES ('Allow Read', 'allow', 'Read')",
+                [],
+            )
+            .unwrap();
+
+        let count: i64 = db
+            .conn()
+            .query_row("SELECT COUNT(*) FROM permission_templates", [], |row| {
+                row.get(0)
+            })
+            .unwrap();
+        assert_eq!(count, 1);
+    }
+
+    // =========================================================================
+    // Assign MCP to project idempotent
+    // =========================================================================
+
+    #[test]
+    fn test_assign_mcp_to_project_idempotent() {
+        let db = setup_db();
+        db.conn()
+            .execute(
+                "INSERT INTO projects (name, path) VALUES ('p', '/tmp/p')",
+                [],
+            )
+            .unwrap();
+        let proj_id = db.conn().last_insert_rowid();
+        let mcp = db.create_mcp(&create_test_mcp_request("idem")).unwrap();
+
+        db.assign_mcp_to_project(proj_id, mcp.id).unwrap();
+        db.assign_mcp_to_project(proj_id, mcp.id).unwrap(); // Should not fail
+
+        let count: i64 = db
+            .conn()
+            .query_row(
+                "SELECT COUNT(*) FROM project_mcps WHERE project_id = ? AND mcp_id = ?",
+                [proj_id, mcp.id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(count, 1);
+    }
+
+    // =========================================================================
+    // Delete non-existent items (should succeed silently)
+    // =========================================================================
+
+    #[test]
+    fn test_delete_nonexistent_mcp() {
+        let db = setup_db();
+        // Deleting non-existent id should not error
+        db.delete_mcp(99999).unwrap();
+    }
+
+    #[test]
+    fn test_delete_nonexistent_skill() {
+        let db = setup_db();
+        db.delete_skill(99999).unwrap();
+    }
+
+    #[test]
+    fn test_delete_nonexistent_subagent() {
+        let db = setup_db();
+        db.delete_subagent(99999).unwrap();
+    }
+
+    #[test]
+    fn test_delete_nonexistent_hook() {
+        let db = setup_db();
+        db.delete_hook(99999).unwrap();
+    }
+
+    #[test]
+    fn test_delete_nonexistent_statusline() {
+        let db = setup_db();
+        db.delete_statusline(99999).unwrap();
+    }
+
+    #[test]
+    fn test_delete_nonexistent_spinner_verb() {
+        let db = setup_db();
+        db.delete_spinner_verb(99999).unwrap();
+    }
+
+    // =========================================================================
+    // Remove global items that don't exist
+    // =========================================================================
+
+    #[test]
+    fn test_remove_global_mcp_nonexistent() {
+        let db = setup_db();
+        db.remove_global_mcp(99999).unwrap();
+    }
+
+    #[test]
+    fn test_remove_global_skill_nonexistent() {
+        let db = setup_db();
+        db.remove_global_skill(99999).unwrap();
+    }
+
+    #[test]
+    fn test_remove_global_subagent_nonexistent() {
+        let db = setup_db();
+        db.remove_global_subagent(99999).unwrap();
+    }
+
+    #[test]
+    fn test_remove_global_hook_nonexistent() {
+        let db = setup_db();
+        db.remove_global_hook(99999).unwrap();
+    }
+
+    #[test]
+    fn test_remove_gateway_mcp_nonexistent() {
+        let db = setup_db();
+        db.remove_gateway_mcp(99999).unwrap();
+    }
+
+    // =========================================================================
+    // Spinner verb mode edge cases
+    // =========================================================================
+
+    #[test]
+    fn test_set_spinner_verb_mode_idempotent() {
+        let db = setup_db();
+        db.set_spinner_verb_mode("replace").unwrap();
+        db.set_spinner_verb_mode("replace").unwrap();
+        assert_eq!(db.get_spinner_verb_mode().unwrap(), "replace");
+    }
+
+    // =========================================================================
+    // Statusline multiple active constraint
+    // =========================================================================
+
+    #[test]
+    fn test_set_active_statusline_only_one() {
+        let db = setup_db();
+        let sl1 = db
+            .create_statusline(&create_test_statusline_request("multi-1"))
+            .unwrap();
+        let sl2 = db
+            .create_statusline(&create_test_statusline_request("multi-2"))
+            .unwrap();
+        let sl3 = db
+            .create_statusline(&create_test_statusline_request("multi-3"))
+            .unwrap();
+
+        db.set_active_statusline(sl1.id).unwrap();
+        db.set_active_statusline(sl2.id).unwrap();
+        db.set_active_statusline(sl3.id).unwrap();
+
+        let active_count: i64 = db
+            .conn()
+            .query_row(
+                "SELECT COUNT(*) FROM statuslines WHERE is_active = 1",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(active_count, 1);
+
+        let active = db.get_active_statusline().unwrap().unwrap();
+        assert_eq!(active.id, sl3.id);
+    }
+
+    // =========================================================================
+    // Skill files table
+    // =========================================================================
+
+    #[test]
+    fn test_skill_files_table() {
+        let db = setup_db();
+        let skill = db
+            .create_skill(&create_test_skill_request("sf-skill"))
+            .unwrap();
+
+        db.conn().execute(
+            "INSERT INTO skill_files (skill_id, file_type, name, content) VALUES (?, 'reference', 'docs.md', '# Docs')",
+            [skill.id],
+        ).unwrap();
+
+        let count: i64 = db
+            .conn()
+            .query_row(
+                "SELECT COUNT(*) FROM skill_files WHERE skill_id = ?",
+                [skill.id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(count, 1);
+    }
+
+    #[test]
+    fn test_delete_skill_cascades_to_skill_files() {
+        let db = setup_db();
+        let skill = db
+            .create_skill(&create_test_skill_request("sf-del"))
+            .unwrap();
+
+        db.conn().execute(
+            "INSERT INTO skill_files (skill_id, file_type, name, content) VALUES (?, 'asset', 'schema.json', '{}')",
+            [skill.id],
+        ).unwrap();
+
+        db.delete_skill(skill.id).unwrap();
+
+        let count: i64 = db
+            .conn()
+            .query_row(
+                "SELECT COUNT(*) FROM skill_files WHERE skill_id = ?",
+                [skill.id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(count, 0);
+    }
+
+    // =========================================================================
+    // Delete project cascades to project_mcps, project_skills, etc.
+    // =========================================================================
+
+    #[test]
+    fn test_delete_project_cascades_assignments() {
+        let db = setup_db();
+        db.conn()
+            .execute(
+                "INSERT INTO projects (name, path) VALUES ('cascade-proj', '/tmp/cascade')",
+                [],
+            )
+            .unwrap();
+        let proj_id = db.conn().last_insert_rowid();
+
+        let mcp = db
+            .create_mcp(&create_test_mcp_request("cascade-m"))
+            .unwrap();
+        let skill = db
+            .create_skill(&create_test_skill_request("cascade-s"))
+            .unwrap();
+
+        db.assign_mcp_to_project(proj_id, mcp.id).unwrap();
+        db.conn()
+            .execute(
+                "INSERT INTO project_skills (project_id, skill_id) VALUES (?, ?)",
+                rusqlite::params![proj_id, skill.id],
+            )
+            .unwrap();
+
+        // Delete project
+        db.conn()
+            .execute("DELETE FROM projects WHERE id = ?", [proj_id])
+            .unwrap();
+
+        let mcp_count: i64 = db
+            .conn()
+            .query_row(
+                "SELECT COUNT(*) FROM project_mcps WHERE project_id = ?",
+                [proj_id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        let skill_count: i64 = db
+            .conn()
+            .query_row(
+                "SELECT COUNT(*) FROM project_skills WHERE project_id = ?",
+                [proj_id],
+                |row| row.get(0),
+            )
+            .unwrap();
+
+        assert_eq!(mcp_count, 0);
+        assert_eq!(skill_count, 0);
+    }
+
+    // =========================================================================
+    // Spinner verb reorder with empty list
+    // =========================================================================
+
+    #[test]
+    fn test_reorder_spinner_verbs_empty() {
+        let db = setup_db();
+        db.reorder_spinner_verbs(&[]).unwrap();
     }
 }

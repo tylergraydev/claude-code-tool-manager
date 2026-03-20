@@ -441,4 +441,191 @@ mod tests {
         // This may fail in CI if ~/.claude doesn't exist, but the structure is correct
         assert!(all.is_ok() || all.is_err());
     }
+
+    // =========================================================================
+    // Additional coverage
+    // =========================================================================
+
+    #[test]
+    fn test_resolve_settings_path_project_requires_path() {
+        let result = resolve_settings_path(&PermissionScope::Project, None);
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Project path required"));
+    }
+
+    #[test]
+    fn test_resolve_settings_path_local_requires_path() {
+        let result = resolve_settings_path(&PermissionScope::Local, None);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_resolve_settings_path_project_with_path() {
+        let dir = tempfile::tempdir().unwrap();
+        let result = resolve_settings_path(&PermissionScope::Project, Some(dir.path()));
+        assert!(result.is_ok());
+        let path = result.unwrap();
+        assert!(path.to_string_lossy().contains("settings.json"));
+        assert!(path.to_string_lossy().contains(".claude"));
+    }
+
+    #[test]
+    fn test_resolve_settings_path_local_with_path() {
+        let dir = tempfile::tempdir().unwrap();
+        let result = resolve_settings_path(&PermissionScope::Local, Some(dir.path()));
+        assert!(result.is_ok());
+        let path = result.unwrap();
+        assert!(path.to_string_lossy().contains("settings.local.json"));
+    }
+
+    #[test]
+    fn test_read_permissions_with_additional_directories() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings.json");
+        std::fs::write(
+            &path,
+            r#"{
+                "permissions": {
+                    "additionalDirectories": ["/tmp/shared", "/opt/data"]
+                }
+            }"#,
+        )
+        .unwrap();
+
+        let perms = read_permissions_from_file(&path, "user").unwrap();
+        assert_eq!(perms.additional_directories.len(), 2);
+        assert_eq!(perms.additional_directories[0], "/tmp/shared");
+    }
+
+    #[test]
+    fn test_write_default_mode_removes_when_none() {
+        let dir = tempfile::tempdir().unwrap();
+        let project_path = dir.path();
+
+        // Set a mode first
+        write_default_mode(
+            &PermissionScope::Local,
+            Some(project_path),
+            Some("allowEdits"),
+        )
+        .unwrap();
+
+        // Remove it
+        write_default_mode(&PermissionScope::Local, Some(project_path), None).unwrap();
+
+        let path = project_path.join(".claude").join("settings.local.json");
+        let content = std::fs::read_to_string(&path).unwrap();
+        let json: Value = serde_json::from_str(&content).unwrap();
+        let perms = json.get("permissions").and_then(|p| p.as_object()).unwrap();
+        assert!(perms.get("defaultMode").is_none());
+    }
+
+    #[test]
+    fn test_write_additional_directories_empty_removes_key() {
+        let dir = tempfile::tempdir().unwrap();
+        let project_path = dir.path();
+
+        // Set dirs first
+        write_additional_directories(
+            &PermissionScope::Local,
+            Some(project_path),
+            &["/tmp".to_string()],
+        )
+        .unwrap();
+
+        // Clear them
+        write_additional_directories(&PermissionScope::Local, Some(project_path), &[]).unwrap();
+
+        let path = project_path.join(".claude").join("settings.local.json");
+        let content = std::fs::read_to_string(&path).unwrap();
+        let json: Value = serde_json::from_str(&content).unwrap();
+        if let Some(perms) = json.get("permissions").and_then(|p| p.as_object()) {
+            assert!(perms.get("additionalDirectories").is_none());
+        }
+    }
+
+    #[test]
+    fn test_write_permission_rules_to_project_scope() {
+        let dir = tempfile::tempdir().unwrap();
+        let project_path = dir.path();
+
+        write_permission_rules(
+            &PermissionScope::Project,
+            Some(project_path),
+            "deny",
+            &["Bash(rm -rf *)".to_string()],
+        )
+        .unwrap();
+
+        let path = project_path.join(".claude").join("settings.json");
+        let content = std::fs::read_to_string(&path).unwrap();
+        let json: Value = serde_json::from_str(&content).unwrap();
+        assert_eq!(json["permissions"]["deny"][0], "Bash(rm -rf *)");
+    }
+
+    #[test]
+    fn test_extract_string_array_missing_key() {
+        let val = serde_json::json!({"other": "value"});
+        let result = extract_string_array(&val, "nonexistent");
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn test_extract_string_array_non_array() {
+        let val = serde_json::json!({"key": "not-an-array"});
+        let result = extract_string_array(&val, "key");
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn test_extract_string_array_with_non_strings() {
+        let val = serde_json::json!({"key": ["valid", 42, true, "also_valid"]});
+        let result = extract_string_array(&val, "key");
+        assert_eq!(result, vec!["valid", "also_valid"]);
+    }
+
+    #[test]
+    fn test_permission_scope_serialization() {
+        let scope = PermissionScope::User;
+        let json = serde_json::to_string(&scope).unwrap();
+        assert_eq!(json, "\"user\"");
+
+        let scope = PermissionScope::Project;
+        let json = serde_json::to_string(&scope).unwrap();
+        assert_eq!(json, "\"project\"");
+
+        let scope = PermissionScope::Local;
+        let json = serde_json::to_string(&scope).unwrap();
+        assert_eq!(json, "\"local\"");
+    }
+
+    #[test]
+    fn test_read_all_permissions_with_project_path() {
+        let dir = tempfile::tempdir().unwrap();
+        let project_path = dir.path();
+
+        // Create project settings
+        let claude_dir = project_path.join(".claude");
+        std::fs::create_dir_all(&claude_dir).unwrap();
+        std::fs::write(
+            claude_dir.join("settings.json"),
+            r#"{"permissions": {"allow": ["Read"]}}"#,
+        )
+        .unwrap();
+        std::fs::write(
+            claude_dir.join("settings.local.json"),
+            r#"{"permissions": {"deny": ["Bash(curl *)"]}}"#,
+        )
+        .unwrap();
+
+        let all = read_all_permissions(Some(project_path));
+        // May fail if user home doesn't have .claude, but structure is tested
+        if let Ok(all) = all {
+            assert!(all.project.is_some());
+            assert!(all.local.is_some());
+        }
+    }
 }

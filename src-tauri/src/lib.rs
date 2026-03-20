@@ -11,6 +11,7 @@ mod utils;
 use db::Database;
 use mcp_gateway::server::{GatewayServerConfig, GatewayServerState, DEFAULT_GATEWAY_PORT};
 use mcp_server::server::{McpServerConfig, McpServerState, DEFAULT_MCP_SERVER_PORT};
+use services::docker::client::DockerClientManager;
 use services::mcp_session::McpSessionManager;
 
 pub fn run() {
@@ -57,6 +58,9 @@ pub fn run() {
 
             // Initialize session manager for MCP execution
             app.manage(Mutex::new(McpSessionManager::new()));
+
+            // Initialize Docker client manager
+            app.manage(Arc::new(DockerClientManager::new()));
 
             // Initialize MCP server state with config from database
             let mcp_server_config = {
@@ -459,6 +463,36 @@ pub fn run() {
             commands::sessions::get_session_projects,
             commands::sessions::get_project_sessions,
             commands::sessions::get_session_detail,
+            // Container Commands
+            commands::containers::get_all_containers,
+            commands::containers::get_container,
+            commands::containers::create_container,
+            commands::containers::update_container,
+            commands::containers::delete_container,
+            commands::containers::toggle_container_favorite,
+            commands::containers::check_docker_available,
+            commands::containers::build_container_image,
+            commands::containers::start_container_cmd,
+            commands::containers::stop_container_cmd,
+            commands::containers::restart_container_cmd,
+            commands::containers::remove_container_cmd,
+            commands::containers::get_container_status,
+            commands::containers::get_all_container_statuses,
+            commands::containers::get_container_logs_cmd,
+            commands::containers::get_container_stats_cmd,
+            commands::containers::exec_in_container_cmd,
+            commands::containers::get_container_templates,
+            commands::containers::create_container_from_template,
+            commands::containers::assign_container_to_project,
+            commands::containers::remove_container_from_project,
+            commands::containers::get_project_containers,
+            commands::containers::set_default_project_container,
+            // Docker Host Commands
+            commands::docker_hosts::get_all_docker_hosts,
+            commands::docker_hosts::create_docker_host,
+            commands::docker_hosts::update_docker_host,
+            commands::docker_hosts::delete_docker_host,
+            commands::docker_hosts::test_docker_host,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

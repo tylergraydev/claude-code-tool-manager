@@ -17,3 +17,25 @@ pub fn save_keybindings(keybindings: KeybindingsFile) -> Result<(), String> {
     );
     keybindings_writer::write_keybindings(&keybindings).map_err(|e| e.to_string())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_keybindings_file_serde_empty() {
+        let kf = KeybindingsFile {
+            schema: None,
+            bindings: vec![],
+        };
+        let json = serde_json::to_string(&kf).unwrap();
+        let deser: KeybindingsFile = serde_json::from_str(&json).unwrap();
+        assert!(deser.bindings.is_empty());
+    }
+
+    #[test]
+    fn test_get_keybindings_returns_result() {
+        // Filesystem-dependent; just verify no panic.
+        let _ = get_keybindings();
+    }
+}

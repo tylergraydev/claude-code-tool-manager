@@ -177,14 +177,10 @@ pub fn set_additional_directories(
         .map_err(|e| e.to_string())
 }
 
-/// Get permission templates from the database
-#[tauri::command]
-pub fn get_permission_templates(
-    db: State<'_, Arc<Mutex<Database>>>,
+/// Get permission templates from the database (no Tauri State dependency)
+pub(crate) fn get_permission_templates_impl(
+    db: &Database,
 ) -> Result<Vec<PermissionTemplate>, String> {
-    info!("[Permissions] Loading permission templates");
-    let db = db.lock().map_err(|e| e.to_string())?;
-
     let mut stmt = db
         .conn()
         .prepare(
@@ -212,6 +208,17 @@ pub fn get_permission_templates(
         .filter_map(|r| r.ok())
         .collect();
 
+    Ok(templates)
+}
+
+/// Get permission templates from the database
+#[tauri::command]
+pub fn get_permission_templates(
+    db: State<'_, Arc<Mutex<Database>>>,
+) -> Result<Vec<PermissionTemplate>, String> {
+    info!("[Permissions] Loading permission templates");
+    let db = db.lock().map_err(|e| e.to_string())?;
+    let templates = get_permission_templates_impl(&db)?;
     info!(
         "[Permissions] Loaded {} permission templates",
         templates.len()
@@ -219,12 +226,8 @@ pub fn get_permission_templates(
     Ok(templates)
 }
 
-/// Seed default permission templates
-#[tauri::command]
-pub fn seed_permission_templates(db: State<'_, Arc<Mutex<Database>>>) -> Result<(), String> {
-    info!("[Permissions] Seeding permission templates");
-    let db = db.lock().map_err(|e| e.to_string())?;
-
+/// Seed default permission templates (no Tauri State dependency)
+pub(crate) fn seed_permission_templates_impl(db: &Database) -> Result<(), String> {
     // Check if templates already exist
     let count: i64 = db
         .conn()
@@ -375,6 +378,269 @@ pub fn seed_permission_templates(db: State<'_, Arc<Mutex<Database>>>) -> Result<
             .map_err(|e| e.to_string())?;
     }
 
-    info!("[Permissions] Seeded {} permission templates", count);
     Ok(())
+}
+
+/// Seed default permission templates
+#[tauri::command]
+pub fn seed_permission_templates(db: State<'_, Arc<Mutex<Database>>>) -> Result<(), String> {
+    info!("[Permissions] Seeding permission templates");
+    let db = db.lock().map_err(|e| e.to_string())?;
+    seed_permission_templates_impl(&db)?;
+    info!("[Permissions] Permission templates seeded");
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_scope_user() {
+        assert!(matches!(parse_scope("user"), Ok(PermissionScope::User)));
+    }
+
+    #[test]
+    fn test_parse_scope_project() {
+        assert!(matches!(
+            parse_scope("project"),
+            Ok(PermissionScope::Project)
+        ));
+    }
+
+    #[test]
+    fn test_parse_scope_local() {
+        assert!(matches!(parse_scope("local"), Ok(PermissionScope::Local)));
+    }
+
+    #[test]
+    fn test_parse_scope_invalid() {
+        let result = parse_scope("global");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Invalid scope"));
+    }
+
+    #[test]
+    fn test_parse_scope_empty() {
+        assert!(parse_scope("").is_err());
+    }
+
+    #[test]
+    fn test_parse_json_array_valid() {
+        let input = Some(r#"["tag1","tag2"]"#.to_string());
+        let result = parse_json_array(input);
+        assert_eq!(result, Some(vec!["tag1".to_string(), "tag2".to_string()]));
+    }
+
+    #[test]
+    fn test_parse_json_array_none() {
+        assert_eq!(parse_json_array(None), None);
+    }
+
+    #[test]
+    fn test_parse_json_array_invalid() {
+        assert_eq!(parse_json_array(Some("not json".to_string())), None);
+    }
+
+    #[test]
+    fn test_permission_template_serde() {
+        let template = PermissionTemplate {
+            id: 1,
+            name: "Allow npm scripts".to_string(),
+            description: Some("Allow running npm/yarn/pnpm scripts".to_string()),
+            category: "allow".to_string(),
+            rule: "Bash(npm run *)".to_string(),
+            tool_name: Some("Bash".to_string()),
+            tags: Some(vec!["development".to_string()]),
+            is_default: true,
+            created_at: "2024-01-01".to_string(),
+            updated_at: "2024-01-01".to_string(),
+        };
+        let json = serde_json::to_string(&template).unwrap();
+        let deser: PermissionTemplate = serde_json::from_str(&json).unwrap();
+        assert_eq!(deser.name, "Allow npm scripts");
+        assert_eq!(deser.category, "allow");
+        assert!(deser.is_default);
+    }
+
+    #[test]
+    fn test_permission_template_serde_camel_case() {
+        let template = PermissionTemplate {
+            id: 1,
+            name: "test".to_string(),
+            description: None,
+            category: "deny".to_string(),
+            rule: "Bash(rm -rf *)".to_string(),
+            tool_name: Some("Bash".to_string()),
+            tags: None,
+            is_default: false,
+            created_at: "2024-01-01".to_string(),
+            updated_at: "2024-01-01".to_string(),
+        };
+        let json = serde_json::to_string(&template).unwrap();
+        assert!(json.contains("toolName"));
+        assert!(json.contains("isDefault"));
+        assert!(json.contains("createdAt"));
+    }
+
+    #[test]
+    fn test_permission_template_minimal() {
+        let template = PermissionTemplate {
+            id: 1,
+            name: "min".to_string(),
+            description: None,
+            category: "ask".to_string(),
+            rule: "WebFetch".to_string(),
+            tool_name: None,
+            tags: None,
+            is_default: false,
+            created_at: "2024-01-01".to_string(),
+            updated_at: "2024-01-01".to_string(),
+        };
+        let json = serde_json::to_string(&template).unwrap();
+        let deser: PermissionTemplate = serde_json::from_str(&json).unwrap();
+        assert!(deser.tool_name.is_none());
+        assert!(deser.tags.is_none());
+        assert!(deser.description.is_none());
+    }
+
+    #[test]
+    fn test_parse_scope_all_valid() {
+        // Verify all valid scopes work
+        let scopes = vec!["user", "project", "local"];
+        for s in scopes {
+            assert!(parse_scope(s).is_ok());
+        }
+    }
+
+    #[test]
+    fn test_parse_scope_case_sensitive() {
+        assert!(parse_scope("User").is_err());
+        assert!(parse_scope("PROJECT").is_err());
+        assert!(parse_scope("Local").is_err());
+    }
+
+    #[test]
+    fn test_parse_json_array_empty_array() {
+        let result = parse_json_array(Some("[]".to_string()));
+        assert_eq!(result, Some(vec![]));
+    }
+
+    #[test]
+    fn test_parse_json_array_single_element() {
+        let result = parse_json_array(Some(r#"["only"]"#.to_string()));
+        assert_eq!(result, Some(vec!["only".to_string()]));
+    }
+
+    // =========================================================================
+    // _impl function tests (extracted business logic)
+    // =========================================================================
+
+    #[test]
+    fn test_get_permission_templates_impl_empty() {
+        let db = Database::in_memory().unwrap();
+        let templates = get_permission_templates_impl(&db).unwrap();
+        assert!(templates.is_empty());
+    }
+
+    #[test]
+    fn test_seed_permission_templates_impl() {
+        let db = Database::in_memory().unwrap();
+
+        // First seed should succeed
+        seed_permission_templates_impl(&db).unwrap();
+
+        let templates = get_permission_templates_impl(&db).unwrap();
+        assert!(!templates.is_empty());
+        assert!(templates.len() >= 14); // We have at least 14 templates defined
+    }
+
+    #[test]
+    fn test_seed_permission_templates_impl_idempotent() {
+        let db = Database::in_memory().unwrap();
+
+        seed_permission_templates_impl(&db).unwrap();
+        let count1 = get_permission_templates_impl(&db).unwrap().len();
+
+        // Second seed should be a no-op
+        seed_permission_templates_impl(&db).unwrap();
+        let count2 = get_permission_templates_impl(&db).unwrap().len();
+
+        assert_eq!(count1, count2);
+    }
+
+    #[test]
+    fn test_seed_permission_templates_impl_categories() {
+        let db = Database::in_memory().unwrap();
+        seed_permission_templates_impl(&db).unwrap();
+
+        let templates = get_permission_templates_impl(&db).unwrap();
+        let allow_count = templates.iter().filter(|t| t.category == "allow").count();
+        let deny_count = templates.iter().filter(|t| t.category == "deny").count();
+        let ask_count = templates.iter().filter(|t| t.category == "ask").count();
+
+        assert!(allow_count > 0, "Should have allow templates");
+        assert!(deny_count > 0, "Should have deny templates");
+        assert!(ask_count > 0, "Should have ask templates");
+    }
+
+    #[test]
+    fn test_seed_permission_templates_impl_all_default() {
+        let db = Database::in_memory().unwrap();
+        seed_permission_templates_impl(&db).unwrap();
+
+        let templates = get_permission_templates_impl(&db).unwrap();
+        for t in &templates {
+            assert!(
+                t.is_default,
+                "Seeded template '{}' should be is_default",
+                t.name
+            );
+        }
+    }
+
+    #[test]
+    fn test_seed_permission_templates_impl_ordered_by_category_name() {
+        let db = Database::in_memory().unwrap();
+        seed_permission_templates_impl(&db).unwrap();
+
+        let templates = get_permission_templates_impl(&db).unwrap();
+        // Should be ordered by category, then name
+        for i in 1..templates.len() {
+            let prev = &templates[i - 1];
+            let curr = &templates[i];
+            assert!(
+                (prev.category.as_str(), prev.name.as_str())
+                    <= (curr.category.as_str(), curr.name.as_str()),
+                "Templates should be ordered by category then name"
+            );
+        }
+    }
+
+    #[test]
+    fn test_permission_template_has_tool_name() {
+        let db = Database::in_memory().unwrap();
+        seed_permission_templates_impl(&db).unwrap();
+
+        let templates = get_permission_templates_impl(&db).unwrap();
+        // Most templates should have a tool_name
+        let with_tool = templates.iter().filter(|t| t.tool_name.is_some()).count();
+        assert!(with_tool > 0, "Some templates should have tool_name set");
+    }
+
+    #[test]
+    fn test_permission_template_has_tags() {
+        let db = Database::in_memory().unwrap();
+        seed_permission_templates_impl(&db).unwrap();
+
+        let templates = get_permission_templates_impl(&db).unwrap();
+        for t in &templates {
+            assert!(t.tags.is_some(), "Template '{}' should have tags", t.name);
+            assert!(
+                !t.tags.as_ref().unwrap().is_empty(),
+                "Template '{}' should have non-empty tags",
+                t.name
+            );
+        }
+    }
 }

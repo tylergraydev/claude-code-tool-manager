@@ -1105,6 +1105,240 @@ mod tests {
     }
 
     #[test]
+    fn test_package_with_named_argument_default_value() {
+        let server = RegistryServer {
+            name: "default-args-server".to_string(),
+            description: None,
+            repository: None,
+            version: None,
+            packages: Some(vec![Package {
+                registry_type: "npm".to_string(),
+                identifier: Some("@test/server".to_string()),
+                name: None,
+                version: None,
+                arguments: Some(vec![
+                    PackageArgument {
+                        arg_type: Some("positional".to_string()),
+                        name: None,
+                        value: None,
+                        description: None,
+                        is_required: None,
+                        default: Some("/tmp".to_string()),
+                    },
+                    PackageArgument {
+                        arg_type: Some("named".to_string()),
+                        name: Some("--port".to_string()),
+                        value: None,
+                        description: None,
+                        is_required: None,
+                        default: Some("3000".to_string()),
+                    },
+                    PackageArgument {
+                        arg_type: Some("other".to_string()),
+                        name: None,
+                        value: None,
+                        description: None,
+                        is_required: None,
+                        default: None,
+                    },
+                ]),
+                environment_variables: None,
+                transport: None,
+                extra: None,
+            }]),
+            remotes: None,
+            updated_at: None,
+            extra: None,
+        };
+
+        let entry = server.to_mcp_entry().unwrap();
+        let args = entry.args.unwrap();
+        // positional with default
+        assert!(args.contains(&"/tmp".to_string()));
+        // named with default
+        assert!(args.contains(&"--port".to_string()));
+        assert!(args.contains(&"3000".to_string()));
+    }
+
+    #[test]
+    fn test_package_with_named_arg_no_value_no_name() {
+        let server = RegistryServer {
+            name: "no-name-arg-server".to_string(),
+            description: None,
+            repository: None,
+            version: None,
+            packages: Some(vec![Package {
+                registry_type: "npm".to_string(),
+                identifier: Some("@test/server".to_string()),
+                name: None,
+                version: None,
+                arguments: Some(vec![PackageArgument {
+                    arg_type: Some("named".to_string()),
+                    name: None, // No name for named arg - should be skipped
+                    value: Some("val".to_string()),
+                    description: None,
+                    is_required: None,
+                    default: None,
+                }]),
+                environment_variables: None,
+                transport: None,
+                extra: None,
+            }]),
+            remotes: None,
+            updated_at: None,
+            extra: None,
+        };
+
+        let entry = server.to_mcp_entry().unwrap();
+        let args = entry.args.unwrap();
+        // Should only have npx -y @test/server, not the nameless arg
+        assert_eq!(args.len(), 2);
+    }
+
+    #[test]
+    fn test_package_missing_identifier_and_name() {
+        let server = RegistryServer {
+            name: "no-id-server".to_string(),
+            description: None,
+            repository: None,
+            version: None,
+            packages: Some(vec![Package {
+                registry_type: "npm".to_string(),
+                identifier: None,
+                name: None,
+                version: None,
+                arguments: None,
+                environment_variables: None,
+                transport: None,
+                extra: None,
+            }]),
+            remotes: None,
+            updated_at: None,
+            extra: None,
+        };
+
+        let result = server.to_mcp_entry();
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_package_uses_name_when_no_identifier() {
+        let server = RegistryServer {
+            name: "name-only-server".to_string(),
+            description: None,
+            repository: None,
+            version: None,
+            packages: Some(vec![Package {
+                registry_type: "npm".to_string(),
+                identifier: None,
+                name: Some("my-package".to_string()),
+                version: None,
+                arguments: None,
+                environment_variables: None,
+                transport: None,
+                extra: None,
+            }]),
+            remotes: None,
+            updated_at: None,
+            extra: None,
+        };
+
+        let entry = server.to_mcp_entry().unwrap();
+        let args = entry.args.unwrap();
+        assert!(args.contains(&"my-package".to_string()));
+    }
+
+    #[test]
+    fn test_remote_unknown_transport_type() {
+        let server = RegistryServer {
+            name: "unknown-transport".to_string(),
+            description: None,
+            repository: None,
+            version: None,
+            packages: None,
+            remotes: Some(vec![Remote {
+                transport_type: "websocket".to_string(),
+                url: "wss://example.com".to_string(),
+                headers: None,
+                extra: None,
+            }]),
+            updated_at: None,
+            extra: None,
+        };
+
+        let entry = server.to_mcp_entry().unwrap();
+        assert_eq!(entry.mcp_type, "http"); // Unknown defaults to http
+    }
+
+    #[test]
+    fn test_env_placeholder_required_no_default() {
+        let server = RegistryServer {
+            name: "env-server".to_string(),
+            description: None,
+            repository: None,
+            version: None,
+            packages: Some(vec![Package {
+                registry_type: "npm".to_string(),
+                identifier: Some("@test/server".to_string()),
+                name: None,
+                version: None,
+                arguments: None,
+                environment_variables: Some(vec![
+                    EnvironmentVariable {
+                        name: "REQUIRED_KEY".to_string(),
+                        description: Some("Required API key".to_string()),
+                        is_required: Some(true),
+                        is_secret: Some(true),
+                        default: None,
+                        format: None,
+                        extra: None,
+                    },
+                    EnvironmentVariable {
+                        name: "OPTIONAL_KEY".to_string(),
+                        description: None,
+                        is_required: None,
+                        is_secret: None,
+                        default: Some("default-value".to_string()),
+                        format: None,
+                        extra: None,
+                    },
+                ]),
+                transport: None,
+                extra: None,
+            }]),
+            remotes: None,
+            updated_at: None,
+            extra: None,
+        };
+
+        let entry = server.to_mcp_entry().unwrap();
+        let env = entry.env.unwrap();
+        assert_eq!(env.get("REQUIRED_KEY"), Some(&"".to_string())); // no default -> empty
+        assert_eq!(
+            env.get("OPTIONAL_KEY"),
+            Some(&"default-value".to_string())
+        );
+
+        let placeholders = entry.env_placeholders.unwrap();
+        assert!(placeholders[0].is_required);
+        assert!(!placeholders[1].is_required);
+    }
+
+    #[test]
+    fn test_extract_package_name_no_registry_prefix() {
+        assert_eq!(
+            extract_package_name("simple-image:v1", "oci"),
+            "simple-image"
+        );
+    }
+
+    #[test]
+    fn test_registry_client_default() {
+        let client = RegistryClient::default();
+        assert_eq!(client.base_url, "https://registry.modelcontextprotocol.io");
+    }
+
+    #[test]
     fn test_package_with_named_arguments() {
         let server = RegistryServer {
             name: "args-server".to_string(),
@@ -1137,5 +1371,306 @@ mod tests {
         let args = entry.args.unwrap();
         assert!(args.contains(&"--config".to_string()));
         assert!(args.contains(&"./config.json".to_string()));
+    }
+
+    // =========================================================================
+    // Additional coverage tests
+    // =========================================================================
+
+    #[tokio::test]
+    async fn test_list_with_cursor() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("GET"))
+            .and(path("/v0/servers"))
+            .and(query_param("cursor", "page2"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "servers": [
+                    {
+                        "server": {
+                            "name": "page2-server",
+                            "description": "From second page"
+                        }
+                    }
+                ],
+                "metadata": {
+                    "count": 1
+                }
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let client = RegistryClient::with_base_url(mock_server.uri());
+        let (servers, next_cursor) = client.list(10, Some("page2")).await.unwrap();
+
+        assert_eq!(servers.len(), 1);
+        assert_eq!(servers[0].name, "page2-server");
+        assert!(next_cursor.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_list_api_error() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("GET"))
+            .and(path("/v0/servers"))
+            .respond_with(ResponseTemplate::new(503).set_body_string("Service Unavailable"))
+            .mount(&mock_server)
+            .await;
+
+        let client = RegistryClient::with_base_url(mock_server.uri());
+        let result = client.list(10, None).await;
+
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("503"));
+    }
+
+    #[tokio::test]
+    async fn test_list_with_parse_failures() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("GET"))
+            .and(path("/v0/servers"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "servers": [
+                    {
+                        "server": {
+                            "name": "valid-server",
+                            "description": "Valid"
+                        }
+                    },
+                    {
+                        "server": "not-an-object"
+                    },
+                    {
+                        "not_server": "missing server key"
+                    }
+                ],
+                "metadata": {
+                    "count": 3
+                }
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let client = RegistryClient::with_base_url(mock_server.uri());
+        let (servers, _) = client.list(10, None).await.unwrap();
+
+        // Only the valid server should be parsed
+        assert_eq!(servers.len(), 1);
+        assert_eq!(servers[0].name, "valid-server");
+    }
+
+    #[tokio::test]
+    async fn test_list_with_meta_updated_at() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("GET"))
+            .and(path("/v0/servers"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "servers": [
+                    {
+                        "server": {
+                            "name": "timestamped-server"
+                        },
+                        "_meta": {
+                            "io.modelcontextprotocol.registry/official": {
+                                "updatedAt": "2024-06-15T10:00:00Z"
+                            }
+                        }
+                    }
+                ],
+                "metadata": {
+                    "count": 1
+                }
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let client = RegistryClient::with_base_url(mock_server.uri());
+        let (servers, _) = client.list(10, None).await.unwrap();
+
+        assert_eq!(servers.len(), 1);
+        assert_eq!(
+            servers[0].updated_at,
+            Some("2024-06-15T10:00:00Z".to_string())
+        );
+    }
+
+    #[tokio::test]
+    async fn test_get_server_api_error() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("GET"))
+            .and(path("/v0/servers/error-server"))
+            .respond_with(ResponseTemplate::new(500).set_body_string("Server Error"))
+            .mount(&mock_server)
+            .await;
+
+        let client = RegistryClient::with_base_url(mock_server.uri());
+        let result = client.get_server("error-server").await;
+
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("500"));
+    }
+
+    #[tokio::test]
+    async fn test_search_no_servers_array() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("GET"))
+            .and(path("/v0/servers"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(serde_json::json!({"metadata": {"count": 0}})),
+            )
+            .mount(&mock_server)
+            .await;
+
+        let client = RegistryClient::with_base_url(mock_server.uri());
+        let result = client.search("test", 10).await;
+
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("No servers array"));
+    }
+
+    #[test]
+    fn test_docker_package_ghcr_registry() {
+        assert_eq!(
+            extract_package_name("ghcr.io/org/my-mcp:v2.0", "docker"),
+            "org/my-mcp"
+        );
+    }
+
+    #[test]
+    fn test_extract_short_name_no_slash() {
+        assert_eq!(extract_short_name("just-a-name"), "just-a-name");
+    }
+
+    #[test]
+    fn test_extract_short_name_multiple_slashes() {
+        assert_eq!(
+            extract_short_name("io.github.org/sub/server-name"),
+            "server-name"
+        );
+    }
+
+    #[test]
+    fn test_remote_entry_updated_at_propagated() {
+        let server = RegistryServer {
+            name: "ts-server".to_string(),
+            description: None,
+            repository: Some(RepositoryInfo {
+                url: Some("https://github.com/example/repo".to_string()),
+                source: None,
+                extra: None,
+            }),
+            version: Some("3.0.0".to_string()),
+            packages: None,
+            remotes: Some(vec![Remote {
+                transport_type: "sse".to_string(),
+                url: "https://example.com/sse".to_string(),
+                headers: None,
+                extra: None,
+            }]),
+            updated_at: Some("2024-12-01T00:00:00Z".to_string()),
+            extra: None,
+        };
+
+        let entry = server.to_mcp_entry().unwrap();
+        assert_eq!(entry.updated_at, Some("2024-12-01T00:00:00Z".to_string()));
+        assert_eq!(entry.version, Some("3.0.0".to_string()));
+        assert_eq!(
+            entry.source_url,
+            Some("https://github.com/example/repo".to_string())
+        );
+    }
+
+    #[test]
+    fn test_package_no_env_results_in_none() {
+        let server = RegistryServer {
+            name: "no-env-server".to_string(),
+            description: None,
+            repository: None,
+            version: None,
+            packages: Some(vec![Package {
+                registry_type: "npm".to_string(),
+                identifier: Some("@test/no-env".to_string()),
+                name: None,
+                version: None,
+                arguments: None,
+                environment_variables: None,
+                transport: None,
+                extra: None,
+            }]),
+            remotes: None,
+            updated_at: None,
+            extra: None,
+        };
+
+        let entry = server.to_mcp_entry().unwrap();
+        assert!(entry.env.is_none());
+        assert!(entry.env_placeholders.is_none());
+    }
+
+    #[test]
+    fn test_remote_no_headers() {
+        let server = RegistryServer {
+            name: "no-header-server".to_string(),
+            description: None,
+            repository: None,
+            version: None,
+            packages: None,
+            remotes: Some(vec![Remote {
+                transport_type: "http".to_string(),
+                url: "https://api.example.com/mcp".to_string(),
+                headers: None,
+                extra: None,
+            }]),
+            updated_at: None,
+            extra: None,
+        };
+
+        let entry = server.to_mcp_entry().unwrap();
+        assert!(entry.headers.is_none());
+    }
+
+    #[test]
+    fn test_positional_arg_with_value() {
+        let server = RegistryServer {
+            name: "pos-val-server".to_string(),
+            description: None,
+            repository: None,
+            version: None,
+            packages: Some(vec![Package {
+                registry_type: "npm".to_string(),
+                identifier: Some("@test/srv".to_string()),
+                name: None,
+                version: None,
+                arguments: Some(vec![PackageArgument {
+                    arg_type: Some("positional".to_string()),
+                    name: None,
+                    value: Some("/specific/path".to_string()),
+                    description: None,
+                    is_required: None,
+                    default: Some("/default/path".to_string()),
+                }]),
+                environment_variables: None,
+                transport: None,
+                extra: None,
+            }]),
+            remotes: None,
+            updated_at: None,
+            extra: None,
+        };
+
+        let entry = server.to_mcp_entry().unwrap();
+        let args = entry.args.unwrap();
+        // value takes priority over default
+        assert!(args.contains(&"/specific/path".to_string()));
+        assert!(!args.contains(&"/default/path".to_string()));
     }
 }

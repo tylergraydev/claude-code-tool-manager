@@ -481,6 +481,93 @@ mod tests {
     }
 
     #[test]
+    fn test_write_project_subagent() {
+        let temp_dir = TempDir::new().unwrap();
+        let subagent = sample_full_subagent();
+
+        write_project_subagent(temp_dir.path(), &subagent).unwrap();
+
+        let expected_path = temp_dir
+            .path()
+            .join(".claude")
+            .join("agents")
+            .join("code-reviewer.md");
+        assert!(expected_path.exists());
+    }
+
+    #[test]
+    fn test_delete_project_subagent() {
+        let temp_dir = TempDir::new().unwrap();
+        let subagent = sample_full_subagent();
+
+        write_project_subagent(temp_dir.path(), &subagent).unwrap();
+        delete_project_subagent(temp_dir.path(), &subagent.name).unwrap();
+
+        let file_path = temp_dir
+            .path()
+            .join(".claude")
+            .join("agents")
+            .join("code-reviewer.md");
+        assert!(!file_path.exists());
+    }
+
+    #[test]
+    fn test_write_project_subagent_opencode() {
+        let temp_dir = TempDir::new().unwrap();
+        let subagent = sample_full_subagent();
+
+        write_project_subagent_opencode(temp_dir.path(), &subagent).unwrap();
+
+        let expected_path = temp_dir
+            .path()
+            .join(".opencode")
+            .join("agent")
+            .join("code-reviewer.md");
+        assert!(expected_path.exists());
+    }
+
+    #[test]
+    fn test_delete_project_subagent_opencode() {
+        let temp_dir = TempDir::new().unwrap();
+        let subagent = sample_full_subagent();
+
+        write_project_subagent_opencode(temp_dir.path(), &subagent).unwrap();
+        delete_project_subagent_opencode(temp_dir.path(), &subagent.name).unwrap();
+
+        let file_path = temp_dir
+            .path()
+            .join(".opencode")
+            .join("agent")
+            .join("code-reviewer.md");
+        assert!(!file_path.exists());
+    }
+
+    #[test]
+    fn test_delete_subagent_file_opencode_nonexistent() {
+        let temp_dir = TempDir::new().unwrap();
+
+        // Should not error
+        let result = delete_subagent_file_opencode(temp_dir.path(), "nonexistent");
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_generate_subagent_markdown_opencode_empty_tools() {
+        let mut subagent = sample_full_subagent();
+        subagent.tools = Some(vec![]);
+        let md = generate_subagent_markdown_opencode(&subagent);
+        assert!(!md.contains("tools:"));
+    }
+
+    #[test]
+    fn test_generate_subagent_markdown_opencode_empty_model() {
+        let mut subagent = sample_full_subagent();
+        subagent.model = Some("".to_string());
+        let md = generate_subagent_markdown_opencode(&subagent);
+        assert!(!md.contains("model:"));
+    }
+
+    #[test]
     fn test_opencode_subagent_content_uses_correct_format() {
         let temp_dir = TempDir::new().unwrap();
         let subagent = sample_full_subagent();

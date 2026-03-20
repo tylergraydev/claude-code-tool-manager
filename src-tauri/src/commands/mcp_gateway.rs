@@ -30,6 +30,20 @@ pub fn get_gateway_config(
     gateway_state.get_config()
 }
 
+/// Persist gateway config to the database (no Tauri State dependency)
+pub(crate) fn persist_gateway_config_to_db(
+    db: &Database,
+    config: &GatewayServerConfig,
+) -> Result<(), String> {
+    db.set_setting("gateway_enabled", &config.enabled.to_string())
+        .map_err(|e| e.to_string())?;
+    db.set_setting("gateway_port", &config.port.to_string())
+        .map_err(|e| e.to_string())?;
+    db.set_setting("gateway_auto_start", &config.auto_start.to_string())
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
 /// Update the Gateway server configuration
 #[tauri::command]
 pub fn update_gateway_config(
@@ -44,14 +58,7 @@ pub fn update_gateway_config(
 
     // Persist to database
     let db = db.lock().map_err(|e| e.to_string())?;
-    db.set_setting("gateway_enabled", &config.enabled.to_string())
-        .map_err(|e| e.to_string())?;
-    db.set_setting("gateway_port", &config.port.to_string())
-        .map_err(|e| e.to_string())?;
-    db.set_setting("gateway_auto_start", &config.auto_start.to_string())
-        .map_err(|e| e.to_string())?;
-
-    Ok(())
+    persist_gateway_config_to_db(&db, &config)
 }
 
 /// Start the Gateway server
@@ -202,4 +209,151 @@ pub async fn restart_gateway_backend(
 ) -> Result<BackendInfo, String> {
     info!("[GatewayCmd] Restarting gateway backend for MCP {}", mcp_id);
     gateway_state.restart_backend(mcp_id).await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_gateway_server_config_serde() {
+        let config = GatewayServerConfig {
+            enabled: true,
+            port: 8080,
+            auto_start: false,
+        };
+        let json = serde_json::to_string(&config).unwrap();
+        let deser: GatewayServerConfig = serde_json::from_str(&json).unwrap();
+        assert!(deser.enabled);
+        assert_eq!(deser.port, 8080);
+        assert!(!deser.auto_start);
+    }
+
+    #[test]
+    fn test_gateway_server_config_default() {
+        let config = GatewayServerConfig::default();
+        // Default config should have a reasonable port and not be enabled
+        assert!(!config.enabled);
+        assert!(config.port > 0);
+    }
+
+    #[test]
+    fn test_gateway_server_config_round_trip() {
+        let config = GatewayServerConfig {
+            enabled: true,
+            port: 9999,
+            auto_start: true,
+        };
+        let json = serde_json::to_string(&config).unwrap();
+        let deser: GatewayServerConfig = serde_json::from_str(&json).unwrap();
+        assert_eq!(deser.port, 9999);
+        assert!(deser.auto_start);
+        assert!(deser.enabled);
+    }
+
+    // Note: GatewayServerStatus and BackendInfo have complex types
+    // that are tested through the gateway backend module tests.
+
+    #[test]
+    fn test_gateway_server_config_serde_camel_case() {
+        let config = GatewayServerConfig {
+            enabled: true,
+            port: 8080,
+            auto_start: true,
+        };
+        let json = serde_json::to_string(&config).unwrap();
+        assert!(json.contains("autoStart"));
+        assert!(json.contains("enabled"));
+        assert!(json.contains("port"));
+    }
+
+    #[test]
+    fn test_gateway_server_config_deserialize() {
+        let json = r#"{"enabled":false,"port":9090,"autoStart":true}"#;
+        let config: GatewayServerConfig = serde_json::from_str(json).unwrap();
+        assert!(!config.enabled);
+        assert_eq!(config.port, 9090);
+        assert!(config.auto_start);
+    }
+
+    // =========================================================================
+    // persist_gateway_config_to_db tests
+    // =========================================================================
+
+    #[test]
+    fn test_persist_gateway_config_to_db() {
+        let db = Database::in_memory().unwrap();
+        let config = GatewayServerConfig {
+            enabled: true,
+            port: 8080,
+            auto_start: false,
+        };
+
+        persist_gateway_config_to_db(&db, &config).unwrap();
+
+        assert_eq!(db.get_setting("gateway_enabled"), Some("true".to_string()));
+        assert_eq!(db.get_setting("gateway_port"), Some("8080".to_string()));
+        assert_eq!(db.get_setting("gateway_auto_start"), Some("false".to_string()));
+    }
+
+    #[test]
+    fn test_persist_gateway_config_to_db_update() {
+        let db = Database::in_memory().unwrap();
+
+        let config1 = GatewayServerConfig {
+            enabled: false,
+            port: 3000,
+            auto_start: true,
+        };
+        persist_gateway_config_to_db(&db, &config1).unwrap();
+
+        let config2 = GatewayServerConfig {
+            enabled: true,
+            port: 9090,
+            auto_start: false,
+        };
+        persist_gateway_config_to_db(&db, &config2).unwrap();
+
+        assert_eq!(db.get_setting("gateway_enabled"), Some("true".to_string()));
+        assert_eq!(db.get_setting("gateway_port"), Some("9090".to_string()));
+    }
+
+    #[test]
+    fn test_gateway_mcp_serde() {
+        let gw_mcp = GatewayMcp {
+            id: 1,
+            mcp_id: 42,
+            mcp: crate::db::models::Mcp {
+                id: 42,
+                name: "test-gw-mcp".to_string(),
+                description: None,
+                mcp_type: "stdio".to_string(),
+                command: Some("npx".to_string()),
+                args: None,
+                url: None,
+                headers: None,
+                env: None,
+                icon: None,
+                tags: None,
+                source: "manual".to_string(),
+                source_path: None,
+                is_enabled_global: false,
+                is_favorite: false,
+                created_at: "2024-01-01".to_string(),
+                updated_at: "2024-01-01".to_string(),
+            },
+            is_enabled: true,
+            auto_restart: false,
+            display_order: 0,
+            created_at: "2024-01-01".to_string(),
+        };
+        let json = serde_json::to_string(&gw_mcp).unwrap();
+        assert!(json.contains("mcpId"));
+        assert!(json.contains("autoRestart"));
+        assert!(json.contains("displayOrder"));
+        let deser: GatewayMcp = serde_json::from_str(&json).unwrap();
+        assert_eq!(deser.mcp.name, "test-gw-mcp");
+        assert!(deser.is_enabled);
+        assert!(!deser.auto_restart);
+    }
 }

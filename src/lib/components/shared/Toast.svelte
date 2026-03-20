@@ -17,18 +17,19 @@
 	};
 </script>
 
-<div class="fixed bottom-4 right-4 z-50 flex flex-col gap-2">
+<div class="fixed bottom-4 right-4 z-50 flex flex-col gap-2" role="status" aria-live="polite" aria-atomic="false">
 	{#each notifications.notifications as notification (notification.id)}
 		<div
 			class="flex items-center gap-3 px-4 py-3 rounded-lg border shadow-lg min-w-[300px] max-w-md animate-slide-in {colors[notification.type]}"
 		>
-			<svelte:component this={icons[notification.type]} class="w-5 h-5 flex-shrink-0" />
-			<p class="flex-1 text-sm">{notification.message}</p>
+			<svelte:component this={icons[notification.type]} class="w-5 h-5 flex-shrink-0" aria-hidden="true" />
+			<p class="flex-1 text-sm break-words overflow-hidden">{notification.message}</p>
 			<button
 				onclick={() => notifications.remove(notification.id)}
 				class="p-1 hover:opacity-70 transition-opacity"
+				aria-label="Dismiss notification"
 			>
-				<X class="w-4 h-4" />
+				<X class="w-4 h-4" aria-hidden="true" />
 			</button>
 		</div>
 	{/each}

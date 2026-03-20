@@ -34,12 +34,15 @@ class McpLibraryState {
 		});
 	});
 
-	mcpCount = $derived.by(() => ({
-		total: this.mcps.length,
-		stdio: this.mcps.filter((m) => m.type === 'stdio').length,
-		sse: this.mcps.filter((m) => m.type === 'sse').length,
-		http: this.mcps.filter((m) => m.type === 'http').length
-	}));
+	mcpCount = $derived.by(() => {
+		let stdio = 0, sse = 0, http = 0;
+		for (const m of this.mcps) {
+			if (m.type === 'stdio') stdio++;
+			else if (m.type === 'sse') sse++;
+			else if (m.type === 'http') http++;
+		}
+		return { total: this.mcps.length, stdio, sse, http };
+	});
 
 	async load() {
 		console.log('[mcpLibrary] Loading MCPs...');

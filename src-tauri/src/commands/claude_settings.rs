@@ -61,3 +61,68 @@ pub fn save_claude_settings(
         .map_err(|e| e.to_string())?;
     claude_settings::read_claude_settings_from_file(&path, &scope).map_err(|e| e.to_string())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_scope_user() {
+        assert!(matches!(parse_scope("user"), Ok(PermissionScope::User)));
+    }
+
+    #[test]
+    fn test_parse_scope_project() {
+        assert!(matches!(
+            parse_scope("project"),
+            Ok(PermissionScope::Project)
+        ));
+    }
+
+    #[test]
+    fn test_parse_scope_local() {
+        assert!(matches!(parse_scope("local"), Ok(PermissionScope::Local)));
+    }
+
+    #[test]
+    fn test_parse_scope_invalid() {
+        let result = parse_scope("admin");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Invalid scope"));
+    }
+
+    #[test]
+    fn test_parse_scope_case_sensitive() {
+        // Uppercase should not match
+        assert!(parse_scope("User").is_err());
+        assert!(parse_scope("PROJECT").is_err());
+    }
+
+    #[test]
+    fn test_parse_scope_empty() {
+        assert!(parse_scope("").is_err());
+    }
+
+    #[test]
+    fn test_parse_scope_whitespace() {
+        assert!(parse_scope(" user ").is_err());
+    }
+
+    #[test]
+    fn test_claude_settings_serde_minimal() {
+        // ClaudeSettings is Serialize+Deserialize - test the scope field
+        let json = r#"{"scope":"project","availableModels":["opus","sonnet"]}"#;
+        let settings: ClaudeSettings = serde_json::from_str(json).unwrap();
+        assert_eq!(settings.scope, "project");
+        assert_eq!(settings.available_models.len(), 2);
+    }
+
+    #[test]
+    fn test_all_claude_settings_serde_round_trip() {
+        let json = r#"{"user":{"scope":"user","availableModels":[]},"project":null,"local":null}"#;
+        let deser: AllClaudeSettings = serde_json::from_str(json).unwrap();
+        assert_eq!(deser.user.scope, "user");
+        assert!(deser.project.is_none());
+        assert!(deser.local.is_none());
+    }
+}

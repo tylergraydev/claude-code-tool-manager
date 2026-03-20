@@ -209,4 +209,39 @@ mod tests {
         let path = stats_cache_path();
         assert!(!path.to_string_lossy().is_empty());
     }
+
+    #[test]
+    fn test_invalid_json_file_errors() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("stats-cache.json");
+        std::fs::write(&path, "not json {{{").unwrap();
+
+        let result = read_stats_cache_from_path(&path);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_stats_cache_info_serialization() {
+        let info = StatsCacheInfo {
+            file_path: "/test/path".to_string(),
+            exists: true,
+            stats: Some(StatsCache {
+                version: Some(2),
+                last_computed_date: Some("2026-01-01".to_string()),
+                daily_activity: vec![],
+                daily_model_tokens: vec![],
+                model_usage: std::collections::HashMap::new(),
+                total_sessions: Some(5),
+                total_messages: Some(100),
+                longest_session: None,
+                first_session_date: None,
+                hour_counts: std::collections::HashMap::new(),
+                total_speculation_time_saved_ms: None,
+            }),
+        };
+
+        let json = serde_json::to_string(&info).unwrap();
+        assert!(json.contains("\"totalSessions\":5"));
+        assert!(json.contains("\"exists\":true"));
+    }
 }

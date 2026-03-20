@@ -29,24 +29,24 @@
 		onFavoriteToggle
 	}: Props = $props();
 
+	let menuButton = $state<HTMLButtonElement>();
 	let showMenu = $state(false);
 	let menuAbove = $state(false);
-	let menuButton: HTMLButtonElement;
-
-	// System MCPs are readonly
-	const isSystemMcp = mcp.source === 'system';
 
 	function toggleMenu(e: MouseEvent) {
 		e.stopPropagation();
-		if (!showMenu) {
-			// Calculate if menu should appear above or below
-			const rect = menuButton.getBoundingClientRect();
-			const spaceBelow = window.innerHeight - rect.bottom;
-			const menuHeight = 160; // Approximate menu height
-			menuAbove = spaceBelow < menuHeight;
-		}
 		showMenu = !showMenu;
+		if (showMenu && menuButton) {
+			const rect = menuButton.getBoundingClientRect();
+			menuAbove = rect.bottom + 200 > window.innerHeight;
+		}
 	}
+
+	function closeMenu() {
+		showMenu = false;
+	}
+
+	const isSystemMcp = mcp.source === 'system';
 
 	const typeIcons = {
 		stdio: Plug,
@@ -60,17 +60,13 @@
 		http: 'bg-blue-100 text-blue-600 dark:bg-blue-900/50 dark:text-blue-400'
 	};
 
-	function closeMenu() {
-		showMenu = false;
-	}
+	const TypeIcon = typeIcons[mcp.type];
 </script>
 
-<svelte:window onclick={closeMenu} />
-
-<div class="card group relative hover:shadow-md transition-all duration-200">
+<div class="card group relative hover:shadow-md transition-shadow duration-200">
 	<div class="flex items-start gap-3">
 		<div class="flex-shrink-0 w-10 h-10 rounded-xl {typeColors[mcp.type]} flex items-center justify-center">
-			<svelte:component this={typeIcons[mcp.type]} class="w-5 h-5" />
+			<TypeIcon class="w-5 h-5" aria-hidden="true" />
 		</div>
 
 		<div class="flex-1 min-w-0">
@@ -110,7 +106,7 @@
 					</span>
 				{:else if mcp.url}
 					<span class="text-xs text-gray-400 dark:text-gray-500 truncate max-w-[150px]">
-						{new URL(mcp.url).hostname}
+						{(() => { try { return new URL(mcp.url).hostname; } catch { return mcp.url; } })()}
 					</span>
 				{/if}
 

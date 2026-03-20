@@ -9,6 +9,63 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use tauri::State;
 
+/// Extract MCP test data including source field from the database (no Tauri State dependency)
+pub fn get_mcp_test_data_with_source_from_db(
+    db: &Database,
+    mcp_id: i64,
+) -> Result<
+    (
+        String,
+        Option<String>,
+        Vec<String>,
+        Option<HashMap<String, String>>,
+        Option<HashMap<String, String>>,
+        Option<String>,
+        String,
+    ),
+    String,
+> {
+    let mut stmt = db
+        .conn()
+        .prepare("SELECT type, command, args, url, headers, env, source FROM mcps WHERE id = ?")
+        .map_err(|e| e.to_string())?;
+
+    let mcp_data: (
+        String,
+        Option<String>,
+        Option<String>,
+        Option<String>,
+        Option<String>,
+        Option<String>,
+        String,
+    ) = stmt
+        .query_row([mcp_id], |row| {
+            Ok((
+                row.get(0)?,
+                row.get(1)?,
+                row.get(2)?,
+                row.get(3)?,
+                row.get(4)?,
+                row.get(5)?,
+                row.get(6)?,
+            ))
+        })
+        .map_err(|e| format!("MCP not found: {}", e))?;
+
+    let (mcp_type, command, args_json, url, headers_json, env_json, source) = mcp_data;
+
+    let args: Vec<String> = args_json
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or_default();
+
+    let headers: Option<HashMap<String, String>> =
+        headers_json.and_then(|s| serde_json::from_str(&s).ok());
+
+    let env: Option<HashMap<String, String>> = env_json.and_then(|s| serde_json::from_str(&s).ok());
+
+    Ok((mcp_type, command, args, headers, env, url, source))
+}
+
 /// Test an MCP by its database ID
 #[tauri::command]
 pub fn test_mcp(db: State<'_, Arc<Mutex<Database>>>, mcp_id: i64) -> Result<McpTestResult, String> {
@@ -20,51 +77,7 @@ pub fn test_mcp(db: State<'_, Arc<Mutex<Database>>>, mcp_id: i64) -> Result<McpT
             error!("[MCP Test] Failed to acquire database lock: {}", e);
             e.to_string()
         })?;
-
-        let mut stmt = db
-            .conn()
-            .prepare("SELECT type, command, args, url, headers, env, source FROM mcps WHERE id = ?")
-            .map_err(|e| e.to_string())?;
-
-        let mcp_data: (
-            String,
-            Option<String>,
-            Option<String>,
-            Option<String>,
-            Option<String>,
-            Option<String>,
-            String,
-        ) = stmt
-            .query_row([mcp_id], |row| {
-                Ok((
-                    row.get(0)?,
-                    row.get(1)?,
-                    row.get(2)?,
-                    row.get(3)?,
-                    row.get(4)?,
-                    row.get(5)?,
-                    row.get(6)?,
-                ))
-            })
-            .map_err(|e| {
-                error!("[MCP Test] MCP not found: {}", e);
-                format!("MCP not found: {}", e)
-            })?;
-
-        let (mcp_type, command, args_json, url, headers_json, env_json, source) = mcp_data;
-
-        // Parse JSON fields
-        let args: Vec<String> = args_json
-            .and_then(|s| serde_json::from_str(&s).ok())
-            .unwrap_or_default();
-
-        let headers: Option<HashMap<String, String>> =
-            headers_json.and_then(|s| serde_json::from_str(&s).ok());
-
-        let env: Option<HashMap<String, String>> =
-            env_json.and_then(|s| serde_json::from_str(&s).ok());
-
-        (mcp_type, command, args, headers, env, url, source)
+        get_mcp_test_data_with_source_from_db(&db, mcp_id)?
     };
 
     // System MCPs (Tool Manager and Gateway) use Streamable HTTP which requires
@@ -149,8 +162,7 @@ pub fn test_mcp_config(
 // Testable helper functions (no Tauri State dependency)
 // ============================================================================
 
-/// Extract MCP data from database for testing (for testing)
-#[cfg(test)]
+/// Extract MCP data from database for testing
 pub fn get_mcp_test_data_from_db(
     db: &Database,
     mcp_id: i64,
@@ -204,8 +216,7 @@ pub fn get_mcp_test_data_from_db(
     Ok((mcp_type, command, args, headers, env, url))
 }
 
-/// Validate MCP config before testing (for testing)
-#[cfg(test)]
+/// Validate MCP config before testing
 pub fn validate_mcp_config(
     mcp_type: &str,
     command: Option<&str>,

@@ -268,4 +268,74 @@ mod tests {
         assert_eq!(info.facets[0].session_id, "aaa");
         assert_eq!(info.facets[1].session_id, "zzz");
     }
+
+    // =========================================================================
+    // Additional coverage
+    // =========================================================================
+
+    #[test]
+    fn test_empty_facets_dir() {
+        let dir = tempfile::tempdir().unwrap();
+        let facets_dir = dir.path().join("facets");
+        std::fs::create_dir(&facets_dir).unwrap();
+
+        let info = read_all_facets_from_dir(&facets_dir).unwrap();
+        assert!(info.exists);
+        assert!(info.facets.is_empty());
+    }
+
+    #[test]
+    fn test_session_facet_serialization() {
+        let facet = SessionFacet {
+            session_id: "test-123".to_string(),
+            underlying_goal: "Fix bug".to_string(),
+            goal_categories: HashMap::from([("bug_fix".to_string(), 1)]),
+            outcome: "fully_achieved".to_string(),
+            user_satisfaction_counts: HashMap::new(),
+            claude_helpfulness: "essential".to_string(),
+            session_type: "single_task".to_string(),
+            friction_counts: HashMap::new(),
+            friction_detail: String::new(),
+            primary_success: "true".to_string(),
+            brief_summary: "Fixed it".to_string(),
+        };
+
+        let json = serde_json::to_string(&facet).unwrap();
+        assert!(json.contains("\"sessionId\":\"test-123\""));
+        assert!(json.contains("\"underlyingGoal\":\"Fix bug\""));
+    }
+
+    #[test]
+    fn test_insights_report_info_serialization() {
+        let info = InsightsReportInfo {
+            file_path: "/test".to_string(),
+            exists: true,
+            html_content: Some("<html></html>".to_string()),
+        };
+        let json = serde_json::to_string(&info).unwrap();
+        assert!(json.contains("\"htmlContent\""));
+    }
+
+    #[test]
+    fn test_session_facets_info_serialization() {
+        let info = SessionFacetsInfo {
+            dir_path: "/test".to_string(),
+            exists: false,
+            facets: vec![],
+        };
+        let json = serde_json::to_string(&info).unwrap();
+        assert!(json.contains("\"dirPath\":\"/test\""));
+    }
+
+    #[test]
+    fn test_session_facet_defaults() {
+        // Test that defaults work for missing fields
+        let json = r#"{"session_id": "test"}"#;
+        let facet: SessionFacet = serde_json::from_str(json).unwrap();
+        assert_eq!(facet.session_id, "test");
+        assert_eq!(facet.underlying_goal, "");
+        assert_eq!(facet.outcome, "");
+        assert!(facet.goal_categories.is_empty());
+        assert!(facet.friction_counts.is_empty());
+    }
 }

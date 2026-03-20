@@ -533,4 +533,712 @@ mod tests {
         assert_eq!(mcp.get("type").unwrap(), "http");
         assert!(mcp.get("headers").is_some());
     }
+
+    // =========================================================================
+    // backup_config_file tests
+    // =========================================================================
+    #[test]
+    fn test_backup_config_file_nonexistent_succeeds() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("nonexistent.json");
+        // Should succeed (no-op) for nonexistent file
+        let result = backup_config_file(&path);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_backup_config_file_creates_bak() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("config.json");
+        std::fs::write(&path, r#"{"test": true}"#).unwrap();
+
+        backup_config_file(&path).unwrap();
+
+        let bak_path = path.with_extension("json.bak");
+        assert!(bak_path.exists());
+        let content = std::fs::read_to_string(&bak_path).unwrap();
+        assert!(content.contains("test"));
+    }
+
+    // =========================================================================
+    // write_global_config tests
+    // =========================================================================
+    #[test]
+    fn test_write_global_config_new_file() {
+        let dir = TempDir::new().unwrap();
+        let paths = ClaudePathsInternal {
+            home: dir.path().to_path_buf(),
+            claude_json: dir.path().join("claude.json"),
+            claude_dir: dir.path().to_path_buf(),
+            global_settings: dir.path().join("settings.json"),
+            plugins_dir: dir.path().join("plugins"),
+            marketplaces_dir: dir.path().join("plugins").join("marketplaces"),
+            commands_dir: dir.path().join("commands"),
+            skills_dir: dir.path().join("skills"),
+            agents_dir: dir.path().join("agents"),
+        };
+
+        let mcps = vec![sample_stdio_mcp()];
+        write_global_config(&paths, &mcps).unwrap();
+
+        let content = std::fs::read_to_string(&paths.claude_json).unwrap();
+        let parsed: Value = serde_json::from_str(&content).unwrap();
+        assert!(parsed.get("mcpServers").is_some());
+    }
+
+    #[test]
+    fn test_write_global_config_preserves_existing() {
+        let dir = TempDir::new().unwrap();
+        let paths = ClaudePathsInternal {
+            home: dir.path().to_path_buf(),
+            claude_json: dir.path().join("claude.json"),
+            claude_dir: dir.path().to_path_buf(),
+            global_settings: dir.path().join("settings.json"),
+            plugins_dir: dir.path().join("plugins"),
+            marketplaces_dir: dir.path().join("plugins").join("marketplaces"),
+            commands_dir: dir.path().join("commands"),
+            skills_dir: dir.path().join("skills"),
+            agents_dir: dir.path().join("agents"),
+        };
+
+        // Write existing config
+        std::fs::write(
+            &paths.claude_json,
+            r#"{"projects": {}, "otherKey": "preserved"}"#,
+        )
+        .unwrap();
+
+        let mcps = vec![sample_stdio_mcp()];
+        write_global_config(&paths, &mcps).unwrap();
+
+        let content = std::fs::read_to_string(&paths.claude_json).unwrap();
+        let parsed: Value = serde_json::from_str(&content).unwrap();
+        assert_eq!(parsed["otherKey"], "preserved");
+        assert!(parsed.get("mcpServers").is_some());
+    }
+
+    #[test]
+    fn test_write_global_config_invalid_existing_json_errors() {
+        let dir = TempDir::new().unwrap();
+        let paths = ClaudePathsInternal {
+            home: dir.path().to_path_buf(),
+            claude_json: dir.path().join("claude.json"),
+            claude_dir: dir.path().to_path_buf(),
+            global_settings: dir.path().join("settings.json"),
+            plugins_dir: dir.path().join("plugins"),
+            marketplaces_dir: dir.path().join("plugins").join("marketplaces"),
+            commands_dir: dir.path().join("commands"),
+            skills_dir: dir.path().join("skills"),
+            agents_dir: dir.path().join("agents"),
+        };
+
+        std::fs::write(&paths.claude_json, "not valid json").unwrap();
+
+        let mcps = vec![sample_stdio_mcp()];
+        let result = write_global_config(&paths, &mcps);
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Refusing to overwrite"));
+    }
+
+    // =========================================================================
+    // write_project_to_claude_json tests
+    // =========================================================================
+    #[test]
+    fn test_write_project_to_claude_json_creates_new_project() {
+        let dir = TempDir::new().unwrap();
+        let paths = ClaudePathsInternal {
+            home: dir.path().to_path_buf(),
+            claude_json: dir.path().join("claude.json"),
+            claude_dir: dir.path().to_path_buf(),
+            global_settings: dir.path().join("settings.json"),
+            plugins_dir: dir.path().join("plugins"),
+            marketplaces_dir: dir.path().join("plugins").join("marketplaces"),
+            commands_dir: dir.path().join("commands"),
+            skills_dir: dir.path().join("skills"),
+            agents_dir: dir.path().join("agents"),
+        };
+
+        std::fs::write(&paths.claude_json, "{}").unwrap();
+
+        let mcps: Vec<McpWithEnabledTuple> = vec![(
+            "test-mcp".to_string(),
+            "stdio".to_string(),
+            Some("npx".to_string()),
+            Some(r#"["-y", "mcp"]"#.to_string()),
+            None,
+            None,
+            Some(r#"{"KEY": "val"}"#.to_string()),
+            true,
+        )];
+
+        write_project_to_claude_json(&paths, "/tmp/project", &mcps).unwrap();
+
+        let content = std::fs::read_to_string(&paths.claude_json).unwrap();
+        let parsed: Value = serde_json::from_str(&content).unwrap();
+        assert!(parsed.get("projects").is_some());
+    }
+
+    #[test]
+    fn test_write_project_to_claude_json_disabled_mcp() {
+        let dir = TempDir::new().unwrap();
+        let paths = ClaudePathsInternal {
+            home: dir.path().to_path_buf(),
+            claude_json: dir.path().join("claude.json"),
+            claude_dir: dir.path().to_path_buf(),
+            global_settings: dir.path().join("settings.json"),
+            plugins_dir: dir.path().join("plugins"),
+            marketplaces_dir: dir.path().join("plugins").join("marketplaces"),
+            commands_dir: dir.path().join("commands"),
+            skills_dir: dir.path().join("skills"),
+            agents_dir: dir.path().join("agents"),
+        };
+
+        std::fs::write(&paths.claude_json, "{}").unwrap();
+
+        let mcps: Vec<McpWithEnabledTuple> = vec![(
+            "disabled-mcp".to_string(),
+            "stdio".to_string(),
+            Some("cmd".to_string()),
+            None,
+            None,
+            None,
+            None,
+            false, // disabled
+        )];
+
+        write_project_to_claude_json(&paths, "/tmp/proj", &mcps).unwrap();
+
+        let content = std::fs::read_to_string(&paths.claude_json).unwrap();
+        let parsed: Value = serde_json::from_str(&content).unwrap();
+        // Find the project and check disabledMcpServers
+        let projects = parsed.get("projects").unwrap().as_object().unwrap();
+        let project = projects.values().next().unwrap();
+        let disabled = project["disabledMcpServers"].as_array().unwrap();
+        assert!(disabled.iter().any(|v| v == "disabled-mcp"));
+    }
+
+    #[test]
+    fn test_write_project_to_claude_json_sse_type() {
+        let dir = TempDir::new().unwrap();
+        let paths = ClaudePathsInternal {
+            home: dir.path().to_path_buf(),
+            claude_json: dir.path().join("claude.json"),
+            claude_dir: dir.path().to_path_buf(),
+            global_settings: dir.path().join("settings.json"),
+            plugins_dir: dir.path().join("plugins"),
+            marketplaces_dir: dir.path().join("plugins").join("marketplaces"),
+            commands_dir: dir.path().join("commands"),
+            skills_dir: dir.path().join("skills"),
+            agents_dir: dir.path().join("agents"),
+        };
+
+        std::fs::write(&paths.claude_json, "{}").unwrap();
+
+        let mcps: Vec<McpWithEnabledTuple> = vec![(
+            "sse-mcp".to_string(),
+            "sse".to_string(),
+            None,
+            None,
+            Some("https://example.com/sse".to_string()),
+            Some(r#"{"Auth": "Bearer x"}"#.to_string()),
+            None,
+            true,
+        )];
+
+        write_project_to_claude_json(&paths, "/tmp/proj", &mcps).unwrap();
+
+        let content = std::fs::read_to_string(&paths.claude_json).unwrap();
+        let parsed: Value = serde_json::from_str(&content).unwrap();
+        let projects = parsed.get("projects").unwrap().as_object().unwrap();
+        let project = projects.values().next().unwrap();
+        let servers = project["mcpServers"].as_object().unwrap();
+        let mcp = servers.get("sse-mcp").unwrap();
+        assert_eq!(mcp["type"], "sse");
+        assert!(mcp.get("headers").is_some());
+    }
+
+    #[test]
+    fn test_write_project_to_claude_json_http_type() {
+        let dir = TempDir::new().unwrap();
+        let paths = ClaudePathsInternal {
+            home: dir.path().to_path_buf(),
+            claude_json: dir.path().join("claude.json"),
+            claude_dir: dir.path().to_path_buf(),
+            global_settings: dir.path().join("settings.json"),
+            plugins_dir: dir.path().join("plugins"),
+            marketplaces_dir: dir.path().join("plugins").join("marketplaces"),
+            commands_dir: dir.path().join("commands"),
+            skills_dir: dir.path().join("skills"),
+            agents_dir: dir.path().join("agents"),
+        };
+
+        std::fs::write(&paths.claude_json, "{}").unwrap();
+
+        let mcps: Vec<McpWithEnabledTuple> = vec![(
+            "http-mcp".to_string(),
+            "http".to_string(),
+            None,
+            None,
+            Some("https://example.com/api".to_string()),
+            Some(r#"{"Auth": "Bearer x"}"#.to_string()),
+            None,
+            true,
+        )];
+
+        write_project_to_claude_json(&paths, "/tmp/proj", &mcps).unwrap();
+
+        let content = std::fs::read_to_string(&paths.claude_json).unwrap();
+        let parsed: Value = serde_json::from_str(&content).unwrap();
+        let projects = parsed.get("projects").unwrap().as_object().unwrap();
+        let project = projects.values().next().unwrap();
+        let servers = project["mcpServers"].as_object().unwrap();
+        let mcp = servers.get("http-mcp").unwrap();
+        assert_eq!(mcp["type"], "http");
+    }
+
+    #[test]
+    fn test_write_project_to_claude_json_unknown_type_skipped() {
+        let dir = TempDir::new().unwrap();
+        let paths = ClaudePathsInternal {
+            home: dir.path().to_path_buf(),
+            claude_json: dir.path().join("claude.json"),
+            claude_dir: dir.path().to_path_buf(),
+            global_settings: dir.path().join("settings.json"),
+            plugins_dir: dir.path().join("plugins"),
+            marketplaces_dir: dir.path().join("plugins").join("marketplaces"),
+            commands_dir: dir.path().join("commands"),
+            skills_dir: dir.path().join("skills"),
+            agents_dir: dir.path().join("agents"),
+        };
+
+        std::fs::write(&paths.claude_json, "{}").unwrap();
+
+        let mcps: Vec<McpWithEnabledTuple> = vec![(
+            "weird".to_string(),
+            "unknown_type".to_string(),
+            None,
+            None,
+            None,
+            None,
+            None,
+            true,
+        )];
+
+        write_project_to_claude_json(&paths, "/tmp/proj", &mcps).unwrap();
+
+        let content = std::fs::read_to_string(&paths.claude_json).unwrap();
+        let parsed: Value = serde_json::from_str(&content).unwrap();
+        let projects = parsed.get("projects").unwrap().as_object().unwrap();
+        let project = projects.values().next().unwrap();
+        let servers = project["mcpServers"].as_object().unwrap();
+        assert!(servers.is_empty());
+    }
+
+    #[test]
+    fn test_write_project_to_claude_json_no_existing_file() {
+        let dir = TempDir::new().unwrap();
+        let paths = ClaudePathsInternal {
+            home: dir.path().to_path_buf(),
+            claude_json: dir.path().join("claude.json"),
+            claude_dir: dir.path().to_path_buf(),
+            global_settings: dir.path().join("settings.json"),
+            plugins_dir: dir.path().join("plugins"),
+            marketplaces_dir: dir.path().join("plugins").join("marketplaces"),
+            commands_dir: dir.path().join("commands"),
+            skills_dir: dir.path().join("skills"),
+            agents_dir: dir.path().join("agents"),
+        };
+
+        // No file exists, should create new
+        let mcps: Vec<McpWithEnabledTuple> = vec![(
+            "mcp".to_string(),
+            "stdio".to_string(),
+            Some("cmd".to_string()),
+            None,
+            None,
+            None,
+            None,
+            true,
+        )];
+
+        write_project_to_claude_json(&paths, "/tmp/proj", &mcps).unwrap();
+        assert!(paths.claude_json.exists());
+    }
+
+    // =========================================================================
+    // generate_mcp_config edge cases
+    // =========================================================================
+    #[test]
+    fn test_generate_mcp_config_stdio_invalid_args_json() {
+        let mcp: McpTuple = (
+            "bad-args".to_string(),
+            "stdio".to_string(),
+            Some("cmd".to_string()),
+            Some("not valid json".to_string()),
+            None,
+            None,
+            None,
+        );
+        let config = generate_mcp_config(&[mcp]);
+        let servers = config["mcpServers"].as_object().unwrap();
+        let m = servers.get("bad-args").unwrap();
+        // args should be absent since parsing failed
+        assert!(m.get("args").is_none());
+    }
+
+    #[test]
+    fn test_generate_mcp_config_stdio_invalid_env_json() {
+        let mcp: McpTuple = (
+            "bad-env".to_string(),
+            "stdio".to_string(),
+            Some("cmd".to_string()),
+            None,
+            None,
+            None,
+            Some("not json".to_string()),
+        );
+        let config = generate_mcp_config(&[mcp]);
+        let servers = config["mcpServers"].as_object().unwrap();
+        let m = servers.get("bad-env").unwrap();
+        assert!(m.get("env").is_none());
+    }
+
+    #[test]
+    fn test_generate_mcp_config_sse_invalid_headers_json() {
+        let mcp: McpTuple = (
+            "bad-headers".to_string(),
+            "sse".to_string(),
+            None,
+            None,
+            Some("https://example.com".to_string()),
+            Some("not json".to_string()),
+            None,
+        );
+        let config = generate_mcp_config(&[mcp]);
+        let servers = config["mcpServers"].as_object().unwrap();
+        let m = servers.get("bad-headers").unwrap();
+        assert!(m.get("headers").is_none());
+    }
+
+    #[test]
+    fn test_generate_mcp_config_http_invalid_headers_json() {
+        let mcp: McpTuple = (
+            "bad-headers".to_string(),
+            "http".to_string(),
+            None,
+            None,
+            Some("https://example.com".to_string()),
+            Some("not json".to_string()),
+            None,
+        );
+        let config = generate_mcp_config(&[mcp]);
+        let servers = config["mcpServers"].as_object().unwrap();
+        let m = servers.get("bad-headers").unwrap();
+        assert!(m.get("headers").is_none());
+    }
+
+    #[test]
+    fn test_generate_mcp_config_http_no_url() {
+        let mcp: McpTuple = (
+            "no-url".to_string(),
+            "http".to_string(),
+            None,
+            None,
+            None, // no url
+            None,
+            None,
+        );
+        let config = generate_mcp_config(&[mcp]);
+        let servers = config["mcpServers"].as_object().unwrap();
+        let m = servers.get("no-url").unwrap();
+        assert_eq!(m["type"], "http");
+        assert!(m.get("url").is_none());
+    }
+
+    // =========================================================================
+    // Additional coverage: write_project_to_claude_json with existing project
+    // =========================================================================
+
+    #[test]
+    fn test_write_project_to_claude_json_updates_existing_project() {
+        let dir = TempDir::new().unwrap();
+        let paths = ClaudePathsInternal {
+            home: dir.path().to_path_buf(),
+            claude_json: dir.path().join("claude.json"),
+            claude_dir: dir.path().to_path_buf(),
+            global_settings: dir.path().join("settings.json"),
+            plugins_dir: dir.path().join("plugins"),
+            marketplaces_dir: dir.path().join("plugins").join("marketplaces"),
+            commands_dir: dir.path().join("commands"),
+            skills_dir: dir.path().join("skills"),
+            agents_dir: dir.path().join("agents"),
+        };
+
+        // Create existing project with an MCP
+        std::fs::write(
+            &paths.claude_json,
+            r#"{
+                "projects": {
+                    "/tmp/proj": {
+                        "mcpServers": {"old-mcp": {"command": "old"}},
+                        "allowedTools": ["Read"],
+                        "hasTrustDialogAccepted": true
+                    }
+                }
+            }"#,
+        )
+        .unwrap();
+
+        let mcps: Vec<McpWithEnabledTuple> = vec![(
+            "new-mcp".to_string(),
+            "stdio".to_string(),
+            Some("new-cmd".to_string()),
+            None,
+            None,
+            None,
+            None,
+            true,
+        )];
+
+        write_project_to_claude_json(&paths, "/tmp/proj", &mcps).unwrap();
+
+        let content = std::fs::read_to_string(&paths.claude_json).unwrap();
+        let parsed: Value = serde_json::from_str(&content).unwrap();
+        let project = &parsed["projects"]["/tmp/proj"];
+
+        // MCPs should be replaced
+        let servers = project["mcpServers"].as_object().unwrap();
+        assert!(servers.contains_key("new-mcp"));
+        // Other fields should be preserved
+        assert_eq!(project["hasTrustDialogAccepted"], true);
+    }
+
+    #[test]
+    fn test_write_project_to_claude_json_creates_backup() {
+        let dir = TempDir::new().unwrap();
+        let paths = ClaudePathsInternal {
+            home: dir.path().to_path_buf(),
+            claude_json: dir.path().join("claude.json"),
+            claude_dir: dir.path().to_path_buf(),
+            global_settings: dir.path().join("settings.json"),
+            plugins_dir: dir.path().join("plugins"),
+            marketplaces_dir: dir.path().join("plugins").join("marketplaces"),
+            commands_dir: dir.path().join("commands"),
+            skills_dir: dir.path().join("skills"),
+            agents_dir: dir.path().join("agents"),
+        };
+
+        std::fs::write(&paths.claude_json, r#"{"original": true}"#).unwrap();
+
+        let mcps: Vec<McpWithEnabledTuple> = vec![(
+            "mcp".to_string(),
+            "stdio".to_string(),
+            Some("cmd".to_string()),
+            None,
+            None,
+            None,
+            None,
+            true,
+        )];
+
+        write_project_to_claude_json(&paths, "/tmp/proj", &mcps).unwrap();
+
+        // Backup should exist
+        let bak_path = paths.claude_json.with_extension("json.bak");
+        assert!(bak_path.exists());
+        let bak_content = std::fs::read_to_string(&bak_path).unwrap();
+        assert!(bak_content.contains("original"));
+    }
+
+    #[test]
+    fn test_write_project_to_claude_json_multiple_mcps_mixed_enabled() {
+        let dir = TempDir::new().unwrap();
+        let paths = ClaudePathsInternal {
+            home: dir.path().to_path_buf(),
+            claude_json: dir.path().join("claude.json"),
+            claude_dir: dir.path().to_path_buf(),
+            global_settings: dir.path().join("settings.json"),
+            plugins_dir: dir.path().join("plugins"),
+            marketplaces_dir: dir.path().join("plugins").join("marketplaces"),
+            commands_dir: dir.path().join("commands"),
+            skills_dir: dir.path().join("skills"),
+            agents_dir: dir.path().join("agents"),
+        };
+
+        std::fs::write(&paths.claude_json, "{}").unwrap();
+
+        let mcps: Vec<McpWithEnabledTuple> = vec![
+            (
+                "mcp-a".to_string(),
+                "stdio".to_string(),
+                Some("cmd-a".to_string()),
+                None,
+                None,
+                None,
+                None,
+                true,
+            ),
+            (
+                "mcp-b".to_string(),
+                "stdio".to_string(),
+                Some("cmd-b".to_string()),
+                None,
+                None,
+                None,
+                None,
+                false,
+            ),
+            (
+                "mcp-c".to_string(),
+                "sse".to_string(),
+                None,
+                None,
+                Some("https://example.com".to_string()),
+                None,
+                None,
+                true,
+            ),
+        ];
+
+        write_project_to_claude_json(&paths, "/tmp/proj", &mcps).unwrap();
+
+        let content = std::fs::read_to_string(&paths.claude_json).unwrap();
+        let parsed: Value = serde_json::from_str(&content).unwrap();
+        let projects = parsed.get("projects").unwrap().as_object().unwrap();
+        let project = projects.values().next().unwrap();
+        let servers = project["mcpServers"].as_object().unwrap();
+        assert_eq!(servers.len(), 3);
+
+        let disabled = project["disabledMcpServers"].as_array().unwrap();
+        assert_eq!(disabled.len(), 1);
+        assert_eq!(disabled[0], "mcp-b");
+    }
+
+    // =========================================================================
+    // Additional coverage: write_global_config creates backup
+    // =========================================================================
+
+    #[test]
+    fn test_write_global_config_creates_backup() {
+        let dir = TempDir::new().unwrap();
+        let paths = ClaudePathsInternal {
+            home: dir.path().to_path_buf(),
+            claude_json: dir.path().join("claude.json"),
+            claude_dir: dir.path().to_path_buf(),
+            global_settings: dir.path().join("settings.json"),
+            plugins_dir: dir.path().join("plugins"),
+            marketplaces_dir: dir.path().join("plugins").join("marketplaces"),
+            commands_dir: dir.path().join("commands"),
+            skills_dir: dir.path().join("skills"),
+            agents_dir: dir.path().join("agents"),
+        };
+
+        std::fs::write(&paths.claude_json, r#"{"existing": true}"#).unwrap();
+
+        let mcps = vec![sample_stdio_mcp()];
+        write_global_config(&paths, &mcps).unwrap();
+
+        let bak_path = paths.claude_json.with_extension("json.bak");
+        assert!(bak_path.exists());
+    }
+
+    // =========================================================================
+    // Additional coverage: generate_mcp_config with all None fields
+    // =========================================================================
+
+    #[test]
+    fn test_generate_mcp_config_stdio_no_command() {
+        let mcp: McpTuple = (
+            "no-cmd".to_string(),
+            "stdio".to_string(),
+            None, // no command
+            None,
+            None,
+            None,
+            None,
+        );
+        let config = generate_mcp_config(&[mcp]);
+        let servers = config["mcpServers"].as_object().unwrap();
+        let m = servers.get("no-cmd").unwrap();
+        assert!(m.get("command").is_none());
+    }
+
+    #[test]
+    fn test_generate_mcp_config_sse_no_url() {
+        let mcp: McpTuple = (
+            "no-url-sse".to_string(),
+            "sse".to_string(),
+            None,
+            None,
+            None, // no url
+            None,
+            None,
+        );
+        let config = generate_mcp_config(&[mcp]);
+        let servers = config["mcpServers"].as_object().unwrap();
+        let m = servers.get("no-url-sse").unwrap();
+        assert_eq!(m["type"], "sse");
+        assert!(m.get("url").is_none());
+    }
+
+    // =========================================================================
+    // Additional coverage: write_project_config with multiple mcps
+    // =========================================================================
+
+    #[test]
+    fn test_write_project_config_multiple_types() {
+        let temp_dir = TempDir::new().unwrap();
+        let mcps = vec![sample_stdio_mcp(), sample_sse_mcp(), sample_http_mcp()];
+
+        write_project_config(temp_dir.path(), &mcps).unwrap();
+
+        let config_path = temp_dir.path().join(".mcp.json");
+        let content = std::fs::read_to_string(config_path).unwrap();
+        let parsed: Value = serde_json::from_str(&content).unwrap();
+        let servers = parsed["mcpServers"].as_object().unwrap();
+        assert_eq!(servers.len(), 3);
+    }
+
+    // =========================================================================
+    // Additional coverage: write_project_to_claude_json invalid existing JSON
+    // =========================================================================
+
+    #[test]
+    fn test_write_project_to_claude_json_invalid_existing_json() {
+        let dir = TempDir::new().unwrap();
+        let paths = ClaudePathsInternal {
+            home: dir.path().to_path_buf(),
+            claude_json: dir.path().join("claude.json"),
+            claude_dir: dir.path().to_path_buf(),
+            global_settings: dir.path().join("settings.json"),
+            plugins_dir: dir.path().join("plugins"),
+            marketplaces_dir: dir.path().join("plugins").join("marketplaces"),
+            commands_dir: dir.path().join("commands"),
+            skills_dir: dir.path().join("skills"),
+            agents_dir: dir.path().join("agents"),
+        };
+
+        std::fs::write(&paths.claude_json, "not valid json").unwrap();
+
+        let mcps: Vec<McpWithEnabledTuple> = vec![(
+            "mcp".to_string(),
+            "stdio".to_string(),
+            Some("cmd".to_string()),
+            None,
+            None,
+            None,
+            None,
+            true,
+        )];
+
+        let result = write_project_to_claude_json(&paths, "/tmp/proj", &mcps);
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Refusing to overwrite"));
+    }
 }

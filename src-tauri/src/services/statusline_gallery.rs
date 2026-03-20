@@ -106,4 +106,62 @@ mod tests {
         assert!(url.starts_with("https://"));
         assert!(url.contains("github"));
     }
+
+    // =========================================================================
+    // Database-backed gallery tests
+    // =========================================================================
+    #[test]
+    fn test_get_gallery_url_default() {
+        let db = Database::in_memory().unwrap();
+        let url = get_gallery_url(&db);
+        assert!(url.starts_with("https://"));
+    }
+
+    #[test]
+    fn test_set_and_get_gallery_url() {
+        let db = Database::in_memory().unwrap();
+        set_gallery_url(&db, "https://custom.example.com/gallery.json").unwrap();
+        let url = get_gallery_url(&db);
+        assert_eq!(url, "https://custom.example.com/gallery.json");
+    }
+
+    #[test]
+    fn test_cache_gallery_and_retrieve() {
+        let db = Database::in_memory().unwrap();
+        let entries = vec![StatusLineGalleryEntry {
+            name: "test-entry".to_string(),
+            description: Some("A test".to_string()),
+            author: Some("tester".to_string()),
+            homepage_url: None,
+            install_command: Some("npm install test".to_string()),
+            run_command: Some("test-run".to_string()),
+            package_name: None,
+            icon: None,
+            tags: Some(vec!["tag1".to_string()]),
+            preview_text: None,
+        }];
+
+        cache_gallery(&db, &entries).unwrap();
+        let cached = get_cached_gallery(&db);
+        assert!(cached.is_some());
+        let cached = cached.unwrap();
+        assert_eq!(cached.len(), 1);
+        assert_eq!(cached[0].name, "test-entry");
+    }
+
+    #[test]
+    fn test_get_cached_gallery_empty() {
+        let db = Database::in_memory().unwrap();
+        let cached = get_cached_gallery(&db);
+        assert!(cached.is_none());
+    }
+
+    #[test]
+    fn test_cache_gallery_empty_vec() {
+        let db = Database::in_memory().unwrap();
+        cache_gallery(&db, &[]).unwrap();
+        let cached = get_cached_gallery(&db);
+        assert!(cached.is_some());
+        assert!(cached.unwrap().is_empty());
+    }
 }

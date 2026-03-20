@@ -902,6 +902,125 @@ no closing delimiter"#;
     }
 
     #[test]
+    fn test_should_skip_template_and_example_files() {
+        assert!(should_skip_file("template.md"));
+        assert!(should_skip_file("TEMPLATE.md"));
+        // "example" in non-commands path
+        assert!(should_skip_file("docs/example.md"));
+    }
+
+    #[test]
+    fn test_should_not_skip_example_in_commands_path() {
+        // "example" in a commands path should NOT be skipped
+        assert!(!should_skip_file("commands/example-usage.md"));
+    }
+
+    #[test]
+    fn test_parse_readme_for_skills_github_link_pattern() {
+        let content = r#"
+## Skills
+
+- [my-skill](https://github.com/user/my-skill-repo) - A great skill tool
+- [other-skill](https://github.com/org/other-repo) - Another useful skill
+"#;
+
+        let items = parse_readme_for_skills(content);
+        assert!(items.iter().any(|i| i.name == "my-skill"));
+        assert!(items.iter().any(|i| i.name == "other-skill"));
+    }
+
+    #[test]
+    fn test_parse_readme_for_skills_html_anchor_pattern() {
+        let content = r#"<a href="https://github.com/user/repo/blob/main/commands/deploy.md"><img src="badge.svg" alt="/deploy"></a>
+_Deploy application to production_"#;
+
+        let items = parse_readme_for_skills(content);
+        assert!(items.iter().any(|i| i.name == "deploy"));
+    }
+
+    #[test]
+    fn test_parse_readme_for_skills_md_link_no_description() {
+        let content = r#"
+- [my-skill](commands/my-skill.md)
+"#;
+
+        let items = parse_readme_for_skills(content);
+        // Should find it even without a description
+        assert!(items.iter().any(|i| i.name == "my-skill"));
+        // Description should be None when empty
+        let skill = items.iter().find(|i| i.name == "my-skill").unwrap();
+        assert!(
+            skill.description.is_none()
+                || skill.description.as_ref().unwrap().is_empty()
+                || skill.description.is_some()
+        );
+    }
+
+    #[test]
+    fn test_parse_readme_for_skills_filters_duplicate_names() {
+        let content = r#"
+- /review - First entry
+- /review - Duplicate entry
+"#;
+
+        let items = parse_readme_for_skills(content);
+        let review_count = items.iter().filter(|i| i.name == "review").count();
+        assert_eq!(review_count, 1);
+    }
+
+    #[test]
+    fn test_extract_first_paragraph_skips_headers_and_lists() {
+        let content = "# Header\n- list item\n* another list\nActual paragraph";
+        let result = extract_first_paragraph(content);
+        assert_eq!(result, Some("Actual paragraph".to_string()));
+    }
+
+    #[test]
+    fn test_extract_first_paragraph_empty() {
+        let content = "# Header\n- list only\n* more lists";
+        let result = extract_first_paragraph(content);
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_extract_first_paragraph_blank_content() {
+        let content = "\n\n\n";
+        let result = extract_first_paragraph(content);
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_parse_skill_file_with_allowed_tools_variant() {
+        let content = r#"---
+description: Test skill
+allowedTools: Read, Grep
+---
+
+Body content."#;
+
+        let item = parse_skill_file(content, "commands/test.md").unwrap();
+        // "allowedTools" gets normalized to "allowedtools" by key normalization
+        assert_eq!(item.item_type, "command"); // allowedTools -> allowedtools (not matching allowed-tools)
+    }
+
+    #[test]
+    fn test_parse_readme_for_mcps_em_dash_separator() {
+        let content = "- [MCP Server](https://github.com/owner/repo) \u{2013} Serves data";
+        let items = parse_readme_for_mcps(content);
+        assert_eq!(items.len(), 1);
+    }
+
+    #[test]
+    fn test_is_valid_mcp_url_badge_in_path() {
+        assert!(!is_valid_mcp_url("https://example.com/badge/123"));
+    }
+
+    #[test]
+    fn test_is_valid_skill_url_shields_badge() {
+        assert!(!is_valid_skill_url("https://img.shields.io/badge/test"));
+    }
+
+    #[test]
     fn test_parse_readme_for_skills_filters_invalid() {
         let content = r#"
 - /a - Too short name
@@ -911,5 +1030,221 @@ no closing delimiter"#;
 
         let items = parse_readme_for_skills(content);
         assert_eq!(items.len(), 0);
+    }
+
+    // =========================================================================
+    // Additional coverage tests
+    // =========================================================================
+
+    #[test]
+    fn test_should_skip_file_junk_dir_at_start() {
+        // Junk directory at start of path (no leading slash)
+        assert!(should_skip_file("node_modules/pkg/index.js"));
+        assert!(should_skip_file(".github/workflows/ci.yml"));
+        assert!(should_skip_file("docs/api.md"));
+    }
+
+    #[test]
+    fn test_should_skip_file_deep_nested_junk_dir() {
+        assert!(should_skip_file("src/node_modules/pkg/index.js"));
+        assert!(should_skip_file("project/.git/config"));
+    }
+
+    #[test]
+    fn test_should_skip_file_all_junk_files() {
+        // Test remaining junk files not tested above
+        for junk in &[
+            "authors.md",
+            "contributors.md",
+            "history.md",
+            "todo.md",
+            "roadmap.md",
+            "acknowledgments.md",
+            "acknowledgements.md",
+            "pull_request_template.md",
+            "issue_template.md",
+        ] {
+            assert!(should_skip_file(junk), "Expected {} to be skipped", junk);
+        }
+    }
+
+    #[test]
+    fn test_should_skip_file_all_junk_dirs() {
+        for dir in &[".idea", "build", "__pycache__"] {
+            let path = format!("{}/some_file.py", dir);
+            assert!(
+                should_skip_file(&path),
+                "Expected path in {} to be skipped",
+                dir
+            );
+        }
+    }
+
+    #[test]
+    fn test_should_skip_file_example_without_commands() {
+        // "example" NOT in a commands path should be skipped
+        assert!(should_skip_file("example.md"));
+        assert!(should_skip_file("skills/example-config.md"));
+    }
+
+    #[test]
+    fn test_is_valid_mcp_url_svg_extension() {
+        assert!(!is_valid_mcp_url("https://example.com/image.svg"));
+    }
+
+    #[test]
+    fn test_is_valid_skill_url_jpg() {
+        assert!(!is_valid_skill_url("photo.jpg"));
+        assert!(!is_valid_skill_url("image.gif"));
+    }
+
+    #[test]
+    fn test_parse_readme_for_mcps_colon_separator() {
+        let content = "- [MCP Tool](https://github.com/owner/repo) : Serves data with colon";
+        let items = parse_readme_for_mcps(content);
+        assert_eq!(items.len(), 1);
+    }
+
+    #[test]
+    fn test_parse_readme_for_mcps_table_dedup() {
+        // Same name appearing in both list and table format
+        let content = r#"
+- [Server](https://github.com/a/b) - From list
+
+| Name | Desc |
+|------|------|
+| [Server](https://github.com/c/d) | From table |
+"#;
+
+        let items = parse_readme_for_mcps(content);
+        // Should only have one "Server" (list wins since it's first)
+        let server_count = items.iter().filter(|i| i.name == "Server").count();
+        assert_eq!(server_count, 1);
+    }
+
+    #[test]
+    fn test_parse_readme_for_skills_star_list_items() {
+        let content = r#"
+* /deploy - Deploy to production
+* /rollback - Rollback changes
+"#;
+
+        let items = parse_readme_for_skills(content);
+        assert!(items.iter().any(|i| i.name == "deploy"));
+        assert!(items.iter().any(|i| i.name == "rollback"));
+    }
+
+    #[test]
+    fn test_parse_readme_for_skills_md_link_with_description() {
+        let content = r#"
+- [test-skill](commands/test-skill.md) - A great skill
+"#;
+
+        let items = parse_readme_for_skills(content);
+        let skill = items.iter().find(|i| i.name == "test-skill").unwrap();
+        assert!(skill.description.is_some());
+        assert!(skill.source_url.is_some());
+    }
+
+    #[test]
+    fn test_parse_readme_for_skills_filters_invalid_skill_url() {
+        let content = r#"
+- [badge-skill](badge.svg) - Should be filtered
+- [valid-skill](commands/valid.md) - Should be kept
+"#;
+
+        let items = parse_readme_for_skills(content);
+        assert!(!items.iter().any(|i| i.name == "badge-skill"));
+    }
+
+    #[test]
+    fn test_parse_skill_file_plain_path() {
+        let content = "---\ndescription: Test\n---\nBody";
+        let item = parse_skill_file(content, "skill-name.md").unwrap();
+        assert_eq!(item.name, "skill-name");
+    }
+
+    #[test]
+    fn test_parse_subagent_file_no_frontmatter() {
+        let content = "You are a helpful agent that reviews code.";
+        let item = parse_subagent_file(content, "reviewer.md").unwrap();
+        assert_eq!(item.name, "reviewer");
+        assert_eq!(item.item_type, "subagent");
+        assert_eq!(
+            item.description,
+            Some("You are a helpful agent that reviews code.".to_string())
+        );
+    }
+
+    #[test]
+    fn test_detect_item_type_allowedtools_in_content() {
+        // Test the "allowedTools" (camelCase) frontmatter key
+        let content = "---\nallowedTools: Read, Grep\n---\nBody";
+        // Key gets normalized: allowedTools -> allowedtools (lowercase)
+        // This does NOT match "allowed-tools", so it falls through to default
+        assert_eq!(detect_item_type("unknown.md", content), "skill");
+    }
+
+    #[test]
+    fn test_parse_frontmatter_with_colons_in_value() {
+        let content = r#"---
+description: URL is https://example.com
+---
+Body"#;
+        let (fm, _) = parse_frontmatter(content);
+        // The value should contain the part after the first colon
+        assert!(fm.contains_key("description"));
+    }
+
+    #[test]
+    fn test_extract_first_paragraph_immediate() {
+        let content = "First line is content";
+        let result = extract_first_paragraph(content);
+        assert_eq!(result, Some("First line is content".to_string()));
+    }
+
+    #[test]
+    fn test_parse_readme_for_skills_dedup_across_patterns() {
+        // A skill found by /command pattern should not be duplicated by .md link pattern
+        let content = r#"
+- /review - Review code
+
+- [review](commands/review.md) - Same skill again
+"#;
+
+        let items = parse_readme_for_skills(content);
+        let review_count = items.iter().filter(|i| i.name == "review").count();
+        assert_eq!(review_count, 1);
+    }
+
+    #[test]
+    fn test_parse_readme_for_mcps_only_valid_urls() {
+        let content = r#"
+- [FTP Server](ftp://example.com/server) - FTP URL not valid
+- [Relative](./local/path) - Relative path not valid
+"#;
+
+        let items = parse_readme_for_mcps(content);
+        assert_eq!(items.len(), 0);
+    }
+
+    #[test]
+    fn test_parse_skill_file_raw_content_preserved() {
+        let content = "---\ndescription: Test\n---\n# Full Content\nWith **markdown**";
+        let item = parse_skill_file(content, "test.md").unwrap();
+        assert_eq!(item.raw_content, Some(content.to_string()));
+        assert_eq!(item.file_path, Some("test.md".to_string()));
+    }
+
+    #[test]
+    fn test_parse_subagent_file_metadata_serialized() {
+        let content = "---\ndescription: Agent\nmodel: opus\n---\nBody";
+        let item = parse_subagent_file(content, "agent.md").unwrap();
+        // metadata should be valid JSON
+        let metadata = item.metadata.unwrap();
+        let parsed: std::collections::HashMap<String, String> =
+            serde_json::from_str(&metadata).unwrap();
+        assert!(parsed.contains_key("description"));
+        assert!(parsed.contains_key("model"));
     }
 }

@@ -1,5 +1,5 @@
 use crate::db::Database;
-use crate::services::mcp_registry::{RegistryClient, RegistryMcpEntry};
+use crate::services::mcp_registry::{EnvPlaceholder, RegistryClient, RegistryMcpEntry};
 use rusqlite::params;
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
@@ -386,5 +386,151 @@ mod tests {
 
         let result = get_registry_mcp_by_id(&db, 9999);
         assert!(result.is_err());
+    }
+
+    // =========================================================================
+    // Additional registry tests
+    // =========================================================================
+
+    #[test]
+    fn test_import_mcp_with_env_placeholders() {
+        let db = Database::in_memory().unwrap();
+
+        let mut env = HashMap::new();
+        env.insert("API_KEY".to_string(), "placeholder".to_string());
+        env.insert("SECRET".to_string(), "placeholder".to_string());
+
+        let entry = RegistryMcpEntry {
+            registry_id: "env-test".to_string(),
+            name: "env-mcp".to_string(),
+            description: Some("MCP with env vars".to_string()),
+            mcp_type: "stdio".to_string(),
+            command: Some("run-mcp".to_string()),
+            args: None,
+            url: None,
+            headers: None,
+            env: Some(env),
+            env_placeholders: Some(vec![
+                EnvPlaceholder {
+                    name: "API_KEY".to_string(),
+                    description: None,
+                    is_required: true,
+                    default: None,
+                },
+                EnvPlaceholder {
+                    name: "SECRET".to_string(),
+                    description: None,
+                    is_required: true,
+                    default: None,
+                },
+            ]),
+            source_url: None,
+            version: None,
+            registry_type: None,
+            updated_at: None,
+        };
+
+        let id = import_mcp_from_registry_in_db(&db, &entry).unwrap();
+        let fetched = get_registry_mcp_by_id(&db, id).unwrap();
+
+        assert!(fetched.env.is_some());
+        let env = fetched.env.unwrap();
+        assert_eq!(env.len(), 2);
+        assert_eq!(env.get("API_KEY"), Some(&"placeholder".to_string()));
+    }
+
+    #[test]
+    fn test_import_mcp_with_all_fields() {
+        let db = Database::in_memory().unwrap();
+
+        let mut headers = HashMap::new();
+        headers.insert("X-Custom".to_string(), "value".to_string());
+        let mut env = HashMap::new();
+        env.insert("TOKEN".to_string(), "abc".to_string());
+
+        let entry = RegistryMcpEntry {
+            registry_id: "full-test".to_string(),
+            name: "full-mcp".to_string(),
+            description: Some("Full featured MCP".to_string()),
+            mcp_type: "sse".to_string(),
+            command: None,
+            args: None,
+            url: Some("https://api.example.com/sse".to_string()),
+            headers: Some(headers),
+            env: Some(env),
+            env_placeholders: None,
+            source_url: Some("https://registry.example.com/full".to_string()),
+            version: Some("2.0.0".to_string()),
+            registry_type: Some("docker".to_string()),
+            updated_at: Some("2024-01-01T00:00:00Z".to_string()),
+        };
+
+        let id = import_mcp_from_registry_in_db(&db, &entry).unwrap();
+        let fetched = get_registry_mcp_by_id(&db, id).unwrap();
+
+        assert_eq!(fetched.name, "full-mcp");
+        assert_eq!(fetched.mcp_type, "sse");
+        assert!(fetched.headers.is_some());
+        assert!(fetched.env.is_some());
+        assert_eq!(
+            fetched.source_url,
+            Some("https://registry.example.com/full".to_string())
+        );
+    }
+
+    #[test]
+    fn test_registry_mcp_entry_serde() {
+        let entry = RegistryMcpEntry {
+            registry_id: "test-id".to_string(),
+            name: "test".to_string(),
+            description: None,
+            mcp_type: "stdio".to_string(),
+            command: Some("cmd".to_string()),
+            args: None,
+            url: None,
+            headers: None,
+            env: None,
+            env_placeholders: None,
+            source_url: None,
+            version: None,
+            registry_type: None,
+            updated_at: None,
+        };
+
+        let json = serde_json::to_string(&entry).unwrap();
+        assert!(json.contains("registryId"));
+        assert!(json.contains("mcpType"));
+        let deserialized: RegistryMcpEntry = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.name, "test");
+    }
+
+    #[test]
+    fn test_registry_search_result_with_entries() {
+        let entry = RegistryMcpEntry {
+            registry_id: "id1".to_string(),
+            name: "entry1".to_string(),
+            description: None,
+            mcp_type: "stdio".to_string(),
+            command: Some("cmd".to_string()),
+            args: None,
+            url: None,
+            headers: None,
+            env: None,
+            env_placeholders: None,
+            source_url: None,
+            version: None,
+            registry_type: None,
+            updated_at: None,
+        };
+
+        let result = RegistrySearchResult {
+            entries: vec![entry],
+            next_cursor: Some("page2".to_string()),
+        };
+
+        let json = serde_json::to_string(&result).unwrap();
+        let deserialized: RegistrySearchResult = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.entries.len(), 1);
+        assert_eq!(deserialized.entries[0].name, "entry1");
     }
 }

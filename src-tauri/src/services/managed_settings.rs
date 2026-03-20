@@ -136,4 +136,26 @@ mod tests {
         assert!(s.force_login_method.is_none());
         assert!(s.force_login_org_uuid.is_none());
     }
+
+    #[test]
+    fn test_managed_settings_info_serialization() {
+        let info = ManagedSettingsInfo {
+            file_path: "/test/path".to_string(),
+            exists: false,
+            settings: None,
+        };
+        let json = serde_json::to_string(&info).unwrap();
+        assert!(json.contains("\"filePath\":\"/test/path\""));
+        assert!(json.contains("\"exists\":false"));
+    }
+
+    #[test]
+    fn test_managed_settings_path_os_specific() {
+        let path = managed_settings_path();
+        let path_str = path.to_string_lossy();
+        #[cfg(target_os = "macos")]
+        assert!(path_str.contains("Library/Application Support"));
+        #[cfg(target_os = "linux")]
+        assert!(path_str.contains("/etc/claude-code"));
+    }
 }

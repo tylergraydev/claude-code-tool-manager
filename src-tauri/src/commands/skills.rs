@@ -221,16 +221,7 @@ fn row_to_skill_with_offset(row: &rusqlite::Row, offset: usize) -> rusqlite::Res
 #[tauri::command]
 pub fn get_all_skills(db: State<'_, Arc<Mutex<Database>>>) -> Result<Vec<Skill>, String> {
     let db = db.lock().map_err(|e| e.to_string())?;
-    let query = format!("SELECT {} FROM skills ORDER BY name", SKILL_SELECT_FIELDS);
-    let mut stmt = db.conn().prepare(&query).map_err(|e| e.to_string())?;
-
-    let skills = stmt
-        .query_map([], row_to_skill)
-        .map_err(|e| e.to_string())?
-        .filter_map(|r| r.ok())
-        .collect();
-
-    Ok(skills)
+    get_all_skills_from_db(&db)
 }
 
 #[tauri::command]
@@ -238,37 +229,8 @@ pub fn create_skill(
     db: State<'_, Arc<Mutex<Database>>>,
     skill: CreateSkillRequest,
 ) -> Result<Skill, String> {
-    // Validate the skill request
-    let _warning = validate_skill_request(&skill)?;
-    // Note: warning could be returned to frontend if needed in the future
-
     let db_guard = db.lock().map_err(|e| e.to_string())?;
-
-    let allowed_tools_json = skill
-        .allowed_tools
-        .as_ref()
-        .map(|t| serde_json::to_string(t).unwrap());
-    let tags_json = skill
-        .tags
-        .as_ref()
-        .map(|t| serde_json::to_string(t).unwrap());
-    let disable_model_invocation = skill.disable_model_invocation.unwrap_or(false) as i32;
-
-    db_guard.conn()
-        .execute(
-            "INSERT INTO skills (name, description, content, allowed_tools, model, disable_model_invocation, tags, source)
-             VALUES (?, ?, ?, ?, ?, ?, ?, 'manual')",
-            params![skill.name, skill.description, skill.content, allowed_tools_json, skill.model, disable_model_invocation, tags_json],
-        )
-        .map_err(|e| e.to_string())?;
-
-    let id = db_guard.conn().last_insert_rowid();
-
-    let query = format!("SELECT {} FROM skills WHERE id = ?", SKILL_SELECT_FIELDS);
-    let mut stmt = db_guard.conn().prepare(&query).map_err(|e| e.to_string())?;
-
-    stmt.query_row([id], row_to_skill)
-        .map_err(|e| e.to_string())
+    create_skill_in_db(&db_guard, &skill)
 }
 
 #[tauri::command]
@@ -277,41 +239,18 @@ pub fn update_skill(
     id: i64,
     skill: CreateSkillRequest,
 ) -> Result<Skill, String> {
-    // Validate the skill request
-    let _warning = validate_skill_request(&skill)?;
-    // Note: warning could be returned to frontend if needed in the future
-
     let db = db.lock().map_err(|e| e.to_string())?;
-
-    let allowed_tools_json = skill
-        .allowed_tools
-        .as_ref()
-        .map(|t| serde_json::to_string(t).unwrap());
-    let tags_json = skill
-        .tags
-        .as_ref()
-        .map(|t| serde_json::to_string(t).unwrap());
-    let disable_model_invocation = skill.disable_model_invocation.unwrap_or(false) as i32;
-
-    db.conn()
-        .execute(
-            "UPDATE skills SET name = ?, description = ?, content = ?, allowed_tools = ?, model = ?, disable_model_invocation = ?, tags = ?, updated_at = CURRENT_TIMESTAMP
-             WHERE id = ?",
-            params![skill.name, skill.description, skill.content, allowed_tools_json, skill.model, disable_model_invocation, tags_json, id],
-        )
-        .map_err(|e| e.to_string())?;
-
-    let query = format!("SELECT {} FROM skills WHERE id = ?", SKILL_SELECT_FIELDS);
-    let mut stmt = db.conn().prepare(&query).map_err(|e| e.to_string())?;
-
-    stmt.query_row([id], row_to_skill)
-        .map_err(|e| e.to_string())
+    update_skill_in_db(&db, id, &skill)
 }
 
 #[tauri::command]
 pub fn delete_skill(db: State<'_, Arc<Mutex<Database>>>, id: i64) -> Result<(), String> {
     let db = db.lock().map_err(|e| e.to_string())?;
+    delete_skill_with_cleanup(&db, id)
+}
 
+/// Delete a skill and reset associated repo_items import flags
+pub(crate) fn delete_skill_with_cleanup(db: &Database, id: i64) -> Result<(), String> {
     // Reset is_imported flag in repo_items for this skill
     db.conn()
         .execute(
@@ -320,10 +259,7 @@ pub fn delete_skill(db: State<'_, Arc<Mutex<Database>>>, id: i64) -> Result<(), 
         )
         .map_err(|e| e.to_string())?;
 
-    db.conn()
-        .execute("DELETE FROM skills WHERE id = ?", [id])
-        .map_err(|e| e.to_string())?;
-    Ok(())
+    delete_skill_from_db(db, id)
 }
 
 // Global Skills
@@ -817,24 +753,24 @@ pub fn delete_skill_file(db: State<'_, Arc<Mutex<Database>>>, id: i64) -> Result
 // Database operations (for testing without Tauri state)
 // ============================================================================
 
-/// Create a skill directly in the database (for testing)
-/// Note: Set skip_validation to true to bypass validation in tests
-#[cfg(test)]
-pub fn create_skill_in_db(db: &Database, skill: &CreateSkillRequest) -> Result<Skill, String> {
-    create_skill_in_db_internal(db, skill, false)
-}
-
-/// Create a skill without validation (for testing edge cases)
-#[cfg(test)]
-pub fn create_skill_in_db_unvalidated(
+/// Create a skill in the database with validation
+pub(crate) fn create_skill_in_db(
     db: &Database,
     skill: &CreateSkillRequest,
 ) -> Result<Skill, String> {
-    create_skill_in_db_internal(db, skill, true)
+    create_skill_in_db_impl(db, skill, false)
 }
 
-#[cfg(test)]
-fn create_skill_in_db_internal(
+/// Create a skill without validation (useful for testing edge cases or imports)
+pub(crate) fn create_skill_in_db_unvalidated(
+    db: &Database,
+    skill: &CreateSkillRequest,
+) -> Result<Skill, String> {
+    create_skill_in_db_impl(db, skill, true)
+}
+
+/// Internal: create a skill with optional validation bypass
+pub(crate) fn create_skill_in_db_impl(
     db: &Database,
     skill: &CreateSkillRequest,
     skip_validation: bool,
@@ -865,9 +801,8 @@ fn create_skill_in_db_internal(
     get_skill_by_id(db, id)
 }
 
-/// Get a skill by ID directly from the database (for testing)
-#[cfg(test)]
-pub fn get_skill_by_id(db: &Database, id: i64) -> Result<Skill, String> {
+/// Get a skill by ID from the database
+pub(crate) fn get_skill_by_id(db: &Database, id: i64) -> Result<Skill, String> {
     let query = format!("SELECT {} FROM skills WHERE id = ?", SKILL_SELECT_FIELDS);
     let mut stmt = db.conn().prepare(&query).map_err(|e| e.to_string())?;
 
@@ -875,9 +810,8 @@ pub fn get_skill_by_id(db: &Database, id: i64) -> Result<Skill, String> {
         .map_err(|e| e.to_string())
 }
 
-/// Get all skills directly from the database (for testing)
-#[cfg(test)]
-pub fn get_all_skills_from_db(db: &Database) -> Result<Vec<Skill>, String> {
+/// Get all skills from the database
+pub(crate) fn get_all_skills_from_db(db: &Database) -> Result<Vec<Skill>, String> {
     let query = format!("SELECT {} FROM skills ORDER BY name", SKILL_SELECT_FIELDS);
     let mut stmt = db.conn().prepare(&query).map_err(|e| e.to_string())?;
 
@@ -890,9 +824,8 @@ pub fn get_all_skills_from_db(db: &Database) -> Result<Vec<Skill>, String> {
     Ok(skills)
 }
 
-/// Update a skill directly in the database (for testing)
-#[cfg(test)]
-pub fn update_skill_in_db(
+/// Update a skill in the database with validation (no file sync)
+pub(crate) fn update_skill_in_db(
     db: &Database,
     id: i64,
     skill: &CreateSkillRequest,
@@ -921,18 +854,16 @@ pub fn update_skill_in_db(
     get_skill_by_id(db, id)
 }
 
-/// Delete a skill directly from the database (for testing)
-#[cfg(test)]
-pub fn delete_skill_from_db(db: &Database, id: i64) -> Result<(), String> {
+/// Delete a skill from the database (no file sync)
+pub(crate) fn delete_skill_from_db(db: &Database, id: i64) -> Result<(), String> {
     db.conn()
         .execute("DELETE FROM skills WHERE id = ?", [id])
         .map_err(|e| e.to_string())?;
     Ok(())
 }
 
-/// Create a skill file directly in the database (for testing)
-#[cfg(test)]
-pub fn create_skill_file_in_db(
+/// Create a skill file directly in the database
+pub(crate) fn create_skill_file_in_db(
     db: &Database,
     file: &CreateSkillFileRequest,
 ) -> Result<SkillFile, String> {
@@ -958,9 +889,11 @@ pub fn create_skill_file_in_db(
         .map_err(|e| e.to_string())
 }
 
-/// Get skill files directly from the database (for testing)
-#[cfg(test)]
-pub fn get_skill_files_from_db(db: &Database, skill_id: i64) -> Result<Vec<SkillFile>, String> {
+/// Get skill files directly from the database
+pub(crate) fn get_skill_files_from_db(
+    db: &Database,
+    skill_id: i64,
+) -> Result<Vec<SkillFile>, String> {
     let mut stmt = db
         .conn()
         .prepare(
@@ -978,9 +911,8 @@ pub fn get_skill_files_from_db(db: &Database, skill_id: i64) -> Result<Vec<Skill
     Ok(files)
 }
 
-/// Delete a skill file directly from the database (for testing)
-#[cfg(test)]
-pub fn delete_skill_file_from_db(db: &Database, id: i64) -> Result<(), String> {
+/// Delete a skill file directly from the database
+pub(crate) fn delete_skill_file_from_db(db: &Database, id: i64) -> Result<(), String> {
     db.conn()
         .execute("DELETE FROM skill_files WHERE id = ?", [id])
         .map_err(|e| e.to_string())?;
@@ -1697,5 +1629,209 @@ mod tests {
         };
         let result = update_skill_in_db(&db, skill.id, &update);
         assert!(result.is_err());
+    }
+
+    // ========================================================================
+    // Additional validation tests
+    // ========================================================================
+
+    #[test]
+    fn test_validate_name_whitespace_only() {
+        let result = validate_skill_name("   ");
+        assert!(!result.is_valid);
+        assert!(result.error.unwrap().contains("required"));
+    }
+
+    #[test]
+    fn test_validate_name_with_dots_rejected() {
+        let result = validate_skill_name("my.skill");
+        assert!(!result.is_valid);
+    }
+
+    #[test]
+    fn test_validate_name_only_hyphens_ok() {
+        let result = validate_skill_name("---");
+        assert!(result.is_valid);
+    }
+
+    #[test]
+    fn test_validate_name_only_numbers_ok() {
+        let result = validate_skill_name("123");
+        assert!(result.is_valid);
+    }
+
+    #[test]
+    fn test_validate_description_only_gt_rejected() {
+        let result = validate_skill_description(Some("value > 5"));
+        assert!(!result.is_valid);
+        assert!(result.error.unwrap().contains("XML"));
+    }
+
+    #[test]
+    fn test_validate_description_only_lt_rejected() {
+        let result = validate_skill_description(Some("value < 5"));
+        assert!(!result.is_valid);
+    }
+
+    #[test]
+    fn test_validate_description_whitespace_only_ok() {
+        let result = validate_skill_description(Some("   "));
+        assert!(result.is_valid);
+    }
+
+    #[test]
+    fn test_validate_content_whitespace_only_empty() {
+        let result = validate_skill_content("   ");
+        assert!(!result.is_valid);
+        assert!(result.error.unwrap().contains("required"));
+    }
+
+    #[test]
+    fn test_validate_skill_request_empty_content() {
+        let skill = CreateSkillRequest {
+            name: "valid-name".to_string(),
+            description: None,
+            content: "".to_string(),
+            allowed_tools: None,
+            model: None,
+            disable_model_invocation: None,
+            tags: None,
+        };
+        let result = validate_skill_request(&skill);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("required"));
+    }
+
+    #[test]
+    fn test_validate_skill_request_returns_warning_for_long_content() {
+        let long_content = "line\n".repeat(501);
+        let skill = CreateSkillRequest {
+            name: "valid-name".to_string(),
+            description: None,
+            content: long_content,
+            allowed_tools: None,
+            model: None,
+            disable_model_invocation: None,
+            tags: None,
+        };
+        let result = validate_skill_request(&skill).unwrap();
+        assert!(result.is_some());
+        assert!(result.unwrap().contains("500 lines"));
+    }
+
+    #[test]
+    fn test_validate_skill_request_no_warning_for_short_content() {
+        let skill = CreateSkillRequest {
+            name: "valid-name".to_string(),
+            description: None,
+            content: "Short content.".to_string(),
+            allowed_tools: None,
+            model: None,
+            disable_model_invocation: None,
+            tags: None,
+        };
+        let result = validate_skill_request(&skill).unwrap();
+        assert!(result.is_none());
+    }
+
+    // ========================================================================
+    // ValidationResult constructors
+    // ========================================================================
+
+    #[test]
+    fn test_validation_result_ok() {
+        let r = ValidationResult::ok();
+        assert!(r.is_valid);
+        assert!(r.error.is_none());
+        assert!(r.warning.is_none());
+    }
+
+    #[test]
+    fn test_validation_result_ok_with_warning() {
+        let r = ValidationResult::ok_with_warning("careful".to_string());
+        assert!(r.is_valid);
+        assert!(r.error.is_none());
+        assert_eq!(r.warning, Some("careful".to_string()));
+    }
+
+    #[test]
+    fn test_validation_result_err() {
+        let r = ValidationResult::err("bad".to_string());
+        assert!(!r.is_valid);
+        assert_eq!(r.error, Some("bad".to_string()));
+        assert!(r.warning.is_none());
+    }
+
+    // ========================================================================
+    // Skill file update test
+    // ========================================================================
+
+    #[test]
+    fn test_update_skill_file_not_found() {
+        let db = Database::in_memory().unwrap();
+        // update_skill_file_from_db doesn't exist, but we can test the SQL directly
+        let result = db.conn().execute(
+            "UPDATE skill_files SET name = ?, content = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+            rusqlite::params!["new-name", "new-content", 9999],
+        );
+        // Execute succeeds but affects 0 rows
+        assert_eq!(result.unwrap(), 0);
+    }
+
+    // ========================================================================
+    // Skill with disable_model_invocation tests
+    // ========================================================================
+
+    #[test]
+    fn test_create_skill_disable_model_invocation_false() {
+        let db = Database::in_memory().unwrap();
+        let req = CreateSkillRequest {
+            name: "no-model".to_string(),
+            description: None,
+            content: "Content.".to_string(),
+            allowed_tools: None,
+            model: None,
+            disable_model_invocation: Some(false),
+            tags: None,
+        };
+        let skill = create_skill_in_db(&db, &req).unwrap();
+        assert!(!skill.disable_model_invocation);
+    }
+
+    #[test]
+    fn test_create_skill_disable_model_invocation_none_defaults_false() {
+        let db = Database::in_memory().unwrap();
+        let req = CreateSkillRequest {
+            name: "default-model".to_string(),
+            description: None,
+            content: "Content.".to_string(),
+            allowed_tools: None,
+            model: None,
+            disable_model_invocation: None,
+            tags: None,
+        };
+        let skill = create_skill_in_db(&db, &req).unwrap();
+        assert!(!skill.disable_model_invocation);
+    }
+
+    // ========================================================================
+    // Unvalidated skill creation test
+    // ========================================================================
+
+    #[test]
+    fn test_create_skill_unvalidated_allows_invalid_name() {
+        let db = Database::in_memory().unwrap();
+        let req = CreateSkillRequest {
+            name: "INVALID_NAME".to_string(),
+            description: None,
+            content: "Content.".to_string(),
+            allowed_tools: None,
+            model: None,
+            disable_model_invocation: None,
+            tags: None,
+        };
+        // Should succeed since we skip validation
+        let skill = create_skill_in_db_unvalidated(&db, &req).unwrap();
+        assert_eq!(skill.name, "INVALID_NAME");
     }
 }

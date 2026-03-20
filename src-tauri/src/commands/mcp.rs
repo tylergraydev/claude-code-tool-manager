@@ -41,41 +41,17 @@ pub fn get_all_mcps(db: State<'_, Arc<Mutex<Database>>>) -> Result<Vec<Mcp>, Str
         error!("[MCP] Failed to acquire database lock: {}", e);
         e.to_string()
     })?;
-    let mut stmt = db
-        .conn()
-        .prepare(
-            "SELECT id, name, description, type, command, args, url, headers, env,
-                    icon, tags, source, source_path, is_enabled_global, is_favorite, created_at, updated_at
-             FROM mcps ORDER BY name",
-        )
-        .map_err(|e| {
-            error!("[MCP] Failed to prepare query: {}", e);
-            e.to_string()
-        })?;
-
-    let mcps: Vec<Mcp> = stmt
-        .query_map([], row_to_mcp)
-        .map_err(|e| e.to_string())?
-        .filter_map(|r| r.ok())
-        .collect();
-
-    info!("[MCP] Loaded {} MCPs", mcps.len());
-    Ok(mcps)
+    let result = get_all_mcps_impl(&db);
+    if let Ok(ref mcps) = result {
+        info!("[MCP] Loaded {} MCPs", mcps.len());
+    }
+    result
 }
 
 #[tauri::command]
 pub fn get_mcp(db: State<'_, Arc<Mutex<Database>>>, id: i64) -> Result<Mcp, String> {
     let db = db.lock().map_err(|e| e.to_string())?;
-    let mut stmt = db
-        .conn()
-        .prepare(
-            "SELECT id, name, description, type, command, args, url, headers, env,
-                    icon, tags, source, source_path, is_enabled_global, is_favorite, created_at, updated_at
-             FROM mcps WHERE id = ?",
-        )
-        .map_err(|e| e.to_string())?;
-
-    stmt.query_row([id], row_to_mcp).map_err(|e| e.to_string())
+    get_mcp_impl(&db, id)
 }
 
 #[tauri::command]
@@ -88,7 +64,99 @@ pub fn create_mcp(
         error!("[MCP] Failed to acquire database lock: {}", e);
         e.to_string()
     })?;
+    let result = create_mcp_impl(&db_guard, &mcp);
+    if let Ok(ref created) = result {
+        info!("[MCP] Created MCP with id: {}", created.id);
+    } else if let Err(ref e) = result {
+        error!("[MCP] Failed to create MCP '{}': {}", mcp.name, e);
+    }
+    result
+}
 
+#[tauri::command]
+pub fn update_mcp(
+    db: State<'_, Arc<Mutex<Database>>>,
+    id: i64,
+    mcp: CreateMcpRequest,
+) -> Result<Mcp, String> {
+    info!("[MCP] Updating MCP id={}: {}", id, mcp.name);
+    let db = db.lock().map_err(|e| e.to_string())?;
+    update_mcp_impl(&db, id, &mcp)
+}
+
+#[tauri::command]
+pub fn delete_mcp(db: State<'_, Arc<Mutex<Database>>>, id: i64) -> Result<(), String> {
+    info!("[MCP] Deleting MCP id={}", id);
+    let db = db.lock().map_err(|e| e.to_string())?;
+    delete_mcp_impl(&db, id).map_err(|e| {
+        error!("[MCP] Failed to delete MCP id={}: {}", id, e);
+        e
+    })?;
+    info!("[MCP] Deleted MCP id={}", id);
+    Ok(())
+}
+
+#[tauri::command]
+pub fn duplicate_mcp(db: State<'_, Arc<Mutex<Database>>>, id: i64) -> Result<Mcp, String> {
+    info!("[MCP] Duplicating MCP id={}", id);
+    let db = db.lock().map_err(|e| e.to_string())?;
+    duplicate_mcp_impl(&db, id)
+}
+
+#[tauri::command]
+pub fn toggle_global_mcp(
+    db: State<'_, Arc<Mutex<Database>>>,
+    id: i64,
+    enabled: bool,
+) -> Result<(), String> {
+    info!("[MCP] Toggling global MCP id={} enabled={}", id, enabled);
+    let db = db.lock().map_err(|e| e.to_string())?;
+    toggle_global_mcp_impl(&db, id, enabled).map_err(|e| {
+        error!("[MCP] Failed to toggle global MCP id={}: {}", id, e);
+        e
+    })
+}
+
+// ============================================================================
+// Extracted business logic (no Tauri State dependency)
+// ============================================================================
+
+/// Get all MCPs from the database
+pub(crate) fn get_all_mcps_impl(db: &Database) -> Result<Vec<Mcp>, String> {
+    let mut stmt = db
+        .conn()
+        .prepare(
+            "SELECT id, name, description, type, command, args, url, headers, env,
+                    icon, tags, source, source_path, is_enabled_global, is_favorite, created_at, updated_at
+             FROM mcps ORDER BY name",
+        )
+        .map_err(|e| e.to_string())?;
+
+    let mcps: Vec<Mcp> = stmt
+        .query_map([], row_to_mcp)
+        .map_err(|e| e.to_string())?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    Ok(mcps)
+}
+
+/// Get an MCP by ID from the database
+pub(crate) fn get_mcp_impl(db: &Database, id: i64) -> Result<Mcp, String> {
+    let mut stmt = db
+        .conn()
+        .prepare(
+            "SELECT id, name, description, type, command, args, url, headers, env,
+                    icon, tags, source, source_path, is_enabled_global, is_favorite, created_at, updated_at
+             FROM mcps WHERE id = ?",
+        )
+        .map_err(|e| e.to_string())?;
+
+    stmt.query_row([id], row_to_mcp).map_err(|e| e.to_string())
+}
+
+/// Create an MCP in the database
+pub(crate) fn create_mcp_impl(db: &Database, mcp: &CreateMcpRequest) -> Result<Mcp, String> {
     let args_json = mcp.args.as_ref().map(|a| serde_json::to_string(a).unwrap());
     let headers_json = mcp
         .headers
@@ -97,7 +165,7 @@ pub fn create_mcp(
     let env_json = mcp.env.as_ref().map(|e| serde_json::to_string(e).unwrap());
     let tags_json = mcp.tags.as_ref().map(|t| serde_json::to_string(t).unwrap());
 
-    db_guard.conn()
+    db.conn()
         .execute(
             "INSERT INTO mcps (name, description, type, command, args, url, headers, env, icon, tags, source)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'manual')",
@@ -114,36 +182,18 @@ pub fn create_mcp(
                 tags_json
             ],
         )
-        .map_err(|e| {
-            error!("[MCP] Failed to create MCP '{}': {}", mcp.name, e);
-            e.to_string()
-        })?;
-
-    let id = db_guard.conn().last_insert_rowid();
-    info!("[MCP] Created MCP with id: {}", id);
-
-    // Fetch the newly created MCP
-    let mut stmt = db_guard
-        .conn()
-        .prepare(
-            "SELECT id, name, description, type, command, args, url, headers, env,
-                    icon, tags, source, source_path, is_enabled_global, is_favorite, created_at, updated_at
-             FROM mcps WHERE id = ?",
-        )
         .map_err(|e| e.to_string())?;
 
-    stmt.query_row([id], row_to_mcp).map_err(|e| e.to_string())
+    let id = db.conn().last_insert_rowid();
+    get_mcp_impl(db, id)
 }
 
-#[tauri::command]
-pub fn update_mcp(
-    db: State<'_, Arc<Mutex<Database>>>,
+/// Update an MCP in the database
+pub(crate) fn update_mcp_impl(
+    db: &Database,
     id: i64,
-    mcp: CreateMcpRequest,
+    mcp: &CreateMcpRequest,
 ) -> Result<Mcp, String> {
-    info!("[MCP] Updating MCP id={}: {}", id, mcp.name);
-    let db = db.lock().map_err(|e| e.to_string())?;
-
     let args_json = mcp.args.as_ref().map(|a| serde_json::to_string(a).unwrap());
     let headers_json = mcp
         .headers
@@ -173,38 +223,19 @@ pub fn update_mcp(
         )
         .map_err(|e| e.to_string())?;
 
-    // Re-fetch the updated MCP
-    let mut stmt = db
-        .conn()
-        .prepare(
-            "SELECT id, name, description, type, command, args, url, headers, env,
-                    icon, tags, source, source_path, is_enabled_global, is_favorite, created_at, updated_at
-             FROM mcps WHERE id = ?",
-        )
-        .map_err(|e| e.to_string())?;
-
-    stmt.query_row([id], row_to_mcp).map_err(|e| e.to_string())
+    get_mcp_impl(db, id)
 }
 
-#[tauri::command]
-pub fn delete_mcp(db: State<'_, Arc<Mutex<Database>>>, id: i64) -> Result<(), String> {
-    info!("[MCP] Deleting MCP id={}", id);
-    let db = db.lock().map_err(|e| e.to_string())?;
+/// Delete an MCP from the database
+pub(crate) fn delete_mcp_impl(db: &Database, id: i64) -> Result<(), String> {
     db.conn()
         .execute("DELETE FROM mcps WHERE id = ?", [id])
-        .map_err(|e| {
-            error!("[MCP] Failed to delete MCP id={}: {}", id, e);
-            e.to_string()
-        })?;
-    info!("[MCP] Deleted MCP id={}", id);
+        .map_err(|e| e.to_string())?;
     Ok(())
 }
 
-#[tauri::command]
-pub fn duplicate_mcp(db: State<'_, Arc<Mutex<Database>>>, id: i64) -> Result<Mcp, String> {
-    info!("[MCP] Duplicating MCP id={}", id);
-    let db = db.lock().map_err(|e| e.to_string())?;
-
+/// Duplicate an MCP in the database
+pub(crate) fn duplicate_mcp_impl(db: &Database, id: i64) -> Result<Mcp, String> {
     // Get original
     let mut stmt = db
         .conn()
@@ -243,7 +274,7 @@ pub fn duplicate_mcp(db: State<'_, Arc<Mutex<Database>>>, id: i64) -> Result<Mcp
         .map_err(|e| e.to_string())?;
 
     // Create copy with new name
-    let new_name = format!("{}-copy", name);
+    let new_name = generate_duplicate_name(&name);
     db.conn()
         .execute(
             "INSERT INTO mcps (name, description, type, command, args, url, headers, env, icon, tags, source)
@@ -253,169 +284,67 @@ pub fn duplicate_mcp(db: State<'_, Arc<Mutex<Database>>>, id: i64) -> Result<Mcp
         .map_err(|e| e.to_string())?;
 
     let new_id = db.conn().last_insert_rowid();
-
-    // Re-fetch
-    let mut stmt = db
-        .conn()
-        .prepare(
-            "SELECT id, name, description, type, command, args, url, headers, env,
-                    icon, tags, source, source_path, is_enabled_global, is_favorite, created_at, updated_at
-             FROM mcps WHERE id = ?",
-        )
-        .map_err(|e| e.to_string())?;
-
-    stmt.query_row([new_id], row_to_mcp)
-        .map_err(|e| e.to_string())
+    get_mcp_impl(db, new_id)
 }
 
-#[tauri::command]
-pub fn toggle_global_mcp(
-    db: State<'_, Arc<Mutex<Database>>>,
+/// Toggle global MCP enabled status in the database
+pub(crate) fn toggle_global_mcp_impl(db: &Database, id: i64, enabled: bool) -> Result<(), String> {
+    db.conn()
+        .execute(
+            "UPDATE mcps SET is_enabled_global = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+            params![enabled as i32, id],
+        )
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+/// Toggle MCP favorite status in the database
+pub(crate) fn toggle_mcp_favorite_impl(
+    db: &Database,
     id: i64,
-    enabled: bool,
+    favorite: bool,
 ) -> Result<(), String> {
-    info!("[MCP] Toggling global MCP id={} enabled={}", id, enabled);
-    let db = db.lock().map_err(|e| e.to_string())?;
     db.conn()
         .execute(
-            "UPDATE mcps SET is_enabled_global = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-            params![enabled as i32, id],
+            "UPDATE mcps SET is_favorite = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+            params![favorite as i32, id],
         )
-        .map_err(|e| {
-            error!("[MCP] Failed to toggle global MCP id={}: {}", id, e);
-            e.to_string()
-        })?;
-    Ok(())
-}
-
-// ============================================================================
-// Database operations (for testing without Tauri state)
-// ============================================================================
-
-/// Create an MCP directly in the database (for testing)
-#[cfg(test)]
-pub fn create_mcp_in_db(db: &Database, mcp: &CreateMcpRequest) -> Result<Mcp, String> {
-    let args_json = mcp.args.as_ref().map(|a| serde_json::to_string(a).unwrap());
-    let headers_json = mcp
-        .headers
-        .as_ref()
-        .map(|h| serde_json::to_string(h).unwrap());
-    let env_json = mcp.env.as_ref().map(|e| serde_json::to_string(e).unwrap());
-    let tags_json = mcp.tags.as_ref().map(|t| serde_json::to_string(t).unwrap());
-
-    db.conn()
-        .execute(
-            "INSERT INTO mcps (name, description, type, command, args, url, headers, env, icon, tags, source)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'manual')",
-            params![
-                mcp.name,
-                mcp.description,
-                mcp.mcp_type,
-                mcp.command,
-                args_json,
-                mcp.url,
-                headers_json,
-                env_json,
-                mcp.icon,
-                tags_json
-            ],
-        )
-        .map_err(|e| e.to_string())?;
-
-    let id = db.conn().last_insert_rowid();
-    get_mcp_by_id(db, id)
-}
-
-/// Get an MCP by ID directly from the database (for testing)
-#[cfg(test)]
-pub fn get_mcp_by_id(db: &Database, id: i64) -> Result<Mcp, String> {
-    let mut stmt = db
-        .conn()
-        .prepare(
-            "SELECT id, name, description, type, command, args, url, headers, env,
-                    icon, tags, source, source_path, is_enabled_global, is_favorite, created_at, updated_at
-             FROM mcps WHERE id = ?",
-        )
-        .map_err(|e| e.to_string())?;
-
-    stmt.query_row([id], row_to_mcp).map_err(|e| e.to_string())
-}
-
-/// Get all MCPs directly from the database (for testing)
-#[cfg(test)]
-pub fn get_all_mcps_from_db(db: &Database) -> Result<Vec<Mcp>, String> {
-    let mut stmt = db
-        .conn()
-        .prepare(
-            "SELECT id, name, description, type, command, args, url, headers, env,
-                    icon, tags, source, source_path, is_enabled_global, is_favorite, created_at, updated_at
-             FROM mcps ORDER BY name",
-        )
-        .map_err(|e| e.to_string())?;
-
-    let mcps: Vec<Mcp> = stmt
-        .query_map([], row_to_mcp)
-        .map_err(|e| e.to_string())?
-        .filter_map(|r| r.ok())
-        .collect();
-
-    Ok(mcps)
-}
-
-/// Update an MCP directly in the database (for testing)
-#[cfg(test)]
-pub fn update_mcp_in_db(db: &Database, id: i64, mcp: &CreateMcpRequest) -> Result<Mcp, String> {
-    let args_json = mcp.args.as_ref().map(|a| serde_json::to_string(a).unwrap());
-    let headers_json = mcp
-        .headers
-        .as_ref()
-        .map(|h| serde_json::to_string(h).unwrap());
-    let env_json = mcp.env.as_ref().map(|e| serde_json::to_string(e).unwrap());
-    let tags_json = mcp.tags.as_ref().map(|t| serde_json::to_string(t).unwrap());
-
-    db.conn()
-        .execute(
-            "UPDATE mcps SET name = ?, description = ?, type = ?, command = ?, args = ?,
-             url = ?, headers = ?, env = ?, icon = ?, tags = ?, updated_at = CURRENT_TIMESTAMP
-             WHERE id = ?",
-            params![
-                mcp.name,
-                mcp.description,
-                mcp.mcp_type,
-                mcp.command,
-                args_json,
-                mcp.url,
-                headers_json,
-                env_json,
-                mcp.icon,
-                tags_json,
-                id
-            ],
-        )
-        .map_err(|e| e.to_string())?;
-
-    get_mcp_by_id(db, id)
-}
-
-/// Delete an MCP directly from the database (for testing)
-#[cfg(test)]
-pub fn delete_mcp_from_db(db: &Database, id: i64) -> Result<(), String> {
-    db.conn()
-        .execute("DELETE FROM mcps WHERE id = ?", [id])
         .map_err(|e| e.to_string())?;
     Ok(())
 }
 
-/// Toggle global MCP directly in the database (for testing)
-#[cfg(test)]
-pub fn toggle_global_mcp_in_db(db: &Database, id: i64, enabled: bool) -> Result<(), String> {
-    db.conn()
-        .execute(
-            "UPDATE mcps SET is_enabled_global = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-            params![enabled as i32, id],
-        )
-        .map_err(|e| e.to_string())?;
-    Ok(())
+/// Generate a duplicate name by appending "-copy" suffix
+pub(crate) fn generate_duplicate_name(name: &str) -> String {
+    format!("{}-copy", name)
+}
+
+// Convenience aliases (promoted from #[cfg(test)] for cross-module reuse)
+pub(crate) fn create_mcp_in_db(db: &Database, mcp: &CreateMcpRequest) -> Result<Mcp, String> {
+    create_mcp_impl(db, mcp)
+}
+
+pub(crate) fn get_mcp_by_id(db: &Database, id: i64) -> Result<Mcp, String> {
+    get_mcp_impl(db, id)
+}
+
+pub(crate) fn get_all_mcps_from_db(db: &Database) -> Result<Vec<Mcp>, String> {
+    get_all_mcps_impl(db)
+}
+
+pub(crate) fn update_mcp_in_db(
+    db: &Database,
+    id: i64,
+    mcp: &CreateMcpRequest,
+) -> Result<Mcp, String> {
+    update_mcp_impl(db, id, mcp)
+}
+
+pub(crate) fn delete_mcp_from_db(db: &Database, id: i64) -> Result<(), String> {
+    delete_mcp_impl(db, id)
+}
+
+pub(crate) fn toggle_global_mcp_in_db(db: &Database, id: i64, enabled: bool) -> Result<(), String> {
+    toggle_global_mcp_impl(db, id, enabled)
 }
 
 #[tauri::command]
@@ -425,13 +354,7 @@ pub fn toggle_mcp_favorite(
     favorite: bool,
 ) -> Result<(), String> {
     let db = db.lock().map_err(|e| e.to_string())?;
-    db.conn()
-        .execute(
-            "UPDATE mcps SET is_favorite = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-            params![favorite as i32, id],
-        )
-        .map_err(|e| e.to_string())?;
-    Ok(())
+    toggle_mcp_favorite_impl(&db, id, favorite)
 }
 
 #[cfg(test)]
@@ -852,5 +775,59 @@ mod tests {
     fn test_parse_json_map_invalid() {
         let result = parse_json_map(Some("invalid".to_string()));
         assert_eq!(result, None);
+    }
+
+    // ========================================================================
+    // Duplicate MCP tests
+    // ========================================================================
+
+    #[test]
+    fn test_generate_duplicate_name() {
+        assert_eq!(generate_duplicate_name("my-mcp"), "my-mcp-copy");
+        assert_eq!(generate_duplicate_name("a"), "a-copy");
+        assert_eq!(generate_duplicate_name("already-copy"), "already-copy-copy");
+    }
+
+    #[test]
+    fn test_duplicate_mcp_impl() {
+        let db = Database::in_memory().unwrap();
+        let req = sample_stdio_mcp();
+        let original = create_mcp_in_db(&db, &req).unwrap();
+
+        let duplicated = duplicate_mcp_impl(&db, original.id).unwrap();
+
+        assert_ne!(duplicated.id, original.id);
+        assert_eq!(duplicated.name, "test-mcp-copy");
+        assert_eq!(duplicated.description, original.description);
+        assert_eq!(duplicated.mcp_type, original.mcp_type);
+        assert_eq!(duplicated.command, original.command);
+        assert_eq!(duplicated.source, "manual");
+    }
+
+    #[test]
+    fn test_duplicate_mcp_not_found() {
+        let db = Database::in_memory().unwrap();
+        let result = duplicate_mcp_impl(&db, 9999);
+        assert!(result.is_err());
+    }
+
+    // ========================================================================
+    // Toggle favorite tests
+    // ========================================================================
+
+    #[test]
+    fn test_toggle_mcp_favorite_impl() {
+        let db = Database::in_memory().unwrap();
+        let req = sample_stdio_mcp();
+        let created = create_mcp_in_db(&db, &req).unwrap();
+        assert!(!created.is_favorite);
+
+        toggle_mcp_favorite_impl(&db, created.id, true).unwrap();
+        let updated = get_mcp_by_id(&db, created.id).unwrap();
+        assert!(updated.is_favorite);
+
+        toggle_mcp_favorite_impl(&db, created.id, false).unwrap();
+        let updated = get_mcp_by_id(&db, created.id).unwrap();
+        assert!(!updated.is_favorite);
     }
 }

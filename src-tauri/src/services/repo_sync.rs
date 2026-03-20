@@ -754,4 +754,269 @@ mod tests {
             );
         }
     }
+
+    // =========================================================================
+    // Additional coverage tests
+    // =========================================================================
+
+    #[test]
+    fn test_save_repo_items_empty_keeps_existing() {
+        let db = Database::in_memory().unwrap();
+        let repo_id = create_test_repo(&db);
+
+        // First add some items
+        let items = vec![ParsedItem {
+            name: "existing-skill".to_string(),
+            description: None,
+            item_type: "skill".to_string(),
+            source_url: None,
+            raw_content: None,
+            file_path: None,
+            metadata: None,
+        }];
+        save_repo_items(&db, repo_id, &items).unwrap();
+
+        // Now try to save empty items - should keep existing
+        let result = save_repo_items(&db, repo_id, &[]).unwrap();
+        assert_eq!(result.added, 0);
+        assert!(!result.errors.is_empty());
+
+        // Original items should still be there
+        let existing = get_repo_items(&db, repo_id).unwrap();
+        assert_eq!(existing.len(), 1);
+        assert_eq!(existing[0].name, "existing-skill");
+    }
+
+    #[test]
+    fn test_update_repo_items_with_all_fields() {
+        let db = Database::in_memory().unwrap();
+        let repo_id = create_test_repo(&db);
+
+        let items = vec![ParsedItem {
+            name: "full-item".to_string(),
+            description: Some("Full description".to_string()),
+            item_type: "skill".to_string(),
+            source_url: Some("https://github.com/owner/repo/blob/main/skill.md".to_string()),
+            raw_content: Some("# Full Content\nWith body".to_string()),
+            file_path: Some("skills/full-item.md".to_string()),
+            metadata: Some(r#"{"key": "value"}"#.to_string()),
+        }];
+
+        let result = update_repo_items(&db, repo_id, &items).unwrap();
+        assert_eq!(result.added, 1);
+
+        let fetched = get_repo_items(&db, repo_id).unwrap();
+        assert_eq!(fetched.len(), 1);
+        assert_eq!(fetched[0].description, Some("Full description".to_string()));
+        assert!(fetched[0].source_url.is_some());
+        assert!(fetched[0].raw_content.is_some());
+        assert!(fetched[0].file_path.is_some());
+        assert!(fetched[0].metadata.is_some());
+    }
+
+    #[test]
+    fn test_get_all_repo_items_empty() {
+        let db = Database::in_memory().unwrap();
+        let result = get_all_repo_items(&db, None).unwrap();
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn test_get_all_repo_items_nonexistent_type() {
+        let db = Database::in_memory().unwrap();
+        let repo_id = create_test_repo(&db);
+
+        let items = vec![ParsedItem {
+            name: "item".to_string(),
+            description: None,
+            item_type: "skill".to_string(),
+            source_url: None,
+            raw_content: None,
+            file_path: None,
+            metadata: None,
+        }];
+        update_repo_items(&db, repo_id, &items).unwrap();
+
+        // Filter by a type that has no items
+        let result = get_all_repo_items(&db, Some("mcp".to_string())).unwrap();
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn test_update_repo_items_multiple_types() {
+        let db = Database::in_memory().unwrap();
+        let repo_id = create_test_repo(&db);
+
+        let items = vec![
+            ParsedItem {
+                name: "skill-1".to_string(),
+                description: None,
+                item_type: "skill".to_string(),
+                source_url: None,
+                raw_content: None,
+                file_path: None,
+                metadata: None,
+            },
+            ParsedItem {
+                name: "mcp-1".to_string(),
+                description: None,
+                item_type: "mcp".to_string(),
+                source_url: None,
+                raw_content: None,
+                file_path: None,
+                metadata: None,
+            },
+            ParsedItem {
+                name: "agent-1".to_string(),
+                description: None,
+                item_type: "subagent".to_string(),
+                source_url: None,
+                raw_content: None,
+                file_path: None,
+                metadata: None,
+            },
+        ];
+
+        let result = update_repo_items(&db, repo_id, &items).unwrap();
+        assert_eq!(result.added, 3);
+        assert_eq!(result.errors.len(), 0);
+
+        // Filter each type
+        let skills = get_all_repo_items(&db, Some("skill".to_string())).unwrap();
+        assert_eq!(skills.len(), 1);
+
+        let mcps = get_all_repo_items(&db, Some("mcp".to_string())).unwrap();
+        assert_eq!(mcps.len(), 1);
+
+        let agents = get_all_repo_items(&db, Some("subagent".to_string())).unwrap();
+        assert_eq!(agents.len(), 1);
+    }
+
+    #[test]
+    fn test_save_repo_items_updates_timestamp() {
+        let db = Database::in_memory().unwrap();
+        let repo_id = create_test_repo(&db);
+
+        let items = vec![ParsedItem {
+            name: "ts-item".to_string(),
+            description: None,
+            item_type: "skill".to_string(),
+            source_url: None,
+            raw_content: None,
+            file_path: None,
+            metadata: None,
+        }];
+
+        save_repo_items(&db, repo_id, &items).unwrap();
+
+        // Verify updated_at was set
+        let updated_at: Option<String> = db
+            .conn()
+            .query_row(
+                "SELECT updated_at FROM repos WHERE id = ?",
+                params![repo_id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert!(updated_at.is_some());
+    }
+
+    #[test]
+    fn test_get_all_repos_repo_fields() {
+        let db = Database::in_memory().unwrap();
+        let repo_id = create_test_repo(&db);
+
+        let repos = get_all_repos(&db).unwrap();
+        let repo = repos.iter().find(|r| r.id == repo_id).unwrap();
+        assert_eq!(repo.owner, "testowner");
+        assert_eq!(repo.repo_type, "file_based");
+        assert_eq!(repo.content_type, "skill");
+        assert!(!repo.is_default);
+        assert!(repo.is_enabled);
+        assert!(repo.last_fetched_at.is_none());
+        assert!(repo.etag.is_none());
+    }
+
+    #[test]
+    fn test_get_repo_items_sorted_by_name() {
+        let db = Database::in_memory().unwrap();
+        let repo_id = create_test_repo(&db);
+
+        let items = vec![
+            ParsedItem {
+                name: "zebra".to_string(),
+                description: None,
+                item_type: "skill".to_string(),
+                source_url: None,
+                raw_content: None,
+                file_path: None,
+                metadata: None,
+            },
+            ParsedItem {
+                name: "alpha".to_string(),
+                description: None,
+                item_type: "skill".to_string(),
+                source_url: None,
+                raw_content: None,
+                file_path: None,
+                metadata: None,
+            },
+        ];
+        update_repo_items(&db, repo_id, &items).unwrap();
+
+        let fetched = get_repo_items(&db, repo_id).unwrap();
+        assert_eq!(fetched[0].name, "alpha");
+        assert_eq!(fetched[1].name, "zebra");
+    }
+
+    #[test]
+    fn test_default_repos_descriptions_non_empty() {
+        for (name, _, _, _, description) in DEFAULT_REPOS {
+            assert!(
+                !description.is_empty(),
+                "Default repo {} has empty description",
+                name
+            );
+        }
+    }
+
+    #[test]
+    fn test_update_repo_items_complete_replacement() {
+        let db = Database::in_memory().unwrap();
+        let repo_id = create_test_repo(&db);
+
+        // Insert 5 items
+        let items1: Vec<ParsedItem> = (0..5)
+            .map(|i| ParsedItem {
+                name: format!("item-{}", i),
+                description: None,
+                item_type: "skill".to_string(),
+                source_url: None,
+                raw_content: None,
+                file_path: None,
+                metadata: None,
+            })
+            .collect();
+        update_repo_items(&db, repo_id, &items1).unwrap();
+
+        // Replace with 3 different items
+        let items2: Vec<ParsedItem> = (10..13)
+            .map(|i| ParsedItem {
+                name: format!("new-item-{}", i),
+                description: None,
+                item_type: "skill".to_string(),
+                source_url: None,
+                raw_content: None,
+                file_path: None,
+                metadata: None,
+            })
+            .collect();
+        let result = update_repo_items(&db, repo_id, &items2).unwrap();
+
+        assert_eq!(result.added, 3);
+        assert_eq!(result.removed, 5);
+
+        let all = get_repo_items(&db, repo_id).unwrap();
+        assert_eq!(all.len(), 3);
+    }
 }
