@@ -43,7 +43,7 @@
 		return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 	}
 
-	const labelIndices = $derived(() => {
+	const labelIndices = $derived.by(() => {
 		if (data.length <= 8) return data.map((_, i) => i);
 		const step = Math.ceil(data.length / 8);
 		const indices: number[] = [];
@@ -145,7 +145,7 @@
 				{/each}
 
 				<!-- X-axis labels -->
-				{#each labelIndices() as li}
+				{#each labelIndices as li}
 					<text
 						x={barX(li) + barWidth / 2}
 						y={chartHeight - 8}

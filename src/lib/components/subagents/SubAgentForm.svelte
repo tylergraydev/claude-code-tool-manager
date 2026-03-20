@@ -2,6 +2,7 @@
 	import type { CreateSubAgentRequest, SubAgent } from '$lib/types';
 	import { parseSubAgentMarkdown, type ParsedSubAgent } from '$lib/utils/markdownParser';
 	import { Clipboard, Check, AlertCircle, FileUp } from 'lucide-svelte';
+	import { i18n } from '$lib/i18n';
 
 	type Props = {
 		initialValues?: Partial<SubAgent>;
@@ -39,7 +40,7 @@
 		if (subagent.tags) tagsInput = subagent.tags.join(', ');
 
 		importStatus = 'success';
-		importMessage = subagent.name ? `Imported "${subagent.name}"` : 'Content imported';
+		importMessage = subagent.name ? i18n.t('commandForm.imported', { name: subagent.name }) : i18n.t('commandForm.contentImported');
 
 		setTimeout(() => {
 			importStatus = 'idle';
@@ -71,7 +72,7 @@
 				applyParsedSubAgent(result.data);
 			} else {
 				importStatus = 'error';
-				importMessage = result.error ?? 'Could not parse clipboard content';
+				importMessage = result.error ?? i18n.t('commandForm.clipboardParseError');
 				setTimeout(() => {
 					importStatus = 'idle';
 					importMessage = '';
@@ -79,7 +80,7 @@
 			}
 		} catch {
 			importStatus = 'error';
-			importMessage = 'Could not access clipboard';
+			importMessage = i18n.t('commandForm.clipboardError');
 			setTimeout(() => {
 				importStatus = 'idle';
 				importMessage = '';
@@ -103,7 +104,7 @@
 					applyParsedSubAgent(result.data);
 				} else {
 					importStatus = 'error';
-					importMessage = result.error ?? 'Could not parse file';
+					importMessage = result.error ?? i18n.t('commandForm.fileParseError');
 					setTimeout(() => {
 						importStatus = 'idle';
 						importMessage = '';
@@ -111,7 +112,7 @@
 				}
 			} catch {
 				importStatus = 'error';
-				importMessage = 'Could not read file';
+				importMessage = i18n.t('commandForm.fileReadError');
 				setTimeout(() => {
 					importStatus = 'idle';
 					importMessage = '';
@@ -121,39 +122,39 @@
 		input.click();
 	}
 
-	const modelOptions = [
-		{ value: '', label: 'Default (inherit from parent)' },
-		{ value: 'sonnet', label: 'Sonnet' },
-		{ value: 'opus', label: 'Opus' },
-		{ value: 'haiku', label: 'Haiku' },
-		{ value: 'inherit', label: 'Inherit (use main conversation model)' }
-	];
+	const modelOptions = $derived([
+		{ value: '', label: i18n.t('subagentForm.modelDefault') },
+		{ value: 'sonnet', label: i18n.t('subagentForm.modelSonnet') },
+		{ value: 'opus', label: i18n.t('subagentForm.modelOpus') },
+		{ value: 'haiku', label: i18n.t('subagentForm.modelHaiku') },
+		{ value: 'inherit', label: i18n.t('subagentForm.modelInherit') }
+	]);
 
-	const permissionModeOptions = [
-		{ value: '', label: 'Default (standard permission prompting)' },
-		{ value: 'default', label: 'Default' },
-		{ value: 'acceptEdits', label: 'Accept Edits (auto-accepts file edits)' },
-		{ value: 'dontAsk', label: "Don't Ask (skip permission prompts)" },
-		{ value: 'bypassPermissions', label: 'Bypass Permissions (use with caution)' },
-		{ value: 'plan', label: 'Plan (read-only exploration)' },
-		{ value: 'ignore', label: 'Ignore (skip this permission mode)' }
-	];
+	const permissionModeOptions = $derived([
+		{ value: '', label: i18n.t('subagentForm.permDefault') },
+		{ value: 'default', label: i18n.t('subagentForm.permDefaultShort') },
+		{ value: 'acceptEdits', label: i18n.t('subagentForm.permAcceptEdits') },
+		{ value: 'dontAsk', label: i18n.t('subagentForm.permDontAsk') },
+		{ value: 'bypassPermissions', label: i18n.t('subagentForm.permBypass') },
+		{ value: 'plan', label: i18n.t('subagentForm.permPlan') },
+		{ value: 'ignore', label: i18n.t('subagentForm.permIgnore') }
+	]);
 
 	function validate(): boolean {
 		errors = {};
 
 		if (!name.trim()) {
-			errors.name = 'Name is required';
+			errors.name = i18n.t('subagentForm.nameRequired');
 		} else if (!/^[a-z][a-z0-9-]*$/.test(name.trim())) {
-			errors.name = 'Name must start with a lowercase letter and contain only lowercase letters, numbers, and hyphens';
+			errors.name = i18n.t('subagentForm.nameInvalid');
 		}
 
 		if (!description.trim()) {
-			errors.description = 'Description is required';
+			errors.description = i18n.t('subagentForm.descRequired');
 		}
 
 		if (!content.trim()) {
-			errors.content = 'Content is required';
+			errors.content = i18n.t('subagentForm.contentRequired');
 		}
 
 		return Object.keys(errors).length === 0;
@@ -221,10 +222,10 @@
 						</p>
 					{:else}
 						<p class="text-sm font-medium text-gray-700 dark:text-gray-300">
-							Import from Markdown
+							{i18n.t('subagentForm.importTitle')}
 						</p>
 						<p class="text-xs text-gray-500 dark:text-gray-400">
-							Paste or import a <code class="px-1 bg-gray-200 dark:bg-gray-700 rounded">.md</code> file with YAML frontmatter
+							{i18n.t('subagentForm.importDesc')}
 						</p>
 					{/if}
 				</div>
@@ -236,7 +237,7 @@
 					class="btn btn-secondary text-sm"
 				>
 					<FileUp class="w-4 h-4 mr-1.5" />
-					File
+					{i18n.t('common.file')}
 				</button>
 				<button
 					type="button"
@@ -244,7 +245,7 @@
 					class="btn btn-secondary text-sm"
 				>
 					<Clipboard class="w-4 h-4 mr-1.5" />
-					Paste
+					{i18n.t('common.paste')}
 				</button>
 			</div>
 		</div>
@@ -253,7 +254,7 @@
 	<!-- Name -->
 	<div>
 		<label for="name" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-			Name <span class="text-red-500">*</span>
+			{i18n.t('common.name')} <span class="text-red-500">*</span>
 		</label>
 		<input
 			type="text"
@@ -261,13 +262,13 @@
 			bind:value={name}
 			class="input mt-1"
 			class:border-red-500={errors.name}
-			placeholder="my-sub-agent"
+			placeholder={i18n.t('subagentForm.namePlaceholder')}
 		/>
 		{#if errors.name}
 			<p class="mt-1 text-sm text-red-500">{errors.name}</p>
 		{:else}
 			<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-				This will be the sub-agent's identifier
+				{i18n.t('subagentForm.nameHelp')}
 			</p>
 		{/if}
 	</div>
@@ -275,7 +276,7 @@
 	<!-- Description -->
 	<div>
 		<label for="description" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-			Description <span class="text-red-500">*</span>
+			{i18n.t('common.description')} <span class="text-red-500">*</span>
 		</label>
 		<textarea
 			id="description"
@@ -283,13 +284,13 @@
 			rows={2}
 			class="input mt-1 resize-none"
 			class:border-red-500={errors.description}
-			placeholder="What this sub-agent does and when to use it"
+			placeholder={i18n.t('subagentForm.descPlaceholder')}
 		></textarea>
 		{#if errors.description}
 			<p class="mt-1 text-sm text-red-500">{errors.description}</p>
 		{:else}
 			<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-				Claude uses this to decide when to delegate to this sub-agent
+				{i18n.t('subagentForm.descHelp')}
 			</p>
 		{/if}
 	</div>
@@ -297,7 +298,7 @@
 	<!-- Model -->
 	<div>
 		<label for="model" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-			Model
+			{i18n.t('subagentForm.model')}
 		</label>
 		<select
 			id="model"
@@ -309,14 +310,14 @@
 			{/each}
 		</select>
 		<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-			Optional model override for this sub-agent
+			{i18n.t('subagentForm.modelHelp')}
 		</p>
 	</div>
 
 	<!-- Permission Mode -->
 	<div>
 		<label for="permissionMode" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-			Permission Mode
+			{i18n.t('subagentForm.permissionMode')}
 		</label>
 		<select
 			id="permissionMode"
@@ -328,48 +329,48 @@
 			{/each}
 		</select>
 		<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-			Controls how the sub-agent handles permission requests
+			{i18n.t('subagentForm.permissionHelp')}
 		</p>
 	</div>
 
 	<!-- Tools -->
 	<div>
 		<label for="tools" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-			Allowed Tools
+			{i18n.t('commandForm.allowedTools')}
 		</label>
 		<input
 			type="text"
 			id="tools"
 			bind:value={toolsInput}
 			class="input mt-1"
-			placeholder="Read, Edit, Bash, Glob, Grep"
+			placeholder={i18n.t('subagentForm.allowedToolsPlaceholder')}
 		/>
 		<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-			Comma-separated list of tools. Leave empty to inherit all tools from parent.
+			{i18n.t('subagentForm.allowedToolsHelp')}
 		</p>
 	</div>
 
 	<!-- Skills -->
 	<div>
 		<label for="skills" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-			Auto-load Skills
+			{i18n.t('subagentForm.autoLoadSkills')}
 		</label>
 		<input
 			type="text"
 			id="skills"
 			bind:value={skillsInput}
 			class="input mt-1"
-			placeholder="commit, review-pr, deploy"
+			placeholder={i18n.t('subagentForm.autoLoadPlaceholder')}
 		/>
 		<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-			Comma-separated list of skills to automatically load when sub-agent starts
+			{i18n.t('subagentForm.autoLoadHelp')}
 		</p>
 	</div>
 
 	<!-- Content -->
 	<div>
 		<label for="content" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-			Sub-Agent Prompt <span class="text-red-500">*</span>
+			{i18n.t('subagentForm.prompt')} <span class="text-red-500">*</span>
 		</label>
 		<textarea
 			id="content"
@@ -393,7 +394,7 @@
 			<p class="mt-1 text-sm text-red-500">{errors.content}</p>
 		{:else}
 			<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-				The system prompt that defines this sub-agent's behavior
+				{i18n.t('subagentForm.promptHelp')}
 			</p>
 		{/if}
 	</div>
@@ -401,27 +402,27 @@
 	<!-- Tags -->
 	<div>
 		<label for="tags" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-			Tags
+			{i18n.t('common.tags')}
 		</label>
 		<input
 			type="text"
 			id="tags"
 			bind:value={tagsInput}
 			class="input mt-1"
-			placeholder="code-review, testing, documentation"
+			placeholder={i18n.t('subagentForm.tagsPlaceholder')}
 		/>
 		<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-			Comma-separated tags for organization
+			{i18n.t('commandForm.tagsHelp')}
 		</p>
 	</div>
 
 	<!-- Actions -->
 	<div class="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
 		<button type="button" onclick={onCancel} class="btn btn-secondary">
-			Cancel
+			{i18n.t('common.cancel')}
 		</button>
 		<button type="submit" class="btn btn-primary" disabled={isSubmitting}>
-			{initialValues.name ? 'Update Sub-Agent' : 'Create Sub-Agent'}
+			{initialValues.name ? i18n.t('subagentForm.updateAgent') : i18n.t('subagentForm.createAgent')}
 		</button>
 	</div>
 </form>

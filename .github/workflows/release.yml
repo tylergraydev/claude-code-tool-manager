@@ -36,7 +36,7 @@ jobs:
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
 
       - name: Import Apple Developer Certificate
-        if: matrix.platform == 'macos-latest'
+        if: startsWith(matrix.platform, 'macos-')
         env:
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
@@ -60,7 +60,7 @@ jobs:
           security list-keychain -d user -s $KEYCHAIN_PATH
 
       - name: Write Apple API key to file
-        if: matrix.platform == 'macos-latest'
+        if: startsWith(matrix.platform, 'macos-')
         env:
           APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
           APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
@@ -142,7 +142,7 @@ jobs:
           args: --target ${{ matrix.target }}
 
       - name: Cleanup keychain and API key
-        if: matrix.platform == 'macos-latest' && always()
+        if: startsWith(matrix.platform, 'macos-') && always()
         run: |
           security delete-keychain $RUNNER_TEMP/app-signing.keychain-db || true
           rm -rf $RUNNER_TEMP/apple-keys || true

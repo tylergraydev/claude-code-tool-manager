@@ -774,16 +774,15 @@ impl ToolManagerServer {
 #[tool_handler]
 impl ServerHandler for ToolManagerServer {
     fn get_info(&self) -> ServerInfo {
-        ServerInfo {
-            instructions: Some(
-                "Claude Code Tool Manager MCP Server. Manage MCPs, Skills, Sub-Agents, Hooks, and Projects programmatically."
-                    .to_string(),
-            ),
-            capabilities: ServerCapabilities::builder()
+        ServerInfo::new(
+            ServerCapabilities::builder()
                 .enable_tools()
                 .build(),
-            ..Default::default()
-        }
+        )
+        .with_instructions(
+            "Claude Code Tool Manager MCP Server. Manage MCPs, Skills, Sub-Agents, Hooks, and Projects programmatically."
+                .to_string(),
+        )
     }
 }
 

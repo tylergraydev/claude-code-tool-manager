@@ -3,6 +3,7 @@
 	import { ProjectList } from '$lib/components/projects';
 	import { ConfirmDialog } from '$lib/components/shared';
 	import { projectsStore, notifications } from '$lib/stores';
+	import { i18n } from '$lib/i18n';
 	import type { Project } from '$lib/types';
 
 	let deletingProject = $state<Project | null>(null);
@@ -13,10 +14,10 @@
 			if (path) {
 				const name = path.split(/[/\\]/).pop() || 'Project';
 				await projectsStore.addProject({ name, path });
-				notifications.success('Project added');
+				notifications.success(i18n.t('project.added'));
 			}
 		} catch (err) {
-			notifications.error('Failed to add project');
+			notifications.error(i18n.t('project.addFailed'));
 		}
 	}
 
@@ -24,9 +25,9 @@
 		if (!deletingProject) return;
 		try {
 			await projectsStore.removeProject(deletingProject.id);
-			notifications.success('Project removed');
+			notifications.success(i18n.t('project.removed'));
 		} catch (err) {
-			notifications.error('Failed to remove project');
+			notifications.error(i18n.t('project.removeFailed'));
 		} finally {
 			deletingProject = null;
 		}
@@ -34,8 +35,8 @@
 </script>
 
 <Header
-	title="Projects"
-	subtitle="Manage MCP assignments for your Claude Code projects"
+	title={i18n.t('page.projects.title')}
+	subtitle={i18n.t('page.projects.subtitle')}
 />
 
 <div class="flex-1 overflow-auto p-6">
@@ -47,9 +48,9 @@
 
 <ConfirmDialog
 	open={!!deletingProject}
-	title="Remove Project"
-	message="Are you sure you want to remove '{deletingProject?.name}'? This won't delete any files."
-	confirmText="Remove"
+	title={i18n.t('project.removeProject')}
+	message={i18n.t('project.removeConfirm', { name: deletingProject?.name ?? '' })}
+	confirmText={i18n.t('common.remove')}
 	variant="warning"
 	onConfirm={handleRemoveProject}
 	onCancel={() => (deletingProject = null)}

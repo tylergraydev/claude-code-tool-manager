@@ -1,6 +1,42 @@
 import { describe, it, expect, vi, beforeAll } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/svelte';
 
+const mockI18n = {
+	t: (key: string) => {
+		const translations: Record<string, string> = {
+			'app.name': 'Claude Code',
+			'app.tagline': 'Tool Manager',
+			'nav.core': 'Core',
+			'nav.tools': 'Tools',
+			'nav.configure': 'Configure',
+			'nav.insights': 'Insights',
+			'nav.dashboard': 'Dashboard',
+			'nav.projects': 'Projects',
+			'nav.mcps': 'MCPs',
+			'nav.agents': 'Agents',
+			'nav.skills': 'Skills',
+			'nav.commands': 'Commands',
+			'nav.hooks': 'Hooks',
+			'nav.profiles': 'Profiles',
+			'nav.statusLine': 'Status Line',
+			'nav.permissions': 'Permissions',
+			'nav.memory': 'Memory',
+			'nav.marketplace': 'Marketplace',
+			'nav.analytics': 'Analytics',
+			'nav.sessions': 'Sessions',
+			'nav.comparison': 'Comparison',
+			'nav.settings': 'Settings',
+			'header.refresh': 'Refresh',
+			'header.toggleTheme': 'Toggle theme',
+			'header.switchLanguage': 'Switch language'
+		};
+		return translations[key] ?? key;
+	},
+	setLocale: vi.fn(),
+	currentLabel: 'EN',
+	nextLocale: 'zh-TW'
+};
+
 vi.mock('$lib/stores', () => ({
 	mcpLibrary: { load: vi.fn(), mcps: [] },
 	projectsStore: { loadProjects: vi.fn(), loadGlobalMcps: vi.fn(), projects: [] },
@@ -11,7 +47,8 @@ vi.mock('$lib/stores', () => ({
 		isLoadingProjects: false,
 		load: vi.fn(),
 		loadProjects: vi.fn()
-	}
+	},
+	i18n: mockI18n
 }));
 
 vi.mock('$app/stores', () => ({

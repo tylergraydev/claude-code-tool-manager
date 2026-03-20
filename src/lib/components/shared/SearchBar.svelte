@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { Search, X } from 'lucide-svelte';
+	import { i18n } from '$lib/i18n';
 
 	type Props = {
 		value: string;
@@ -7,7 +8,7 @@
 		onchange?: (value: string) => void;
 	};
 
-	let { value = $bindable(''), placeholder = 'Search...', onchange }: Props = $props();
+	let { value = $bindable(''), placeholder = i18n.t('search.placeholder'), onchange }: Props = $props();
 
 	function handleInput(e: Event) {
 		const target = e.target as HTMLInputElement;

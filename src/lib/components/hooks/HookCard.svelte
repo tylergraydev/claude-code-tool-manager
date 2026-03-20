@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { Hook } from '$lib/types';
 	import { Zap, Terminal, MessageSquare, MoreVertical, Edit, Trash2, Copy } from 'lucide-svelte';
+	import { i18n } from '$lib/i18n';
 
 	type Props = {
 		hook: Hook;
@@ -69,7 +70,7 @@
 				</span>
 				{#if hook.isTemplate}
 					<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300">
-						Template
+						{i18n.t('hook.template')}
 					</span>
 				{/if}
 			</div>
@@ -85,10 +86,10 @@
 				<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium {isCommand ? 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300' : 'bg-violet-100 text-violet-600 dark:bg-violet-900/50 dark:text-violet-300'}">
 					{#if isCommand}
 						<Terminal class="w-3 h-3" />
-						Command
+						{i18n.t('hook.command')}
 					{:else}
 						<MessageSquare class="w-3 h-3" />
-						Prompt
+						{i18n.t('hook.prompt')}
 					{/if}
 				</span>
 
@@ -145,7 +146,7 @@
 								class="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
 							>
 								<Edit class="w-4 h-4" />
-								Edit
+								{i18n.t('common.edit')}
 							</button>
 						{/if}
 						{#if onDuplicate}
@@ -157,7 +158,7 @@
 								class="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
 							>
 								<Copy class="w-4 h-4" />
-								Duplicate
+								{i18n.t('common.duplicate')}
 							</button>
 						{/if}
 						{#if onDelete}
@@ -169,7 +170,7 @@
 								class="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
 							>
 								<Trash2 class="w-4 h-4" />
-								Delete
+								{i18n.t('common.delete')}
 							</button>
 						{/if}
 					</div>

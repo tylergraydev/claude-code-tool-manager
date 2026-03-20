@@ -20,6 +20,8 @@ class SessionStoreState {
 	isLoadingProjects = $state(false);
 	isLoadingSessions = $state(false);
 	isLoadingDetail = $state(false);
+	isRefreshingProjects = $state(false);
+	isRefreshingSessions = $state(false);
 	projectsError = $state<string | null>(null);
 	sessionsError = $state<string | null>(null);
 	detailError = $state<string | null>(null);
@@ -82,7 +84,11 @@ class SessionStoreState {
 
 	async loadProjects() {
 		console.log('[sessionStore] Loading session projects...');
-		this.isLoadingProjects = true;
+		if (this.projectList) {
+			this.isRefreshingProjects = true;
+		} else {
+			this.isLoadingProjects = true;
+		}
 		this.projectsError = null;
 		try {
 			this.projectList = await invoke<ProjectListInfo>('get_session_projects');
@@ -92,12 +98,17 @@ class SessionStoreState {
 			console.error('[sessionStore] Failed to load projects:', e);
 		} finally {
 			this.isLoadingProjects = false;
+			this.isRefreshingProjects = false;
 		}
 	}
 
 	async loadSessions(folder: string) {
 		console.log('[sessionStore] Loading sessions for:', folder);
-		this.isLoadingSessions = true;
+		if (this.sessionList && this.selectedProject === folder) {
+			this.isRefreshingSessions = true;
+		} else {
+			this.isLoadingSessions = true;
+		}
 		this.sessionsError = null;
 		this.selectedProject = folder;
 		this.selectedSessionId = null;
@@ -112,6 +123,7 @@ class SessionStoreState {
 			console.error('[sessionStore] Failed to load sessions:', e);
 		} finally {
 			this.isLoadingSessions = false;
+			this.isRefreshingSessions = false;
 		}
 	}
 

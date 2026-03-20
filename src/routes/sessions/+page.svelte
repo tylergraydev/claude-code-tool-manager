@@ -7,6 +7,7 @@
 	import SessionDetailPanel from '$lib/components/sessions/SessionDetailPanel.svelte';
 	import ToolUsageChart from '$lib/components/sessions/ToolUsageChart.svelte';
 	import { sessionStore } from '$lib/stores';
+	import { i18n } from '$lib/i18n';
 	import { RefreshCw, FolderSearch, FileQuestion } from 'lucide-svelte';
 
 	onMount(() => {
@@ -21,7 +22,7 @@
 	}
 </script>
 
-<Header title="Session Explorer" subtitle="Browse individual Claude Code sessions per project" />
+<Header title={i18n.t('page.sessions.title')} subtitle={i18n.t('page.sessions.subtitle')} />
 
 <div class="flex-1 overflow-auto p-6 space-y-6">
 	{#if sessionStore.isLoadingProjects}
@@ -42,14 +43,14 @@
 		>
 			<div class="text-gray-400 dark:text-gray-500 mb-4">
 				<FileQuestion class="w-12 h-12 mx-auto mb-3 opacity-50" />
-				<p class="text-lg font-medium">No session data found</p>
+				<p class="text-lg font-medium">{i18n.t('sessions.noData')}</p>
 				<p class="text-sm mt-1">
-					Claude Code stores sessions in <code
+					{i18n.t('sessions.storedIn')} <code
 						class="text-xs bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded"
 						>~/.claude/projects/</code
 					>
 				</p>
-				<p class="text-sm mt-1">Use Claude Code to create sessions, then refresh this page.</p>
+				<p class="text-sm mt-1">{i18n.t('sessions.useClaudeCode')}</p>
 			</div>
 		</div>
 	{:else}
@@ -59,11 +60,12 @@
 		<div class="flex items-center justify-end">
 			<button
 				onclick={handleRefresh}
-				class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors"
-				title="Refresh sessions"
+				disabled={sessionStore.isRefreshingProjects}
+				class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+				title={i18n.t('sessions.refreshTitle')}
 			>
-				<RefreshCw class="w-3.5 h-3.5" />
-				Refresh
+				<RefreshCw class="w-3.5 h-3.5 {sessionStore.isRefreshingProjects ? 'animate-spin' : ''}" />
+				{sessionStore.isRefreshingProjects ? i18n.t('common.refreshing') : i18n.t('common.refresh')}
 			</button>
 		</div>
 
@@ -83,7 +85,7 @@
 				>
 					<div class="text-center text-gray-400 dark:text-gray-500">
 						<FolderSearch class="w-8 h-8 mx-auto mb-2 opacity-50" />
-						<p class="text-sm">Select a project to see tool usage</p>
+						<p class="text-sm">{i18n.t('sessions.selectProject')}</p>
 					</div>
 				</div>
 			{/if}
@@ -116,7 +118,7 @@
 				class="text-center py-8 bg-gray-50 dark:bg-gray-800/30 rounded-lg border-2 border-dashed border-gray-200 dark:border-gray-700"
 			>
 				<p class="text-sm text-gray-400 dark:text-gray-500">
-					No sessions found in this project
+					{i18n.t('sessions.noSessions')}
 				</p>
 			</div>
 		{/if}

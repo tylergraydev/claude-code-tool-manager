@@ -2,6 +2,7 @@
 	import type { CreateCommandRequest, Command } from '$lib/types';
 	import { parseSkillMarkdown } from '$lib/utils/markdownParser';
 	import { Clipboard, Check, AlertCircle, FileUp, TriangleAlert } from 'lucide-svelte';
+	import { i18n } from '$lib/i18n';
 
 	// Validation constants (matching official Claude Code documentation)
 	const MAX_NAME_LENGTH = 64;
@@ -45,7 +46,7 @@
 		if (parsed.tags) tagsInput = parsed.tags.join(', ');
 
 		importStatus = 'success';
-		importMessage = parsed.name ? `Imported "${parsed.name}"` : 'Content imported';
+		importMessage = parsed.name ? i18n.t('commandForm.imported', { name: parsed.name }) : i18n.t('commandForm.contentImported');
 
 		setTimeout(() => {
 			importStatus = 'idle';
@@ -77,7 +78,7 @@
 				applyParsedCommand(result.data);
 			} else {
 				importStatus = 'error';
-				importMessage = result.error ?? 'Could not parse clipboard content';
+				importMessage = result.error ?? i18n.t('commandForm.clipboardParseError');
 				setTimeout(() => {
 					importStatus = 'idle';
 					importMessage = '';
@@ -85,7 +86,7 @@
 			}
 		} catch {
 			importStatus = 'error';
-			importMessage = 'Could not access clipboard';
+			importMessage = i18n.t('commandForm.clipboardError');
 			setTimeout(() => {
 				importStatus = 'idle';
 				importMessage = '';
@@ -109,7 +110,7 @@
 					applyParsedCommand(result.data);
 				} else {
 					importStatus = 'error';
-					importMessage = result.error ?? 'Could not parse file';
+					importMessage = result.error ?? i18n.t('commandForm.fileParseError');
 					setTimeout(() => {
 						importStatus = 'idle';
 						importMessage = '';
@@ -117,7 +118,7 @@
 				}
 			} catch {
 				importStatus = 'error';
-				importMessage = 'Could not read file';
+				importMessage = i18n.t('commandForm.fileReadError');
 				setTimeout(() => {
 					importStatus = 'idle';
 					importMessage = '';
@@ -136,19 +137,19 @@
 
 		// Validate name
 		if (!trimmedName) {
-			errors.name = 'Name is required';
+			errors.name = i18n.t('commandForm.nameRequired');
 		} else if (trimmedName.length > MAX_NAME_LENGTH) {
-			errors.name = `Name must be ${MAX_NAME_LENGTH} characters or less (currently ${trimmedName.length})`;
+			errors.name = i18n.t('commandForm.nameTooLong', { max: MAX_NAME_LENGTH });
 		} else if (!NAME_PATTERN.test(trimmedName)) {
-			errors.name = 'Name must contain only lowercase letters, numbers, and hyphens';
+			errors.name = i18n.t('commandForm.nameInvalid');
 		} else if (trimmedName.includes('<') || trimmedName.includes('>')) {
-			errors.name = 'Name cannot contain XML tags (< or >)';
+			errors.name = i18n.t('commandForm.nameNoXml');
 		} else {
 			// Check for reserved words
 			const nameLower = trimmedName.toLowerCase();
 			for (const reserved of RESERVED_WORDS) {
 				if (nameLower.includes(reserved)) {
-					errors.name = `Name cannot contain reserved word "${reserved}"`;
+					errors.name = i18n.t('commandForm.nameReserved');
 					break;
 				}
 			}
@@ -157,20 +158,20 @@
 		// Validate description
 		if (trimmedDescription) {
 			if (trimmedDescription.length > MAX_DESCRIPTION_LENGTH) {
-				errors.description = `Description must be ${MAX_DESCRIPTION_LENGTH} characters or less (currently ${trimmedDescription.length})`;
+				errors.description = i18n.t('commandForm.descTooLong', { max: MAX_DESCRIPTION_LENGTH });
 			} else if (trimmedDescription.includes('<') || trimmedDescription.includes('>')) {
-				errors.description = 'Description cannot contain XML tags (< or >)';
+				errors.description = i18n.t('commandForm.descNoXml');
 			}
 		}
 
 		// Validate content
 		if (!trimmedContent) {
-			errors.content = 'Content is required';
+			errors.content = i18n.t('commandForm.contentRequired');
 		} else {
 			// Check line count and warn if exceeding recommendation
 			const lineCount = trimmedContent.split('\n').length;
 			if (lineCount > RECOMMENDED_MAX_CONTENT_LINES) {
-				warnings.content = `Content has ${lineCount} lines, exceeding the recommended ${RECOMMENDED_MAX_CONTENT_LINES} lines.`;
+				warnings.content = i18n.t('commandForm.contentWarning', { lines: lineCount, max: RECOMMENDED_MAX_CONTENT_LINES });
 			}
 		}
 
@@ -233,10 +234,10 @@
 						</p>
 					{:else}
 						<p class="text-sm font-medium text-gray-700 dark:text-gray-300">
-							Import from Markdown
+							{i18n.t('commandForm.importTitle')}
 						</p>
 						<p class="text-xs text-gray-500 dark:text-gray-400">
-							Paste or import a <code class="px-1 bg-gray-200 dark:bg-gray-700 rounded">.md</code> file with YAML frontmatter
+							{i18n.t('commandForm.importDesc')}
 						</p>
 					{/if}
 				</div>
@@ -248,7 +249,7 @@
 					class="btn btn-secondary text-sm"
 				>
 					<FileUp class="w-4 h-4 mr-1.5" />
-					File
+					{i18n.t('common.file')}
 				</button>
 				<button
 					type="button"
@@ -256,7 +257,7 @@
 					class="btn btn-secondary text-sm"
 				>
 					<Clipboard class="w-4 h-4 mr-1.5" />
-					Paste
+					{i18n.t('common.paste')}
 				</button>
 			</div>
 		</div>
@@ -265,7 +266,7 @@
 	<!-- Name -->
 	<div>
 		<label for="name" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-			Name <span class="text-red-500">*</span>
+			{i18n.t('common.name')} <span class="text-red-500">*</span>
 		</label>
 		<div class="relative mt-1">
 			<span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">/</span>
@@ -275,15 +276,15 @@
 				bind:value={name}
 				class="input pl-7"
 				class:border-red-500={errors.name}
-				placeholder="my-command"
+				placeholder={i18n.t('commandForm.namePlaceholder')}
 			/>
 		</div>
 		{#if errors.name}
 			<p class="mt-1 text-sm text-red-500">{errors.name}</p>
 		{:else}
 			<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-				This will create the command <code class="px-1 bg-gray-100 dark:bg-gray-700 rounded">/{name || 'name'}</code>
-				<span class="text-gray-400 dark:text-gray-500">&nbsp;·&nbsp;Lowercase letters, numbers, and hyphens only (max {MAX_NAME_LENGTH} chars)</span>
+				{i18n.t('commandForm.namePreview', { name: name || 'name' })}
+				<span class="text-gray-400 dark:text-gray-500">&nbsp;·&nbsp;{i18n.t('commandForm.nameHelp', { max: MAX_NAME_LENGTH })}</span>
 			</p>
 		{/if}
 	</div>
@@ -291,7 +292,7 @@
 	<!-- Description -->
 	<div>
 		<label for="description" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-			Description
+			{i18n.t('common.description')}
 		</label>
 		<input
 			type="text"
@@ -299,13 +300,13 @@
 			bind:value={description}
 			class="input mt-1"
 			class:border-red-500={errors.description}
-			placeholder="Brief description of what this command does"
+			placeholder={i18n.t('commandForm.descPlaceholder')}
 		/>
 		{#if errors.description}
 			<p class="mt-1 text-sm text-red-500">{errors.description}</p>
 		{:else}
 			<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-				Shown in command hints (max {MAX_DESCRIPTION_LENGTH} chars)
+				{i18n.t('commandForm.descHelp', { max: MAX_DESCRIPTION_LENGTH })}
 			</p>
 		{/if}
 	</div>
@@ -313,62 +314,61 @@
 	<!-- Allowed Tools -->
 	<div>
 		<label for="allowedTools" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-			Allowed Tools
+			{i18n.t('commandForm.allowedTools')}
 		</label>
 		<input
 			type="text"
 			id="allowedTools"
 			bind:value={allowedToolsInput}
 			class="input mt-1"
-			placeholder="Read, Edit, Bash(git:*), Glob, Grep"
+			placeholder={i18n.t('commandForm.allowedToolsPlaceholder')}
 		/>
 		<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-			Comma-separated list of tools. Use <code class="px-1 bg-gray-100 dark:bg-gray-700 rounded">*</code> for all tools.
-			Supports patterns like <code class="px-1 bg-gray-100 dark:bg-gray-700 rounded">Bash(git:*)</code>
+			{i18n.t('commandForm.allowedToolsHelp')}
 		</p>
 	</div>
 
 	<!-- Argument Hint -->
 	<div>
 		<label for="argumentHint" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-			Argument Hint
+			{i18n.t('commandForm.argumentHint')}
 		</label>
 		<input
 			type="text"
 			id="argumentHint"
 			bind:value={argumentHint}
 			class="input mt-1"
-			placeholder="[file] [--verbose] [--dry-run]"
+			placeholder={i18n.t('commandForm.argumentHintPlaceholder')}
 		/>
 		<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-			Shows user expected arguments format. Use <code class="px-1 bg-gray-100 dark:bg-gray-700 rounded">$ARGUMENTS</code> in content to receive them.
+			{i18n.t('commandForm.argumentHintHelp')}
 		</p>
 	</div>
 
 	<!-- Model Selection -->
 	<div>
 		<label for="model" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-			Model Override
+			{i18n.t('commandForm.modelOverride')}
 		</label>
 		<select
 			id="model"
 			bind:value={model}
 			class="input mt-1"
 		>
-			<option value="">Default (inherit from session)</option>
-			<option value="opus">Opus (Most capable)</option>
-			<option value="sonnet">Sonnet (Balanced)</option>
-			<option value="haiku">Haiku (Fast & efficient)</option>
+			<option value="">{i18n.t('commandForm.modelDefault')}</option>
+			<option value="opus">{i18n.t('commandForm.modelOpus')}</option>
+			<option value="sonnet">{i18n.t('commandForm.modelSonnet')}</option>
+			<option value="haiku">{i18n.t('commandForm.modelHaiku')}</option>
 		</select>
 		<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-			Optionally force a specific model when executing this command
+			{i18n.t('commandForm.modelHelp')}
 		</p>
 	</div>
 
 	<!-- Content -->
 	<div>
 		<label for="content" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-			Command Prompt <span class="text-red-500">*</span>
+			{i18n.t('commandForm.commandPrompt')} <span class="text-red-500">*</span>
 		</label>
 		<textarea
 			id="content"
@@ -396,7 +396,7 @@ $ARGUMENTS will be replaced with user input.`}
 				</div>
 			{/if}
 			<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-				Use <code class="px-1 bg-gray-100 dark:bg-gray-700 rounded">$ARGUMENTS</code> to include user-provided arguments
+				{i18n.t('commandForm.commandPromptHelp')}
 			</p>
 		{/if}
 	</div>
@@ -404,27 +404,27 @@ $ARGUMENTS will be replaced with user input.`}
 	<!-- Tags -->
 	<div>
 		<label for="tags" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-			Tags
+			{i18n.t('common.tags')}
 		</label>
 		<input
 			type="text"
 			id="tags"
 			bind:value={tagsInput}
 			class="input mt-1"
-			placeholder="utility, git, deployment"
+			placeholder={i18n.t('commandForm.tagsPlaceholder')}
 		/>
 		<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-			Comma-separated tags for organization
+			{i18n.t('commandForm.tagsHelp')}
 		</p>
 	</div>
 
 	<!-- Actions -->
 	<div class="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
 		<button type="button" onclick={onCancel} class="btn btn-secondary">
-			Cancel
+			{i18n.t('common.cancel')}
 		</button>
 		<button type="submit" class="btn btn-primary" disabled={isSubmitting}>
-			{initialValues.name ? 'Update Command' : 'Create Command'}
+			{initialValues.name ? i18n.t('commandForm.updateCommand') : i18n.t('commandForm.createCommand')}
 		</button>
 	</div>
 </form>

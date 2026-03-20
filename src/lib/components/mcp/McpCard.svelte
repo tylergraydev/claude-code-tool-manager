@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { Mcp } from '$lib/types';
-	import { Plug, Globe, Server, Edit, Copy, Trash2, Play, Lock, Radio } from 'lucide-svelte';
-	import { ActionMenu, ActionMenuItem, FavoriteButton, Badge } from '$lib/components/shared';
+	import { Plug, Globe, Server, MoreVertical, Edit, Copy, Trash2, Play, Lock, Radio, Heart } from 'lucide-svelte';
+	import { i18n } from '$lib/i18n';
 
 	type Props = {
 		mcp: Mcp;
@@ -29,7 +29,22 @@
 		onFavoriteToggle
 	}: Props = $props();
 
-	let actionMenu: ActionMenu;
+	let menuButton = $state<HTMLButtonElement>();
+	let showMenu = $state(false);
+	let menuAbove = $state(false);
+
+	function toggleMenu(e: MouseEvent) {
+		e.stopPropagation();
+		showMenu = !showMenu;
+		if (showMenu && menuButton) {
+			const rect = menuButton.getBoundingClientRect();
+			menuAbove = rect.bottom + 200 > window.innerHeight;
+		}
+	}
+
+	function closeMenu() {
+		showMenu = false;
+	}
 
 	const isSystemMcp = mcp.source === 'system';
 
@@ -60,9 +75,17 @@
 					{mcp.name}
 				</h3>
 				{#if isSystemMcp}
-					<Badge variant="system" icon={Lock}>System</Badge>
+					<span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300">
+						<Lock class="w-2.5 h-2.5" />
+						{i18n.t('common.system')}
+					</span>
 				{:else if mcp.source === 'auto-detected'}
-					<Badge variant="auto" title={mcp.sourcePath ? `Source: ${mcp.sourcePath}` : 'Auto-detected from filesystem'}>Auto</Badge>
+					<span
+						class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300 cursor-help"
+						title={mcp.sourcePath ? `Source: ${mcp.sourcePath}` : 'Auto-detected from filesystem'}
+					>
+						{i18n.t('common.auto')}
+					</span>
 				{/if}
 			</div>
 
@@ -88,7 +111,10 @@
 				{/if}
 
 				{#if showGatewayToggle && isInGateway}
-					<Badge variant="warning" icon={Radio}>Gateway</Badge>
+					<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300">
+						<Radio class="w-3 h-3" />
+						{i18n.t('mcp.gateway')}
+					</span>
 				{/if}
 			</div>
 
@@ -103,10 +129,10 @@
 							{isInGateway
 								? 'text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300'
 								: 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}"
-						aria-label={isInGateway ? `Remove ${mcp.name} from Gateway` : `Add ${mcp.name} to Gateway`}
+						title={isInGateway ? i18n.t('mcp.removeFromGateway') : i18n.t('mcp.addToGateway')}
 					>
-						<Radio class="w-4 h-4" aria-hidden="true" />
-						{isInGateway ? 'In Gateway' : 'Add to Gateway'}
+						<Radio class="w-4 h-4" />
+						{isInGateway ? i18n.t('mcp.inGateway') : i18n.t('mcp.addToGateway')}
 					</button>
 				</div>
 			{/if}
@@ -115,26 +141,85 @@
 		{#if showActions}
 			<div class="flex items-center gap-1">
 				{#if onFavoriteToggle}
-					<FavoriteButton
-						isFavorite={mcp.isFavorite}
-						name={mcp.name}
-						onclick={() => onFavoriteToggle(mcp, !mcp.isFavorite)}
-					/>
+					<button
+						onclick={(e) => {
+							e.stopPropagation();
+							onFavoriteToggle(mcp, !mcp.isFavorite);
+						}}
+						class="p-1.5 rounded-lg transition-colors {mcp.isFavorite
+							? 'text-rose-500 hover:text-rose-600'
+							: 'text-gray-300 hover:text-rose-400 dark:text-gray-600 dark:hover:text-rose-400'}"
+						title={mcp.isFavorite ? i18n.t('mcp.removeFromFavorites') : i18n.t('mcp.addToFavorites')}
+					>
+						<Heart class="w-4 h-4" fill={mcp.isFavorite ? 'currentColor' : 'none'} />
+					</button>
 				{/if}
-				<ActionMenu bind:this={actionMenu} label="Actions for {mcp.name}">
-					{#if onTest}
-						<ActionMenuItem icon={Play} label="Test" onclick={() => { onTest(mcp); actionMenu.close(); }} />
-					{/if}
-					{#if onEdit && !isSystemMcp}
-						<ActionMenuItem icon={Edit} label="Edit" onclick={() => { onEdit(mcp); actionMenu.close(); }} />
-					{/if}
-					{#if onDuplicate && !isSystemMcp}
-						<ActionMenuItem icon={Copy} label="Duplicate" onclick={() => { onDuplicate(mcp); actionMenu.close(); }} />
-					{/if}
-					{#if onDelete && !isSystemMcp}
-						<ActionMenuItem icon={Trash2} label="Delete" variant="danger" onclick={() => { onDelete(mcp); actionMenu.close(); }} />
-					{/if}
-				</ActionMenu>
+				<div class="relative">
+					<button
+						bind:this={menuButton}
+						onclick={toggleMenu}
+						class="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
+					>
+						<MoreVertical class="w-4 h-4" />
+					</button>
+
+				{#if showMenu}
+					<div
+						class="absolute right-0 w-40 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-10
+							{menuAbove ? 'bottom-full mb-1' : 'top-full mt-1'}"
+						onclick={(e) => e.stopPropagation()}
+					>
+						{#if onTest}
+							<button
+								onclick={() => {
+									onTest(mcp);
+									closeMenu();
+								}}
+								class="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+							>
+								<Play class="w-4 h-4" />
+								{i18n.t('common.test')}
+							</button>
+						{/if}
+						{#if onEdit && !isSystemMcp}
+							<button
+								onclick={() => {
+									onEdit(mcp);
+									closeMenu();
+								}}
+								class="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+							>
+								<Edit class="w-4 h-4" />
+								{i18n.t('common.edit')}
+							</button>
+						{/if}
+						{#if onDuplicate && !isSystemMcp}
+							<button
+								onclick={() => {
+									onDuplicate(mcp);
+									closeMenu();
+								}}
+								class="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+							>
+								<Copy class="w-4 h-4" />
+								{i18n.t('common.duplicate')}
+							</button>
+						{/if}
+						{#if onDelete && !isSystemMcp}
+							<button
+								onclick={() => {
+									onDelete(mcp);
+									closeMenu();
+								}}
+								class="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
+							>
+								<Trash2 class="w-4 h-4" />
+								{i18n.t('common.delete')}
+							</button>
+						{/if}
+					</div>
+				{/if}
+				</div>
 			</div>
 		{/if}
 	</div>

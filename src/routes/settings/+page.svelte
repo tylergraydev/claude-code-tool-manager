@@ -6,6 +6,7 @@
 	import { SETTINGS_CATEGORIES } from '$lib/components/settings';
 	import { onboarding } from '$lib/stores/onboarding.svelte';
 	import type { Component } from 'svelte';
+	import { i18n } from '$lib/i18n';
 
 	onMount(() => {
 		onboarding.completeStep('explore-settings');
@@ -80,16 +81,16 @@
 </script>
 
 <Header
-	title="Settings"
-	subtitle={TAB_SUBTITLES[activeTab] ?? 'Configure Claude Code settings'}
+	title={i18n.t('page.settings.title')}
+	subtitle={TAB_SUBTITLES[activeTab] ?? i18n.t('page.settings.subtitle')}
 />
 
 <div class="flex-1 overflow-hidden flex">
 	<!-- Left Nav -->
 	<nav aria-label="Settings categories" class="w-52 border-r border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 overflow-y-auto flex-shrink-0">
 		<div class="p-3">
-			<p class="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-400 px-3 mb-2">
-				Configuration
+			<p class="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 px-3 mb-2">
+				{i18n.t('settings.configuration')}
 			</p>
 			<div role="tablist" aria-label="Configuration settings" aria-orientation="vertical">
 				{#each scopedCategories as category}
@@ -115,8 +116,8 @@
 
 			<div class="border-t border-gray-200 dark:border-gray-700 my-3"></div>
 
-			<p class="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-400 px-3 mb-2">
-				Other
+			<p class="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 px-3 mb-2">
+				{i18n.t('settings.other')}
 			</p>
 			<div role="tablist" aria-label="Other settings" aria-orientation="vertical">
 				{#each standaloneCategories as category}

@@ -1,6 +1,6 @@
 [package]
 name = "claude-code-tool-manager"
-version = "3.2.4"
+version = "3.5.0"
 description = "Desktop app to manage MCP servers, Skills, and Sub-Agents for Claude Code"
 authors = ["you"]
 edition = "2021"
@@ -73,13 +73,13 @@ urlencoding = "2"
 uuid = { version = "1", features = ["v4"] }
 
 # MCP Server (exposing our own MCP server)
-rmcp = { version = "0.16", features = ["server", "macros", "transport-streamable-http-server"] }
+rmcp = { version = "1.1", features = ["server", "macros", "transport-streamable-http-server"] }
 axum = "0.8"
 tower-http = { version = "0.6", features = ["cors"] }
 schemars = "1.2"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-tauri-plugin-mcp-bridge = "0.8.3"
+tauri-plugin-mcp-bridge = "0.9.0"
 
 [features]
 default = ["custom-protocol"]

@@ -2,6 +2,7 @@
 	import type { CreateHookRequest, Hook, HookEventType, HookType } from '$lib/types';
 	import { HOOK_EVENT_TYPES } from '$lib/types';
 	import { Clipboard, Check, AlertCircle, FileUp, Terminal, MessageSquare, Zap } from 'lucide-svelte';
+	import { i18n } from '$lib/i18n';
 
 	type Props = {
 		initialValues?: Partial<Hook>;
@@ -53,7 +54,7 @@
 		timeout = template.timeout?.toString() ?? '';
 
 		importStatus = 'success';
-		importMessage = `Applied template "${template.name}"`;
+		importMessage = i18n.t('hookForm.appliedTemplate', { name: template.name });
 		setTimeout(() => {
 			importStatus = 'idle';
 			importMessage = '';
@@ -98,7 +99,7 @@
 		if (parseJsonHook(text)) {
 			e.preventDefault();
 			importStatus = 'success';
-			importMessage = 'Imported from JSON';
+			importMessage = i18n.t('hookForm.importedJson');
 			setTimeout(() => {
 				importStatus = 'idle';
 				importMessage = '';
@@ -111,10 +112,10 @@
 			const text = await navigator.clipboard.readText();
 			if (parseJsonHook(text)) {
 				importStatus = 'success';
-				importMessage = 'Imported from JSON';
+				importMessage = i18n.t('hookForm.importedJson');
 			} else {
 				importStatus = 'error';
-				importMessage = 'Could not parse as hook JSON';
+				importMessage = i18n.t('hookForm.parseError');
 			}
 			setTimeout(() => {
 				importStatus = 'idle';
@@ -122,7 +123,7 @@
 			}, 3000);
 		} catch {
 			importStatus = 'error';
-			importMessage = 'Could not access clipboard';
+			importMessage = i18n.t('hookForm.clipboardError');
 			setTimeout(() => {
 				importStatus = 'idle';
 				importMessage = '';
@@ -142,10 +143,10 @@
 				const text = await file.text();
 				if (parseJsonHook(text)) {
 					importStatus = 'success';
-					importMessage = 'Imported from file';
+					importMessage = i18n.t('hookForm.importedFile');
 				} else {
 					importStatus = 'error';
-					importMessage = 'Could not parse file as hook JSON';
+					importMessage = i18n.t('hookForm.fileParseError');
 				}
 				setTimeout(() => {
 					importStatus = 'idle';
@@ -153,7 +154,7 @@
 				}, 3000);
 			} catch {
 				importStatus = 'error';
-				importMessage = 'Could not read file';
+				importMessage = i18n.t('hookForm.fileReadError');
 				setTimeout(() => {
 					importStatus = 'idle';
 					importMessage = '';
@@ -167,15 +168,15 @@
 		errors = {};
 
 		if (hookType === 'command' && !command.trim()) {
-			errors.command = 'Command is required for command hooks';
+			errors.command = i18n.t('hookForm.commandRequired');
 		}
 
 		if (hookType === 'prompt' && !prompt.trim()) {
-			errors.prompt = 'Prompt is required for prompt hooks';
+			errors.prompt = i18n.t('hookForm.promptRequired');
 		}
 
 		if (timeout && (isNaN(Number(timeout)) || Number(timeout) < 0)) {
-			errors.timeout = 'Timeout must be a positive number';
+			errors.timeout = i18n.t('hookForm.timeoutPositive');
 		}
 
 		return Object.keys(errors).length === 0;
@@ -234,10 +235,10 @@
 						</p>
 					{:else}
 						<p class="text-sm font-medium text-gray-700 dark:text-gray-300">
-							Import from JSON or Template
+							{i18n.t('hookForm.importTitle')}
 						</p>
 						<p class="text-xs text-gray-500 dark:text-gray-400">
-							Paste settings.json or select a template
+							{i18n.t('hookForm.importDesc')}
 						</p>
 					{/if}
 				</div>
@@ -253,7 +254,7 @@
 							(e.target as HTMLSelectElement).value = '';
 						}}
 					>
-						<option value="">Templates...</option>
+						<option value="">{i18n.t('hookForm.templates')}</option>
 						{#each templates as template}
 							<option value={template.id}>{template.name}</option>
 						{/each}
@@ -261,11 +262,11 @@
 				{/if}
 				<button type="button" onclick={handleFileImport} class="btn btn-secondary text-sm">
 					<FileUp class="w-4 h-4 mr-1.5" />
-					File
+					{i18n.t('common.file')}
 				</button>
 				<button type="button" onclick={handlePasteFromClipboard} class="btn btn-secondary text-sm">
 					<Clipboard class="w-4 h-4 mr-1.5" />
-					Paste
+					{i18n.t('common.paste')}
 				</button>
 			</div>
 		</div>
@@ -274,21 +275,21 @@
 	<!-- Description -->
 	<div>
 		<label for="description" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-			Description
+			{i18n.t('common.description')}
 		</label>
 		<input
 			type="text"
 			id="description"
 			bind:value={description}
 			class="input mt-1"
-			placeholder="What this hook does"
+			placeholder={i18n.t('hookForm.descPlaceholder')}
 		/>
 	</div>
 
 	<!-- Event Type -->
 	<div>
 		<label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-			Event Type <span class="text-red-500">*</span>
+			{i18n.t('hookForm.eventType')} <span class="text-red-500">*</span>
 		</label>
 		<div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
 			{#each HOOK_EVENT_TYPES as event}
@@ -312,20 +313,20 @@
 	<!-- Matcher -->
 	<div>
 		<label for="matcher" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-			Matcher Pattern
+			{i18n.t('hookForm.matcherPattern')}
 		</label>
 		<input
 			type="text"
 			id="matcher"
 			bind:value={matcher}
 			class="input mt-1 font-mono"
-			placeholder={currentEventMeta?.matcherHint ?? 'Optional pattern to match'}
+			placeholder={currentEventMeta?.matcherHint ?? i18n.t('hookForm.matcherPlaceholder')}
 		/>
 		<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
 			{#if currentEventMeta?.matcherHint}
-				{currentEventMeta.matcherHint}. Use <code class="px-1 bg-gray-100 dark:bg-gray-700 rounded">|</code> for alternatives.
+				{currentEventMeta.matcherHint}. {i18n.t('hookForm.matcherHelp')}
 			{:else}
-				Optional regex pattern to filter when this hook runs
+				{i18n.t('hookForm.matcherHelpAlt')}
 			{/if}
 		</p>
 	</div>
@@ -333,7 +334,7 @@
 	<!-- Hook Type Toggle -->
 	<div>
 		<label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-			Hook Type <span class="text-red-500">*</span>
+			{i18n.t('hookForm.hookType')} <span class="text-red-500">*</span>
 		</label>
 		<div class="flex gap-3">
 			<button
@@ -347,8 +348,8 @@
 					<Terminal class="w-5 h-5 text-gray-600 dark:text-gray-400" />
 				</div>
 				<div class="text-left">
-					<div class="font-medium text-gray-900 dark:text-white">Command</div>
-					<div class="text-xs text-gray-500 dark:text-gray-400">Run a shell command</div>
+					<div class="font-medium text-gray-900 dark:text-white">{i18n.t('hookForm.commandLabel')}</div>
+					<div class="text-xs text-gray-500 dark:text-gray-400">{i18n.t('hookForm.commandDesc')}</div>
 				</div>
 			</button>
 
@@ -363,8 +364,8 @@
 					<MessageSquare class="w-5 h-5 text-violet-600 dark:text-violet-400" />
 				</div>
 				<div class="text-left">
-					<div class="font-medium text-gray-900 dark:text-white">Prompt</div>
-					<div class="text-xs text-gray-500 dark:text-gray-400">Inject text into conversation</div>
+					<div class="font-medium text-gray-900 dark:text-white">{i18n.t('hookForm.promptLabel')}</div>
+					<div class="text-xs text-gray-500 dark:text-gray-400">{i18n.t('hookForm.promptDesc')}</div>
 				</div>
 			</button>
 		</div>
@@ -382,7 +383,7 @@
 				rows={4}
 				class="input mt-1 font-mono text-sm resize-y"
 				class:border-red-500={errors.command}
-				placeholder='npx prettier --write "$CLAUDE_FILE_PATHS"'
+				placeholder={i18n.t('hookForm.commandPlaceholder')}
 			></textarea>
 			{#if errors.command}
 				<p class="mt-1 text-sm text-red-500">{errors.command}</p>
@@ -398,7 +399,7 @@
 		<!-- Timeout -->
 		<div>
 			<label for="timeout" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-				Timeout (seconds)
+				{i18n.t('hookForm.timeout')}
 			</label>
 			<input
 				type="number"
@@ -413,7 +414,7 @@
 				<p class="mt-1 text-sm text-red-500">{errors.timeout}</p>
 			{:else}
 				<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-					Maximum time the command can run before being terminated
+					{i18n.t('hookForm.timeoutHelp')}
 				</p>
 			{/if}
 		</div>
@@ -423,7 +424,7 @@
 	{#if hookType === 'prompt'}
 		<div>
 			<label for="prompt" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-				Prompt Text <span class="text-red-500">*</span>
+				{i18n.t('hookForm.promptTextLabel')} <span class="text-red-500">*</span>
 			</label>
 			<textarea
 				id="prompt"
@@ -431,13 +432,13 @@
 				rows={6}
 				class="input mt-1 font-mono text-sm resize-y"
 				class:border-red-500={errors.prompt}
-				placeholder="Additional context or instructions to inject..."
+				placeholder={i18n.t('hookForm.promptPlaceholder')}
 			></textarea>
 			{#if errors.prompt}
 				<p class="mt-1 text-sm text-red-500">{errors.prompt}</p>
 			{:else}
 				<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-					Text that will be injected into the conversation when this hook runs
+					{i18n.t('hookForm.promptHelp')}
 				</p>
 			{/if}
 		</div>
@@ -446,25 +447,25 @@
 	<!-- Tags -->
 	<div>
 		<label for="tags" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-			Tags
+			{i18n.t('common.tags')}
 		</label>
 		<input
 			type="text"
 			id="tags"
 			bind:value={tagsInput}
 			class="input mt-1"
-			placeholder="formatting, security, logging"
+			placeholder={i18n.t('hookForm.tagsPlaceholder')}
 		/>
-		<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Comma-separated tags for organization</p>
+		<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{i18n.t('hookForm.tagsHelp')}</p>
 	</div>
 
 	<!-- Actions -->
 	<div class="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
 		<button type="button" onclick={onCancel} class="btn btn-secondary">
-			Cancel
+			{i18n.t('common.cancel')}
 		</button>
 		<button type="submit" class="btn btn-primary" disabled={isSubmitting}>
-			{initialValues.name ? 'Update Hook' : 'Create Hook'}
+			{initialValues.name ? i18n.t('hookForm.updateHook') : i18n.t('hookForm.createHook')}
 		</button>
 	</div>
 </form>

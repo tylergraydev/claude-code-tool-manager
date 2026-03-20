@@ -37,7 +37,7 @@ jobs:
         continue-on-error: true
 
       - name: Upload coverage report
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: coverage-report
@@ -51,7 +51,7 @@ jobs:
         run: npm run test:e2e
 
       - name: Upload Playwright report
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: playwright-report
@@ -59,7 +59,7 @@ jobs:
           retention-days: 7
 
       - name: Upload Playwright traces
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: playwright-traces
@@ -120,10 +120,10 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
-          args: --target ${{ matrix.target }}
+          args: --target ${{ matrix.target }} ${{ matrix.target == 'x86_64-apple-darwin' && '--bundles app,updater' || '' }}
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: binaries-${{ matrix.target }}
           path: |

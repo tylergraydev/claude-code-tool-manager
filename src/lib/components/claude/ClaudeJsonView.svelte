@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { claudeJson, notifications, type ClaudeJsonMcp } from '$lib/stores';
+	import { i18n } from '$lib/i18n';
 	import { FileJson, FolderOpen, Plug, Globe, Server, X, RefreshCw, ChevronDown, ChevronRight } from 'lucide-svelte';
 	import { onMount } from 'svelte';
 
@@ -35,9 +36,9 @@
 		if (!mcp.projectPath) return;
 		try {
 			await claudeJson.toggleMcp(mcp.projectPath, mcp.name, !mcp.isEnabled);
-			notifications.success(`${mcp.name} ${mcp.isEnabled ? 'disabled' : 'enabled'}`);
+			notifications.success(i18n.t('claudeJson.toggled', { name: mcp.name, state: mcp.isEnabled ? i18n.t('common.disabled') : i18n.t('common.enabled') }));
 		} catch {
-			notifications.error('Failed to toggle MCP');
+			notifications.error(i18n.t('claudeJson.toggleFailed'));
 		}
 	}
 
@@ -48,9 +49,9 @@
 			} else {
 				await claudeJson.removeGlobalMcp(mcp.name);
 			}
-			notifications.success(`Removed ${mcp.name}`);
+			notifications.success(i18n.t('claudeJson.removed', { name: mcp.name }));
 		} catch {
-			notifications.error('Failed to remove MCP');
+			notifications.error(i18n.t('claudeJson.removeFailed'));
 		}
 	}
 
@@ -66,15 +67,15 @@
 				<FileJson class="w-5 h-5 text-orange-600 dark:text-orange-400" />
 			</div>
 			<div>
-				<h2 class="text-lg font-semibold text-gray-900 dark:text-white">Claude.json Config</h2>
+				<h2 class="text-lg font-semibold text-gray-900 dark:text-white">{i18n.t('claudeJson.title')}</h2>
 				<p class="text-sm text-gray-500 dark:text-gray-400">
-					MCPs configured directly in ~/.claude.json
+					{i18n.t('claudeJson.subtitle')}
 				</p>
 			</div>
 		</div>
 		<button onclick={() => claudeJson.loadAll()} class="btn btn-secondary">
 			<RefreshCw class="w-4 h-4 mr-2" />
-			Refresh
+			{i18n.t('common.refresh')}
 		</button>
 	</div>
 
@@ -90,7 +91,7 @@
 		<!-- Global MCPs -->
 		{#if claudeJson.globalMcps.length > 0}
 			<div class="card">
-				<h3 class="text-md font-medium text-gray-900 dark:text-white mb-4">Global MCPs</h3>
+				<h3 class="text-md font-medium text-gray-900 dark:text-white mb-4">{i18n.t('claudeJson.globalMcps')}</h3>
 				<div class="space-y-2">
 					{#each claudeJson.globalMcps as mcp (mcp.name)}
 						<div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
@@ -106,7 +107,7 @@
 							<button
 								onclick={() => handleRemove(mcp)}
 								class="p-1.5 text-gray-400 hover:text-red-500 rounded"
-								title="Remove"
+								title={i18n.t('common.remove')}
 							>
 								<X class="w-4 h-4" />
 							</button>
@@ -119,7 +120,7 @@
 		<!-- Project MCPs -->
 		{#if claudeJson.projects.length > 0}
 			<div class="space-y-3">
-				<h3 class="text-md font-medium text-gray-900 dark:text-white">Project MCPs</h3>
+				<h3 class="text-md font-medium text-gray-900 dark:text-white">{i18n.t('claudeJson.projectMcps')}</h3>
 				{#each claudeJson.projects as project (project.path)}
 					<div class="card">
 						<button
@@ -161,7 +162,7 @@
 												</span>
 												<span class="text-xs text-gray-500 dark:text-gray-400 ml-2">({mcp.type})</span>
 												{#if !mcp.isEnabled}
-													<span class="ml-2 text-xs text-yellow-600 dark:text-yellow-400">disabled</span>
+													<span class="ml-2 text-xs text-yellow-600 dark:text-yellow-400">{i18n.t('common.disabled')}</span>
 												{/if}
 											</div>
 										</div>
@@ -179,7 +180,7 @@
 											<button
 												onclick={() => handleRemove(mcp)}
 												class="p-1.5 text-gray-400 hover:text-red-500 rounded"
-												title="Remove"
+												title={i18n.t('common.remove')}
 											>
 												<X class="w-4 h-4" />
 											</button>
@@ -194,9 +195,9 @@
 		{:else if claudeJson.globalMcps.length === 0}
 			<div class="card text-center py-8">
 				<FileJson class="w-12 h-12 mx-auto text-gray-300 dark:text-gray-600 mb-4" />
-				<h3 class="text-lg font-medium text-gray-900 dark:text-white">No MCPs in claude.json</h3>
+				<h3 class="text-lg font-medium text-gray-900 dark:text-white">{i18n.t('claudeJson.noMcps')}</h3>
 				<p class="text-gray-500 dark:text-gray-400 mt-1">
-					MCPs configured through Claude Code will appear here
+					{i18n.t('claudeJson.noMcpsHint')}
 				</p>
 			</div>
 		{/if}

@@ -72,20 +72,16 @@ impl GatewayServer {
 
 impl ServerHandler for GatewayServer {
     fn get_info(&self) -> ServerInfo {
-        ServerInfo {
-            instructions: Some(
-                "MCP Gateway with lazy-loading. Use these 3 meta-tools:\n\
+        ServerInfo::new(ServerCapabilities::builder().enable_tools().build()).with_instructions(
+            "MCP Gateway with lazy-loading. Use these 3 meta-tools:\n\
                 1. list_available_mcps - Discover available MCP servers\n\
                 2. load_mcp_tools - Connect to an MCP and get its tools\n\
                 3. call_mcp_tool - Execute a tool on a specific MCP\n\n\
                 Flow: First call list_available_mcps to see what's available, \
                 then call load_mcp_tools to connect and see tools, \
                 then call call_mcp_tool to execute tools."
-                    .to_string(),
-            ),
-            capabilities: ServerCapabilities::builder().enable_tools().build(),
-            ..Default::default()
-        }
+                .to_string(),
+        )
     }
 
     fn list_tools(
@@ -96,35 +92,22 @@ impl ServerHandler for GatewayServer {
         async move {
             // Return only the 3 meta-tools
             let meta_tools = vec![
-                Tool {
-                    name: "list_available_mcps".into(),
-                    title: None,
-                    description: Some(
-                        "List all MCP servers available through this gateway. \
-                        Call this first to discover what MCPs you can use."
-                            .into(),
-                    ),
-                    input_schema: Arc::new(serde_json::Map::from_iter([
+                Tool::new(
+                    "list_available_mcps",
+                    "List all MCP servers available through this gateway. \
+                    Call this first to discover what MCPs you can use.",
+                    Arc::new(serde_json::Map::from_iter([
                         ("type".to_string(), json!("object")),
                         ("properties".to_string(), json!({})),
                         ("required".to_string(), json!([])),
                     ])),
-                    output_schema: None,
-                    annotations: None,
-                    icons: None,
-                    meta: None,
-                    execution: None,
-                },
-                Tool {
-                    name: "load_mcp_tools".into(),
-                    title: None,
-                    description: Some(
-                        "Load and return all tools from a specific MCP server. \
-                        The MCP will be connected if not already. \
-                        Call this after list_available_mcps to see what tools an MCP offers."
-                            .into(),
-                    ),
-                    input_schema: Arc::new(serde_json::Map::from_iter([
+                ),
+                Tool::new(
+                    "load_mcp_tools",
+                    "Load and return all tools from a specific MCP server. \
+                    The MCP will be connected if not already. \
+                    Call this after list_available_mcps to see what tools an MCP offers.",
+                    Arc::new(serde_json::Map::from_iter([
                         ("type".to_string(), json!("object")),
                         (
                             "properties".to_string(),
@@ -137,21 +120,12 @@ impl ServerHandler for GatewayServer {
                         ),
                         ("required".to_string(), json!(["mcp_name"])),
                     ])),
-                    output_schema: None,
-                    annotations: None,
-                    icons: None,
-                    meta: None,
-                    execution: None,
-                },
-                Tool {
-                    name: "call_mcp_tool".into(),
-                    title: None,
-                    description: Some(
-                        "Execute a tool on a specific MCP server. \
-                        The MCP must be connected first via load_mcp_tools."
-                            .into(),
-                    ),
-                    input_schema: Arc::new(serde_json::Map::from_iter([
+                ),
+                Tool::new(
+                    "call_mcp_tool",
+                    "Execute a tool on a specific MCP server. \
+                    The MCP must be connected first via load_mcp_tools.",
+                    Arc::new(serde_json::Map::from_iter([
                         ("type".to_string(), json!("object")),
                         (
                             "properties".to_string(),
@@ -173,12 +147,7 @@ impl ServerHandler for GatewayServer {
                         ),
                         ("required".to_string(), json!(["mcp_name", "tool_name"])),
                     ])),
-                    output_schema: None,
-                    annotations: None,
-                    icons: None,
-                    meta: None,
-                    execution: None,
-                },
+                ),
             ];
 
             log::info!("[Gateway] Listing 3 meta-tools (lazy mode)");

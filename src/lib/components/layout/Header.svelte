@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { RefreshCw, Moon, Sun } from 'lucide-svelte';
-	import { mcpLibrary, projectsStore, notifications } from '$lib/stores';
+	import { RefreshCw, Moon, Sun, Languages } from 'lucide-svelte';
+	import { mcpLibrary, projectsStore, notifications, i18n } from '$lib/stores';
 	import type { Snippet } from 'svelte';
 
 	type Props = {
@@ -58,9 +58,19 @@
 		{/if}
 
 		<button
+			onclick={() => i18n.setLocale(i18n.nextLocale)}
+			class="btn btn-ghost text-xs font-medium"
+			title={i18n.t('header.switchLanguage')}
+		>
+			<Languages class="w-4 h-4" />
+			{i18n.currentLabel}
+		</button>
+
+		<button
 			onclick={handleRefresh}
 			class="btn btn-ghost"
 			aria-label={isRefreshing ? 'Refreshing data' : 'Refresh data'}
+			title={i18n.t('header.refresh')}
 			disabled={isRefreshing}
 		>
 			<RefreshCw class="w-4 h-4 {isRefreshing ? 'animate-spin' : ''}" aria-hidden="true" />
@@ -70,6 +80,7 @@
 			onclick={toggleTheme}
 			class="btn btn-ghost"
 			aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+			title={i18n.t('header.toggleTheme')}
 		>
 			{#if isDark}
 				<Sun class="w-4 h-4" aria-hidden="true" />

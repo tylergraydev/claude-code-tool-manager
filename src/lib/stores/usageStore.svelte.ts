@@ -5,6 +5,7 @@ import { estimateModelCost } from '$lib/types/usage';
 class UsageStoreState {
 	data = $state<StatsCacheInfo | null>(null);
 	isLoading = $state(false);
+	isRefreshing = $state(false);
 	error = $state<string | null>(null);
 	dateRange = $state<DateRangeFilter>('30d');
 	private pollInterval: ReturnType<typeof setInterval> | null = null;
@@ -79,7 +80,12 @@ class UsageStoreState {
 
 	async load() {
 		console.log('[usageStore] Loading usage stats...');
-		this.isLoading = true;
+		// If we already have data, do a background refresh instead of showing full spinner
+		if (this.data) {
+			this.isRefreshing = true;
+		} else {
+			this.isLoading = true;
+		}
 		this.error = null;
 		try {
 			this.data = await invoke<StatsCacheInfo>('get_usage_stats');
@@ -89,6 +95,7 @@ class UsageStoreState {
 			console.error('[usageStore] Failed to load usage stats:', e);
 		} finally {
 			this.isLoading = false;
+			this.isRefreshing = false;
 		}
 	}
 

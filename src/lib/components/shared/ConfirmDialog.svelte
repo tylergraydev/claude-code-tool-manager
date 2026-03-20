@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { AlertTriangle } from 'lucide-svelte';
 	import { tick } from 'svelte';
+	import { i18n } from '$lib/i18n';
 
 	type Props = {
 		open: boolean;
@@ -17,12 +18,15 @@
 		open,
 		title,
 		message,
-		confirmText = 'Confirm',
-		cancelText = 'Cancel',
+		confirmText,
+		cancelText,
 		variant = 'danger',
 		onConfirm,
 		onCancel
 	}: Props = $props();
+
+	const resolvedConfirmText = $derived(confirmText ?? i18n.t('common.confirm'));
+	const resolvedCancelText = $derived(cancelText ?? i18n.t('common.cancel'));
 
 	const variants = {
 		danger: 'bg-red-600 hover:bg-red-700',
@@ -103,10 +107,10 @@
 
 			<div class="mt-6 flex justify-end gap-3">
 				<button data-cancel onclick={onCancel} class="btn btn-secondary">
-					{cancelText}
+					{resolvedCancelText}
 				</button>
 				<button onclick={onConfirm} class="btn text-white {variants[variant]}">
-					{confirmText}
+					{resolvedConfirmText}
 				</button>
 			</div>
 		</div>

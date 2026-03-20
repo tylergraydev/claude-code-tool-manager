@@ -67,6 +67,7 @@ export const Info = StubIcon;
 export const Key = StubIcon;
 export const Keyboard = StubIcon;
 export const KeyRound = StubIcon;
+export const Languages = StubIcon;
 export const Layers = StubIcon;
 export const Library = StubIcon;
 export const List = StubIcon;

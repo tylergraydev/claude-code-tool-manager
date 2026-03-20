@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.3.0] - 2026-02-27
+
+### Changed
+- **Dependencies**: Updated npm, Cargo, and GitHub Actions dependencies
+  - @sveltejs/kit 2.51.0 → 2.53.3
+  - @tailwindcss/vite 4.2.0 → 4.2.1
+  - @types/node 25.3.0 → 25.3.2
+  - happy-dom 20.6.1 → 20.7.0
+  - svelte-check 4.4.1 → 4.4.4
+  - chrono 0.4.43 → 0.4.44
+  - pulldown-cmark 0.13.0 → 0.13.1
+  - serial_test 3.3.1 → 3.4.0
+  - tempfile 3.25.0 → 3.26.0
+  - tauri-plugin-mcp-bridge 0.8.3 → 0.9.0
+  - actions/upload-artifact v6 → v7
+
 ## [2.1.2] - 2026-01-31
 
 ### Changed

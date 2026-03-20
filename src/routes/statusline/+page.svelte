@@ -9,6 +9,7 @@
 	} from '$lib/components/statusline';
 	import { ConfirmDialog } from '$lib/components/shared';
 	import { statuslineLibrary, notifications } from '$lib/stores';
+	import { i18n } from '$lib/i18n';
 	import type { StatusLine, CreateStatusLineRequest, StatusLineGalleryEntry } from '$lib/types';
 	import { parseSegmentsJson } from '$lib/types';
 	import { Plus, PenTool, Package } from 'lucide-svelte';
@@ -27,18 +28,18 @@
 	async function handleActivate(sl: StatusLine) {
 		try {
 			await statuslineLibrary.activate(sl.id);
-			notifications.success(`Status line "${sl.name}" activated`);
+			notifications.success(i18n.t('statusline.activated', { name: sl.name }));
 		} catch (err) {
-			notifications.error('Failed to activate status line');
+			notifications.error(i18n.t('statusline.activateFailed'));
 		}
 	}
 
 	async function handleDeactivate() {
 		try {
 			await statuslineLibrary.deactivate();
-			notifications.success('Status line deactivated');
+			notifications.success(i18n.t('statusline.deactivated'));
 		} catch (err) {
-			notifications.error('Failed to deactivate status line');
+			notifications.error(i18n.t('statusline.deactivateFailed'));
 		}
 	}
 
@@ -46,9 +47,9 @@
 		if (!deletingStatusLine) return;
 		try {
 			await statuslineLibrary.delete(deletingStatusLine.id);
-			notifications.success('Status line deleted');
+			notifications.success(i18n.t('statusline.deleted'));
 		} catch (err) {
-			notifications.error('Failed to delete status line');
+			notifications.error(i18n.t('statusline.deleteFailed'));
 		} finally {
 			deletingStatusLine = null;
 		}
@@ -58,9 +59,9 @@
 		try {
 			await statuslineLibrary.create(request);
 			showAddRaw = false;
-			notifications.success('Status line created');
+			notifications.success(i18n.t('statusline.created'));
 		} catch (err) {
-			notifications.error('Failed to create status line');
+			notifications.error(i18n.t('statusline.createFailed'));
 		}
 	}
 
@@ -69,9 +70,9 @@
 		try {
 			await statuslineLibrary.update(editingStatusLine.id, request);
 			editingStatusLine = null;
-			notifications.success('Status line updated');
+			notifications.success(i18n.t('statusline.updated'));
 		} catch (err) {
-			notifications.error('Failed to update status line');
+			notifications.error(i18n.t('statusline.updateFailed'));
 		}
 	}
 
@@ -88,15 +89,15 @@
 		try {
 			if (editingInBuilder) {
 				await statuslineLibrary.update(editingInBuilder.id, request);
-				notifications.success(`Status line "${request.name}" updated`);
+				notifications.success(i18n.t('statusline.updated'));
 				editingInBuilder = null;
 			} else {
 				await statuslineLibrary.create(request);
-				notifications.success(`Status line "${request.name}" saved`);
+				notifications.success(i18n.t('statusline.saved'));
 			}
 			activeTab = 'library';
 		} catch (err) {
-			notifications.error('Failed to save status line');
+			notifications.error(i18n.t('statusline.saveFailed'));
 		}
 	}
 
@@ -110,26 +111,26 @@
 				sl = await statuslineLibrary.create(request);
 			}
 			await statuslineLibrary.activate(sl.id);
-			notifications.success(`Status line "${sl.name}" saved and activated`);
+			notifications.success(i18n.t('statusline.savedAndActivated', { name: sl.name }));
 			activeTab = 'library';
 		} catch (err) {
-			notifications.error('Failed to save and activate status line');
+			notifications.error(i18n.t('statusline.saveActivateFailed'));
 		}
 	}
 
 	async function handleGalleryInstall(entry: StatusLineGalleryEntry) {
 		try {
 			const sl = await statuslineLibrary.installPremade(entry);
-			notifications.success(`"${sl.name}" added to library`);
+			notifications.success(i18n.t('statusline.addedToLibrary', { name: sl.name }));
 		} catch (err) {
-			notifications.error('Failed to install status line');
+			notifications.error(i18n.t('statusline.installFailed'));
 		}
 	}
 </script>
 
 <Header
-	title="Status Line"
-	subtitle="Customize the real-time info bar at the bottom of your Claude Code terminal"
+	title={i18n.t('page.statusline.title')}
+	subtitle={i18n.t('page.statusline.subtitle')}
 />
 
 <div class="flex-1 overflow-auto p-6">
@@ -143,7 +144,7 @@
 						? 'bg-primary-600 text-white'
 						: 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'}"
 			>
-				My Status Lines
+				{i18n.t('statusline.myStatusLines')}
 			</button>
 			<button
 				onclick={() => (activeTab = 'builder')}
@@ -154,7 +155,7 @@
 			>
 				<span class="flex items-center gap-1.5">
 					<PenTool class="w-3.5 h-3.5" />
-					Builder
+					{i18n.t('statusline.builder')}
 				</span>
 			</button>
 			<button
@@ -166,7 +167,7 @@
 			>
 				<span class="flex items-center gap-1.5">
 					<Package class="w-3.5 h-3.5" />
-					Gallery
+					{i18n.t('statusline.gallery')}
 				</span>
 			</button>
 		</div>
@@ -174,7 +175,7 @@
 		{#if activeTab === 'library'}
 			<button onclick={() => (showAddRaw = true)} class="btn btn-primary">
 				<Plus class="w-4 h-4 mr-2" />
-				Add Raw Command
+				{i18n.t('statusline.addRawCommand')}
 			</button>
 		{/if}
 	</div>
@@ -210,7 +211,7 @@
 	<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
 		<div class="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-lg w-full mx-4">
 			<div class="p-6">
-				<h2 class="text-xl font-semibold text-gray-900 dark:text-white mb-6">Add Raw Status Line</h2>
+				<h2 class="text-xl font-semibold text-gray-900 dark:text-white mb-6">{i18n.t('statusline.addRaw')}</h2>
 				<StatusLineForm
 					onSubmit={handleCreateRaw}
 					onCancel={() => (showAddRaw = false)}
@@ -225,7 +226,7 @@
 	<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
 		<div class="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-lg w-full mx-4">
 			<div class="p-6">
-				<h2 class="text-xl font-semibold text-gray-900 dark:text-white mb-6">Edit Status Line</h2>
+				<h2 class="text-xl font-semibold text-gray-900 dark:text-white mb-6">{i18n.t('statusline.editStatusLine')}</h2>
 				<StatusLineForm
 					initialValues={editingStatusLine}
 					onSubmit={handleUpdateRaw}
@@ -238,9 +239,9 @@
 
 <ConfirmDialog
 	open={!!deletingStatusLine}
-	title="Delete Status Line"
-	message="Are you sure you want to delete '{deletingStatusLine?.name}'? This cannot be undone."
-	confirmText="Delete"
+	title={i18n.t('statusline.deleteStatusLine')}
+	message={i18n.t('statusline.deleteConfirm', { name: deletingStatusLine?.name ?? '' })}
+	confirmText={i18n.t('common.delete')}
 	onConfirm={handleDelete}
 	onCancel={() => (deletingStatusLine = null)}
 />

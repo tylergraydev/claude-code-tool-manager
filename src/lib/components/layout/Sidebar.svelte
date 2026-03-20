@@ -4,7 +4,7 @@
 	import { onMount, onDestroy } from 'svelte';
 	import { getVersion } from '@tauri-apps/api/app';
 	import TodayUsageWidget from './TodayUsageWidget.svelte';
-	import { sessionStore } from '$lib/stores';
+	import { sessionStore, i18n } from '$lib/stores';
 
 	let appVersion = $state('');
 	let collapsed = $state(false);
@@ -63,45 +63,45 @@
 
 	const isSettingsActive = $derived($page.url.pathname === '/settings' || $page.url.pathname.startsWith('/settings'));
 
-	const navGroups: NavGroup[] = [
+	const navGroups: NavGroup[] = $derived([
 		{
-			label: 'Core',
+			label: i18n.t('nav.core'),
 			items: [
-				{ href: '/', label: 'Dashboard', icon: Plug },
-				{ href: '/projects', label: 'Projects', icon: FolderOpen }
+				{ href: '/', label: i18n.t('nav.dashboard'), icon: Plug },
+				{ href: '/projects', label: i18n.t('nav.projects'), icon: FolderOpen }
 			]
 		},
 		{
-			label: 'Tools',
+			label: i18n.t('nav.tools'),
 			items: [
-				{ href: '/library', label: 'MCPs', icon: Library },
-				{ href: '/subagents', label: 'Agents', icon: Bot },
-				{ href: '/skills', label: 'Skills', icon: Sparkles },
-				{ href: '/commands', label: 'Commands', icon: Terminal },
-				{ href: '/hooks', label: 'Hooks', icon: Zap },
+				{ href: '/library', label: i18n.t('nav.mcps'), icon: Library },
+				{ href: '/subagents', label: i18n.t('nav.agents'), icon: Bot },
+				{ href: '/skills', label: i18n.t('nav.skills'), icon: Sparkles },
+				{ href: '/commands', label: i18n.t('nav.commands'), icon: Terminal },
+				{ href: '/hooks', label: i18n.t('nav.hooks'), icon: Zap },
 				{ href: '/containers', label: 'Containers', icon: Container }
 			]
 		},
 		{
-			label: 'Configure',
+			label: i18n.t('nav.configure'),
 			items: [
-				{ href: '/profiles', label: 'Profiles', icon: Layers },
-				{ href: '/statusline', label: 'Status Line', icon: PanelBottom },
-				{ href: '/permissions', label: 'Permissions', icon: Shield },
-				{ href: '/memory', label: 'Memory', icon: FileText },
-				{ href: '/marketplace', label: 'Marketplace', icon: Store }
+				{ href: '/profiles', label: i18n.t('nav.profiles'), icon: Layers },
+				{ href: '/statusline', label: i18n.t('nav.statusLine'), icon: PanelBottom },
+				{ href: '/permissions', label: i18n.t('nav.permissions'), icon: Shield },
+				{ href: '/memory', label: i18n.t('nav.memory'), icon: FileText },
+				{ href: '/marketplace', label: i18n.t('nav.marketplace'), icon: Store }
 			]
 		},
 		{
-			label: 'Insights',
+			label: i18n.t('nav.insights'),
 			items: [
-				{ href: '/analytics', label: 'Analytics', icon: BarChart3 },
-				{ href: '/insights', label: 'Insights', icon: TrendingUp },
-				{ href: '/sessions', label: 'Sessions', icon: FolderSearch },
-				{ href: '/comparison', label: 'Comparison', icon: GitCompareArrows }
+				{ href: '/analytics', label: i18n.t('nav.analytics'), icon: BarChart3 },
+				{ href: '/insights', label: i18n.t('nav.insights'), icon: TrendingUp },
+				{ href: '/sessions', label: i18n.t('nav.sessions'), icon: FolderSearch },
+				{ href: '/comparison', label: i18n.t('nav.comparison'), icon: GitCompareArrows }
 			]
 		}
-	];
+	]);
 </script>
 
 <aside
@@ -114,8 +114,8 @@
 		</div>
 		{#if !collapsed}
 			<div class="overflow-hidden">
-				<h1 class="font-semibold text-gray-900 dark:text-white whitespace-nowrap">Claude Code</h1>
-				<p class="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">Tool Manager</p>
+				<h1 class="font-semibold text-gray-900 dark:text-white whitespace-nowrap">{i18n.t('app.name')}</h1>
+				<p class="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">{i18n.t('app.tagline')}</p>
 			</div>
 		{/if}
 	</div>
@@ -163,7 +163,7 @@
 		{/if}
 		<a
 			href="/settings"
-			title={collapsed ? 'Settings' : undefined}
+			title={collapsed ? i18n.t('nav.settings') : undefined}
 			class="flex items-center rounded-lg text-sm font-medium transition-colors
 				{collapsed ? 'justify-center px-0 py-2' : 'gap-3 px-3 py-2'}
 				{isSettingsActive
@@ -172,7 +172,7 @@
 		>
 			<Settings class="w-5 h-5 shrink-0" />
 			{#if !collapsed}
-				<span>Settings</span>
+				<span>{i18n.t('nav.settings')}</span>
 			{/if}
 		</a>
 

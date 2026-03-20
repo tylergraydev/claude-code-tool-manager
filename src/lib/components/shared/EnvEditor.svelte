@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { Plus, Trash2 } from 'lucide-svelte';
+	import { i18n } from '$lib/i18n';
 
 	type Props = {
 		values: Record<string, string>;
@@ -10,8 +11,8 @@
 
 	let {
 		values = $bindable({}),
-		keyPlaceholder = 'Variable name',
-		valuePlaceholder = 'Value',
+		keyPlaceholder = i18n.t('envEditor.variableName'),
+		valuePlaceholder = i18n.t('envEditor.value'),
 		readonly = false
 	}: Props = $props();
 
@@ -121,7 +122,7 @@
 			class="btn btn-ghost text-gray-500 w-full justify-center border-2 border-dashed border-gray-200 dark:border-gray-700"
 		>
 			<Plus class="w-4 h-4 mr-2" />
-			Add variable
+			{i18n.t('envEditor.addVariable')}
 		</button>
 	{/if}
 </div>
