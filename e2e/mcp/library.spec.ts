@@ -6,11 +6,11 @@ test.describe('MCP Library', () => {
 		await page.goto('/library', { waitUntil: 'networkidle' });
 		await expect(page).toHaveURL('/library');
 		// Wait for content to load
-		await expect(page.locator('main header h2')).toContainText(/MCP Library/i);
+		await expect(page.locator('main header h1')).toContainText(/MCP Library/i);
 	});
 
 	test('should display library page header', async ({ page }) => {
-		await expect(page.locator('main header h2')).toContainText('MCP Library');
+		await expect(page.locator('main header h1')).toContainText('MCP Library');
 	});
 
 	test('should display MCPs from mock data', async ({ page }) => {
@@ -144,7 +144,7 @@ test.describe('MCP Library - Empty State', () => {
 	test('should show empty message when no MCPs match search', async ({ page }) => {
 		await page.goto('/library', { waitUntil: 'networkidle' });
 		await expect(page).toHaveURL('/library');
-		await expect(page.locator('main header h2')).toContainText(/MCP Library/i);
+		await expect(page.locator('main header h1')).toContainText(/MCP Library/i);
 
 		// Wait for MCPs to load
 		await page.waitForTimeout(500);

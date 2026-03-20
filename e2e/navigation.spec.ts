@@ -11,7 +11,7 @@ async function navigateToRoute(page: any, route: string, expectedTitle: RegExp) 
 	await expect(page).toHaveURL(route);
 
 	// Wait for the header to show the expected title
-	await expect(page.locator('main header h2')).toContainText(expectedTitle, { timeout: 15000 });
+	await expect(page.locator('main header h1')).toContainText(expectedTitle, { timeout: 15000 });
 }
 
 test.describe('Navigation', () => {

@@ -5,7 +5,7 @@ test.describe('MCP Form', () => {
 		// Navigate to library via full page navigation
 		await page.goto('/library', { waitUntil: 'networkidle' });
 		await expect(page).toHaveURL('/library');
-		await expect(page.locator('main header h2')).toContainText(/MCP Library/i);
+		await expect(page.locator('main header h1')).toContainText(/MCP Library/i);
 
 		// Open Add MCP modal
 		await page.click('button:has-text("Add MCP")');
@@ -178,7 +178,7 @@ test.describe('MCP Form - Edit Mode', () => {
 		// Navigate to library
 		await page.goto('/library', { waitUntil: 'networkidle' });
 		await expect(page).toHaveURL('/library');
-		await expect(page.locator('main header h2')).toContainText(/MCP Library/i);
+		await expect(page.locator('main header h1')).toContainText(/MCP Library/i);
 
 		// Wait for MCPs to load
 		await page.waitForTimeout(500);

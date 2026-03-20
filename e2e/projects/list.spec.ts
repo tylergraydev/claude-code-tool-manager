@@ -5,11 +5,11 @@ test.describe('Projects Page', () => {
 		// Navigate to projects page via full page navigation
 		await page.goto('/projects', { waitUntil: 'networkidle' });
 		await expect(page).toHaveURL('/projects');
-		await expect(page.locator('main header h2')).toContainText(/Projects/i);
+		await expect(page.locator('main header h1')).toContainText(/Projects/i);
 	});
 
 	test('should display projects page header', async ({ page }) => {
-		await expect(page.locator('main header h2')).toContainText('Projects');
+		await expect(page.locator('main header h1')).toContainText('Projects');
 	});
 
 	test('should display projects from mock data', async ({ page }) => {
@@ -57,7 +57,7 @@ test.describe('Projects - Search and Filter', () => {
 	test.beforeEach(async ({ page }) => {
 		await page.goto('/projects', { waitUntil: 'networkidle' });
 		await expect(page).toHaveURL('/projects');
-		await expect(page.locator('main header h2')).toContainText(/Projects/i);
+		await expect(page.locator('main header h1')).toContainText(/Projects/i);
 		await page.waitForTimeout(500);
 	});
 
