@@ -57,7 +57,8 @@
 		'keybindings': 'Customize keyboard shortcuts for Claude Code',
 		'spinner-verbs': 'Customize the action verbs shown in Claude Code\'s spinner',
 		'admin': 'View enterprise managed settings deployed by your IT administrator',
-		'editor-sync': 'Configure editors, servers, tokens, paths, and backups'
+		'editor-sync': 'Configure editors, servers, tokens, paths, and backups',
+		'containers': 'Configure Claude Code integration for dev containers'
 	};
 
 	// Lazy-load tab components — only the active tab's code is fetched
@@ -75,6 +76,7 @@
 		'spinner-verbs': () => import('$lib/components/settings/tabs/SettingsSpinnerVerbsTab.svelte'),
 		'admin': () => import('$lib/components/settings/tabs/SettingsAdminTab.svelte'),
 		'editor-sync': () => import('$lib/components/settings/tabs/SettingsEditorSyncTab.svelte'),
+		'containers': () => import('$lib/components/settings/tabs/SettingsContainersTab.svelte'),
 	};
 
 	const activeTabPromise = $derived(TAB_LOADERS[activeTab]?.());

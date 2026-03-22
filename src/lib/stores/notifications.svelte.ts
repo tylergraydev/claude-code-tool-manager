@@ -4,15 +4,18 @@ export interface Notification {
 	id: string;
 	type: NotificationType;
 	message: string;
+	detail?: string;
+	action?: { label: string; onclick: () => void };
 	duration?: number;
 }
 
 class NotificationsState {
 	notifications = $state<Notification[]>([]);
 
-	add(type: NotificationType, message: string, duration = 5000) {
+	add(type: NotificationType, message: string, options?: { duration?: number; detail?: string; action?: { label: string; onclick: () => void } }) {
 		const id = crypto.randomUUID();
-		const notification: Notification = { id, type, message, duration };
+		const duration = options?.duration ?? 5000;
+		const notification: Notification = { id, type, message, detail: options?.detail, action: options?.action, duration };
 		this.notifications = [...this.notifications, notification];
 
 		if (duration > 0) {
@@ -27,19 +30,19 @@ class NotificationsState {
 	}
 
 	success(message: string, duration?: number) {
-		return this.add('success', message, duration);
+		return this.add('success', message, { duration });
 	}
 
 	error(message: string, duration?: number) {
-		return this.add('error', message, duration);
+		return this.add('error', message, { duration });
 	}
 
 	info(message: string, duration?: number) {
-		return this.add('info', message, duration);
+		return this.add('info', message, { duration });
 	}
 
 	warning(message: string, duration?: number) {
-		return this.add('warning', message, duration);
+		return this.add('warning', message, { duration });
 	}
 
 	clear() {

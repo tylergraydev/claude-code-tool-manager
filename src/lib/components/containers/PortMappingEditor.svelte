@@ -30,11 +30,11 @@
 
 	{#each ports as port, i}
 		<div class="flex items-center gap-2 mb-2">
-			<input type="number" bind:value={port.hostPort} placeholder="Host" class="w-24 rounded border-gray-300 text-sm" />
+			<input type="number" bind:value={port.hostPort} placeholder="Host" class="input w-24 text-sm" />
 			<span class="text-gray-400">:</span>
-			<input type="number" bind:value={port.containerPort} placeholder="Container" class="w-24 rounded border-gray-300 text-sm" />
+			<input type="number" bind:value={port.containerPort} placeholder="Container" class="input w-24 text-sm" />
 			<span class="text-xs text-gray-500 uppercase">{port.protocol === 'tcp' ? 'TCP' : 'UDP'}</span>
-			<button type="button" onclick={() => removePort(i)} class="text-red-500 text-sm">Remove</button>
+			<button type="button" onclick={() => removePort(i)} class="btn btn-ghost text-red-500 hover:text-red-700 text-sm px-2 py-1">Remove</button>
 		</div>
 	{/each}
 </div>

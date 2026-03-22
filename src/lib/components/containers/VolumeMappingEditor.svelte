@@ -30,14 +30,14 @@
 
 	{#each volumes as volume, i}
 		<div class="flex items-center gap-2 mb-2">
-			<input type="text" bind:value={volume.hostPath} placeholder="Host path" class="flex-1 rounded border-gray-300 text-sm" />
+			<input type="text" bind:value={volume.hostPath} placeholder="Host path" class="input flex-1 text-sm" />
 			<span class="text-gray-400">:</span>
-			<input type="text" bind:value={volume.containerPath} placeholder="Container path" class="flex-1 rounded border-gray-300 text-sm" />
-			<label class="flex items-center gap-1 text-xs text-gray-500">
+			<input type="text" bind:value={volume.containerPath} placeholder="Container path" class="input flex-1 text-sm" />
+			<label class="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
 				<input type="checkbox" bind:checked={volume.readOnly} />
 				RO
 			</label>
-			<button type="button" onclick={() => removeVolume(i)} class="text-red-500 text-sm">Remove</button>
+			<button type="button" onclick={() => removeVolume(i)} class="btn btn-ghost text-red-500 hover:text-red-700 text-sm px-2 py-1">Remove</button>
 		</div>
 	{/each}
 </div>

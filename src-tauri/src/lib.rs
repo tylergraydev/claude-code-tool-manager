@@ -347,6 +347,8 @@ pub fn run() {
             commands::settings::set_github_token,
             commands::settings::clear_github_token,
             commands::settings::has_github_token,
+            commands::settings::get_container_claude_settings,
+            commands::settings::set_container_claude_settings,
             // Profile Commands
             commands::profiles::get_all_profiles,
             commands::profiles::get_profile,
@@ -481,6 +483,9 @@ pub fn run() {
             commands::containers::get_container_logs_cmd,
             commands::containers::get_container_stats_cmd,
             commands::containers::exec_in_container_cmd,
+            commands::containers::start_container_shell,
+            commands::containers::send_shell_input,
+            commands::containers::resize_shell,
             commands::containers::get_container_templates,
             commands::containers::create_container_from_template,
             commands::containers::assign_container_to_project,

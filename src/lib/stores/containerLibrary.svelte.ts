@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
+import { notifications } from '$lib/stores/notifications.svelte';
 import type {
 	Container,
 	CreateContainerRequest,
@@ -23,6 +24,9 @@ class ContainerLibraryState {
 
 	private statuses = $state<Map<number, unknown>>(new Map());
 	private pollingInterval: ReturnType<typeof setInterval> | null = null;
+
+	// Callback for when a container stops unexpectedly — set by the page to open detail view
+	onContainerStopped: ((containerId: number) => void) | null = null;
 
 	filteredContainers = $derived.by(() => {
 		let result = this.containers;
@@ -114,18 +118,24 @@ class ContainerLibraryState {
 	}
 
 	async startContainer(id: number): Promise<void> {
+		const container = this.containers.find(c => c.id === id);
 		await invoke('start_container_cmd', { id });
 		await this.refreshStatus(id);
+		notifications.success(`Container "${container?.name || id}" started`);
 	}
 
 	async stopContainer(id: number): Promise<void> {
+		const container = this.containers.find(c => c.id === id);
 		await invoke('stop_container_cmd', { id });
 		await this.refreshStatus(id);
+		notifications.info(`Container "${container?.name || id}" stopped`);
 	}
 
 	async restartContainer(id: number): Promise<void> {
+		const container = this.containers.find(c => c.id === id);
 		await invoke('restart_container_cmd', { id });
 		await this.refreshStatus(id);
+		notifications.success(`Container "${container?.name || id}" restarted`);
 	}
 
 	async removeContainer(id: number): Promise<void> {
@@ -143,11 +153,36 @@ class ContainerLibraryState {
 
 	async refreshAllStatuses(): Promise<void> {
 		try {
-			const results = await invoke<Array<{ id: number; status: unknown }>>(
+			const results = await invoke<Array<{ id: number; name: string; status: { dockerStatus: string; exitCode?: number } }>>(
 				'get_all_container_statuses'
 			);
 			const newStatuses = new Map(this.statuses);
 			for (const r of results) {
+				const oldStatus = this.statuses.get(r.id) as { dockerStatus?: string } | undefined;
+				const oldDockerStatus = oldStatus?.dockerStatus;
+				const newDockerStatus = r.status.dockerStatus;
+
+				// Detect unexpected stop: was running, now exited/stopped
+				if (oldDockerStatus === 'running' && (newDockerStatus === 'exited' || newDockerStatus === 'stopped')) {
+					const exitCode = r.status.exitCode;
+					const exitReason = exitCode === 0 ? 'exited cleanly' :
+						exitCode === 137 ? 'killed (OOM or SIGKILL)' :
+						exitCode === 143 ? 'terminated (SIGTERM)' :
+						exitCode === 1 ? 'exited with error' :
+						exitCode !== undefined && exitCode !== null ? `exit code ${exitCode}` : 'unknown reason';
+					const containerId = r.id;
+					const onViewLogs = this.onContainerStopped;
+
+					notifications.add('warning', `Container "${r.name}" stopped`, {
+						detail: `Reason: ${exitReason}. Check logs for more details.`,
+						duration: 10000,
+						action: onViewLogs ? {
+							label: 'View Logs',
+							onclick: () => onViewLogs(containerId),
+						} : undefined,
+					});
+				}
+
 				newStatuses.set(r.id, r.status);
 			}
 			this.statuses = newStatuses;
@@ -183,7 +218,7 @@ class ContainerLibraryState {
 	}
 
 	async fetchStats(id: number): Promise<ContainerStats> {
-		return await invoke<ContainerStats>('get_container_stats', { id });
+		return await invoke<ContainerStats>('get_container_stats_cmd', { id });
 	}
 
 	async exec(id: number, command: string[]): Promise<ExecResult> {
@@ -211,7 +246,7 @@ class ContainerLibraryState {
 	// Docker hosts
 	async loadDockerHosts(): Promise<void> {
 		try {
-			this.dockerHosts = await invoke<DockerHost[]>('get_docker_hosts');
+			this.dockerHosts = await invoke<DockerHost[]>('get_all_docker_hosts');
 		} catch {
 			// Silently handle errors
 		}

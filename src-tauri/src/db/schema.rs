@@ -799,6 +799,7 @@ impl Database {
                     post_start_command TEXT,
                     working_dir TEXT,
                     template_id TEXT,
+                    repo_url TEXT,
                     icon TEXT,
                     tags TEXT,
                     is_favorite INTEGER DEFAULT 0,
@@ -823,6 +824,21 @@ impl Database {
                 CREATE INDEX idx_project_containers_container ON project_containers(container_id);
                 "#,
             )?;
+        }
+
+        // Migration 17: Add repo_url column to containers table
+        let has_repo_url: bool = self
+            .conn
+            .query_row(
+                "SELECT COUNT(*) > 0 FROM pragma_table_info('containers') WHERE name = 'repo_url'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap_or(false);
+
+        if !has_repo_url {
+            self.conn
+                .execute("ALTER TABLE containers ADD COLUMN repo_url TEXT", [])?;
         }
 
         Ok(())

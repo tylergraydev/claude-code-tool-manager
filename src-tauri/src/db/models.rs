@@ -735,6 +735,7 @@ pub struct Container {
     pub post_start_command: Option<String>,
     pub working_dir: Option<String>,
     pub template_id: Option<String>,
+    pub repo_url: Option<String>,
     pub icon: Option<String>,
     pub tags: Option<Vec<String>>,
     pub is_favorite: bool,
@@ -800,6 +801,7 @@ pub struct CreateContainerRequest {
     pub post_start_command: Option<String>,
     pub working_dir: Option<String>,
     pub template_id: Option<String>,
+    pub repo_url: Option<String>,
     pub icon: Option<String>,
     pub tags: Option<Vec<String>>,
 }

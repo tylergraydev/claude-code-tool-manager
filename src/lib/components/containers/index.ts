@@ -13,3 +13,7 @@ export { default as TemplateBrowser } from './TemplateBrowser.svelte';
 export { default as DockerHostForm } from './DockerHostForm.svelte';
 export { default as DockerHostList } from './DockerHostList.svelte';
 export { default as ProjectContainerPanel } from './ProjectContainerPanel.svelte';
+export { default as NewContainerWizard } from './NewContainerWizard.svelte';
+export { default as ContainerExec } from './ContainerExec.svelte';
+export { default as ContainerTerminal } from './ContainerTerminal.svelte';
+export { default as ContainerFiles } from './ContainerFiles.svelte';

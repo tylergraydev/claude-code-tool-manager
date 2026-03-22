@@ -225,6 +225,85 @@ pub fn get_gemini_paths_cmd() -> Result<GeminiPaths, String> {
 }
 
 // ============================================================================
+// Claude Code container settings
+// ============================================================================
+
+#[tauri::command]
+pub fn get_container_claude_settings(
+    db: State<'_, Arc<Mutex<Database>>>,
+) -> Result<ContainerClaudeSettings, String> {
+    let db = db.lock().map_err(|e| e.to_string())?;
+    Ok(get_container_claude_settings_from_db(&db))
+}
+
+#[tauri::command]
+pub fn set_container_claude_settings(
+    db: State<'_, Arc<Mutex<Database>>>,
+    settings: ContainerClaudeSettings,
+) -> Result<(), String> {
+    let db = db.lock().map_err(|e| e.to_string())?;
+    db.set_setting("container_claude_auth_mode", &settings.auth_mode)
+        .map_err(|e| e.to_string())?;
+    db.set_setting(
+        "container_claude_api_key",
+        &settings.api_key.unwrap_or_default(),
+    )
+    .map_err(|e| e.to_string())?;
+    db.set_setting(
+        "container_claude_auto_mount",
+        if settings.auto_mount_claude_dir {
+            "true"
+        } else {
+            "false"
+        },
+    )
+    .map_err(|e| e.to_string())?;
+    db.set_setting(
+        "container_claude_auto_install",
+        if settings.auto_install {
+            "true"
+        } else {
+            "false"
+        },
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ContainerClaudeSettings {
+    pub auth_mode: String, // "max" or "api_key"
+    pub api_key: Option<String>,
+    pub auto_mount_claude_dir: bool, // Mount ~/.claude/ into containers
+    pub auto_install: bool,          // Install claude code in post-create
+}
+
+pub fn get_container_claude_settings_from_db(db: &Database) -> ContainerClaudeSettings {
+    ContainerClaudeSettings {
+        auth_mode: db
+            .get_setting("container_claude_auth_mode")
+            .unwrap_or_else(|| "max".to_string()),
+        api_key: db
+            .get_setting("container_claude_api_key")
+            .filter(|s| !s.is_empty()),
+        auto_mount_claude_dir: db
+            .get_setting("container_claude_auto_mount")
+            .map(|s| s == "true")
+            .unwrap_or(true),
+        auto_install: db
+            .get_setting("container_claude_auto_install")
+            .map(|s| s == "true")
+            .unwrap_or(false),
+    }
+}
+
+/// Get the host's ~/.claude directory path
+pub fn get_host_claude_dir() -> Option<String> {
+    dirs::home_dir().map(|h| h.join(".claude").to_string_lossy().to_string())
+}
+
+// ============================================================================
 // Testable helper functions (no Tauri State dependency)
 // ============================================================================
 
