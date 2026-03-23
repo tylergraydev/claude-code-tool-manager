@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.6.0] - 2026-03-23
+
+### Added
+- **Container Management**: Full container lifecycle management with Docker integration
+  - Template-first container creation wizard with 9 preconfigured devcontainer templates (Node.js, TypeScript, Rust/Tauri, Python, Go, .NET, Ubuntu, PostgreSQL, Redis)
+  - Start/stop/restart controls with live status badges and loading states
+  - Interactive xterm.js terminal (Console tab) with bash/shell support, tab completion, and command history
+  - File browser (Files tab) for navigating container filesystems
+  - Git repo cloning on first container start via Repository URL field
+  - Copy-to-clipboard docker exec commands for connecting via external terminals
+- **Claude Code Integration**: Container settings for auto-mounting `~/.claude/` (Max Plan OAuth) or injecting API key, with optional auto-install of Claude Code in containers
+- **Container Detail Modal**: Tabbed view with Overview, Logs, Stats, Console, and Files tabs
+- **Container Settings Tab**: New Settings > Containers tab for Claude Code auth configuration
+
+### Fixed
+- **Security**: Prevent command injection via unsanitized repo URLs in container shell commands
+- **Security**: Mount `~/.claude` as read-only into containers to prevent auth state tampering
+- **Security**: Bind forwarded container ports to `127.0.0.1` instead of `0.0.0.0`
+- **Security**: Validate volume mount host paths against path traversal and sensitive system directories
+- **Container Deletion**: Delete now properly removes Docker containers (fixes name conflict on recreate)
+- **Test Fixes**: Fixed 8 broken tests — notifications store signature, container component assertions, lucide-svelte mock stubs
+
 ## [3.5.1] - 2026-03-20
 
 ### Added
