@@ -32,6 +32,82 @@ fn parse_json_volume_mappings(s: Option<String>) -> Option<Vec<VolumeMapping>> {
 }
 
 // ============================================================================
+// Security helpers
+// ============================================================================
+
+/// Validate that a string is a legitimate git URL (HTTPS, SSH, or git:// protocol).
+/// Rejects anything that could be used for shell injection.
+fn is_valid_git_url(url: &str) -> bool {
+    let url = url.trim();
+    // Reject empty or whitespace-only
+    if url.is_empty() {
+        return false;
+    }
+    // Reject URLs containing shell metacharacters
+    if url.contains(';')
+        || url.contains('&')
+        || url.contains('|')
+        || url.contains('$')
+        || url.contains('`')
+        || url.contains('(')
+        || url.contains(')')
+        || url.contains('\n')
+        || url.contains('\r')
+    {
+        return false;
+    }
+    // Allow common git URL patterns
+    let valid_patterns = [
+        url.starts_with("https://"),
+        url.starts_with("http://"),
+        url.starts_with("git://"),
+        url.starts_with("ssh://"),
+        // git@github.com:user/repo.git style
+        regex::Regex::new(r"^[a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+:[\w./-]+$")
+            .map(|re| re.is_match(url))
+            .unwrap_or(false),
+    ];
+    valid_patterns.iter().any(|&v| v)
+}
+
+/// Shell-escape a single argument for use in sh -c commands.
+fn shell_escape(s: &str) -> String {
+    format!("'{}'", s.replace('\'', "'\\''"))
+}
+
+/// Validate that a volume host_path does not traverse to sensitive locations.
+pub fn validate_volume_host_path(host_path: &str) -> Result<(), String> {
+    let normalized = host_path.replace('\\', "/");
+    // Reject path traversal
+    if normalized.contains("..") {
+        return Err(format!(
+            "Volume host path '{}' contains path traversal (..)",
+            host_path
+        ));
+    }
+    // Reject sensitive system directories
+    let sensitive_prefixes = [
+        "/etc/shadow",
+        "/etc/passwd",
+        "/etc/ssh",
+        "/root/.ssh",
+        "/proc",
+        "/sys",
+        "C:/Windows/System32",
+        "C:/Windows/system32",
+    ];
+    for prefix in &sensitive_prefixes {
+        if normalized.starts_with(prefix) || normalized == *prefix {
+            return Err(format!(
+                "Volume host path '{}' points to a sensitive system location",
+                host_path
+            ));
+        }
+    }
+    Ok(())
+}
+
+// ============================================================================
 // Row mapper
 // ============================================================================
 
@@ -224,12 +300,20 @@ pub async fn start_container_cmd(
     // On first start, clone repo if repo_url is set
     if is_first_start {
         if let Some(ref repo_url) = container.repo_url {
+            // Validate repo_url to prevent command injection
+            if !is_valid_git_url(repo_url) {
+                error!("[Container] Invalid git URL rejected: {}", repo_url);
+                return Err(format!("Invalid git repository URL: {}", repo_url));
+            }
+
             let working_dir = container.working_dir.as_deref().unwrap_or("/workspace");
             info!("[Container] Cloning repo {} into {}", repo_url, working_dir);
+            // Use git directly without sh -c to avoid shell injection
             let clone_cmd = vec![
-                "sh".to_string(),
-                "-c".to_string(),
-                format!("git clone {} {}", repo_url, working_dir),
+                "git".to_string(),
+                "clone".to_string(),
+                repo_url.to_string(),
+                working_dir.to_string(),
             ];
             match docker_mgr
                 .exec(&docker_id, container.docker_host_id, clone_cmd)
@@ -237,15 +321,65 @@ pub async fn start_container_cmd(
             {
                 Ok(result) => {
                     if result.exit_code != 0 {
-                        // If clone fails because dir isn't empty, try cloning into it
-                        let retry_cmd = vec![
-                            "sh".to_string(),
-                            "-c".to_string(),
-                            format!("cd {} && git init && git remote add origin {} && git fetch origin && git checkout -t origin/main || git checkout -t origin/master", working_dir, repo_url),
+                        // If clone fails because dir isn't empty, try init + fetch
+                        let init_cmd = vec![
+                            "git".to_string(),
+                            "init".to_string(),
+                            working_dir.to_string(),
                         ];
                         let _ = docker_mgr
-                            .exec(&docker_id, container.docker_host_id, retry_cmd)
+                            .exec(&docker_id, container.docker_host_id, init_cmd)
                             .await;
+
+                        let remote_cmd = vec![
+                            "git".to_string(),
+                            "-C".to_string(),
+                            working_dir.to_string(),
+                            "remote".to_string(),
+                            "add".to_string(),
+                            "origin".to_string(),
+                            repo_url.to_string(),
+                        ];
+                        let _ = docker_mgr
+                            .exec(&docker_id, container.docker_host_id, remote_cmd)
+                            .await;
+
+                        let fetch_cmd = vec![
+                            "git".to_string(),
+                            "-C".to_string(),
+                            working_dir.to_string(),
+                            "fetch".to_string(),
+                            "origin".to_string(),
+                        ];
+                        let _ = docker_mgr
+                            .exec(&docker_id, container.docker_host_id, fetch_cmd)
+                            .await;
+
+                        // Try checking out main, fall back to master
+                        let checkout_main = vec![
+                            "git".to_string(),
+                            "-C".to_string(),
+                            working_dir.to_string(),
+                            "checkout".to_string(),
+                            "-t".to_string(),
+                            "origin/main".to_string(),
+                        ];
+                        let main_result = docker_mgr
+                            .exec(&docker_id, container.docker_host_id, checkout_main)
+                            .await;
+                        if main_result.map(|r| r.exit_code != 0).unwrap_or(true) {
+                            let checkout_master = vec![
+                                "git".to_string(),
+                                "-C".to_string(),
+                                working_dir.to_string(),
+                                "checkout".to_string(),
+                                "-t".to_string(),
+                                "origin/master".to_string(),
+                            ];
+                            let _ = docker_mgr
+                                .exec(&docker_id, container.docker_host_id, checkout_master)
+                                .await;
+                        }
                     }
                     // Run post_create_command if set
                     if let Some(ref post_cmd) = container.post_create_command {
@@ -253,7 +387,7 @@ pub async fn start_container_cmd(
                         let post_exec = vec![
                             "sh".to_string(),
                             "-c".to_string(),
-                            format!("cd {} && {}", working_dir, post_cmd),
+                            format!("cd {} && {}", shell_escape(working_dir), post_cmd),
                         ];
                         let _ = docker_mgr
                             .exec(&docker_id, container.docker_host_id, post_exec)
@@ -271,7 +405,7 @@ pub async fn start_container_cmd(
             let post_exec = vec![
                 "sh".to_string(),
                 "-c".to_string(),
-                format!("cd {} && {}", working_dir, post_cmd),
+                format!("cd {} && {}", shell_escape(working_dir), post_cmd),
             ];
             let _ = docker_mgr
                 .exec(&docker_id, container.docker_host_id, post_exec)

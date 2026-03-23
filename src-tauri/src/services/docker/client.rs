@@ -146,17 +146,18 @@ impl DockerClientManager {
                 port_bindings.insert(
                     container_port,
                     Some(vec![bollard::models::PortBinding {
-                        host_ip: Some("0.0.0.0".to_string()),
+                        host_ip: Some("127.0.0.1".to_string()),
                         host_port: Some(pm.host_port.to_string()),
                     }]),
                 );
             }
         }
 
-        // Build volume binds
+        // Build volume binds (with host path validation)
         let mut binds = Vec::new();
         if let Some(ref volumes) = container.volumes {
             for vm in volumes {
+                crate::commands::containers::validate_volume_host_path(&vm.host_path)?;
                 let bind = if vm.read_only.unwrap_or(false) {
                     format!("{}:{}:ro", vm.host_path, vm.container_path)
                 } else {
@@ -183,9 +184,9 @@ impl DockerClientManager {
                 if let Some(host_claude_dir) = crate::commands::settings::get_host_claude_dir() {
                     let path = std::path::Path::new(&host_claude_dir);
                     if path.exists() {
-                        // Mount as /root/.claude and /home/node/.claude to cover common user setups
-                        binds.push(format!("{}:/root/.claude", host_claude_dir));
-                        binds.push(format!("{}:/home/node/.claude", host_claude_dir));
+                        // Mount as /root/.claude and /home/node/.claude to cover common user setups (read-only)
+                        binds.push(format!("{}:/root/.claude:ro", host_claude_dir));
+                        binds.push(format!("{}:/home/node/.claude:ro", host_claude_dir));
                         info!(
                             "[Docker] Auto-mounting Claude auth dir: {}",
                             host_claude_dir

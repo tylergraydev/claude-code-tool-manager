@@ -35,7 +35,7 @@ describe('Notifications Store', () => {
 			const { notifications } = await import('$lib/stores/notifications.svelte');
 			notifications.clear();
 
-			notifications.add('info', 'Custom duration', 10000);
+			notifications.add('info', 'Custom duration', { duration: 10000 });
 
 			expect(notifications.notifications[0].duration).toBe(10000);
 		});
@@ -137,7 +137,7 @@ describe('Notifications Store', () => {
 			const { notifications } = await import('$lib/stores/notifications.svelte');
 			notifications.clear();
 
-			notifications.add('error', 'Persistent notification', 0);
+			notifications.add('error', 'Persistent notification', { duration: 0 });
 
 			vi.advanceTimersByTime(10000);
 
@@ -148,7 +148,7 @@ describe('Notifications Store', () => {
 			const { notifications } = await import('$lib/stores/notifications.svelte');
 			notifications.clear();
 
-			notifications.add('success', 'Auto dismiss', 3000);
+			notifications.add('success', 'Auto dismiss', { duration: 3000 });
 
 			expect(notifications.notifications).toHaveLength(1);
 
