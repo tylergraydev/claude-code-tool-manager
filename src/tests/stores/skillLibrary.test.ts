@@ -205,8 +205,7 @@ describe('Skill Library Store', () => {
 			const result = await skillLibrary.create({
 				name: 'new-skill',
 				description: 'New',
-				content: 'Content',
-				skillType: 'command'
+				content: 'Content'
 			});
 
 			expect(result.id).toBe(3);
@@ -228,8 +227,7 @@ describe('Skill Library Store', () => {
 			await skillLibrary.update(1, {
 				name: 'new-name',
 				description: '',
-				content: '',
-				skillType: 'command'
+				content: ''
 			});
 
 			expect(skillLibrary.skills[0].name).toBe('new-name');

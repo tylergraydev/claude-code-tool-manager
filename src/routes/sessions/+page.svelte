@@ -139,7 +139,6 @@
 		{:else if sessionStore.sessionDetail}
 			<SessionDetailPanel
 				detail={sessionStore.sessionDetail}
-				sessionSummary={sessionStore.selectedSessionSummary}
 				onClose={() => sessionStore.clearSession()}
 			/>
 		{/if}

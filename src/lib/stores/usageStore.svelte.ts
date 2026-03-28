@@ -2,6 +2,12 @@ import { invoke } from '@tauri-apps/api/core';
 import type { StatsCacheInfo, DateRangeFilter } from '$lib/types';
 import { estimateModelCost } from '$lib/types/usage';
 
+export interface DailyCost {
+	date: string;
+	costByModel: Record<string, number>;
+	total: number;
+}
+
 class UsageStoreState {
 	data = $state<StatsCacheInfo | null>(null);
 	isLoading = $state(false);
@@ -59,6 +65,32 @@ class UsageStoreState {
 		return total;
 	});
 
+	filteredDailyCosts = $derived.by((): DailyCost[] => {
+		const tokens = this.stats?.dailyModelTokens ?? [];
+		const filtered = this.filterByDateRange(tokens);
+		const usage = this.stats?.modelUsage ?? {};
+
+		return filtered.map((day) => {
+			const costByModel: Record<string, number> = {};
+			for (const [model, tokenCount] of Object.entries(day.tokensByModel)) {
+				const detail = usage[model];
+				if (detail && detail.costUSD > 0) {
+					// Proportional cost based on token share
+					const totalModelTokens = detail.inputTokens + detail.outputTokens;
+					const share = totalModelTokens > 0 ? tokenCount / totalModelTokens : 0;
+					costByModel[model] = detail.costUSD * share;
+				} else {
+					// Rough estimate: split tokens 30/70 input/output
+					const inputEst = Math.round(tokenCount * 0.3);
+					const outputEst = tokenCount - inputEst;
+					costByModel[model] = estimateModelCost(model, inputEst, outputEst, 0, 0);
+				}
+			}
+			const total = Object.values(costByModel).reduce((s, v) => s + v, 0);
+			return { date: day.date, costByModel, total };
+		});
+	});
+
 	hourCountsArray = $derived.by(() => {
 		const counts = this.stats?.hourCounts ?? {};
 		const arr: number[] = new Array(24).fill(0);
@@ -113,6 +145,22 @@ class UsageStoreState {
 
 	setDateRange(range: DateRangeFilter) {
 		this.dateRange = range;
+	}
+
+	private pollingInterval: ReturnType<typeof setInterval> | null = null;
+
+	startPolling(intervalMs: number) {
+		this.stopPolling();
+		this.pollingInterval = setInterval(() => {
+			this.load();
+		}, intervalMs);
+	}
+
+	stopPolling() {
+		if (this.pollingInterval) {
+			clearInterval(this.pollingInterval);
+			this.pollingInterval = null;
+		}
 	}
 }
 

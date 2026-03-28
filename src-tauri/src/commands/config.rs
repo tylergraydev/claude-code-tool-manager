@@ -159,6 +159,18 @@ pub(crate) fn sync_global_config_from_db(db: &Database) -> Result<(), String> {
                     info!("[Config] Wrote global config to Gemini CLI");
                 }
             }
+            editor_id if crate::utils::wsl::is_wsl_editor(editor_id) => {
+                if let Some(distro) = crate::utils::wsl::distro_from_editor_id(editor_id) {
+                    crate::services::wsl_config::write_wsl_global_config(&distro, &mcps)
+                        .map_err(|e| e.to_string())?;
+                    info!("[Config] Wrote global config to WSL distro '{}'", distro);
+                } else {
+                    warn!(
+                        "[Config] WSL editor '{}' but could not resolve distro name. Skipping.",
+                        editor_id
+                    );
+                }
+            }
             unknown => warn!("[Config] Unknown editor type '{}'. Skipping.", unknown),
         }
     }
