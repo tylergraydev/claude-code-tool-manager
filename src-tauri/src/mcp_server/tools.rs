@@ -1097,6 +1097,13 @@ mod tests {
                             .filter_map(|v| v.as_str().map(|s| s.to_string()))
                             .collect()
                     }),
+                    context: None,
+                    agent: None,
+                    hooks: None,
+                    paths: None,
+                    shell: None,
+                    once: None,
+                    effort: None,
                 };
                 let skill = db.create_skill(&request).map_err(|e| e.to_string())?;
                 let json = serde_json::to_string_pretty(&skill).map_err(|e| e.to_string())?;
@@ -1185,6 +1192,15 @@ mod tests {
                             .filter_map(|v| v.as_str().map(|s| s.to_string()))
                             .collect()
                     }),
+                    disallowed_tools: None,
+                    max_turns: None,
+                    memory: None,
+                    background: None,
+                    effort: None,
+                    isolation: None,
+                    hooks: None,
+                    mcp_servers: None,
+                    initial_prompt: None,
                 };
                 let item = db.create_subagent(&request).map_err(|e| e.to_string())?;
                 let json = serde_json::to_string_pretty(&item).map_err(|e| e.to_string())?;
@@ -1279,6 +1295,14 @@ mod tests {
                             .filter_map(|v| v.as_str().map(|s| s.to_string()))
                             .collect()
                     }),
+                    url: None,
+                    headers: None,
+                    allowed_env_vars: None,
+                    if_condition: None,
+                    status_message: None,
+                    once: None,
+                    async_mode: None,
+                    shell: None,
                 };
                 let item = db.create_hook(&request).map_err(|e| e.to_string())?;
                 let json = serde_json::to_string_pretty(&item).map_err(|e| e.to_string())?;

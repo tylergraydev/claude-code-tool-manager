@@ -976,6 +976,13 @@ mod tests {
             model: Some("opus".to_string()),
             disable_model_invocation: Some(true),
             tags: Some(vec!["review".to_string()]),
+            context: None,
+            agent: None,
+            hooks: None,
+            paths: None,
+            shell: None,
+            once: None,
+            effort: None,
         }
     }
 
@@ -988,6 +995,13 @@ mod tests {
             model: None,
             disable_model_invocation: None,
             tags: None,
+            context: None,
+            agent: None,
+            hooks: None,
+            paths: None,
+            shell: None,
+            once: None,
+            effort: None,
         }
     }
 
@@ -1140,6 +1154,13 @@ mod tests {
             model: Some("haiku".to_string()),
             disable_model_invocation: Some(false),
             tags: Some(vec!["updated".to_string()]),
+            context: None,
+            agent: None,
+            hooks: None,
+            paths: None,
+            shell: None,
+            once: None,
+            effort: None,
         };
 
         let updated = update_skill_in_db(&db, created.id, &update_req).unwrap();
@@ -1568,6 +1589,13 @@ mod tests {
             model: None,
             disable_model_invocation: None,
             tags: None,
+            context: None,
+            agent: None,
+            hooks: None,
+            paths: None,
+            shell: None,
+            once: None,
+            effort: None,
         };
         let result = validate_skill_request(&skill);
         assert!(result.is_ok());
@@ -1583,6 +1611,13 @@ mod tests {
             model: None,
             disable_model_invocation: None,
             tags: None,
+            context: None,
+            agent: None,
+            hooks: None,
+            paths: None,
+            shell: None,
+            once: None,
+            effort: None,
         };
         let result = validate_skill_request(&skill);
         assert!(result.is_err());
@@ -1598,6 +1633,13 @@ mod tests {
             model: None,
             disable_model_invocation: None,
             tags: None,
+            context: None,
+            agent: None,
+            hooks: None,
+            paths: None,
+            shell: None,
+            once: None,
+            effort: None,
         };
         let result = validate_skill_request(&skill);
         assert!(result.is_err());
@@ -1614,6 +1656,13 @@ mod tests {
             model: None,
             disable_model_invocation: None,
             tags: None,
+            context: None,
+            agent: None,
+            hooks: None,
+            paths: None,
+            shell: None,
+            once: None,
+            effort: None,
         };
         let result = create_skill_in_db(&db, &skill);
         assert!(result.is_err());
@@ -1631,6 +1680,13 @@ mod tests {
             model: None,
             disable_model_invocation: None,
             tags: None,
+            context: None,
+            agent: None,
+            hooks: None,
+            paths: None,
+            shell: None,
+            once: None,
+            effort: None,
         };
         let result = create_skill_in_db(&db, &skill);
         assert!(result.is_err());
@@ -1650,6 +1706,13 @@ mod tests {
             model: None,
             disable_model_invocation: None,
             tags: None,
+            context: None,
+            agent: None,
+            hooks: None,
+            paths: None,
+            shell: None,
+            once: None,
+            effort: None,
         };
         let result = update_skill_in_db(&db, skill.id, &update);
         assert!(result.is_err());
@@ -1720,6 +1783,13 @@ mod tests {
             model: None,
             disable_model_invocation: None,
             tags: None,
+            context: None,
+            agent: None,
+            hooks: None,
+            paths: None,
+            shell: None,
+            once: None,
+            effort: None,
         };
         let result = validate_skill_request(&skill);
         assert!(result.is_err());
@@ -1737,6 +1807,13 @@ mod tests {
             model: None,
             disable_model_invocation: None,
             tags: None,
+            context: None,
+            agent: None,
+            hooks: None,
+            paths: None,
+            shell: None,
+            once: None,
+            effort: None,
         };
         let result = validate_skill_request(&skill).unwrap();
         assert!(result.is_some());
@@ -1753,6 +1830,13 @@ mod tests {
             model: None,
             disable_model_invocation: None,
             tags: None,
+            context: None,
+            agent: None,
+            hooks: None,
+            paths: None,
+            shell: None,
+            once: None,
+            effort: None,
         };
         let result = validate_skill_request(&skill).unwrap();
         assert!(result.is_none());
@@ -1817,6 +1901,13 @@ mod tests {
             model: None,
             disable_model_invocation: Some(false),
             tags: None,
+            context: None,
+            agent: None,
+            hooks: None,
+            paths: None,
+            shell: None,
+            once: None,
+            effort: None,
         };
         let skill = create_skill_in_db(&db, &req).unwrap();
         assert!(!skill.disable_model_invocation);
@@ -1833,6 +1924,13 @@ mod tests {
             model: None,
             disable_model_invocation: None,
             tags: None,
+            context: None,
+            agent: None,
+            hooks: None,
+            paths: None,
+            shell: None,
+            once: None,
+            effort: None,
         };
         let skill = create_skill_in_db(&db, &req).unwrap();
         assert!(!skill.disable_model_invocation);
@@ -1853,6 +1951,13 @@ mod tests {
             model: None,
             disable_model_invocation: None,
             tags: None,
+            context: None,
+            agent: None,
+            hooks: None,
+            paths: None,
+            shell: None,
+            once: None,
+            effort: None,
         };
         // Should succeed since we skip validation
         let skill = create_skill_in_db_unvalidated(&db, &req).unwrap();

@@ -1112,6 +1112,14 @@ mod tests {
             prompt: None,
             timeout: Some(30),
             tags: Some(vec!["lint".to_string(), "format".to_string()]),
+            url: None,
+            headers: None,
+            allowed_env_vars: None,
+            if_condition: None,
+            status_message: None,
+            once: None,
+            async_mode: None,
+            shell: None,
         };
 
         let created = create_hook_in_db(&db, &hook).unwrap();
@@ -1146,6 +1154,14 @@ mod tests {
             prompt: Some("Always verify before writing".to_string()),
             timeout: None,
             tags: None,
+            url: None,
+            headers: None,
+            allowed_env_vars: None,
+            if_condition: None,
+            status_message: None,
+            once: None,
+            async_mode: None,
+            shell: None,
         };
 
         let created = create_hook_in_db(&db, &hook).unwrap();
@@ -1173,6 +1189,14 @@ mod tests {
             prompt: None,
             timeout: None,
             tags: None,
+            url: None,
+            headers: None,
+            allowed_env_vars: None,
+            if_condition: None,
+            status_message: None,
+            once: None,
+            async_mode: None,
+            shell: None,
         };
 
         let created = create_hook_in_db(&db, &hook).unwrap();
@@ -1207,6 +1231,14 @@ mod tests {
                 prompt: None,
                 timeout: None,
                 tags: None,
+                url: None,
+                headers: None,
+                allowed_env_vars: None,
+                if_condition: None,
+                status_message: None,
+                once: None,
+                async_mode: None,
+                shell: None,
             };
             create_hook_in_db(&db, &hook).unwrap();
         }
@@ -1235,6 +1267,14 @@ mod tests {
             prompt: None,
             timeout: None,
             tags: None,
+            url: None,
+            headers: None,
+            allowed_env_vars: None,
+            if_condition: None,
+            status_message: None,
+            once: None,
+            async_mode: None,
+            shell: None,
         };
         create_hook_in_db(&db, &hook).unwrap();
 
@@ -1267,6 +1307,14 @@ mod tests {
             prompt: None,
             timeout: Some(10),
             tags: None,
+            url: None,
+            headers: None,
+            allowed_env_vars: None,
+            if_condition: None,
+            status_message: None,
+            once: None,
+            async_mode: None,
+            shell: None,
         };
 
         let created = create_hook_in_db(&db, &hook).unwrap();
@@ -1281,6 +1329,14 @@ mod tests {
             prompt: None,
             timeout: Some(60),
             tags: Some(vec!["updated".to_string()]),
+            url: None,
+            headers: None,
+            allowed_env_vars: None,
+            if_condition: None,
+            status_message: None,
+            once: None,
+            async_mode: None,
+            shell: None,
         };
 
         let updated = update_hook_in_db(&db, created.id, &update).unwrap();
@@ -1312,6 +1368,14 @@ mod tests {
             prompt: None,
             timeout: None,
             tags: None,
+            url: None,
+            headers: None,
+            allowed_env_vars: None,
+            if_condition: None,
+            status_message: None,
+            once: None,
+            async_mode: None,
+            shell: None,
         };
 
         let created = create_hook_in_db(&db, &hook).unwrap();
@@ -1339,6 +1403,14 @@ mod tests {
             prompt: None,
             timeout: None,
             tags: None,
+            url: None,
+            headers: None,
+            allowed_env_vars: None,
+            if_condition: None,
+            status_message: None,
+            once: None,
+            async_mode: None,
+            shell: None,
         };
 
         let created = create_hook_in_db(&db, &hook).unwrap();
@@ -1365,6 +1437,14 @@ mod tests {
             prompt: None,
             timeout: None,
             tags: None,
+            url: None,
+            headers: None,
+            allowed_env_vars: None,
+            if_condition: None,
+            status_message: None,
+            once: None,
+            async_mode: None,
+            shell: None,
         };
 
         let created = create_hook_in_db(&db, &hook).unwrap();
@@ -1398,6 +1478,14 @@ mod tests {
             prompt: None,
             timeout: None,
             tags: None,
+            url: None,
+            headers: None,
+            allowed_env_vars: None,
+            if_condition: None,
+            status_message: None,
+            once: None,
+            async_mode: None,
+            shell: None,
         };
 
         let created = create_hook_in_db(&db, &hook).unwrap();
@@ -1433,6 +1521,14 @@ mod tests {
             prompt: None,
             timeout: None,
             tags: None,
+            url: None,
+            headers: None,
+            allowed_env_vars: None,
+            if_condition: None,
+            status_message: None,
+            once: None,
+            async_mode: None,
+            shell: None,
         };
 
         let created = create_hook_in_db(&db, &hook).unwrap();
@@ -1467,6 +1563,14 @@ mod tests {
                 prompt: None,
                 timeout: None,
                 tags: None,
+                url: None,
+                headers: None,
+                allowed_env_vars: None,
+                if_condition: None,
+                status_message: None,
+                once: None,
+                async_mode: None,
+                shell: None,
             };
 
             let created = create_hook_in_db(&db, &hook).unwrap();
@@ -1488,6 +1592,14 @@ mod tests {
             prompt: None,
             timeout: None,
             tags: None,
+            url: None,
+            headers: None,
+            allowed_env_vars: None,
+            if_condition: None,
+            status_message: None,
+            once: None,
+            async_mode: None,
+            shell: None,
         };
 
         let created = create_hook_in_db(&db, &hook).unwrap();
@@ -1508,6 +1620,14 @@ mod tests {
             prompt: None,
             timeout: None,
             tags: Some(vec![]),
+            url: None,
+            headers: None,
+            allowed_env_vars: None,
+            if_condition: None,
+            status_message: None,
+            once: None,
+            async_mode: None,
+            shell: None,
         };
 
         let created = create_hook_in_db(&db, &hook).unwrap();

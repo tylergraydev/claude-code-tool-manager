@@ -2703,6 +2703,13 @@ mod tests {
             model: None,
             disable_model_invocation: None,
             tags: None,
+            context: None,
+            agent: None,
+            hooks: None,
+            paths: None,
+            shell: None,
+            once: None,
+            effort: None,
         }
     }
 
@@ -2784,6 +2791,15 @@ mod tests {
             permission_mode: None,
             skills: None,
             tags: None,
+            disallowed_tools: None,
+            max_turns: None,
+            memory: None,
+            background: None,
+            effort: None,
+            isolation: None,
+            hooks: None,
+            mcp_servers: None,
+            initial_prompt: None,
         }
     }
 
@@ -2877,6 +2893,14 @@ mod tests {
             prompt: None,
             timeout: Some(5000),
             tags: None,
+            url: None,
+            headers: None,
+            allowed_env_vars: None,
+            if_condition: None,
+            status_message: None,
+            once: None,
+            async_mode: None,
+            shell: None,
         }
     }
 
@@ -3233,6 +3257,13 @@ mod tests {
             model: Some("sonnet".to_string()),
             disable_model_invocation: Some(true),
             tags: None,
+            context: None,
+            agent: None,
+            hooks: None,
+            paths: None,
+            shell: None,
+            once: None,
+            effort: None,
         };
 
         let skill = db.create_skill(&req).unwrap();
@@ -3467,6 +3498,13 @@ mod tests {
             model: Some("opus".to_string()),
             disable_model_invocation: Some(true),
             tags: Some(vec!["tag1".to_string(), "tag2".to_string()]),
+            context: None,
+            agent: None,
+            hooks: None,
+            paths: None,
+            shell: None,
+            once: None,
+            effort: None,
         };
 
         let skill = db.create_skill(&req).unwrap();
@@ -3499,6 +3537,15 @@ mod tests {
             permission_mode: Some("bypassPermissions".to_string()),
             skills: Some(vec!["lint".to_string()]),
             tags: Some(vec!["review".to_string()]),
+            disallowed_tools: None,
+            max_turns: None,
+            memory: None,
+            background: None,
+            effort: None,
+            isolation: None,
+            hooks: None,
+            mcp_servers: None,
+            initial_prompt: None,
         };
 
         let agent = db.create_subagent(&req).unwrap();
@@ -3525,6 +3572,14 @@ mod tests {
             prompt: Some("Please confirm".to_string()),
             timeout: None,
             tags: Some(vec!["safety".to_string()]),
+            url: None,
+            headers: None,
+            allowed_env_vars: None,
+            if_condition: None,
+            status_message: None,
+            once: None,
+            async_mode: None,
+            shell: None,
         };
 
         let hook = db.create_hook(&req).unwrap();

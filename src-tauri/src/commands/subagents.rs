@@ -663,6 +663,15 @@ mod tests {
             permission_mode: Some("bypassPermissions".to_string()),
             skills: Some(vec!["lint".to_string(), "format".to_string()]),
             tags: Some(vec!["review".to_string(), "quality".to_string()]),
+            disallowed_tools: None,
+            max_turns: None,
+            memory: None,
+            background: None,
+            effort: None,
+            isolation: None,
+            hooks: None,
+            mcp_servers: None,
+            initial_prompt: None,
         }
     }
 
@@ -682,6 +691,15 @@ mod tests {
             permission_mode: None,
             skills: None,
             tags: Some(vec!["testing".to_string()]),
+            disallowed_tools: None,
+            max_turns: None,
+            memory: None,
+            background: None,
+            effort: None,
+            isolation: None,
+            hooks: None,
+            mcp_servers: None,
+            initial_prompt: None,
         }
     }
 
@@ -695,6 +713,15 @@ mod tests {
             permission_mode: None,
             skills: None,
             tags: None,
+            disallowed_tools: None,
+            max_turns: None,
+            memory: None,
+            background: None,
+            effort: None,
+            isolation: None,
+            hooks: None,
+            mcp_servers: None,
+            initial_prompt: None,
         }
     }
 
@@ -858,6 +885,15 @@ mod tests {
             permission_mode: Some("default".to_string()),
             skills: Some(vec!["new-skill".to_string()]),
             tags: Some(vec!["updated".to_string()]),
+            disallowed_tools: None,
+            max_turns: None,
+            memory: None,
+            background: None,
+            effort: None,
+            isolation: None,
+            hooks: None,
+            mcp_servers: None,
+            initial_prompt: None,
         };
 
         let updated = update_subagent_in_db(&db, created.id, &update_req).unwrap();
@@ -982,6 +1018,15 @@ mod tests {
             permission_mode: None,
             skills: None,
             tags: None,
+            disallowed_tools: None,
+            max_turns: None,
+            memory: None,
+            background: None,
+            effort: None,
+            isolation: None,
+            hooks: None,
+            mcp_servers: None,
+            initial_prompt: None,
         };
         let subagent = create_subagent_in_db(&db, &req).unwrap();
         assert_eq!(subagent.tools, Some(vec![]));
@@ -1003,6 +1048,15 @@ mod tests {
             permission_mode: None,
             skills: None,
             tags: None,
+            disallowed_tools: None,
+            max_turns: None,
+            memory: None,
+            background: None,
+            effort: None,
+            isolation: None,
+            hooks: None,
+            mcp_servers: None,
+            initial_prompt: None,
         };
         let updated = update_subagent_in_db(&db, created.id, &update_req).unwrap();
         assert!(updated.tools.is_none());
@@ -1055,6 +1109,15 @@ mod tests {
             source: "manual".to_string(),
             source_path: None,
             is_favorite: false,
+            disallowed_tools: None,
+            max_turns: None,
+            memory: None,
+            background: None,
+            effort: None,
+            isolation: None,
+            hooks: None,
+            mcp_servers: None,
+            initial_prompt: None,
             created_at: "2024-01-01".to_string(),
             updated_at: "2024-01-01".to_string(),
         };
