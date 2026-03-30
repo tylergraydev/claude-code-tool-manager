@@ -499,11 +499,16 @@ fn glob_match(pattern: &str, path: &str) -> bool {
         }
     }
 
-    // For patterns with single *, do basic matching
+    // For patterns with single *, do basic matching (single * does not cross /)
     if pattern.contains('*') {
         let parts: Vec<&str> = pattern.split('*').collect();
         if parts.len() == 2 {
-            return path.starts_with(parts[0]) && path.ends_with(parts[1]);
+            if path.starts_with(parts[0]) && path.ends_with(parts[1]) {
+                // Ensure the matched middle portion contains no path separators
+                let middle = &path[parts[0].len()..path.len() - parts[1].len()];
+                return !middle.contains('/');
+            }
+            return false;
         }
     }
 

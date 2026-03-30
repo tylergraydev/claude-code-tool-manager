@@ -109,7 +109,7 @@ test.describe('MCP Library', () => {
 		await page.waitForTimeout(500);
 
 		// First filter by HTTP
-		await page.getByRole('button', { name: 'HTTP', exact: true }).click();
+		await page.getByRole('button', { name: /^HTTP/ }).first().click();
 		await page.waitForTimeout(200);
 
 		// Then click All
