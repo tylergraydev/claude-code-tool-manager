@@ -16,7 +16,9 @@
 			logs = await containerLibrary.fetchLogs(containerId, tailLines);
 			if (autoScroll && logContainer) {
 				requestAnimationFrame(() => {
-					logContainer.scrollTop = logContainer.scrollHeight;
+					if (logContainer) {
+						logContainer.scrollTop = logContainer.scrollHeight;
+					}
 				});
 			}
 		} catch {
