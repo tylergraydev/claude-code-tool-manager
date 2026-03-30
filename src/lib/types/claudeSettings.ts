@@ -89,6 +89,12 @@ export interface ClaudeSettings {
 	plansDirectory?: string;
 	// Auto Mode
 	disableAutoMode?: boolean;
+	// Auto Mode configuration
+	autoModeEnvironment?: string;
+	autoModeAllow?: string;
+	autoModeSoftDeny?: string;
+	// Model Overrides
+	modelOverrides?: Record<string, string>;
 	// Auth & API Key Helpers
 	apiKeyHelper?: string;
 	otelHeadersHelper?: string;
@@ -133,13 +139,27 @@ export const CLAUDE_MODELS = [
 		value: 'claude-haiku-4-5-20251001',
 		label: 'Claude Haiku 4.5',
 		description: 'Fastest model for simple tasks'
+	},
+	{
+		value: 'claude-sonnet-4-5-20250929[1m]',
+		label: 'Claude Sonnet 4.5 [1M]',
+		description: 'Sonnet with 1M extended context'
+	},
+	{
+		value: 'claude-opus-4-6[1m]',
+		label: 'Claude Opus 4.6 [1M]',
+		description: 'Opus with 1M extended context'
 	}
 ] as const;
 
 export const AVAILABLE_MODEL_SHORTCUTS = [
 	{ value: 'sonnet', label: 'Sonnet' },
 	{ value: 'opus', label: 'Opus' },
-	{ value: 'haiku', label: 'Haiku' }
+	{ value: 'haiku', label: 'Haiku' },
+	{ value: 'sonnet[1m]', label: 'Sonnet [1M]' },
+	{ value: 'opus[1m]', label: 'Opus [1M]' },
+	{ value: 'haiku[1m]', label: 'Haiku [1M]' },
+	{ value: 'opusplan', label: 'Opus Plan' }
 ] as const;
 
 export const EFFORT_LEVELS = [

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { ScopedSettingsWrapper } from '$lib/components/settings';
-	import { ModelConfigEditor, AttributionEditor } from '$lib/components/claude-settings';
+	import { ModelConfigEditor, AttributionEditor, ModelOverridesEditor } from '$lib/components/claude-settings';
 	import { claudeSettingsLibrary } from '$lib/stores';
 	import type { ClaudeSettingsScope } from '$lib/types';
 
@@ -24,6 +24,7 @@
 		if (s.attributionPr !== undefined) count++;
 		if (s.attributionEnabled !== undefined) count++;
 		if (s.attributionRules && s.attributionRules.length > 0) count++;
+		if (s.modelOverrides && Object.keys(s.modelOverrides).length > 0) count++;
 		return count;
 	}
 </script>
@@ -38,6 +39,12 @@
 			<AttributionEditor
 				{settings}
 				onsave={(s) => save(s, 'Attribution settings saved', 'Failed to save attribution settings')}
+			/>
+		</div>
+		<div class="mt-6">
+			<ModelOverridesEditor
+				{settings}
+				onsave={(s) => save(s, 'Model overrides saved', 'Failed to save model overrides')}
 			/>
 		</div>
 	{/snippet}

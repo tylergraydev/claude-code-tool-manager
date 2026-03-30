@@ -1,4 +1,4 @@
-import { Sliders, ShieldCheck, Puzzle, Variable, ToggleRight, FileSearch, Clock, KeyRound, ServerCog, Keyboard, RotateCw, Building, Settings } from 'lucide-svelte';
+import { Sliders, ShieldCheck, Puzzle, Variable, ToggleRight, FileSearch, Clock, KeyRound, ServerCog, Keyboard, RotateCw, Building, Settings, Bot } from 'lucide-svelte';
 
 export type SettingsCategoryType = 'scoped' | 'standalone';
 
@@ -17,6 +17,7 @@ export const SETTINGS_CATEGORIES: SettingsCategory[] = [
 	{ id: 'interface', label: 'Interface', icon: ToggleRight, type: 'scoped' },
 	{ id: 'files', label: 'Files', icon: FileSearch, type: 'scoped' },
 	{ id: 'session', label: 'Session', icon: Clock, type: 'scoped' },
+	{ id: 'auto-mode', label: 'Auto Mode', icon: Bot, type: 'scoped' },
 	{ id: 'authentication', label: 'Auth', icon: KeyRound, type: 'scoped' },
 	{ id: 'mcp-approval', label: 'MCP Approval', icon: ServerCog, type: 'scoped' },
 	{ id: 'keybindings', label: 'Keybindings', icon: Keyboard, type: 'standalone' },

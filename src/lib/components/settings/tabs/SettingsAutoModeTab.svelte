@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { ScopedSettingsWrapper } from '$lib/components/settings';
-	import { SessionCleanupEditor } from '$lib/components/session-cleanup';
+	import { AutoModeEditor } from '$lib/components/auto-mode';
 	import { claudeSettingsLibrary } from '$lib/stores';
 	import type { ClaudeSettingsScope } from '$lib/types';
 
@@ -14,23 +14,19 @@
 					: claudeSettingsLibrary.settings.local;
 		if (!s) return 0;
 		let count = 0;
-		if (s.cleanupPeriodDays !== undefined) count++;
-		if (s.autoUpdatesChannel) count++;
-		if (s.teammateMode) count++;
-		if (s.plansDirectory) count++;
-		if (s.autoMemoryEnabled !== undefined) count++;
-		if (s.autoMemoryDirectory) count++;
-		if (s.claudeMdExcludes && s.claudeMdExcludes.length > 0) count++;
-		if (s.agent) count++;
+		if (s.disableAutoMode !== undefined) count++;
+		if (s.autoModeEnvironment) count++;
+		if (s.autoModeAllow) count++;
+		if (s.autoModeSoftDeny) count++;
 		return count;
 	}
 </script>
 
 <ScopedSettingsWrapper {getSettingCount}>
 	{#snippet children({ settings, save })}
-		<SessionCleanupEditor
+		<AutoModeEditor
 			{settings}
-			onsave={(s) => save(s, 'Session & cleanup settings saved', 'Failed to save session & cleanup settings')}
+			onsave={(s) => save(s, 'Auto mode settings saved', 'Failed to save auto mode settings')}
 		/>
 	{/snippet}
 </ScopedSettingsWrapper>

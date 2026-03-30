@@ -76,6 +76,12 @@ pub struct ClaudeSettings {
     pub plans_directory: Option<String>,
     // Auto Mode
     pub disable_auto_mode: Option<bool>,
+    // Auto Mode configuration (nested: autoMode.{environment, allow, soft_deny})
+    pub auto_mode_environment: Option<String>,
+    pub auto_mode_allow: Option<String>,
+    pub auto_mode_soft_deny: Option<String>,
+    // Model Overrides (pass-through Value, like env)
+    pub model_overrides: Option<Value>,
     // Auth & API Key Helpers
     pub api_key_helper: Option<String>,
     pub otel_headers_helper: Option<String>,
@@ -330,6 +336,24 @@ pub fn read_claude_settings_from_file(path: &Path, scope: &str) -> Result<Claude
         .get("disableAutoMode")
         .and_then(|v| v.as_bool());
 
+    // Auto Mode configuration (nested object like attribution)
+    let auto_mode = settings.get("autoMode").cloned().unwrap_or(json!({}));
+    let auto_mode_environment = auto_mode
+        .get("environment")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
+    let auto_mode_allow = auto_mode
+        .get("allow")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
+    let auto_mode_soft_deny = auto_mode
+        .get("soft_deny")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
+
+    // Model Overrides (pass-through Value like env)
+    let model_overrides = settings.get("modelOverrides").cloned();
+
     Ok(ClaudeSettings {
         scope: scope.to_string(),
         model,
@@ -376,6 +400,10 @@ pub fn read_claude_settings_from_file(path: &Path, scope: &str) -> Result<Claude
         strict_known_marketplaces,
         company_announcements,
         disable_auto_mode,
+        auto_mode_environment,
+        auto_mode_allow,
+        auto_mode_soft_deny,
+        model_overrides,
         force_login_method,
         force_login_org_uuid,
         allow_managed_mcp_servers_only,
@@ -446,6 +474,10 @@ pub fn read_all_claude_settings(project_path: Option<&Path>) -> Result<AllClaude
                 strict_known_marketplaces: None,
                 company_announcements: None,
                 disable_auto_mode: None,
+                auto_mode_environment: None,
+                auto_mode_allow: None,
+                auto_mode_soft_deny: None,
+                model_overrides: None,
                 force_login_method: None,
                 force_login_org_uuid: None,
                 allow_managed_mcp_servers_only: None,
@@ -502,6 +534,10 @@ pub fn read_all_claude_settings(project_path: Option<&Path>) -> Result<AllClaude
                 strict_known_marketplaces: None,
                 company_announcements: None,
                 disable_auto_mode: None,
+                auto_mode_environment: None,
+                auto_mode_allow: None,
+                auto_mode_soft_deny: None,
+                model_overrides: None,
                 force_login_method: None,
                 force_login_org_uuid: None,
                 allow_managed_mcp_servers_only: None,
@@ -869,6 +905,41 @@ pub fn write_claude_settings(
         &mut file_settings,
         "disableAutoMode",
         &settings.disable_auto_mode,
+    );
+
+    // Auto Mode configuration: manage nested object (same pattern as fileSuggestion)
+    let has_auto_mode_config = settings.auto_mode_environment.is_some()
+        || settings.auto_mode_allow.is_some()
+        || settings.auto_mode_soft_deny.is_some();
+
+    if has_auto_mode_config {
+        let mut auto_mode = file_settings
+            .get("autoMode")
+            .cloned()
+            .unwrap_or(json!({}));
+
+        set_or_remove_string_in(&mut auto_mode, "environment", &settings.auto_mode_environment);
+        set_or_remove_string_in(&mut auto_mode, "allow", &settings.auto_mode_allow);
+        set_or_remove_string_in(&mut auto_mode, "soft_deny", &settings.auto_mode_soft_deny);
+
+        if auto_mode.as_object().map_or(true, |o| o.is_empty()) {
+            if let Some(obj) = file_settings.as_object_mut() {
+                obj.remove("autoMode");
+            }
+        } else {
+            file_settings["autoMode"] = auto_mode;
+        }
+    } else {
+        if let Some(obj) = file_settings.as_object_mut() {
+            obj.remove("autoMode");
+        }
+    }
+
+    // Model Overrides (pass-through Value like env)
+    set_or_remove_value(
+        &mut file_settings,
+        "modelOverrides",
+        &settings.model_overrides,
     );
 
     write_settings_file(&path, &file_settings)
