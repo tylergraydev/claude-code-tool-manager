@@ -419,9 +419,9 @@ describe('ContainerLogs Component', () => {
 		ContainerLogs = mod.default;
 	});
 
-	it('should render loading message initially', () => {
+	it('should render no logs message initially', () => {
 		render(ContainerLogs, { props: { containerId: 1 } });
-		expect(screen.getByText('Loading logs...')).toBeInTheDocument();
+		expect(screen.getByText('No logs available')).toBeInTheDocument();
 	});
 
 	it('should render auto-scroll checkbox', () => {
@@ -501,8 +501,7 @@ describe('ContainerDetail Component', () => {
 		expect(screen.getByText('Overview')).toBeInTheDocument();
 		expect(screen.getByText('Logs')).toBeInTheDocument();
 		expect(screen.getByText('Stats')).toBeInTheDocument();
-		expect(screen.getByText('Console')).toBeInTheDocument();
-		expect(screen.getByText('Files')).toBeInTheDocument();
+		expect(screen.getByText('Exec')).toBeInTheDocument();
 	});
 
 	it('should show overview tab content by default', () => {
@@ -777,7 +776,7 @@ describe('DockerHostList Component', () => {
 			{ id: 1, name: 'Local', hostType: 'local', connectionUri: '', isDefault: false }
 		];
 		render(DockerHostList);
-		expect(screen.getByLabelText('Test connection for Local')).toBeInTheDocument();
+		expect(screen.getByLabelText('Test connection')).toBeInTheDocument();
 	});
 
 	it('should not render delete button for host id 1', () => {
@@ -785,7 +784,7 @@ describe('DockerHostList Component', () => {
 			{ id: 1, name: 'Local', hostType: 'local', connectionUri: '', isDefault: false }
 		];
 		render(DockerHostList);
-		expect(screen.queryByLabelText('Delete Local')).not.toBeInTheDocument();
+		expect(screen.queryByLabelText('Delete host')).not.toBeInTheDocument();
 	});
 
 	it('should render delete button for hosts with id != 1', () => {
@@ -793,7 +792,7 @@ describe('DockerHostList Component', () => {
 			{ id: 2, name: 'Remote', hostType: 'ssh', connectionUri: 'ssh://user@host', isDefault: false }
 		];
 		render(DockerHostList);
-		expect(screen.getByLabelText('Delete Remote')).toBeInTheDocument();
+		expect(screen.getByLabelText('Delete host')).toBeInTheDocument();
 	});
 
 	it('should show host type and connection URI', () => {

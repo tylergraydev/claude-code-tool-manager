@@ -11,3 +11,6 @@ export { default as SettingsKeybindingsTab } from './SettingsKeybindingsTab.svel
 export { default as SettingsSpinnerVerbsTab } from './SettingsSpinnerVerbsTab.svelte';
 export { default as SettingsAdminTab } from './SettingsAdminTab.svelte';
 export { default as SettingsEditorSyncTab } from './SettingsEditorSyncTab.svelte';
+export { default as SettingsAutoModeTab } from './SettingsAutoModeTab.svelte';
+export { default as SettingsCliTab } from './SettingsCliTab.svelte';
+export { default as SettingsCloudSyncTab } from './SettingsCloudSyncTab.svelte';

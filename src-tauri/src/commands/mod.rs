@@ -1,4 +1,6 @@
+pub mod agent_memory;
 pub mod analytics;
+pub mod cloud_sync;
 pub mod claude_json;
 pub mod claude_settings;
 pub mod commands;
@@ -21,6 +23,7 @@ pub mod permissions;
 pub mod profiles;
 pub mod projects;
 pub mod repos;
+pub mod rules;
 pub mod scanner;
 pub mod sessions;
 pub mod settings;

@@ -1,57 +1,38 @@
 <script lang="ts">
 	import { containerLibrary } from '$lib/stores';
+	import type { ContainerTemplate } from '$lib/types';
 	import TemplateCard from './TemplateCard.svelte';
 
-	type Props = {
-		onUse: (template: any) => void;
-	};
+	let { onUse }: {
+		onUse: (template: ContainerTemplate) => void;
+	} = $props();
 
-	let { onUse }: Props = $props();
-
-	let selectedCategory = $state('all');
+	let filterCategory = $state('all');
 
 	const categories = $derived.by(() => {
-		const cats = new Set<string>();
-		for (const t of containerLibrary.templates) {
-			if (t.category) cats.add(t.category);
-		}
-		return Array.from(cats);
+		const cats = new Set(containerLibrary.templates.map(t => t.category));
+		return ['all', ...Array.from(cats)];
 	});
 
-	const filteredTemplates = $derived(
-		selectedCategory === 'all'
-			? containerLibrary.templates
-			: containerLibrary.templates.filter((t: any) => t.category === selectedCategory)
-	);
-
-	function capitalize(s: string): string {
-		return s.charAt(0).toUpperCase() + s.slice(1);
-	}
+	const filtered = $derived.by(() => {
+		if (filterCategory === 'all') return containerLibrary.templates;
+		return containerLibrary.templates.filter(t => t.category === filterCategory);
+	});
 </script>
 
 <div class="space-y-4">
-	{#if containerLibrary.templates.length > 0}
-		<div class="flex gap-2 flex-wrap">
-			<button
-				class="px-3 py-1.5 text-sm rounded-md border transition-colors {selectedCategory === 'all'
-					? 'bg-primary-50 dark:bg-primary-900/30 border-primary-300 dark:border-primary-700 text-primary-700 dark:text-primary-300'
-					: 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-500'}"
-				onclick={() => selectedCategory = 'all'}
-			>All</button>
-			{#each categories as cat}
-				<button
-					class="px-3 py-1.5 text-sm rounded-md border transition-colors {selectedCategory === cat
-						? 'bg-primary-50 dark:bg-primary-900/30 border-primary-300 dark:border-primary-700 text-primary-700 dark:text-primary-300'
-						: 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-500'}"
-					onclick={() => selectedCategory = cat}
-				>{capitalize(cat)}</button>
-			{/each}
-		</div>
-
-		<div class="space-y-3">
-			{#each filteredTemplates as template (template.id)}
-				<TemplateCard {template} {onUse} />
-			{/each}
-		</div>
-	{/if}
+	<div class="flex gap-2">
+		{#each categories as cat}
+			<button onclick={() => filterCategory = cat}
+				class="px-3 py-1 text-sm rounded-full transition-colors
+					{filterCategory === cat ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/50 dark:text-primary-400' : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'}">
+				{cat.charAt(0).toUpperCase() + cat.slice(1)}
+			</button>
+		{/each}
+	</div>
+	<div class="space-y-3">
+		{#each filtered as template (template.id)}
+			<TemplateCard {template} {onUse} />
+		{/each}
+	</div>
 </div>

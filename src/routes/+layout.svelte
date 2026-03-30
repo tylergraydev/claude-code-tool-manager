@@ -5,7 +5,7 @@
 	import { Toast } from '$lib/components/shared';
 	import UpdateNotification from '$lib/components/shared/UpdateNotification.svelte';
 	import WhatsNewModal from '$lib/components/shared/WhatsNewModal.svelte';
-	import { mcpLibrary, projectsStore, skillLibrary, subagentLibrary, hookLibrary, commandLibrary, containerLibrary, statuslineLibrary, spinnerVerbLibrary, whatsNew, debugStore } from '$lib/stores';
+	import { mcpLibrary, projectsStore, skillLibrary, subagentLibrary, hookLibrary, commandLibrary, containerLibrary, statuslineLibrary, spinnerVerbLibrary, ruleLibrary, whatsNew, debugStore } from '$lib/stores';
 	import { installDebugInterceptor } from '$lib/utils/debugLogger';
 
 	let { children } = $props();
@@ -30,7 +30,9 @@
 				hookLibrary.load(),
 				hookLibrary.loadGlobalHooks(),
 				commandLibrary.load(),
-				commandLibrary.loadGlobalCommands()
+				commandLibrary.loadGlobalCommands(),
+				ruleLibrary.load(),
+				ruleLibrary.loadGlobalRules()
 			]).catch((e) => {
 				console.error('[Layout] Failed to load secondary stores:', e);
 			});

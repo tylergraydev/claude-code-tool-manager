@@ -13,5 +13,5 @@
 </script>
 
 <div class="flex items-center justify-center" role="status" aria-label="Loading">
-	<div class="animate-spin rounded-full border-2 border-gray-300 border-t-blue-600 {sizeClasses[size]}"></div>
+	<div class="animate-spin rounded-full border-2 border-gray-300 dark:border-gray-600 border-t-blue-500 {sizeClasses[size]}"></div>
 </div>

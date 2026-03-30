@@ -1,25 +1,20 @@
 <script lang="ts">
+	import { onMount, onDestroy } from 'svelte';
 	import { containerLibrary } from '$lib/stores';
-	import type { ContainerStats as ContainerStatsType } from '$lib/types';
-	import { onDestroy } from 'svelte';
+	import type { ContainerStats as Stats } from '$lib/types';
 
-	type Props = {
-		containerId: number;
-	};
+	let { containerId }: { containerId: number } = $props();
 
-	let { containerId }: Props = $props();
-
-	let stats = $state<ContainerStatsType | null>(null);
-	let isLoading = $state(true);
+	let stats = $state<Stats | null>(null);
 	let error = $state<string | null>(null);
-	let refreshInterval: ReturnType<typeof setInterval> | null = null;
+	let interval: ReturnType<typeof setInterval> | null = null;
 
 	function formatBytes(bytes: number): string {
-		if (bytes === 0) return '0 B';
+		if (!bytes || bytes <= 0) return '0 B';
 		const k = 1024;
-		const sizes = ['B', 'KB', 'MB', 'GB'];
-		const i = Math.floor(Math.log(bytes) / Math.log(k));
-		return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+		const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+		const i = Math.min(Math.floor(Math.log(bytes) / Math.log(k)), sizes.length - 1);
+		return `${(bytes / Math.pow(k, i)).toFixed(1)} ${sizes[i]}`;
 	}
 
 	async function fetchStats() {
@@ -28,55 +23,53 @@
 			error = null;
 		} catch (e) {
 			error = String(e);
-			stats = null;
-		} finally {
-			isLoading = false;
 		}
 	}
 
-	$effect(() => {
-		const _id = containerId;
-		isLoading = true;
+	onMount(() => {
 		fetchStats();
-
-		refreshInterval = setInterval(fetchStats, 5000);
-
-		return () => {
-			if (refreshInterval) clearInterval(refreshInterval);
-		};
+		interval = setInterval(fetchStats, 3000);
 	});
 
 	onDestroy(() => {
-		if (refreshInterval) clearInterval(refreshInterval);
+		if (interval) clearInterval(interval);
 	});
 </script>
 
-<div class="space-y-3">
-	{#if isLoading}
-		<p class="text-gray-500 dark:text-gray-400">Loading stats...</p>
-	{:else if error}
+<div class="p-4 space-y-4">
+	{#if error}
 		<p class="text-sm text-red-500">{error}</p>
-	{:else if stats}
-		<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-			<div class="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
-				<p class="text-xs text-gray-500 dark:text-gray-400">CPU</p>
-				<p class="text-lg font-semibold text-gray-900 dark:text-white">{stats.cpuPercent.toFixed(1)}%</p>
+	{:else if !stats}
+		<p class="text-sm text-gray-500">Loading stats...</p>
+	{:else}
+		<div class="grid grid-cols-2 gap-4">
+			<div>
+				<p class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">CPU Usage</p>
+				<div class="flex items-center gap-2">
+					<div class="flex-1 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+						<div class="h-full bg-blue-500 rounded-full transition-all" style="width: {Math.min(stats.cpuPercent, 100)}%"></div>
+					</div>
+					<span class="text-sm font-medium text-gray-700 dark:text-gray-300 w-14 text-right">{stats.cpuPercent.toFixed(1)}%</span>
+				</div>
 			</div>
-			<div class="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
-				<p class="text-xs text-gray-500 dark:text-gray-400">Memory</p>
-				<p class="text-lg font-semibold text-gray-900 dark:text-white">{formatBytes(stats.memoryUsage)}</p>
-				<p class="text-xs text-gray-400">{stats.memoryPercent.toFixed(1)}% of {formatBytes(stats.memoryLimit)}</p>
+			<div>
+				<p class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Memory</p>
+				<div class="flex items-center gap-2">
+					<div class="flex-1 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+						<div class="h-full bg-green-500 rounded-full transition-all" style="width: {Math.min(stats.memoryPercent, 100)}%"></div>
+					</div>
+					<span class="text-sm font-medium text-gray-700 dark:text-gray-300 w-14 text-right">{stats.memoryPercent.toFixed(1)}%</span>
+				</div>
+				<p class="text-xs text-gray-400 mt-0.5">{formatBytes(stats.memoryUsage)} / {formatBytes(stats.memoryLimit)}</p>
 			</div>
-			<div class="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
-				<p class="text-xs text-gray-500 dark:text-gray-400">Network I/O</p>
-				<p class="text-sm font-medium text-gray-900 dark:text-white">{formatBytes(stats.networkRxBytes)} / {formatBytes(stats.networkTxBytes)}</p>
+			<div>
+				<p class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Network I/O</p>
+				<p class="text-sm text-gray-700 dark:text-gray-300">{formatBytes(stats.networkRxBytes)} / {formatBytes(stats.networkTxBytes)}</p>
 			</div>
-			<div class="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
-				<p class="text-xs text-gray-500 dark:text-gray-400">PIDs</p>
-				<p class="text-lg font-semibold text-gray-900 dark:text-white">{stats.pids}</p>
+			<div>
+				<p class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">PIDs</p>
+				<p class="text-sm text-gray-700 dark:text-gray-300">{stats.pids}</p>
 			</div>
 		</div>
-	{:else}
-		<p class="text-gray-500 dark:text-gray-400">No stats available</p>
 	{/if}
 </div>

@@ -35,6 +35,49 @@ pub(crate) fn generate_subagent_markdown(subagent: &SubAgent) -> String {
         }
     }
 
+    if let Some(ref disallowed_tools) = subagent.disallowed_tools {
+        if !disallowed_tools.is_empty() {
+            frontmatter.push_str(&format!(
+                "disallowedTools: {}\n",
+                disallowed_tools.join(", ")
+            ));
+        }
+    }
+
+    if let Some(max_turns) = subagent.max_turns {
+        frontmatter.push_str(&format!("maxTurns: {}\n", max_turns));
+    }
+
+    if let Some(ref memory) = subagent.memory {
+        if !memory.is_empty() {
+            frontmatter.push_str(&format!("memory: {}\n", memory));
+        }
+    }
+
+    if let Some(background) = subagent.background {
+        if background {
+            frontmatter.push_str("background: true\n");
+        }
+    }
+
+    if let Some(ref effort) = subagent.effort {
+        if !effort.is_empty() {
+            frontmatter.push_str(&format!("effort: {}\n", effort));
+        }
+    }
+
+    if let Some(ref isolation) = subagent.isolation {
+        if !isolation.is_empty() {
+            frontmatter.push_str(&format!("isolation: {}\n", isolation));
+        }
+    }
+
+    if let Some(ref initial_prompt) = subagent.initial_prompt {
+        if !initial_prompt.is_empty() {
+            frontmatter.push_str(&format!("initialPrompt: {}\n", initial_prompt));
+        }
+    }
+
     frontmatter.push_str("---\n\n");
     format!("{}{}", frontmatter, subagent.content)
 }

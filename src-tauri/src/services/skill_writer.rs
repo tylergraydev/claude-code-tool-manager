@@ -32,6 +32,42 @@ pub(crate) fn generate_skill_markdown(skill: &Skill) -> String {
         frontmatter.push_str("disable-model-invocation: true\n");
     }
 
+    if let Some(ref context) = skill.context {
+        if !context.is_empty() {
+            frontmatter.push_str(&format!("context: {}\n", context));
+        }
+    }
+    if let Some(ref agent) = skill.agent {
+        if !agent.is_empty() {
+            frontmatter.push_str(&format!("agent: {}\n", agent));
+        }
+    }
+    if let Some(ref shell) = skill.shell {
+        if !shell.is_empty() {
+            frontmatter.push_str(&format!("shell: {}\n", shell));
+        }
+    }
+    if let Some(once) = skill.once {
+        if once {
+            frontmatter.push_str("once: true\n");
+        }
+    }
+    if let Some(ref paths) = skill.paths {
+        if !paths.is_empty() {
+            frontmatter.push_str(&format!("paths: {}\n", paths.join(", ")));
+        }
+    }
+    if let Some(ref hooks) = skill.hooks {
+        if !hooks.is_empty() {
+            frontmatter.push_str(&format!("hooks: {}\n", hooks));
+        }
+    }
+    if let Some(ref effort) = skill.effort {
+        if !effort.is_empty() {
+            frontmatter.push_str(&format!("effort: {}\n", effort));
+        }
+    }
+
     frontmatter.push_str("---\n\n");
     format!("{}{}", frontmatter, skill.content)
 }

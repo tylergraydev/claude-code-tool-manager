@@ -11,6 +11,10 @@ fn parse_json_array(s: Option<String>) -> Option<Vec<String>> {
     s.and_then(|v| serde_json::from_str(&v).ok())
 }
 
+fn parse_json_value(s: Option<String>) -> Option<serde_json::Value> {
+    s.and_then(|v| serde_json::from_str(&v).ok())
+}
+
 fn row_to_hook(row: &rusqlite::Row) -> rusqlite::Result<Hook> {
     Ok(Hook {
         id: row.get(0)?,
@@ -22,11 +26,19 @@ fn row_to_hook(row: &rusqlite::Row) -> rusqlite::Result<Hook> {
         command: row.get(6)?,
         prompt: row.get(7)?,
         timeout: row.get(8)?,
-        tags: parse_json_array(row.get(9)?),
-        source: row.get(10)?,
-        is_template: row.get::<_, i32>(11)? != 0,
-        created_at: row.get(12)?,
-        updated_at: row.get(13)?,
+        url: row.get(9)?,
+        headers: parse_json_value(row.get(10)?),
+        allowed_env_vars: parse_json_array(row.get(11)?),
+        if_condition: row.get(12)?,
+        status_message: row.get(13)?,
+        once: row.get::<_, i32>(14).unwrap_or(0) != 0,
+        async_mode: row.get::<_, i32>(15).unwrap_or(0) != 0,
+        shell: row.get(16)?,
+        tags: parse_json_array(row.get(17)?),
+        source: row.get(18)?,
+        is_template: row.get::<_, i32>(19)? != 0,
+        created_at: row.get(20)?,
+        updated_at: row.get(21)?,
     })
 }
 
@@ -41,18 +53,26 @@ fn row_to_hook_with_offset(row: &rusqlite::Row, offset: usize) -> rusqlite::Resu
         command: row.get(offset + 6)?,
         prompt: row.get(offset + 7)?,
         timeout: row.get(offset + 8)?,
-        tags: parse_json_array(row.get(offset + 9)?),
-        source: row.get(offset + 10)?,
-        is_template: row.get::<_, i32>(offset + 11)? != 0,
-        created_at: row.get(offset + 12)?,
-        updated_at: row.get(offset + 13)?,
+        url: row.get(offset + 9)?,
+        headers: parse_json_value(row.get(offset + 10)?),
+        allowed_env_vars: parse_json_array(row.get(offset + 11)?),
+        if_condition: row.get(offset + 12)?,
+        status_message: row.get(offset + 13)?,
+        once: row.get::<_, i32>(offset + 14).unwrap_or(0) != 0,
+        async_mode: row.get::<_, i32>(offset + 15).unwrap_or(0) != 0,
+        shell: row.get(offset + 16)?,
+        tags: parse_json_array(row.get(offset + 17)?),
+        source: row.get(offset + 18)?,
+        is_template: row.get::<_, i32>(offset + 19)? != 0,
+        created_at: row.get(offset + 20)?,
+        updated_at: row.get(offset + 21)?,
     })
 }
 
-const HOOK_SELECT_FIELDS: &str = "id, name, description, event_type, matcher, hook_type, command, prompt, timeout, tags, source, is_template, created_at, updated_at";
+const HOOK_SELECT_FIELDS: &str = "id, name, description, event_type, matcher, hook_type, command, prompt, timeout, url, headers, allowed_env_vars, if_condition, status_message, once, async_mode, shell, tags, source, is_template, created_at, updated_at";
 
 // Table-prefixed version for JOIN queries to avoid ambiguous column names
-const HOOK_SELECT_FIELDS_H: &str = "h.id, h.name, h.description, h.event_type, h.matcher, h.hook_type, h.command, h.prompt, h.timeout, h.tags, h.source, h.is_template, h.created_at, h.updated_at";
+const HOOK_SELECT_FIELDS_H: &str = "h.id, h.name, h.description, h.event_type, h.matcher, h.hook_type, h.command, h.prompt, h.timeout, h.url, h.headers, h.allowed_env_vars, h.if_condition, h.status_message, h.once, h.async_mode, h.shell, h.tags, h.source, h.is_template, h.created_at, h.updated_at";
 
 // Helper to get all enabled global hooks and write to settings.json
 fn sync_global_hooks(db: &Database) -> Result<(), String> {
@@ -142,12 +162,20 @@ pub fn create_hook(
         .tags
         .as_ref()
         .map(|t| serde_json::to_string(t).unwrap());
+    let headers_json = hook
+        .headers
+        .as_ref()
+        .map(|h| serde_json::to_string(h).unwrap());
+    let env_vars_json = hook
+        .allowed_env_vars
+        .as_ref()
+        .map(|v| serde_json::to_string(v).unwrap());
 
     db_guard
         .conn()
         .execute(
-            "INSERT INTO hooks (name, description, event_type, matcher, hook_type, command, prompt, timeout, tags, source)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'manual')",
+            "INSERT INTO hooks (name, description, event_type, matcher, hook_type, command, prompt, timeout, url, headers, allowed_env_vars, if_condition, status_message, once, async_mode, shell, tags, source)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'manual')",
             params![
                 hook.name,
                 hook.description,
@@ -157,6 +185,14 @@ pub fn create_hook(
                 hook.command,
                 hook.prompt,
                 hook.timeout,
+                hook.url,
+                headers_json,
+                env_vars_json,
+                hook.if_condition,
+                hook.status_message,
+                hook.once.unwrap_or(false) as i32,
+                hook.async_mode.unwrap_or(false) as i32,
+                hook.shell,
                 tags_json
             ],
         )
@@ -200,8 +236,8 @@ pub fn create_hook_from_template(
     db_guard
         .conn()
         .execute(
-            "INSERT INTO hooks (name, description, event_type, matcher, hook_type, command, prompt, timeout, tags, source, is_template)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'template', 0)",
+            "INSERT INTO hooks (name, description, event_type, matcher, hook_type, command, prompt, timeout, url, headers, allowed_env_vars, if_condition, status_message, once, async_mode, shell, tags, source, is_template)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'template', 0)",
             params![
                 name,
                 template.description,
@@ -211,6 +247,14 @@ pub fn create_hook_from_template(
                 template.command,
                 template.prompt,
                 template.timeout,
+                template.url,
+                template.headers.as_ref().map(|h| serde_json::to_string(h).unwrap()),
+                template.allowed_env_vars.as_ref().map(|v| serde_json::to_string(v).unwrap()),
+                template.if_condition,
+                template.status_message,
+                template.once as i32,
+                template.async_mode as i32,
+                template.shell,
                 template.tags.as_ref().map(|t| serde_json::to_string(t).unwrap())
             ],
         )
@@ -241,11 +285,19 @@ pub fn update_hook(
         .tags
         .as_ref()
         .map(|t| serde_json::to_string(t).unwrap());
+    let headers_json = hook
+        .headers
+        .as_ref()
+        .map(|h| serde_json::to_string(h).unwrap());
+    let env_vars_json = hook
+        .allowed_env_vars
+        .as_ref()
+        .map(|v| serde_json::to_string(v).unwrap());
 
     db_guard
         .conn()
         .execute(
-            "UPDATE hooks SET name = ?, description = ?, event_type = ?, matcher = ?, hook_type = ?, command = ?, prompt = ?, timeout = ?, tags = ?, updated_at = CURRENT_TIMESTAMP
+            "UPDATE hooks SET name = ?, description = ?, event_type = ?, matcher = ?, hook_type = ?, command = ?, prompt = ?, timeout = ?, url = ?, headers = ?, allowed_env_vars = ?, if_condition = ?, status_message = ?, once = ?, async_mode = ?, shell = ?, tags = ?, updated_at = CURRENT_TIMESTAMP
              WHERE id = ?",
             params![
                 hook.name,
@@ -256,6 +308,14 @@ pub fn update_hook(
                 hook.command,
                 hook.prompt,
                 hook.timeout,
+                hook.url,
+                headers_json,
+                env_vars_json,
+                hook.if_condition,
+                hook.status_message,
+                hook.once.unwrap_or(false) as i32,
+                hook.async_mode.unwrap_or(false) as i32,
+                hook.shell,
                 tags_json,
                 id
             ],
@@ -920,10 +980,18 @@ pub(crate) fn update_hook_in_db(
         .tags
         .as_ref()
         .map(|t| serde_json::to_string(t).unwrap());
+    let headers_json = hook
+        .headers
+        .as_ref()
+        .map(|h| serde_json::to_string(h).unwrap());
+    let env_vars_json = hook
+        .allowed_env_vars
+        .as_ref()
+        .map(|v| serde_json::to_string(v).unwrap());
 
     db.conn()
         .execute(
-            "UPDATE hooks SET name = ?, description = ?, event_type = ?, matcher = ?, hook_type = ?, command = ?, prompt = ?, timeout = ?, tags = ?, updated_at = CURRENT_TIMESTAMP
+            "UPDATE hooks SET name = ?, description = ?, event_type = ?, matcher = ?, hook_type = ?, command = ?, prompt = ?, timeout = ?, url = ?, headers = ?, allowed_env_vars = ?, if_condition = ?, status_message = ?, once = ?, async_mode = ?, shell = ?, tags = ?, updated_at = CURRENT_TIMESTAMP
              WHERE id = ?",
             params![
                 hook.name,
@@ -934,6 +1002,14 @@ pub(crate) fn update_hook_in_db(
                 hook.command,
                 hook.prompt,
                 hook.timeout,
+                hook.url,
+                headers_json,
+                env_vars_json,
+                hook.if_condition,
+                hook.status_message,
+                hook.once.unwrap_or(false) as i32,
+                hook.async_mode.unwrap_or(false) as i32,
+                hook.shell,
                 tags_json,
                 id
             ],

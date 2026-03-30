@@ -363,3 +363,66 @@ describe('SettingsEditorSyncTab', () => {
 		expect(document.body).toBeTruthy();
 	});
 });
+
+// ──────────────────────────────────────────────────────────
+// SettingsAutoModeTab
+// ──────────────────────────────────────────────────────────
+describe('SettingsAutoModeTab', () => {
+	let SettingsAutoModeTab: any;
+
+	beforeAll(async () => {
+		const mod = await import('$lib/components/settings/tabs/SettingsAutoModeTab.svelte');
+		SettingsAutoModeTab = mod.default;
+	});
+
+	it('should render without crashing', () => {
+		render(SettingsAutoModeTab);
+		expect(document.body).toBeTruthy();
+	});
+});
+
+// ──────────────────────────────────────────────────────────
+// SettingsCliTab
+// ──────────────────────────────────────────────────────────
+describe('SettingsCliTab', () => {
+	let SettingsCliTab: any;
+
+	beforeAll(async () => {
+		const mod = await import('$lib/components/settings/tabs/SettingsCliTab.svelte');
+		SettingsCliTab = mod.default;
+	});
+
+	it('should render CLI Startup Flags heading', () => {
+		render(SettingsCliTab);
+		expect(screen.getByText('CLI Startup Flags')).toBeInTheDocument();
+	});
+
+	it('should render Scheduling heading', () => {
+		render(SettingsCliTab);
+		expect(screen.getByText('Scheduling')).toBeInTheDocument();
+	});
+});
+
+// ──────────────────────────────────────────────────────────
+// Settings tabs index exports
+// ──────────────────────────────────────────────────────────
+describe('Settings tabs index exports', () => {
+	it('should export all tab components', async () => {
+		const exports = await import('$lib/components/settings/tabs');
+		expect(exports.SettingsModelsTab).toBeDefined();
+		expect(exports.SettingsSecurityTab).toBeDefined();
+		expect(exports.SettingsPluginsTab).toBeDefined();
+		expect(exports.SettingsEnvironmentTab).toBeDefined();
+		expect(exports.SettingsInterfaceTab).toBeDefined();
+		expect(exports.SettingsFilesTab).toBeDefined();
+		expect(exports.SettingsSessionTab).toBeDefined();
+		expect(exports.SettingsAuthTab).toBeDefined();
+		expect(exports.SettingsMcpApprovalTab).toBeDefined();
+		expect(exports.SettingsKeybindingsTab).toBeDefined();
+		expect(exports.SettingsSpinnerVerbsTab).toBeDefined();
+		expect(exports.SettingsAdminTab).toBeDefined();
+		expect(exports.SettingsEditorSyncTab).toBeDefined();
+		expect(exports.SettingsAutoModeTab).toBeDefined();
+		expect(exports.SettingsCliTab).toBeDefined();
+	});
+});

@@ -1,15 +1,8 @@
 <script lang="ts">
-	type Port = {
-		hostPort: number;
-		containerPort: number;
-		protocol: string;
-	};
+	import { Plus, Trash2 } from 'lucide-svelte';
+	import type { PortMapping } from '$lib/types';
 
-	type Props = {
-		ports: Port[];
-	};
-
-	let { ports = [] }: Props = $props();
+	let { ports = $bindable<PortMapping[]>([]) }: { ports: PortMapping[] } = $props();
 
 	function addPort() {
 		ports = [...ports, { hostPort: 0, containerPort: 0, protocol: 'tcp' }];
@@ -20,21 +13,33 @@
 	}
 </script>
 
-<div>
-	<div class="flex items-center justify-between mb-2">
-		<h4 class="text-sm font-medium text-gray-700 dark:text-gray-300">Port Mappings</h4>
-		<button type="button" onclick={addPort} class="text-sm text-primary-600 hover:text-primary-700">
-			Add Port
+<div class="space-y-2">
+	<div class="flex items-center justify-between">
+		<label class="text-sm font-medium text-gray-700 dark:text-gray-300">Port Mappings</label>
+		<button type="button" onclick={addPort}
+			class="text-xs text-primary-600 hover:text-primary-700 dark:text-primary-400 flex items-center gap-1">
+			<Plus class="w-3 h-3" aria-hidden="true" /> Add Port
 		</button>
 	</div>
-
-	{#each ports as port, i}
-		<div class="flex items-center gap-2 mb-2">
-			<input type="number" bind:value={port.hostPort} placeholder="Host" class="input w-24 text-sm" />
-			<span class="text-gray-400">:</span>
-			<input type="number" bind:value={port.containerPort} placeholder="Container" class="input w-24 text-sm" />
-			<span class="text-xs text-gray-500 uppercase">{port.protocol === 'tcp' ? 'TCP' : 'UDP'}</span>
-			<button type="button" onclick={() => removePort(i)} class="btn btn-ghost text-red-500 hover:text-red-700 text-sm px-2 py-1">Remove</button>
+	{#if ports.length > 0}
+		<div class="space-y-2">
+			{#each ports as port, i}
+				<div class="flex items-center gap-2">
+					<input type="number" bind:value={port.hostPort} placeholder="Host"
+						class="input flex-1 py-1.5" />
+					<span class="text-gray-400">:</span>
+					<input type="number" bind:value={port.containerPort} placeholder="Container"
+						class="input flex-1 py-1.5" />
+					<select bind:value={port.protocol}
+						class="input w-auto py-1.5">
+						<option value="tcp">TCP</option>
+						<option value="udp">UDP</option>
+					</select>
+					<button type="button" onclick={() => removePort(i)} class="p-1 text-gray-400 hover:text-red-500">
+						<Trash2 class="w-4 h-4" aria-hidden="true" />
+					</button>
+				</div>
+			{/each}
 		</div>
-	{/each}
+	{/if}
 </div>

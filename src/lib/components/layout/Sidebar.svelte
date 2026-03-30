@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/stores';
-	import { Library, FolderOpen, Settings, Bot, Store, Zap, Terminal, Sparkles, Layers, PanelBottom, Shield, FileText, Plug, BarChart3, TrendingUp, FolderSearch, GitCompareArrows, Container, PanelLeftClose, PanelLeftOpen } from 'lucide-svelte';
+	import { Library, FolderOpen, Settings, Bot, Store, Zap, Terminal, Sparkles, Layers, PanelBottom, Shield, FileText, Plug, BarChart3, TrendingUp, FolderSearch, GitCompareArrows, Container, PanelLeftClose, PanelLeftOpen, BookOpen } from 'lucide-svelte';
 	import { onMount, onDestroy } from 'svelte';
 	import { getVersion } from '@tauri-apps/api/app';
 	import TodayUsageWidget from './TodayUsageWidget.svelte';
@@ -79,6 +79,7 @@
 				{ href: '/skills', label: i18n.t('nav.skills'), icon: Sparkles },
 				{ href: '/commands', label: i18n.t('nav.commands'), icon: Terminal },
 				{ href: '/hooks', label: i18n.t('nav.hooks'), icon: Zap },
+				{ href: '/rules', label: 'Rules', icon: BookOpen },
 				{ href: '/containers', label: 'Containers', icon: Container }
 			]
 		},

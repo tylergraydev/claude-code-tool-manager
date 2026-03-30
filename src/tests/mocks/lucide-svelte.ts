@@ -123,6 +123,7 @@ export const User = StubIcon;
 export const Variable = StubIcon;
 export const Volume2 = StubIcon;
 export const Wand2 = StubIcon;
+export const Wifi = StubIcon;
 export const WrapText = StubIcon;
 export const Wrench = StubIcon;
 export const X = StubIcon;

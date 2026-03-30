@@ -26,8 +26,17 @@ fn row_to_subagent(row: &rusqlite::Row) -> rusqlite::Result<SubAgent> {
         source: row.get(9)?,
         source_path: row.get(10)?,
         is_favorite: row.get::<_, i32>(11).unwrap_or(0) != 0,
-        created_at: row.get(12)?,
-        updated_at: row.get(13)?,
+        disallowed_tools: parse_json_array(row.get(12)?),
+        max_turns: row.get(13)?,
+        memory: row.get(14)?,
+        background: row.get::<_, Option<i32>>(15)?.map(|v| v != 0),
+        effort: row.get(16)?,
+        isolation: row.get(17)?,
+        hooks: row.get(18)?,
+        mcp_servers: row.get(19)?,
+        initial_prompt: row.get(20)?,
+        created_at: row.get(21)?,
+        updated_at: row.get(22)?,
     })
 }
 
@@ -45,8 +54,17 @@ fn row_to_subagent_with_offset(row: &rusqlite::Row, offset: usize) -> rusqlite::
         source: row.get(offset + 9)?,
         source_path: row.get(offset + 10)?,
         is_favorite: row.get::<_, i32>(offset + 11).unwrap_or(0) != 0,
-        created_at: row.get(offset + 12)?,
-        updated_at: row.get(offset + 13)?,
+        disallowed_tools: parse_json_array(row.get(offset + 12)?),
+        max_turns: row.get(offset + 13)?,
+        memory: row.get(offset + 14)?,
+        background: row.get::<_, Option<i32>>(offset + 15)?.map(|v| v != 0),
+        effort: row.get(offset + 16)?,
+        isolation: row.get(offset + 17)?,
+        hooks: row.get(offset + 18)?,
+        mcp_servers: row.get(offset + 19)?,
+        initial_prompt: row.get(offset + 20)?,
+        created_at: row.get(offset + 21)?,
+        updated_at: row.get(offset + 22)?,
     })
 }
 
@@ -523,12 +541,16 @@ pub(crate) fn create_subagent_in_db(
         .tags
         .as_ref()
         .map(|t| serde_json::to_string(t).unwrap());
+    let disallowed_tools_json = subagent
+        .disallowed_tools
+        .as_ref()
+        .map(|t| serde_json::to_string(t).unwrap());
 
     db.conn()
         .execute(
-            "INSERT INTO subagents (name, description, content, tools, model, permission_mode, skills, tags, source)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'manual')",
-            params![subagent.name, subagent.description, subagent.content, tools_json, subagent.model, subagent.permission_mode, skills_json, tags_json],
+            "INSERT INTO subagents (name, description, content, tools, model, permission_mode, skills, tags, disallowed_tools, max_turns, memory, background, effort, isolation, hooks, mcp_servers, initial_prompt, source)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'manual')",
+            params![subagent.name, subagent.description, subagent.content, tools_json, subagent.model, subagent.permission_mode, skills_json, tags_json, disallowed_tools_json, subagent.max_turns, subagent.memory, subagent.background.map(|b| b as i32), subagent.effort, subagent.isolation, subagent.hooks, subagent.mcp_servers, subagent.initial_prompt],
         )
         .map_err(|e| e.to_string())?;
 
@@ -541,7 +563,7 @@ pub(crate) fn get_subagent_by_id(db: &Database, id: i64) -> Result<SubAgent, Str
     let mut stmt = db
         .conn()
         .prepare(
-            "SELECT id, name, description, content, tools, model, permission_mode, skills, tags, source, source_path, is_favorite, created_at, updated_at
+            "SELECT id, name, description, content, tools, model, permission_mode, skills, tags, source, source_path, is_favorite, disallowed_tools, max_turns, memory, background, effort, isolation, hooks, mcp_servers, initial_prompt, created_at, updated_at
              FROM subagents WHERE id = ?",
         )
         .map_err(|e| e.to_string())?;
@@ -555,7 +577,7 @@ pub(crate) fn get_all_subagents_from_db(db: &Database) -> Result<Vec<SubAgent>, 
     let mut stmt = db
         .conn()
         .prepare(
-            "SELECT id, name, description, content, tools, model, permission_mode, skills, tags, source, source_path, is_favorite, created_at, updated_at
+            "SELECT id, name, description, content, tools, model, permission_mode, skills, tags, source, source_path, is_favorite, disallowed_tools, max_turns, memory, background, effort, isolation, hooks, mcp_servers, initial_prompt, created_at, updated_at
              FROM subagents ORDER BY name",
         )
         .map_err(|e| e.to_string())?;
@@ -587,12 +609,16 @@ pub(crate) fn update_subagent_in_db(
         .tags
         .as_ref()
         .map(|t| serde_json::to_string(t).unwrap());
+    let disallowed_tools_json = subagent
+        .disallowed_tools
+        .as_ref()
+        .map(|t| serde_json::to_string(t).unwrap());
 
     db.conn()
         .execute(
-            "UPDATE subagents SET name = ?, description = ?, content = ?, tools = ?, model = ?, permission_mode = ?, skills = ?, tags = ?, updated_at = CURRENT_TIMESTAMP
+            "UPDATE subagents SET name = ?, description = ?, content = ?, tools = ?, model = ?, permission_mode = ?, skills = ?, tags = ?, disallowed_tools = ?, max_turns = ?, memory = ?, background = ?, effort = ?, isolation = ?, hooks = ?, mcp_servers = ?, initial_prompt = ?, updated_at = CURRENT_TIMESTAMP
              WHERE id = ?",
-            params![subagent.name, subagent.description, subagent.content, tools_json, subagent.model, subagent.permission_mode, skills_json, tags_json, id],
+            params![subagent.name, subagent.description, subagent.content, tools_json, subagent.model, subagent.permission_mode, skills_json, tags_json, disallowed_tools_json, subagent.max_turns, subagent.memory, subagent.background.map(|b| b as i32), subagent.effort, subagent.isolation, subagent.hooks, subagent.mcp_servers, subagent.initial_prompt, id],
         )
         .map_err(|e| e.to_string())?;
 

@@ -209,10 +209,18 @@ impl Database {
                 description TEXT,
                 event_type TEXT NOT NULL,
                 matcher TEXT,
-                hook_type TEXT NOT NULL CHECK (hook_type IN ('command', 'prompt')),
+                hook_type TEXT NOT NULL CHECK (hook_type IN ('command', 'prompt', 'http', 'agent')),
                 command TEXT,
                 prompt TEXT,
                 timeout INTEGER,
+                url TEXT,
+                headers TEXT,
+                allowed_env_vars TEXT,
+                if_condition TEXT,
+                status_message TEXT,
+                once INTEGER DEFAULT 0,
+                async_mode INTEGER DEFAULT 0,
+                shell TEXT,
                 tags TEXT,
                 source TEXT DEFAULT 'manual',
                 is_template INTEGER DEFAULT 0,
@@ -239,6 +247,44 @@ impl Database {
                 is_enabled INTEGER DEFAULT 1,
                 created_at TEXT DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (hook_id) REFERENCES hooks(id) ON DELETE CASCADE
+            );
+
+            -- Rules (conditional instruction files)
+            CREATE TABLE IF NOT EXISTS rules (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE,
+                description TEXT,
+                content TEXT NOT NULL,
+                paths TEXT,
+                tags TEXT,
+                source TEXT DEFAULT 'manual',
+                source_path TEXT,
+                is_symlink INTEGER DEFAULT 0,
+                symlink_target TEXT,
+                is_favorite INTEGER DEFAULT 0,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+            );
+
+            -- Global Rule Assignments
+            CREATE TABLE IF NOT EXISTS global_rules (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                rule_id INTEGER NOT NULL UNIQUE,
+                is_enabled INTEGER DEFAULT 1,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (rule_id) REFERENCES rules(id) ON DELETE CASCADE
+            );
+
+            -- Project Rule Assignments
+            CREATE TABLE IF NOT EXISTS project_rules (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                project_id INTEGER NOT NULL,
+                rule_id INTEGER NOT NULL,
+                is_enabled INTEGER DEFAULT 1,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+                FOREIGN KEY (rule_id) REFERENCES rules(id) ON DELETE CASCADE,
+                UNIQUE (project_id, rule_id)
             );
 
             -- Gateway MCP Assignments (MCPs included in the gateway)
@@ -322,6 +368,8 @@ impl Database {
             CREATE INDEX IF NOT EXISTS idx_repo_items_imported ON repo_items(is_imported);
             CREATE INDEX IF NOT EXISTS idx_gateway_mcps_mcp ON gateway_mcps(mcp_id);
             CREATE INDEX IF NOT EXISTS idx_gateway_mcps_enabled ON gateway_mcps(is_enabled);
+            CREATE INDEX IF NOT EXISTS idx_project_rules_project ON project_rules(project_id);
+            CREATE INDEX IF NOT EXISTS idx_project_rules_rule ON project_rules(rule_id);
             "#,
         )?;
 
@@ -839,6 +887,221 @@ impl Database {
         if !has_repo_url {
             self.conn
                 .execute("ALTER TABLE containers ADD COLUMN repo_url TEXT", [])?;
+        }
+
+        // Migration 18: Add new hook types and fields to hooks table
+        let has_hook_url: bool = self
+            .conn
+            .query_row(
+                "SELECT COUNT(*) > 0 FROM pragma_table_info('hooks') WHERE name = 'url'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap_or(false);
+
+        if !has_hook_url {
+            // SQLite cannot ALTER CHECK constraints, so recreate the table
+            self.conn.execute_batch(
+                r#"
+                CREATE TABLE hooks_new (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL UNIQUE,
+                    description TEXT,
+                    event_type TEXT NOT NULL,
+                    matcher TEXT,
+                    hook_type TEXT NOT NULL CHECK (hook_type IN ('command', 'prompt', 'http', 'agent')),
+                    command TEXT,
+                    prompt TEXT,
+                    timeout INTEGER,
+                    url TEXT,
+                    headers TEXT,
+                    allowed_env_vars TEXT,
+                    if_condition TEXT,
+                    status_message TEXT,
+                    once INTEGER DEFAULT 0,
+                    async_mode INTEGER DEFAULT 0,
+                    shell TEXT,
+                    tags TEXT,
+                    source TEXT DEFAULT 'manual',
+                    is_template INTEGER DEFAULT 0,
+                    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+                );
+
+                INSERT INTO hooks_new (id, name, description, event_type, matcher, hook_type, command, prompt, timeout, tags, source, is_template, created_at, updated_at)
+                SELECT id, name, description, event_type, matcher, hook_type, command, prompt, timeout, tags, source, is_template, created_at, updated_at FROM hooks;
+
+                DROP TABLE hooks;
+                ALTER TABLE hooks_new RENAME TO hooks;
+                "#,
+            )?;
+        }
+
+        // Migration 19: Add rules, global_rules, and project_rules tables
+        let has_rules_table: bool = self
+            .conn
+            .query_row(
+                "SELECT COUNT(*) > 0 FROM sqlite_master WHERE type='table' AND name='rules'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap_or(false);
+
+        if !has_rules_table {
+            self.conn.execute_batch(
+                r#"
+                CREATE TABLE IF NOT EXISTS rules (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL UNIQUE,
+                    description TEXT,
+                    content TEXT NOT NULL,
+                    paths TEXT,
+                    tags TEXT,
+                    source TEXT DEFAULT 'manual',
+                    source_path TEXT,
+                    is_symlink INTEGER DEFAULT 0,
+                    symlink_target TEXT,
+                    is_favorite INTEGER DEFAULT 0,
+                    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+                );
+
+                CREATE TABLE IF NOT EXISTS global_rules (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    rule_id INTEGER NOT NULL UNIQUE,
+                    is_enabled INTEGER DEFAULT 1,
+                    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (rule_id) REFERENCES rules(id) ON DELETE CASCADE
+                );
+
+                CREATE TABLE IF NOT EXISTS project_rules (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    project_id INTEGER NOT NULL,
+                    rule_id INTEGER NOT NULL,
+                    is_enabled INTEGER DEFAULT 1,
+                    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+                    FOREIGN KEY (rule_id) REFERENCES rules(id) ON DELETE CASCADE,
+                    UNIQUE (project_id, rule_id)
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_project_rules_project ON project_rules(project_id);
+                CREATE INDEX IF NOT EXISTS idx_project_rules_rule ON project_rules(rule_id);
+                "#,
+            )?;
+        }
+
+        // Migration 20: Add new frontmatter fields to subagents table
+        let has_subagents_max_turns: bool = self
+            .conn
+            .query_row(
+                "SELECT COUNT(*) > 0 FROM pragma_table_info('subagents') WHERE name = 'max_turns'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap_or(false);
+
+        if !has_subagents_max_turns {
+            self.conn.execute_batch(
+                r#"
+                ALTER TABLE subagents ADD COLUMN disallowed_tools TEXT;
+                ALTER TABLE subagents ADD COLUMN max_turns INTEGER;
+                ALTER TABLE subagents ADD COLUMN memory TEXT;
+                ALTER TABLE subagents ADD COLUMN background INTEGER;
+                ALTER TABLE subagents ADD COLUMN effort TEXT;
+                ALTER TABLE subagents ADD COLUMN isolation TEXT;
+                ALTER TABLE subagents ADD COLUMN hooks TEXT;
+                ALTER TABLE subagents ADD COLUMN mcp_servers TEXT;
+                ALTER TABLE subagents ADD COLUMN initial_prompt TEXT;
+                "#,
+            )?;
+        }
+
+        // Migration 21: Add new frontmatter fields to skills table
+        let has_skills_context: bool = self
+            .conn
+            .query_row(
+                "SELECT COUNT(*) > 0 FROM pragma_table_info('skills') WHERE name = 'context'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap_or(false);
+
+        if !has_skills_context {
+            self.conn.execute_batch(
+                r#"
+                ALTER TABLE skills ADD COLUMN context TEXT;
+                ALTER TABLE skills ADD COLUMN agent TEXT;
+                ALTER TABLE skills ADD COLUMN hooks TEXT;
+                ALTER TABLE skills ADD COLUMN paths TEXT;
+                ALTER TABLE skills ADD COLUMN shell TEXT;
+                ALTER TABLE skills ADD COLUMN once_per_session INTEGER;
+                "#,
+            )?;
+        }
+
+        // Migration 22: Add effort column to skills table
+        let has_skills_effort: bool = self
+            .conn
+            .query_row(
+                "SELECT COUNT(*) > 0 FROM pragma_table_info('skills') WHERE name = 'effort'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap_or(false);
+
+        if !has_skills_effort {
+            self.conn
+                .execute_batch("ALTER TABLE skills ADD COLUMN effort TEXT;")?;
+        }
+
+        // Migration 23: Add 'ws' to MCP type CHECK constraint
+        // SQLite doesn't support ALTER CONSTRAINT, so we rebuild the table
+        // Check if constraint already allows 'ws' by inspecting the table SQL
+        let table_sql: String = self
+            .conn
+            .query_row(
+                "SELECT sql FROM sqlite_master WHERE type='table' AND name='mcps'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap_or_default();
+
+        if !table_sql.contains("'ws'") {
+            self.conn.execute_batch(
+                r#"
+                PRAGMA foreign_keys = OFF;
+
+                CREATE TABLE mcps_new (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL UNIQUE,
+                    description TEXT,
+                    type TEXT NOT NULL CHECK (type IN ('stdio', 'sse', 'http', 'ws')),
+                    command TEXT,
+                    args TEXT,
+                    url TEXT,
+                    headers TEXT,
+                    env TEXT,
+                    icon TEXT,
+                    tags TEXT,
+                    source TEXT DEFAULT 'manual',
+                    source_path TEXT,
+                    is_enabled_global INTEGER DEFAULT 0,
+                    is_favorite INTEGER DEFAULT 0,
+                    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+                );
+
+                INSERT INTO mcps_new SELECT * FROM mcps;
+                DROP TABLE mcps;
+                ALTER TABLE mcps_new RENAME TO mcps;
+
+                CREATE INDEX IF NOT EXISTS idx_mcps_type ON mcps(type);
+                CREATE INDEX IF NOT EXISTS idx_mcps_source ON mcps(source);
+
+                PRAGMA foreign_keys = ON;
+                "#,
+            )?;
         }
 
         Ok(())
@@ -1409,6 +1672,13 @@ impl Database {
                     is_favorite: row.get::<_, i32>(10)? != 0,
                     created_at: row.get(11)?,
                     updated_at: row.get(12)?,
+                    context: None,
+                    agent: None,
+                    hooks: None,
+                    paths: None,
+                    shell: None,
+                    once: None,
+                    effort: None,
                 })
             })?
             .filter_map(|r| r.ok())
@@ -1437,6 +1707,13 @@ impl Database {
                     is_favorite: row.get::<_, i32>(10)? != 0,
                     created_at: row.get(11)?,
                     updated_at: row.get(12)?,
+                    context: None,
+                    agent: None,
+                    hooks: None,
+                    paths: None,
+                    shell: None,
+                    once: None,
+                    effort: None,
                 })
             },
         );
@@ -1525,6 +1802,15 @@ impl Database {
                     is_favorite: row.get::<_, i32>(11)? != 0,
                     created_at: row.get(12)?,
                     updated_at: row.get(13)?,
+                    disallowed_tools: None,
+                    max_turns: None,
+                    memory: None,
+                    background: None,
+                    effort: None,
+                    isolation: None,
+                    hooks: None,
+                    mcp_servers: None,
+                    initial_prompt: None,
                 })
             })?
             .filter_map(|r| r.ok())
@@ -1554,6 +1840,15 @@ impl Database {
                     is_favorite: row.get::<_, i32>(11)? != 0,
                     created_at: row.get(12)?,
                     updated_at: row.get(13)?,
+                    disallowed_tools: None,
+                    max_turns: None,
+                    memory: None,
+                    background: None,
+                    effort: None,
+                    isolation: None,
+                    hooks: None,
+                    mcp_servers: None,
+                    initial_prompt: None,
                 })
             },
         );
@@ -1621,7 +1916,7 @@ impl Database {
 
     pub fn get_all_hooks(&self) -> Result<Vec<crate::db::models::Hook>> {
         let mut stmt = self.conn.prepare(
-            "SELECT id, name, description, event_type, matcher, hook_type, command, prompt, timeout, tags, source, is_template, created_at, updated_at
+            "SELECT id, name, description, event_type, matcher, hook_type, command, prompt, timeout, url, headers, allowed_env_vars, if_condition, status_message, once, async_mode, shell, tags, source, is_template, created_at, updated_at
              FROM hooks WHERE is_template = 0 ORDER BY name"
         )?;
 
@@ -1637,13 +1932,21 @@ impl Database {
                     command: row.get(6)?,
                     prompt: row.get(7)?,
                     timeout: row.get(8)?,
+                    url: row.get(9)?,
+                    headers: row.get::<_, Option<String>>(10)?.and_then(|s| serde_json::from_str(&s).ok()),
+                    allowed_env_vars: row.get::<_, Option<String>>(11)?.and_then(|s| serde_json::from_str(&s).ok()),
+                    if_condition: row.get(12)?,
+                    status_message: row.get(13)?,
+                    once: row.get::<_, i32>(14).unwrap_or(0) != 0,
+                    async_mode: row.get::<_, i32>(15).unwrap_or(0) != 0,
+                    shell: row.get(16)?,
                     tags: row
-                        .get::<_, Option<String>>(9)?
+                        .get::<_, Option<String>>(17)?
                         .and_then(|s| serde_json::from_str(&s).ok()),
-                    source: row.get(10)?,
-                    is_template: row.get::<_, i32>(11)? != 0,
-                    created_at: row.get(12)?,
-                    updated_at: row.get(13)?,
+                    source: row.get(18)?,
+                    is_template: row.get::<_, i32>(19)? != 0,
+                    created_at: row.get(20)?,
+                    updated_at: row.get(21)?,
                 })
             })?
             .filter_map(|r| r.ok())
@@ -1654,7 +1957,7 @@ impl Database {
 
     pub fn get_hook_by_id(&self, id: i64) -> Result<Option<crate::db::models::Hook>> {
         let result = self.conn.query_row(
-            "SELECT id, name, description, event_type, matcher, hook_type, command, prompt, timeout, tags, source, is_template, created_at, updated_at
+            "SELECT id, name, description, event_type, matcher, hook_type, command, prompt, timeout, url, headers, allowed_env_vars, if_condition, status_message, once, async_mode, shell, tags, source, is_template, created_at, updated_at
              FROM hooks WHERE id = ?",
             [id],
             |row| {
@@ -1668,11 +1971,19 @@ impl Database {
                     command: row.get(6)?,
                     prompt: row.get(7)?,
                     timeout: row.get(8)?,
-                    tags: row.get::<_, Option<String>>(9)?.and_then(|s| serde_json::from_str(&s).ok()),
-                    source: row.get(10)?,
-                    is_template: row.get::<_, i32>(11)? != 0,
-                    created_at: row.get(12)?,
-                    updated_at: row.get(13)?,
+                    url: row.get(9)?,
+                    headers: row.get::<_, Option<String>>(10)?.and_then(|s| serde_json::from_str(&s).ok()),
+                    allowed_env_vars: row.get::<_, Option<String>>(11)?.and_then(|s| serde_json::from_str(&s).ok()),
+                    if_condition: row.get(12)?,
+                    status_message: row.get(13)?,
+                    once: row.get::<_, i32>(14).unwrap_or(0) != 0,
+                    async_mode: row.get::<_, i32>(15).unwrap_or(0) != 0,
+                    shell: row.get(16)?,
+                    tags: row.get::<_, Option<String>>(17)?.and_then(|s| serde_json::from_str(&s).ok()),
+                    source: row.get(18)?,
+                    is_template: row.get::<_, i32>(19)? != 0,
+                    created_at: row.get(20)?,
+                    updated_at: row.get(21)?,
                 })
             },
         );
@@ -1689,13 +2000,20 @@ impl Database {
         req: &crate::db::models::CreateHookRequest,
     ) -> Result<crate::db::models::Hook> {
         let tags_json = req.tags.as_ref().map(|t| serde_json::to_string(t).unwrap());
+        let headers_json = req.headers.as_ref().map(|h| serde_json::to_string(h).unwrap());
+        let env_vars_json = req.allowed_env_vars.as_ref().map(|v| serde_json::to_string(v).unwrap());
 
         self.conn.execute(
-            "INSERT INTO hooks (name, description, event_type, matcher, hook_type, command, prompt, timeout, tags, source)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'manual')",
+            "INSERT INTO hooks (name, description, event_type, matcher, hook_type, command, prompt, timeout, url, headers, allowed_env_vars, if_condition, status_message, once, async_mode, shell, tags, source)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'manual')",
             rusqlite::params![
                 req.name, req.description, req.event_type, req.matcher,
-                req.hook_type, req.command, req.prompt, req.timeout, tags_json
+                req.hook_type, req.command, req.prompt, req.timeout,
+                req.url, headers_json, env_vars_json,
+                req.if_condition, req.status_message,
+                req.once.unwrap_or(false) as i32,
+                req.async_mode.unwrap_or(false) as i32,
+                req.shell, tags_json
             ],
         )?;
 

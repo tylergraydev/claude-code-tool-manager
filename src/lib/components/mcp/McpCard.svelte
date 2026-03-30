@@ -150,6 +150,7 @@
 							? 'text-rose-500 hover:text-rose-600'
 							: 'text-gray-300 hover:text-rose-400 dark:text-gray-600 dark:hover:text-rose-400'}"
 						title={mcp.isFavorite ? i18n.t('mcp.removeFromFavorites') : i18n.t('mcp.addToFavorites')}
+						aria-label="{mcp.isFavorite ? `Remove ${mcp.name} from favorites` : `Add ${mcp.name} to favorites`}"
 					>
 						<Heart class="w-4 h-4" fill={mcp.isFavorite ? 'currentColor' : 'none'} />
 					</button>
@@ -159,6 +160,7 @@
 						bind:this={menuButton}
 						onclick={toggleMenu}
 						class="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
+						aria-label="Actions for {mcp.name}"
 					>
 						<MoreVertical class="w-4 h-4" />
 					</button>

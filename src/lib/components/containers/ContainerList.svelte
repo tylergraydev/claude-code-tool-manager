@@ -1,108 +1,33 @@
 <script lang="ts">
 	import { containerLibrary } from '$lib/stores';
+	import type { Container } from '$lib/types';
 	import ContainerCard from './ContainerCard.svelte';
+	import { Package } from 'lucide-svelte';
 
-	type Props = {
-		onEdit: (container: any) => void;
-		onDelete: (container: any) => void;
-		onViewDetail?: (container: any) => void;
-	};
-
-	let { onEdit, onDelete, onViewDetail }: Props = $props();
-
-	function handleFavoriteToggle(container: any) {
-		containerLibrary.toggleFavorite(container.id);
-	}
-
-	let actionError = $state<string | null>(null);
-	let loadingIds = $state<Set<number>>(new Set());
-
-	function setLoading(id: number, loading: boolean) {
-		const next = new Set(loadingIds);
-		if (loading) next.add(id); else next.delete(id);
-		loadingIds = next;
-	}
-
-	async function handleStart(container: any) {
-		actionError = null;
-		setLoading(container.id, true);
-		try {
-			await containerLibrary.startContainer(container.id);
-		} catch (err) {
-			actionError = `Failed to start "${container.name}": ${err instanceof Error ? err.message : String(err)}`;
-		} finally {
-			setLoading(container.id, false);
-		}
-	}
-
-	async function handleStop(container: any) {
-		actionError = null;
-		setLoading(container.id, true);
-		try {
-			await containerLibrary.stopContainer(container.id);
-		} catch (err) {
-			actionError = `Failed to stop "${container.name}": ${err instanceof Error ? err.message : String(err)}`;
-		} finally {
-			setLoading(container.id, false);
-		}
-	}
-
-	async function handleRestart(container: any) {
-		actionError = null;
-		setLoading(container.id, true);
-		try {
-			await containerLibrary.restartContainer(container.id);
-		} catch (err) {
-			actionError = `Failed to restart "${container.name}": ${err instanceof Error ? err.message : String(err)}`;
-		} finally {
-			setLoading(container.id, false);
-		}
-	}
-
-	function getContainerStatus(id: number): string | undefined {
-		const s = containerLibrary.getStatus(id) as any;
-		return s?.dockerStatus || s?.docker_status;
-	}
+	let { onEdit, onDelete }: {
+		onEdit: (container: Container) => void;
+		onDelete: (container: Container) => void;
+	} = $props();
 </script>
 
-{#if actionError}
-	<div class="mb-3 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-700 dark:text-red-400 text-sm flex items-center justify-between" role="alert">
-		<span>{actionError}</span>
-		<button onclick={() => actionError = null} class="btn btn-ghost text-sm px-2 py-1">Dismiss</button>
-	</div>
-{/if}
-
 {#if containerLibrary.isLoading}
-	<div class="flex items-center justify-center py-8" role="status" aria-label="Loading containers">
-		<div class="animate-spin w-8 h-8 border-2 border-primary-500 border-t-transparent rounded-full"></div>
+	<div class="flex items-center justify-center py-12">
+		<div class="w-6 h-6 border-2 border-primary-500 border-t-transparent rounded-full animate-spin"></div>
 	</div>
 {:else if containerLibrary.filteredContainers.length === 0}
-	{#if containerLibrary.searchQuery}
-		<div class="text-center py-8">
-			<p class="text-gray-500 dark:text-gray-400 font-medium">No matching containers</p>
-			<p class="text-sm text-gray-400 dark:text-gray-500 mt-1">Try a different search term</p>
-		</div>
-	{:else}
-		<div class="text-center py-8">
-			<p class="text-gray-500 dark:text-gray-400 font-medium">No containers yet</p>
-			<p class="text-sm text-gray-400 dark:text-gray-500 mt-1">Create a container or use a template to get started</p>
-		</div>
-	{/if}
+	<div class="text-center py-12">
+		<Package class="w-12 h-12 text-gray-300 dark:text-gray-600 mx-auto mb-3" aria-hidden="true" />
+		<h3 class="text-lg font-medium text-gray-500 dark:text-gray-400">
+			{containerLibrary.searchQuery ? 'No matching containers' : 'No containers yet'}
+		</h3>
+		<p class="text-sm text-gray-400 dark:text-gray-500 mt-1">
+			{containerLibrary.searchQuery ? 'Try a different search term' : 'Create a container or use a template to get started'}
+		</p>
+	</div>
 {:else}
 	<div class="space-y-3">
 		{#each containerLibrary.filteredContainers as container (container.id)}
-			<ContainerCard
-				{container}
-				status={getContainerStatus(container.id)}
-				loading={loadingIds.has(container.id)}
-				{onEdit}
-				{onDelete}
-				{onViewDetail}
-				onFavoriteToggle={handleFavoriteToggle}
-				onStart={handleStart}
-				onStop={handleStop}
-				onRestart={handleRestart}
-			/>
+			<ContainerCard {container} {onEdit} {onDelete} />
 		{/each}
 	</div>
 {/if}

@@ -1,15 +1,8 @@
 <script lang="ts">
-	type Volume = {
-		hostPath: string;
-		containerPath: string;
-		readOnly: boolean;
-	};
+	import { Plus, Trash2 } from 'lucide-svelte';
+	import type { VolumeMapping } from '$lib/types';
 
-	type Props = {
-		volumes: Volume[];
-	};
-
-	let { volumes = [] }: Props = $props();
+	let { volumes = $bindable<VolumeMapping[]>([]) }: { volumes: VolumeMapping[] } = $props();
 
 	function addVolume() {
 		volumes = [...volumes, { hostPath: '', containerPath: '', readOnly: false }];
@@ -20,24 +13,32 @@
 	}
 </script>
 
-<div>
-	<div class="flex items-center justify-between mb-2">
-		<h4 class="text-sm font-medium text-gray-700 dark:text-gray-300">Volume Mappings</h4>
-		<button type="button" onclick={addVolume} class="text-sm text-primary-600 hover:text-primary-700">
-			Add Volume
+<div class="space-y-2">
+	<div class="flex items-center justify-between">
+		<label class="text-sm font-medium text-gray-700 dark:text-gray-300">Volume Mappings</label>
+		<button type="button" onclick={addVolume}
+			class="text-xs text-primary-600 hover:text-primary-700 dark:text-primary-400 flex items-center gap-1">
+			<Plus class="w-3 h-3" aria-hidden="true" /> Add Volume
 		</button>
 	</div>
-
-	{#each volumes as volume, i}
-		<div class="flex items-center gap-2 mb-2">
-			<input type="text" bind:value={volume.hostPath} placeholder="Host path" class="input flex-1 text-sm" />
-			<span class="text-gray-400">:</span>
-			<input type="text" bind:value={volume.containerPath} placeholder="Container path" class="input flex-1 text-sm" />
-			<label class="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
-				<input type="checkbox" bind:checked={volume.readOnly} />
-				RO
-			</label>
-			<button type="button" onclick={() => removeVolume(i)} class="btn btn-ghost text-red-500 hover:text-red-700 text-sm px-2 py-1">Remove</button>
+	{#if volumes.length > 0}
+		<div class="space-y-2">
+			{#each volumes as vol, i}
+				<div class="flex items-center gap-2">
+					<input type="text" bind:value={vol.hostPath} placeholder="Host path"
+						class="input flex-1 py-1.5" />
+					<span class="text-gray-400">:</span>
+					<input type="text" bind:value={vol.containerPath} placeholder="Container path"
+						class="input flex-1 py-1.5" />
+					<label class="flex items-center gap-1 text-xs text-gray-500">
+						<input type="checkbox" bind:checked={vol.readOnly} class="rounded" />
+						RO
+					</label>
+					<button type="button" onclick={() => removeVolume(i)} class="p-1 text-gray-400 hover:text-red-500">
+						<Trash2 class="w-4 h-4" aria-hidden="true" />
+					</button>
+				</div>
+			{/each}
 		</div>
-	{/each}
+	{/if}
 </div>

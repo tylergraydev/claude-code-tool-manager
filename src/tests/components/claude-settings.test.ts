@@ -125,6 +125,23 @@ describe('AttributionEditor Component', () => {
 	});
 });
 
+describe('Extended Context Types', () => {
+	it('should include extended context models in CLAUDE_MODELS', async () => {
+		const { CLAUDE_MODELS } = await import('$lib/types');
+		const values = CLAUDE_MODELS.map(m => m.value);
+		expect(values).toContain('claude-sonnet-4-5-20250929');
+		expect(values).toContain('claude-opus-4-6');
+	});
+
+	it('should include extended context shortcuts in AVAILABLE_MODEL_SHORTCUTS', async () => {
+		const { AVAILABLE_MODEL_SHORTCUTS } = await import('$lib/types');
+		const values = AVAILABLE_MODEL_SHORTCUTS.map(s => s.value);
+		expect(values).toContain('sonnet');
+		expect(values).toContain('opus');
+		expect(values).toContain('haiku');
+	});
+});
+
 describe('Claude-settings index.ts exports', () => {
 	let csExports: any;
 
@@ -135,5 +152,6 @@ describe('Claude-settings index.ts exports', () => {
 	it('should export all components', () => {
 		expect(csExports.ModelConfigEditor).toBeDefined();
 		expect(csExports.AttributionEditor).toBeDefined();
+		expect(csExports.ModelOverridesEditor).toBeDefined();
 	});
 });

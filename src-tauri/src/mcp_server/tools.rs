@@ -525,6 +525,13 @@ impl ToolManagerServer {
             model: params.model,
             disable_model_invocation: params.disable_model_invocation,
             tags: params.tags,
+            context: None,
+            agent: None,
+            hooks: None,
+            paths: None,
+            shell: None,
+            once: None,
+            effort: None,
         };
 
         let db = self.get_db()?;
@@ -621,6 +628,15 @@ impl ToolManagerServer {
             permission_mode: params.permission_mode,
             skills: None,
             tags: params.tags,
+            disallowed_tools: None,
+            max_turns: None,
+            memory: None,
+            background: None,
+            effort: None,
+            isolation: None,
+            hooks: None,
+            mcp_servers: None,
+            initial_prompt: None,
         };
 
         let db = self.get_db()?;
@@ -715,6 +731,14 @@ impl ToolManagerServer {
             prompt: params.prompt,
             timeout: params.timeout,
             tags: params.tags,
+            url: None,
+            headers: None,
+            allowed_env_vars: None,
+            if_condition: None,
+            status_message: None,
+            once: None,
+            async_mode: None,
+            shell: None,
         };
 
         let db = self.get_db()?;

@@ -17,7 +17,6 @@ export interface Container {
 	postStartCommand?: string;
 	workingDir?: string;
 	templateId?: string;
-	repoUrl?: string;
 	icon?: string;
 	tags?: string[];
 	isFavorite: boolean;
@@ -62,88 +61,4 @@ export interface DockerHost {
 	isDefault: boolean;
 	createdAt: string;
 	updatedAt: string;
-}
-
-export interface CreateContainerRequest {
-	name: string;
-	description?: string;
-	containerType: string;
-	dockerHostId?: number;
-	image?: string;
-	dockerfile?: string;
-	devcontainerJson?: string;
-	env?: Record<string, string>;
-	ports?: PortMapping[];
-	volumes?: VolumeMapping[];
-	mounts?: string[];
-	features?: string[];
-	postCreateCommand?: string;
-	postStartCommand?: string;
-	workingDir?: string;
-	templateId?: string;
-	repoUrl?: string;
-	icon?: string;
-	tags?: string[];
-}
-
-export interface CreateDockerHostRequest {
-	name: string;
-	hostType: string;
-	connectionUri?: string;
-	sshKeyPath?: string;
-	tlsCaCert?: string;
-	tlsCert?: string;
-	tlsKey?: string;
-	isDefault?: boolean;
-}
-
-export interface ContainerTemplate {
-	id: string;
-	name: string;
-	description: string;
-	category: string;
-	icon: string;
-	image: string;
-	dockerfile?: string;
-	env?: Record<string, string>;
-	ports?: PortMapping[];
-	volumes?: VolumeMapping[];
-	features?: string[];
-	postCreateCommand?: string;
-	postStartCommand?: string;
-	workingDir?: string;
-}
-
-export interface ContainerLog {
-	timestamp?: string;
-	message: string;
-	stream: string;
-}
-
-export interface ContainerStats {
-	containerId: number;
-	cpuPercent: number;
-	memoryUsage: number;
-	memoryLimit: number;
-	memoryPercent: number;
-	networkRxBytes: number;
-	networkTxBytes: number;
-	blockReadBytes: number;
-	blockWriteBytes: number;
-	pids: number;
-}
-
-export interface ExecResult {
-	exitCode: number;
-	stdout: string;
-	stderr: string;
-}
-
-export interface ProjectContainer {
-	id: number;
-	projectId: number;
-	containerId: number;
-	container: Container;
-	isDefault: boolean;
-	createdAt: string;
 }

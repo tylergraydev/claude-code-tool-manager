@@ -360,6 +360,28 @@ describe('PermissionTemplatePanel Component', () => {
 	});
 });
 
+describe('Permission Tool Names Expansion', () => {
+	it('should include Bash tool type', async () => {
+		const { PERMISSION_TOOL_NAMES } = await import('$lib/types/permission');
+		const bash = PERMISSION_TOOL_NAMES.find(t => t.value === 'Bash');
+		expect(bash).toBeDefined();
+		expect(bash!.hint).toContain('Bash');
+	});
+
+	it('should include Task tool type', async () => {
+		const { PERMISSION_TOOL_NAMES } = await import('$lib/types/permission');
+		const task = PERMISSION_TOOL_NAMES.find(t => t.value === 'Task');
+		expect(task).toBeDefined();
+	});
+
+	it('should include WebFetch tool type', async () => {
+		const { PERMISSION_TOOL_NAMES } = await import('$lib/types/permission');
+		const webFetch = PERMISSION_TOOL_NAMES.find(t => t.value === 'WebFetch');
+		expect(webFetch).toBeDefined();
+		expect(webFetch!.hint).toContain('WebFetch');
+	});
+});
+
 describe('Permissions index.ts exports', () => {
 	let permExports: any;
 

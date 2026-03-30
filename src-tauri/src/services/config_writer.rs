@@ -86,6 +86,21 @@ pub fn generate_mcp_config(mcps: &[McpTuple]) -> Value {
                 }
                 Value::Object(obj)
             }
+            "ws" => {
+                let mut obj = Map::new();
+                obj.insert("type".to_string(), json!("ws"));
+                if let Some(u) = url {
+                    obj.insert("url".to_string(), json!(u));
+                }
+                if let Some(headers_json) = headers {
+                    if let Ok(headers_val) =
+                        serde_json::from_str::<Map<String, Value>>(headers_json)
+                    {
+                        obj.insert("headers".to_string(), Value::Object(headers_val));
+                    }
+                }
+                Value::Object(obj)
+            }
             _ => continue,
         };
 

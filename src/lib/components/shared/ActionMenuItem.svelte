@@ -8,21 +8,18 @@
 		onclick?: () => void;
 	};
 
-	let { icon, label, variant = 'default', onclick }: Props = $props();
-
-	const variantClasses: Record<string, string> = {
-		default: 'text-gray-700 hover:bg-gray-100',
-		danger: 'text-red-600 hover:bg-red-50'
-	};
+	let { icon: Icon, label, variant = 'default', onclick }: Props = $props();
 </script>
 
 <button
-	class="w-full text-left px-3 py-2 text-sm flex items-center gap-2 transition-colors {variantClasses[variant]}"
+	class="w-full flex items-center gap-2 text-left px-3 py-2 text-sm transition-colors
+		{variant === 'danger'
+			? 'text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20'
+			: 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'}"
 	{onclick}
 	role="menuitem"
 >
-	{#if icon}
-		{@const Icon = icon}
+	{#if Icon}
 		<Icon class="w-4 h-4" />
 	{/if}
 	{label}

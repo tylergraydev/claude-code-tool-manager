@@ -180,7 +180,7 @@ fn parse_json_array(s: Option<String>) -> Option<Vec<String>> {
     s.and_then(|v| serde_json::from_str(&v).ok())
 }
 
-const SKILL_SELECT_FIELDS: &str = "id, name, description, content, allowed_tools, model, disable_model_invocation, tags, source, source_path, is_favorite, created_at, updated_at";
+const SKILL_SELECT_FIELDS: &str = "id, name, description, content, allowed_tools, model, disable_model_invocation, tags, source, source_path, is_favorite, context, agent, hooks, paths, shell, once_per_session, effort, created_at, updated_at";
 
 fn row_to_skill(row: &rusqlite::Row) -> rusqlite::Result<Skill> {
     Ok(Skill {
@@ -195,8 +195,15 @@ fn row_to_skill(row: &rusqlite::Row) -> rusqlite::Result<Skill> {
         source: row.get(8)?,
         source_path: row.get(9)?,
         is_favorite: row.get::<_, i32>(10).unwrap_or(0) != 0,
-        created_at: row.get(11)?,
-        updated_at: row.get(12)?,
+        context: row.get(11)?,
+        agent: row.get(12)?,
+        hooks: row.get(13)?,
+        paths: parse_json_array(row.get(14)?),
+        shell: row.get(15)?,
+        once: row.get::<_, Option<i32>>(16)?.map(|v| v != 0),
+        effort: row.get(17)?,
+        created_at: row.get(18)?,
+        updated_at: row.get(19)?,
     })
 }
 
@@ -213,8 +220,15 @@ fn row_to_skill_with_offset(row: &rusqlite::Row, offset: usize) -> rusqlite::Res
         source: row.get(offset + 8)?,
         source_path: row.get(offset + 9)?,
         is_favorite: row.get::<_, i32>(offset + 10).unwrap_or(0) != 0,
-        created_at: row.get(offset + 11)?,
-        updated_at: row.get(offset + 12)?,
+        context: row.get(offset + 11)?,
+        agent: row.get(offset + 12)?,
+        hooks: row.get(offset + 13)?,
+        paths: parse_json_array(row.get(offset + 14)?),
+        shell: row.get(offset + 15)?,
+        once: row.get::<_, Option<i32>>(offset + 16)?.map(|v| v != 0),
+        effort: row.get(offset + 17)?,
+        created_at: row.get(offset + 18)?,
+        updated_at: row.get(offset + 19)?,
     })
 }
 
@@ -787,13 +801,18 @@ pub(crate) fn create_skill_in_db_impl(
         .tags
         .as_ref()
         .map(|t| serde_json::to_string(t).unwrap());
+    let paths_json = skill
+        .paths
+        .as_ref()
+        .map(|p| serde_json::to_string(p).unwrap());
     let disable_model_invocation = skill.disable_model_invocation.unwrap_or(false) as i32;
+    let once_int = skill.once.map(|b| b as i32);
 
     db.conn()
         .execute(
-            "INSERT INTO skills (name, description, content, allowed_tools, model, disable_model_invocation, tags, source)
-             VALUES (?, ?, ?, ?, ?, ?, ?, 'manual')",
-            rusqlite::params![skill.name, skill.description, skill.content, allowed_tools_json, skill.model, disable_model_invocation, tags_json],
+            "INSERT INTO skills (name, description, content, allowed_tools, model, disable_model_invocation, tags, source, context, agent, hooks, paths, shell, once_per_session, effort)
+             VALUES (?, ?, ?, ?, ?, ?, ?, 'manual', ?, ?, ?, ?, ?, ?, ?)",
+            rusqlite::params![skill.name, skill.description, skill.content, allowed_tools_json, skill.model, disable_model_invocation, tags_json, skill.context, skill.agent, skill.hooks, paths_json, skill.shell, once_int, skill.effort],
         )
         .map_err(|e| e.to_string())?;
 
@@ -841,13 +860,18 @@ pub(crate) fn update_skill_in_db(
         .tags
         .as_ref()
         .map(|t| serde_json::to_string(t).unwrap());
+    let paths_json = skill
+        .paths
+        .as_ref()
+        .map(|p| serde_json::to_string(p).unwrap());
     let disable_model_invocation = skill.disable_model_invocation.unwrap_or(false) as i32;
+    let once_int = skill.once.map(|b| b as i32);
 
     db.conn()
         .execute(
-            "UPDATE skills SET name = ?, description = ?, content = ?, allowed_tools = ?, model = ?, disable_model_invocation = ?, tags = ?, updated_at = CURRENT_TIMESTAMP
+            "UPDATE skills SET name = ?, description = ?, content = ?, allowed_tools = ?, model = ?, disable_model_invocation = ?, tags = ?, context = ?, agent = ?, hooks = ?, paths = ?, shell = ?, once_per_session = ?, effort = ?, updated_at = CURRENT_TIMESTAMP
              WHERE id = ?",
-            rusqlite::params![skill.name, skill.description, skill.content, allowed_tools_json, skill.model, disable_model_invocation, tags_json, id],
+            rusqlite::params![skill.name, skill.description, skill.content, allowed_tools_json, skill.model, disable_model_invocation, tags_json, skill.context, skill.agent, skill.hooks, paths_json, skill.shell, once_int, skill.effort, id],
         )
         .map_err(|e| e.to_string())?;
 

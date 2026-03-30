@@ -51,16 +51,36 @@ vi.mock('$lib/types', async (importOriginal) => {
 	return {
 		...actual,
 		HOOK_EVENT_TYPES: actual.HOOK_EVENT_TYPES ?? [
+			{ value: 'SessionStart', label: 'Session Start', description: 'Session starts', matcherHint: 'Source type' },
+			{ value: 'InstructionsLoaded', label: 'Instructions Loaded', description: 'Instructions loaded', matcherHint: 'Load reason' },
+			{ value: 'UserPromptSubmit', label: 'User Prompt Submit', description: 'User submits prompt' },
 			{ value: 'PreToolUse', label: 'Pre Tool Use', description: 'Before tool runs', matcherHint: 'Tool name' },
+			{ value: 'PermissionRequest', label: 'Permission Request', description: 'Permission needed', matcherHint: 'Tool name' },
 			{ value: 'PostToolUse', label: 'Post Tool Use', description: 'After tool runs', matcherHint: 'Tool name' },
-			{ value: 'Notification', label: 'Notification', description: 'Notification events' },
+			{ value: 'PostToolUseFailure', label: 'Post Tool Use Failure', description: 'After tool fails', matcherHint: 'Tool name' },
+			{ value: 'Notification', label: 'Notification', description: 'Notification events', matcherHint: 'Type' },
 			{ value: 'Stop', label: 'Stop', description: 'When Claude stops' },
-			{ value: 'SubagentStop', label: 'Subagent Stop', description: 'When subagent stops' }
+			{ value: 'StopFailure', label: 'Stop Failure', description: 'When stop fails', matcherHint: 'Error type' },
+			{ value: 'SubagentStart', label: 'Subagent Start', description: 'When subagent starts', matcherHint: 'Agent type' },
+			{ value: 'SubagentStop', label: 'Subagent Stop', description: 'When subagent stops', matcherHint: 'Agent type' },
+			{ value: 'TaskCompleted', label: 'Task Completed', description: 'Background task done' },
+			{ value: 'TeammateIdle', label: 'Teammate Idle', description: 'Teammate idles' },
+			{ value: 'PreCompact', label: 'Pre Compact', description: 'Before compact', matcherHint: 'Trigger type' },
+			{ value: 'PostCompact', label: 'Post Compact', description: 'After compact' },
+			{ value: 'ConfigChange', label: 'Config Change', description: 'Settings changed', matcherHint: 'Source' },
+			{ value: 'CwdChanged', label: 'Working Directory Changed', description: 'CWD changed' },
+			{ value: 'FileChanged', label: 'File Changed', description: 'File changed', matcherHint: 'Filename' },
+			{ value: 'WorktreeCreate', label: 'Worktree Created', description: 'Worktree created' },
+			{ value: 'WorktreeRemove', label: 'Worktree Removed', description: 'Worktree removed' },
+			{ value: 'Elicitation', label: 'Elicitation', description: 'MCP elicitation' },
+			{ value: 'ElicitationResult', label: 'Elicitation Result', description: 'MCP elicitation result' },
+			{ value: 'SessionEnd', label: 'Session End', description: 'Session ends' }
 		],
 		SOUND_HOOK_PRESETS: actual.SOUND_HOOK_PRESETS ?? [
-			{ id: 'task-complete', name: 'Task Complete', description: 'Sound on task finish', events: ['Stop'] },
+			{ id: 'task-complete', name: 'Task Complete', description: 'Sound on task finish', events: ['Stop', 'SubagentStop', 'TaskCompleted'] },
 			{ id: 'permission-required', name: 'Permission Required', description: 'Sound on permission', events: ['Notification'] },
-			{ id: 'full-suite', name: 'Full Suite', description: 'All events', events: ['Stop', 'SubagentStop', 'Notification'] }
+			{ id: 'error-alert', name: 'Error Alert', description: 'Sound on errors', events: ['StopFailure', 'PostToolUseFailure'] },
+			{ id: 'full-suite', name: 'Full Suite', description: 'All events', events: ['Stop', 'SubagentStop', 'TaskCompleted', 'StopFailure', 'Notification'] }
 		],
 		getDefaultSound: actual.getDefaultSound ?? (() => '/System/Library/Sounds/Glass.aiff')
 	};
@@ -221,6 +241,42 @@ describe('HookCard Component', () => {
 		const subHook = { ...mockHook, eventType: 'SubagentStop' };
 		render(HookCard, { props: { hook: subHook } });
 		expect(screen.getAllByText('SubagentStop').length).toBeGreaterThan(0);
+	});
+
+	it('should show PostToolUseFailure event type', () => {
+		const failHook = { ...mockHook, eventType: 'PostToolUseFailure' };
+		render(HookCard, { props: { hook: failHook } });
+		expect(screen.getAllByText('PostToolUseFailure').length).toBeGreaterThan(0);
+	});
+
+	it('should show StopFailure event type', () => {
+		const failHook = { ...mockHook, eventType: 'StopFailure' };
+		render(HookCard, { props: { hook: failHook } });
+		expect(screen.getAllByText('StopFailure').length).toBeGreaterThan(0);
+	});
+
+	it('should show ConfigChange event type', () => {
+		const configHook = { ...mockHook, eventType: 'ConfigChange' };
+		render(HookCard, { props: { hook: configHook } });
+		expect(screen.getAllByText('ConfigChange').length).toBeGreaterThan(0);
+	});
+
+	it('should show TaskCompleted event type', () => {
+		const taskHook = { ...mockHook, eventType: 'TaskCompleted' };
+		render(HookCard, { props: { hook: taskHook } });
+		expect(screen.getAllByText('TaskCompleted').length).toBeGreaterThan(0);
+	});
+
+	it('should show FileChanged event type', () => {
+		const fileHook = { ...mockHook, eventType: 'FileChanged' };
+		render(HookCard, { props: { hook: fileHook } });
+		expect(screen.getAllByText('FileChanged').length).toBeGreaterThan(0);
+	});
+
+	it('should show WorktreeCreate event type', () => {
+		const wtHook = { ...mockHook, eventType: 'WorktreeCreate' };
+		render(HookCard, { props: { hook: wtHook } });
+		expect(screen.getAllByText('WorktreeCreate').length).toBeGreaterThan(0);
 	});
 });
 
