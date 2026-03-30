@@ -2,6 +2,12 @@ import { invoke } from '@tauri-apps/api/core';
 import type { StatsCacheInfo, DateRangeFilter } from '$lib/types';
 import { estimateModelCost } from '$lib/types/usage';
 
+export interface DailyCost {
+	date: string;
+	total: number;
+	costByModel: Record<string, number>;
+}
+
 class UsageStoreState {
 	data = $state<StatsCacheInfo | null>(null);
 	isLoading = $state(false);
@@ -22,6 +28,34 @@ class UsageStoreState {
 	filteredDailyTokens = $derived.by(() => {
 		const tokens = this.stats?.dailyModelTokens ?? [];
 		return this.filterByDateRange(tokens);
+	});
+
+	filteredDailyCosts = $derived.by(() => {
+		const tokens = this.stats?.dailyModelTokens ?? [];
+		const usage = this.stats?.modelUsage ?? {};
+		const filtered = this.filterByDateRange(tokens);
+		return filtered.map((entry): DailyCost => {
+			const costByModel: Record<string, number> = {};
+			let total = 0;
+			for (const [modelId, tokenCount] of Object.entries(entry.tokensByModel)) {
+				const detail = usage[modelId];
+				let cost: number;
+				if (detail && detail.costUSD > 0) {
+					// Proportional: model's tokens this day / model's total tokens * model's total cost
+					const totalModelTokens = detail.inputTokens + detail.outputTokens;
+					const ratio = totalModelTokens > 0 ? tokenCount / totalModelTokens : 0;
+					cost = detail.costUSD * ratio;
+				} else {
+					// Estimate: assume roughly 1:3 input:output ratio for token breakdown
+					const inputEstimate = tokenCount * 0.25;
+					const outputEstimate = tokenCount * 0.75;
+					cost = estimateModelCost(modelId, inputEstimate, outputEstimate, 0, 0);
+				}
+				costByModel[modelId] = cost;
+				total += cost;
+			}
+			return { date: entry.date, total, costByModel };
+		});
 	});
 
 	allModels = $derived.by(() => {
