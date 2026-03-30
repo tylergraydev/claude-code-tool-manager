@@ -95,6 +95,8 @@ export interface ClaudeSettings {
 	autoUpdatesChannel?: string;
 	teammateMode?: string;
 	plansDirectory?: string;
+	// Agent Teams
+	agentTeamEnabled?: boolean;
 	// Auto Mode
 	disableAutoMode?: boolean;
 	// Auto Mode configuration

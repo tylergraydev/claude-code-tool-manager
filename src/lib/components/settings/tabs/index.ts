@@ -10,5 +10,6 @@ export { default as SettingsMcpApprovalTab } from './SettingsMcpApprovalTab.svel
 export { default as SettingsKeybindingsTab } from './SettingsKeybindingsTab.svelte';
 export { default as SettingsSpinnerVerbsTab } from './SettingsSpinnerVerbsTab.svelte';
 export { default as SettingsAdminTab } from './SettingsAdminTab.svelte';
+export { default as SettingsCliTab } from './SettingsCliTab.svelte';
 export { default as SettingsEditorSyncTab } from './SettingsEditorSyncTab.svelte';
 export { default as SettingsAutoModeTab } from './SettingsAutoModeTab.svelte';

@@ -85,6 +85,8 @@ pub struct ClaudeSettings {
     pub auto_updates_channel: Option<String>,
     pub teammate_mode: Option<String>,
     pub plans_directory: Option<String>,
+    // Agent Teams
+    pub agent_team_enabled: Option<bool>,
     // Auto Mode
     pub disable_auto_mode: Option<bool>,
     // Auto Mode configuration (nested: autoMode.{environment, allow, soft_deny})
@@ -286,6 +288,11 @@ pub fn read_claude_settings_from_file(path: &Path, scope: &str) -> Result<Claude
         .and_then(|v| v.as_str())
         .map(|s| s.to_string());
 
+    // Agent Teams
+    let agent_team_enabled = settings
+        .get("agentTeamEnabled")
+        .and_then(|v| v.as_bool());
+
     // Auth & API Key Helpers
     let api_key_helper = settings
         .get("apiKeyHelper")
@@ -396,6 +403,7 @@ pub fn read_claude_settings_from_file(path: &Path, scope: &str) -> Result<Claude
         auto_updates_channel,
         teammate_mode,
         plans_directory,
+        agent_team_enabled,
         api_key_helper,
         otel_headers_helper,
         aws_auth_refresh,
@@ -470,6 +478,7 @@ pub fn read_all_claude_settings(project_path: Option<&Path>) -> Result<AllClaude
                 auto_updates_channel: None,
                 teammate_mode: None,
                 plans_directory: None,
+                agent_team_enabled: None,
                 api_key_helper: None,
                 otel_headers_helper: None,
                 aws_auth_refresh: None,
@@ -530,6 +539,7 @@ pub fn read_all_claude_settings(project_path: Option<&Path>) -> Result<AllClaude
                 auto_updates_channel: None,
                 teammate_mode: None,
                 plans_directory: None,
+                agent_team_enabled: None,
                 api_key_helper: None,
                 otel_headers_helper: None,
                 aws_auth_refresh: None,
@@ -833,6 +843,13 @@ pub fn write_claude_settings(
         &mut file_settings,
         "plansDirectory",
         &settings.plans_directory,
+    );
+
+    // Agent Teams
+    set_or_remove_bool(
+        &mut file_settings,
+        "agentTeamEnabled",
+        &settings.agent_team_enabled,
     );
 
     // Auth & API Key Helpers
@@ -1178,6 +1195,7 @@ mod tests {
             auto_updates_channel: None,
             teammate_mode: None,
             plans_directory: None,
+            agent_team_enabled: None,
             api_key_helper: None,
             otel_headers_helper: None,
             aws_auth_refresh: None,
@@ -1261,6 +1279,7 @@ mod tests {
             auto_updates_channel: None,
             teammate_mode: None,
             plans_directory: None,
+            agent_team_enabled: None,
             api_key_helper: None,
             otel_headers_helper: None,
             aws_auth_refresh: None,
@@ -1334,6 +1353,7 @@ mod tests {
             auto_updates_channel: None,
             teammate_mode: None,
             plans_directory: None,
+            agent_team_enabled: None,
             api_key_helper: None,
             otel_headers_helper: None,
             aws_auth_refresh: None,
@@ -1389,6 +1409,7 @@ mod tests {
             auto_updates_channel: None,
             teammate_mode: None,
             plans_directory: None,
+            agent_team_enabled: None,
             api_key_helper: None,
             otel_headers_helper: None,
             aws_auth_refresh: None,
@@ -1537,6 +1558,7 @@ mod tests {
             auto_updates_channel: None,
             teammate_mode: None,
             plans_directory: None,
+            agent_team_enabled: None,
             api_key_helper: None,
             otel_headers_helper: None,
             aws_auth_refresh: None,
@@ -1626,6 +1648,7 @@ mod tests {
             auto_updates_channel: None,
             teammate_mode: None,
             plans_directory: None,
+            agent_team_enabled: None,
             api_key_helper: None,
             otel_headers_helper: None,
             aws_auth_refresh: None,
@@ -1700,6 +1723,7 @@ mod tests {
             auto_updates_channel: None,
             teammate_mode: None,
             plans_directory: None,
+            agent_team_enabled: None,
             api_key_helper: None,
             otel_headers_helper: None,
             aws_auth_refresh: None,
@@ -1760,6 +1784,7 @@ mod tests {
             auto_updates_channel: None,
             teammate_mode: None,
             plans_directory: None,
+            agent_team_enabled: None,
             api_key_helper: None,
             otel_headers_helper: None,
             aws_auth_refresh: None,
@@ -1912,6 +1937,7 @@ mod tests {
             auto_updates_channel: None,
             teammate_mode: None,
             plans_directory: None,
+            agent_team_enabled: None,
             api_key_helper: None,
             otel_headers_helper: None,
             aws_auth_refresh: None,
@@ -1984,6 +2010,7 @@ mod tests {
             auto_updates_channel: None,
             teammate_mode: None,
             plans_directory: None,
+            agent_team_enabled: None,
             api_key_helper: None,
             otel_headers_helper: None,
             aws_auth_refresh: None,
@@ -2055,6 +2082,7 @@ mod tests {
             auto_updates_channel: None,
             teammate_mode: None,
             plans_directory: None,
+            agent_team_enabled: None,
             api_key_helper: None,
             otel_headers_helper: None,
             aws_auth_refresh: None,
@@ -2110,6 +2138,7 @@ mod tests {
             auto_updates_channel: None,
             teammate_mode: None,
             plans_directory: None,
+            agent_team_enabled: None,
             api_key_helper: None,
             otel_headers_helper: None,
             aws_auth_refresh: None,
@@ -2206,6 +2235,7 @@ mod tests {
             auto_updates_channel: None,
             teammate_mode: None,
             plans_directory: None,
+            agent_team_enabled: None,
             api_key_helper: None,
             otel_headers_helper: None,
             aws_auth_refresh: None,
@@ -2273,6 +2303,7 @@ mod tests {
             auto_updates_channel: None,
             teammate_mode: None,
             plans_directory: None,
+            agent_team_enabled: None,
             api_key_helper: None,
             otel_headers_helper: None,
             aws_auth_refresh: None,
@@ -2366,6 +2397,7 @@ mod tests {
             auto_updates_channel: Some("latest".to_string()),
             teammate_mode: Some("auto".to_string()),
             plans_directory: Some("./my-plans".to_string()),
+            agent_team_enabled: None,
             api_key_helper: None,
             otel_headers_helper: None,
             aws_auth_refresh: None,
@@ -2564,6 +2596,7 @@ mod tests {
             auto_updates_channel: None,
             teammate_mode: None,
             plans_directory: None,
+            agent_team_enabled: None,
             api_key_helper: None,
             otel_headers_helper: None,
             aws_auth_refresh: None,
@@ -2748,6 +2781,7 @@ mod tests {
             auto_updates_channel: None,
             teammate_mode: None,
             plans_directory: None,
+            agent_team_enabled: None,
             api_key_helper: None,
             otel_headers_helper: None,
             aws_auth_refresh: None,
@@ -2861,6 +2895,7 @@ mod tests {
             auto_updates_channel: Some("stable".to_string()),
             teammate_mode: Some("auto".to_string()),
             plans_directory: Some("/tmp/plans".to_string()),
+            agent_team_enabled: None,
             api_key_helper: Some("helper".to_string()),
             otel_headers_helper: Some("otel".to_string()),
             aws_auth_refresh: Some("aws".to_string()),
@@ -2916,6 +2951,7 @@ mod tests {
             auto_updates_channel: None,
             teammate_mode: None,
             plans_directory: None,
+            agent_team_enabled: None,
             api_key_helper: None,
             otel_headers_helper: None,
             aws_auth_refresh: None,
@@ -2961,5 +2997,126 @@ mod tests {
         assert!(json.get("enableAllProjectMcpServers").is_none());
         assert!(json.get("enabledMcpjsonServers").is_none());
         assert!(json.get("disabledMcpjsonServers").is_none());
+    }
+
+    #[test]
+    fn test_read_auto_mode_nested_object() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings.json");
+        std::fs::write(
+            &path,
+            r#"{
+                "autoMode": {
+                    "environment": "CI server",
+                    "allow": "file reads",
+                    "soft_deny": "network access"
+                }
+            }"#,
+        )
+        .unwrap();
+
+        let settings = read_claude_settings_from_file(&path, "user").unwrap();
+        assert_eq!(settings.auto_mode_environment, Some("CI server".to_string()));
+        assert_eq!(settings.auto_mode_allow, Some("file reads".to_string()));
+        assert_eq!(settings.auto_mode_soft_deny, Some("network access".to_string()));
+    }
+
+    #[test]
+    fn test_write_auto_mode_nested_object() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings.json");
+        std::fs::write(&path, "{}").unwrap();
+
+        let mut settings = read_claude_settings_from_file(&path, "user").unwrap();
+        settings.auto_mode_environment = Some("staging".to_string());
+        settings.auto_mode_allow = Some("git operations".to_string());
+        settings.auto_mode_soft_deny = Some("prod access".to_string());
+
+        write_claude_settings(&PermissionScope::User, None, &settings).unwrap();
+
+        let content = std::fs::read_to_string(resolve_settings_path(&PermissionScope::User, None).unwrap()).unwrap();
+        let json: Value = serde_json::from_str(&content).unwrap();
+        let auto_mode = json.get("autoMode").unwrap();
+        assert_eq!(auto_mode["environment"], "staging");
+        assert_eq!(auto_mode["allow"], "git operations");
+        assert_eq!(auto_mode["soft_deny"], "prod access");
+    }
+
+    #[test]
+    fn test_read_model_overrides() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings.json");
+        std::fs::write(
+            &path,
+            r#"{
+                "modelOverrides": {
+                    "claude-sonnet-4-5": "custom-sonnet"
+                }
+            }"#,
+        )
+        .unwrap();
+
+        let settings = read_claude_settings_from_file(&path, "user").unwrap();
+        assert!(settings.model_overrides.is_some());
+        let overrides = settings.model_overrides.unwrap();
+        assert_eq!(overrides["claude-sonnet-4-5"], "custom-sonnet");
+    }
+
+    #[test]
+    fn test_read_sandbox_filesystem() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings.json");
+        std::fs::write(
+            &path,
+            r#"{
+                "sandbox": {
+                    "filesystem": {
+                        "allowRead": ["/opt/data"],
+                        "denyRead": ["/etc/secrets"],
+                        "allowUnixSockets": ["/var/run/docker.sock"]
+                    }
+                }
+            }"#,
+        )
+        .unwrap();
+
+        let settings = read_claude_settings_from_file(&path, "user").unwrap();
+        let sandbox = settings.sandbox.unwrap();
+        let fs = sandbox.filesystem.unwrap();
+        assert_eq!(fs.allow_read, Some(vec!["/opt/data".to_string()]));
+        assert_eq!(fs.deny_read, Some(vec!["/etc/secrets".to_string()]));
+        assert_eq!(fs.allow_unix_sockets, Some(vec!["/var/run/docker.sock".to_string()]));
+    }
+
+    #[test]
+    fn test_read_sandbox_network_allow_managed_domains_only() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings.json");
+        std::fs::write(
+            &path,
+            r#"{
+                "sandbox": {
+                    "network": {
+                        "allowManagedDomainsOnly": true
+                    }
+                }
+            }"#,
+        )
+        .unwrap();
+
+        let settings = read_claude_settings_from_file(&path, "user").unwrap();
+        let sandbox = settings.sandbox.unwrap();
+        let network = sandbox.network.unwrap();
+        assert_eq!(network.allow_managed_domains_only, Some(true));
+    }
+
+    #[test]
+    fn test_read_agent_team_enabled() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings.json");
+        std::fs::write(&path, r#"{"agentTeamEnabled": true}"#).unwrap();
+
+        let settings = read_claude_settings_from_file(&path, "user").unwrap();
+        assert_eq!(settings.agent_team_enabled, Some(true));
     }
 }

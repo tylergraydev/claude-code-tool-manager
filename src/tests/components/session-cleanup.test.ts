@@ -51,8 +51,32 @@ describe('SessionCleanupEditor Component', () => {
 		render(SessionCleanupEditor, {
 			props: { settings: mockSettings as any, onsave }
 		});
-		await fireEvent.click(screen.getByText('Save Session & Cleanup Settings'));
+		await fireEvent.click(screen.getByText('Save Session Settings'));
 		expect(onsave).toHaveBeenCalledOnce();
+	});
+
+	it('should render Agent Teams heading', async () => {
+		const { default: SessionCleanupEditor } = await import('$lib/components/session-cleanup/SessionCleanupEditor.svelte');
+		render(SessionCleanupEditor, {
+			props: { settings: mockSettings as any, onsave: vi.fn() }
+		});
+		expect(screen.getByText('Agent Teams')).toBeInTheDocument();
+	});
+
+	it('should render Enable Agent Teams toggle', async () => {
+		const { default: SessionCleanupEditor } = await import('$lib/components/session-cleanup/SessionCleanupEditor.svelte');
+		render(SessionCleanupEditor, {
+			props: { settings: mockSettings as any, onsave: vi.fn() }
+		});
+		expect(screen.getByText('Enable Agent Teams')).toBeInTheDocument();
+	});
+
+	it('should not render Disable Auto Mode (moved to Auto Mode tab)', async () => {
+		const { default: SessionCleanupEditor } = await import('$lib/components/session-cleanup/SessionCleanupEditor.svelte');
+		render(SessionCleanupEditor, {
+			props: { settings: mockSettings as any, onsave: vi.fn() }
+		});
+		expect(screen.queryByText('Disable Auto Mode')).not.toBeInTheDocument();
 	});
 });
 

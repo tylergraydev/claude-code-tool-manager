@@ -22,6 +22,7 @@
 		if (s.autoMemoryDirectory) count++;
 		if (s.claudeMdExcludes && s.claudeMdExcludes.length > 0) count++;
 		if (s.agent) count++;
+		if (s.agentTeamEnabled !== undefined) count++;
 		return count;
 	}
 </script>

@@ -20,6 +20,7 @@
 	let autoMemoryDirectory = $state(settings.autoMemoryDirectory ?? '');
 	let claudeMdExcludes = $state(settings.claudeMdExcludes?.join(', ') ?? '');
 	let defaultAgent = $state(settings.agent ?? '');
+	let agentTeamEnabled = $state<boolean | undefined>(settings.agentTeamEnabled);
 
 	$effect(() => {
 		cleanupPeriodDays =
@@ -31,6 +32,7 @@
 		autoMemoryDirectory = settings.autoMemoryDirectory ?? '';
 		claudeMdExcludes = settings.claudeMdExcludes?.join(', ') ?? '';
 		defaultAgent = settings.agent ?? '';
+		agentTeamEnabled = settings.agentTeamEnabled;
 	});
 
 	function handleSave() {
@@ -51,7 +53,8 @@
 			autoMemoryEnabled: autoMemoryEnabled,
 			autoMemoryDirectory: autoMemoryDirectory.trim() || undefined,
 			claudeMdExcludes: excludes.length > 0 ? excludes : undefined,
-			agent: defaultAgent.trim() || undefined
+			agent: defaultAgent.trim() || undefined,
+			agentTeamEnabled
 		});
 	}
 </script>
@@ -60,7 +63,7 @@
 	<div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-5">
 		<h3 class="text-base font-semibold text-gray-900 dark:text-white mb-1">Session & Cleanup</h3>
 		<p class="text-xs text-gray-500 dark:text-gray-400 mb-4">
-			Configure session cleanup, update channels, teammate mode, and plans directory
+			Configure session cleanup, update channels, and plans directory
 		</p>
 
 		<div class="space-y-4">
@@ -96,20 +99,6 @@
 			</div>
 
 			<div>
-				<label for="teammate-mode" class="text-sm font-medium text-gray-700 dark:text-gray-300">
-					Teammate Mode
-				</label>
-				<p class="text-xs text-gray-500 dark:text-gray-400 mb-2">
-					How Claude Code runs as a background teammate
-				</p>
-				<select id="teammate-mode" bind:value={teammateMode} class="input w-full">
-					{#each TEAMMATE_MODES as mode}
-						<option value={mode.value}>{mode.label}</option>
-					{/each}
-				</select>
-			</div>
-
-			<div>
 				<label for="plans-dir" class="text-sm font-medium text-gray-700 dark:text-gray-300">
 					Plans Directory
 				</label>
@@ -139,6 +128,55 @@
 					placeholder="e.g. code-reviewer"
 					class="input w-full"
 				/>
+			</div>
+		</div>
+	</div>
+
+	<div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-5">
+		<h3 class="text-base font-semibold text-gray-900 dark:text-white mb-1">Agent Teams</h3>
+		<p class="text-xs text-gray-500 dark:text-gray-400 mb-4">
+			Configure multi-agent collaboration and teammate behavior
+		</p>
+
+		<div class="space-y-4">
+			<div class="flex items-center justify-between">
+				<div>
+					<label for="agent-teams" class="text-sm font-medium text-gray-700 dark:text-gray-300">
+						Enable Agent Teams
+					</label>
+					<p class="text-xs text-gray-500 dark:text-gray-400">
+						Allow Claude to spawn multiple agents working in parallel
+					</p>
+				</div>
+				<label class="relative inline-flex items-center cursor-pointer">
+					<input
+						id="agent-teams"
+						type="checkbox"
+						checked={agentTeamEnabled === true}
+						onchange={(e) => {
+							const target = e.currentTarget;
+							agentTeamEnabled = target.checked ? true : undefined;
+						}}
+						class="sr-only peer"
+					/>
+					<div
+						class="w-9 h-5 bg-gray-300 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-500/40 rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:after:border-gray-500 peer-checked:bg-blue-500"
+					></div>
+				</label>
+			</div>
+
+			<div>
+				<label for="teammate-mode" class="text-sm font-medium text-gray-700 dark:text-gray-300">
+					Teammate Mode
+				</label>
+				<p class="text-xs text-gray-500 dark:text-gray-400 mb-2">
+					How Claude Code runs as a background teammate
+				</p>
+				<select id="teammate-mode" bind:value={teammateMode} class="input w-full">
+					{#each TEAMMATE_MODES as mode}
+						<option value={mode.value}>{mode.label}</option>
+					{/each}
+				</select>
 			</div>
 		</div>
 	</div>

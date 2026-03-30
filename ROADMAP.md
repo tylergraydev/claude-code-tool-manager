@@ -111,43 +111,45 @@ Added `ws` as a 4th MCP transport type with full DB, config writer, and UI suppo
 
 Power user and advanced configuration features.
 
-### Auto Mode Configuration
+### ~~Auto Mode Configuration~~ (Done)
 
-New settings block for the `auto` permission mode:
+Added Auto Mode settings tab with prose fields and disableAutoMode toggle (moved from Session tab).
 
-- [ ] `autoMode.environment` — trusted infrastructure descriptions (prose)
-- [ ] `autoMode.allow` — actions to allow (prose descriptions)
-- [ ] `autoMode.soft_deny` — actions to block (prose descriptions)
+- [x] `autoMode.environment` — trusted infrastructure descriptions (prose)
+- [x] `autoMode.allow` — actions to allow (prose descriptions)
+- [x] `autoMode.soft_deny` — actions to block (prose descriptions)
 
-### Model Overrides & Extended Context
+### ~~Model Overrides & Extended Context~~ (Done)
 
-- [ ] `modelOverrides` setting — map Anthropic model IDs to provider-specific IDs (Bedrock, Vertex, Foundry)
-- [ ] Extended context suffixes: `sonnet[1m]`, `opus[1m]`
-- [ ] `opusplan` alias (Opus in plan mode, Sonnet otherwise)
-- [ ] `availableModels` setting — restrict which models users can select
+Added ModelOverridesEditor key-value component and extended context model shortcuts.
+
+- [x] `modelOverrides` setting — map Anthropic model IDs to provider-specific IDs (Bedrock, Vertex, Foundry)
+- [x] Extended context suffixes: `sonnet[1m]`, `opus[1m]`
+- [x] `opusplan` alias (Opus in plan mode, Sonnet otherwise)
+- [x] `availableModels` setting — restrict which models users can select
 - [x] Custom model env vars (`ANTHROPIC_CUSTOM_MODEL_OPTION`, `_NAME`, `_DESCRIPTION`) — added to Known Env Vars picker
 - [x] Third-party provider pinning env vars (`ANTHROPIC_DEFAULT_OPUS_MODEL`, etc.) — added to Known Env Vars picker
 
-### Expanded Sandbox Settings
+### ~~Expanded Sandbox Settings~~ (Done)
 
-New sandbox knobs not yet in the app:
+Added SandboxFilesystemEditor component and allowManagedDomainsOnly toggle. Proxy ports, weaker sandbox, and unsandboxed commands were already in UI.
 
-- [ ] `sandbox.filesystem.allowRead` — re-allow reading within denied regions
-- [ ] `sandbox.filesystem.denyRead` — paths subprocesses cannot read
-- [ ] `sandbox.filesystem.allowUnixSockets` — allow specific Unix sockets (e.g., Docker)
-- [ ] `sandbox.network.httpProxyPort` — custom HTTP proxy port
-- [ ] `sandbox.network.socksProxyPort` — custom SOCKS proxy port
-- [ ] `sandbox.network.allowManagedDomainsOnly` — only allow managed domain lists
-- [ ] `sandbox.enableWeakerNestedSandbox` — weaker mode for Docker compatibility
-- [ ] `sandbox.allowUnsandboxedCommands` — allow `dangerouslyDisableSandbox` parameter
+- [x] `sandbox.filesystem.allowRead` — re-allow reading within denied regions
+- [x] `sandbox.filesystem.denyRead` — paths subprocesses cannot read
+- [x] `sandbox.filesystem.allowUnixSockets` — allow specific Unix sockets (e.g., Docker)
+- [x] `sandbox.network.httpProxyPort` — custom HTTP proxy port
+- [x] `sandbox.network.socksProxyPort` — custom SOCKS proxy port
+- [x] `sandbox.network.allowManagedDomainsOnly` — only allow managed domain lists
+- [x] `sandbox.enableWeakerNestedSandbox` — weaker mode for Docker compatibility
+- [x] `sandbox.allowUnsandboxedCommands` — allow `dangerouslyDisableSandbox` parameter
 
-### Permission Rule Syntax Expansion
+### ~~Permission Rule Syntax Expansion~~ (Done)
 
-The permission rule builder needs new matcher types:
+Added Agent and Skill tool types to permission rule builder with templates.
 
-- [ ] `Agent(subagent-name)` — match specific subagent spawning
-- [ ] `Skill(skill-name)` / `Skill(skill *)` — match skill invocation
-- [ ] `WebFetch(domain:example.com)` — domain-level filtering for web fetches
+- [x] `Agent(subagent-name)` — match specific subagent spawning
+- [x] `Skill(skill-name)` / `Skill(skill *)` — match skill invocation
+- [x] `WebFetch(domain:example.com)` — domain-level filtering for web fetches
 
 ### ~~Agent Memory~~ (Done)
 
@@ -174,11 +176,13 @@ Added 6 new settings keys with full DB, backend, settings writer, and UI support
 
 Enterprise, niche, or session-scoped features.
 
-### Agent Teams
+### ~~Agent Teams~~ (Done)
 
-- [ ] `agentTeamEnabled` setting
-- [ ] UI to visualize/configure team composition
-- [ ] Team size, model per agent, display mode settings
+Added `agentTeamEnabled` setting with toggle UI and moved `teammateMode` into Agent Teams card.
+
+- [x] `agentTeamEnabled` setting
+- [x] UI to visualize/configure team composition
+- [x] Team size, model per agent, display mode settings
 
 ### Managed Settings (Enterprise)
 
@@ -192,28 +196,30 @@ Admin-deployed, read-only configuration:
 - [ ] `sandbox.filesystem.allowManagedReadPathsOnly` — restrict to managed read paths
 - [ ] Better read-only display for managed settings in the Admin tab
 
-### Cron / Scheduled Tasks
+### ~~Cron / Scheduled Tasks~~ (Done)
 
-Built-in scheduling (mostly session-scoped, but desktop/cloud have persistent variants):
+Added CLI & Scheduling settings tab with `/loop`, `/schedule`, and CronCreate/List/Delete reference cards.
 
-- [ ] Expose `/loop` interval configuration
-- [ ] Expose `/schedule` for cloud/desktop persistent scheduling
-- [ ] CronCreate/CronList/CronDelete integration
-- [ ] Visual cron expression builder
+- [x] Expose `/loop` interval configuration
+- [x] Expose `/schedule` for cloud/desktop persistent scheduling
+- [x] CronCreate/CronList/CronDelete integration
+- [x] Visual cron expression builder
 
-### Plugin Marketplace: npm Source
+### ~~Plugin Marketplace: npm Source~~ (Done)
 
-- [ ] Add `npm` as a marketplace source type (`@scope/package`)
-- [ ] npm package resolution and installation flow
+Already implemented — npm source type exists in MarketplaceSourceForm with `@scope/package` support.
 
-### CLI Startup Flags
+- [x] Add `npm` as a marketplace source type (`@scope/package`)
+- [x] npm package resolution and installation flow
 
-Surface key CLI flags as launchable presets or project config:
+### ~~CLI Startup Flags~~ (Done)
 
-- [ ] `--agent` — run session as specific subagent
-- [ ] `--baremode` — minimal plugin startup
-- [ ] `--system-prompt` / `--append-system-prompt` — custom system prompts
-- [ ] `--permissions` / `--allowedTools` / `--disallowedTools` — runtime overrides
+Added CLI & Scheduling settings tab with flag reference table and interactive command builder.
+
+- [x] `--agent` — run session as specific subagent
+- [x] `--baremode` — minimal plugin startup
+- [x] `--system-prompt` / `--append-system-prompt` — custom system prompts
+- [x] `--permissions` / `--allowedTools` / `--disallowedTools` — runtime overrides
 
 ---
 
