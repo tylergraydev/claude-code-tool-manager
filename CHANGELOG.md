@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.7.1] - 2026-03-30
+
+### Fixed
+- **Analytics Page Crash**: Added missing `DailyCost` type and `filteredDailyCosts` derived property to usage store — the daily cost chart and projections card referenced these but they were never implemented
+- **Settings & Dashboard Crash**: Implemented full onboarding store API (`completeStep`, `dismiss`, `syncWithStores`, `showOnboarding`, `progress`, `isFirstRun`) — the store was a skeleton that didn't match what the UI components expected
+
 ## [3.7.0] - 2026-03-30
 
 ### Added
