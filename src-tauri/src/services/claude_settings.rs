@@ -15,6 +15,16 @@ pub struct SandboxNetworkSettings {
     pub allowed_domains: Option<Vec<String>>,
     pub http_proxy_port: Option<u16>,
     pub socks_proxy_port: Option<u16>,
+    pub allow_managed_domains_only: Option<bool>,
+}
+
+/// Sandbox filesystem configuration
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct SandboxFilesystemSettings {
+    pub allow_read: Option<Vec<String>>,
+    pub deny_read: Option<Vec<String>>,
+    pub allow_unix_sockets: Option<Vec<String>>,
 }
 
 /// Sandbox configuration
@@ -27,6 +37,7 @@ pub struct SandboxSettings {
     pub allow_unsandboxed_commands: Option<bool>,
     pub enable_weaker_nested_sandbox: Option<bool>,
     pub network: Option<SandboxNetworkSettings>,
+    pub filesystem: Option<SandboxFilesystemSettings>,
 }
 
 /// Claude settings from a single scope (model config + attribution + sandbox + plugins + env + UI toggles + more)
@@ -676,6 +687,22 @@ pub fn write_claude_settings(
                                 clean.remove("network");
                             } else {
                                 clean.insert("network".to_string(), Value::Object(clean_net));
+                            }
+                        }
+                    }
+                    // Also clean filesystem sub-object of nulls
+                    if let Some(filesystem) = clean.get("filesystem") {
+                        if let Some(fs_obj) = filesystem.as_object() {
+                            let mut clean_fs = serde_json::Map::new();
+                            for (k, v) in fs_obj {
+                                if !v.is_null() {
+                                    clean_fs.insert(k.clone(), v.clone());
+                                }
+                            }
+                            if clean_fs.is_empty() {
+                                clean.remove("filesystem");
+                            } else {
+                                clean.insert("filesystem".to_string(), Value::Object(clean_fs));
                             }
                         }
                     }

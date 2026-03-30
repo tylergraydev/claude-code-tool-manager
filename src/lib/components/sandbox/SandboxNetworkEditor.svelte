@@ -15,6 +15,7 @@
 	let allowedDomains = $state<string[]>([...(network.allowedDomains ?? [])]);
 	let httpProxyPort = $state<string>(network.httpProxyPort?.toString() ?? '');
 	let socksProxyPort = $state<string>(network.socksProxyPort?.toString() ?? '');
+	let allowManagedDomainsOnly = $state(network.allowManagedDomainsOnly ?? false);
 
 	let newUnixSocket = $state('');
 	let newDomain = $state('');
@@ -27,6 +28,7 @@
 		allowedDomains = [...(network.allowedDomains ?? [])];
 		httpProxyPort = network.httpProxyPort?.toString() ?? '';
 		socksProxyPort = network.socksProxyPort?.toString() ?? '';
+		allowManagedDomainsOnly = network.allowManagedDomainsOnly ?? false;
 	});
 
 	function emitChange() {
@@ -39,7 +41,8 @@
 			allowLocalBinding: allowLocalBinding || undefined,
 			allowedDomains: allowedDomains.length > 0 ? allowedDomains : undefined,
 			httpProxyPort: httpPort && !isNaN(httpPort) ? httpPort : undefined,
-			socksProxyPort: socksPort && !isNaN(socksPort) ? socksPort : undefined
+			socksProxyPort: socksPort && !isNaN(socksPort) ? socksPort : undefined,
+			allowManagedDomainsOnly: allowManagedDomainsOnly || undefined
 		});
 	}
 
@@ -78,6 +81,11 @@
 
 	function handleToggleLocalBinding() {
 		allowLocalBinding = !allowLocalBinding;
+		emitChange();
+	}
+
+	function handleToggleManagedDomains() {
+		allowManagedDomainsOnly = !allowManagedDomainsOnly;
 		emitChange();
 	}
 
@@ -221,6 +229,30 @@
 				{/each}
 			</div>
 		{/if}
+	</div>
+
+	<!-- Allow Managed Domains Only -->
+	<div class="flex items-center justify-between">
+		<div>
+			<label class="text-sm font-medium text-gray-700 dark:text-gray-300">
+				Allow Managed Domains Only
+			</label>
+			<p class="text-xs text-gray-500 dark:text-gray-400">
+				Only allow domains defined in managed settings
+			</p>
+		</div>
+		<button
+			onclick={handleToggleManagedDomains}
+			class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors
+				{allowManagedDomainsOnly
+				? 'bg-primary-600'
+				: 'bg-gray-200 dark:bg-gray-600'}"
+		>
+			<span
+				class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform
+					{allowManagedDomainsOnly ? 'translate-x-6' : 'translate-x-1'}"
+			></span>
+		</button>
 	</div>
 
 	<!-- HTTP Proxy Port -->

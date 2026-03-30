@@ -36,9 +36,11 @@ export const PERMISSION_TOOL_NAMES = [
 	{ value: 'Read', label: 'Read', hint: 'File reading — e.g. Read(.env*)' },
 	{ value: 'Edit', label: 'Edit', hint: 'File editing — e.g. Edit(src/**)' },
 	{ value: 'Write', label: 'Write', hint: 'File writing — e.g. Write(src/**)' },
-	{ value: 'WebFetch', label: 'WebFetch', hint: 'URL fetching — e.g. WebFetch(https://*)' },
+	{ value: 'WebFetch', label: 'WebFetch', hint: 'URL fetching — e.g. WebFetch(domain:example.com) or WebFetch(https://*)' },
 	{ value: 'WebSearch', label: 'WebSearch', hint: 'Web searching' },
 	{ value: 'Task', label: 'Task', hint: 'Sub-agent task spawning' },
+	{ value: 'Agent', label: 'Agent', hint: 'Subagent spawning — e.g. Agent(code-reviewer)' },
+	{ value: 'Skill', label: 'Skill', hint: 'Skill invocation — e.g. Skill(commit)' },
 	{ value: 'mcp__', label: 'MCP Tool', hint: 'MCP tools — e.g. mcp__server__tool' }
 ] as const;
 

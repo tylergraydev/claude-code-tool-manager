@@ -381,12 +381,64 @@ pub(crate) fn seed_permission_templates_impl(db: &Database) -> Result<(), String
     Ok(())
 }
 
+/// Ensure newer templates exist for existing users (runs every time, INSERT OR IGNORE by name)
+fn ensure_new_permission_templates(db: &Database) -> Result<(), String> {
+    let new_templates: Vec<(&str, &str, &str, &str, Option<&str>, &str)> = vec![
+        (
+            "Allow all subagents",
+            "Allow spawning any subagent",
+            "allow",
+            "Agent(*)",
+            Some("Agent"),
+            "agents",
+        ),
+        (
+            "Ask for subagent spawn",
+            "Confirm before spawning a specific subagent",
+            "ask",
+            "Agent(code-reviewer)",
+            Some("Agent"),
+            "agents",
+        ),
+        (
+            "Ask for skill invocation",
+            "Confirm before running a skill",
+            "ask",
+            "Skill(commit)",
+            Some("Skill"),
+            "skills",
+        ),
+        (
+            "Ask for internal domains",
+            "Confirm before fetching internal domains",
+            "ask",
+            "WebFetch(domain:*.internal.com)",
+            Some("WebFetch"),
+            "network",
+        ),
+    ];
+
+    for (name, desc, category, rule, tool_name, tag) in new_templates {
+        let tags_json = serde_json::to_string(&vec![tag]).unwrap();
+        db.conn()
+            .execute(
+                "INSERT OR IGNORE INTO permission_templates (name, description, category, rule, tool_name, tags, is_default)
+                 VALUES (?, ?, ?, ?, ?, ?, 1)",
+                params![name, desc, category, rule, tool_name, tags_json],
+            )
+            .map_err(|e| e.to_string())?;
+    }
+
+    Ok(())
+}
+
 /// Seed default permission templates
 #[tauri::command]
 pub fn seed_permission_templates(db: State<'_, Arc<Mutex<Database>>>) -> Result<(), String> {
     info!("[Permissions] Seeding permission templates");
     let db = db.lock().map_err(|e| e.to_string())?;
     seed_permission_templates_impl(&db)?;
+    ensure_new_permission_templates(&db)?;
     info!("[Permissions] Permission templates seeded");
     Ok(())
 }

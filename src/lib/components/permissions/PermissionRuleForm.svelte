@@ -124,7 +124,14 @@
 					<input
 						type="text"
 						bind:value={specifier}
-						placeholder={selectedTool === 'Bash' ? 'npm run *' : selectedTool === 'Read' ? '.env*' : ''}
+						placeholder={selectedTool === 'Bash' ? 'npm run *' :
+						selectedTool === 'Read' ? '.env*' :
+						selectedTool === 'Edit' ? 'src/**' :
+						selectedTool === 'Write' ? 'src/**' :
+						selectedTool === 'WebFetch' ? 'domain:example.com' :
+						selectedTool === 'Agent' ? 'code-reviewer' :
+						selectedTool === 'Skill' ? 'commit' :
+						''}
 						class="input w-full font-mono"
 					/>
 					<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">

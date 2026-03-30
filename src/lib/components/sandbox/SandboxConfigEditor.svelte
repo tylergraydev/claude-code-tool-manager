@@ -1,7 +1,8 @@
 <script lang="ts">
-	import type { ClaudeSettings, SandboxSettings, SandboxNetworkSettings } from '$lib/types';
+	import type { ClaudeSettings, SandboxSettings, SandboxNetworkSettings, SandboxFilesystemSettings } from '$lib/types';
 	import { Save, Plus, X } from 'lucide-svelte';
 	import SandboxNetworkEditor from './SandboxNetworkEditor.svelte';
+	import SandboxFilesystemEditor from './SandboxFilesystemEditor.svelte';
 
 	type Props = {
 		settings: ClaudeSettings;
@@ -22,6 +23,7 @@
 	);
 	let excludedCommands = $state<string[]>([...(settings.sandbox?.excludedCommands ?? [])]);
 	let network = $state<SandboxNetworkSettings>(settings.sandbox?.network ?? {});
+	let filesystem = $state<SandboxFilesystemSettings>(settings.sandbox?.filesystem ?? {});
 	let newCommand = $state('');
 
 	// Reset local state when settings prop changes
@@ -32,6 +34,7 @@
 		enableWeakerNestedSandbox = settings.sandbox?.enableWeakerNestedSandbox;
 		excludedCommands = [...(settings.sandbox?.excludedCommands ?? [])];
 		network = settings.sandbox?.network ?? {};
+		filesystem = settings.sandbox?.filesystem ?? {};
 	});
 
 	function handleSave() {
@@ -42,7 +45,8 @@
 			allowUnsandboxedCommands !== undefined ||
 			enableWeakerNestedSandbox !== undefined ||
 			excludedCommands.length > 0 ||
-			Object.keys(network).length > 0;
+			Object.keys(network).length > 0 ||
+			Object.keys(filesystem).length > 0;
 
 		let sandbox: SandboxSettings | undefined;
 		if (hasAnyValue) {
@@ -56,6 +60,7 @@
 				sandbox.enableWeakerNestedSandbox = enableWeakerNestedSandbox;
 			if (excludedCommands.length > 0) sandbox.excludedCommands = excludedCommands;
 			if (Object.keys(network).length > 0) sandbox.network = network;
+			if (Object.keys(filesystem).length > 0) sandbox.filesystem = filesystem;
 		}
 
 		onsave({
@@ -121,6 +126,10 @@
 
 	function handleNetworkChange(updated: SandboxNetworkSettings) {
 		network = updated;
+	}
+
+	function handleFilesystemChange(updated: SandboxFilesystemSettings) {
+		filesystem = updated;
 	}
 
 	const toggleFields: {
@@ -253,6 +262,16 @@
 		</p>
 
 		<SandboxNetworkEditor {network} onchange={handleNetworkChange} />
+	</div>
+
+	<!-- Filesystem Configuration -->
+	<div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-5">
+		<h3 class="text-base font-semibold text-gray-900 dark:text-white mb-1">Filesystem</h3>
+		<p class="text-xs text-gray-500 dark:text-gray-400 mb-4">
+			Configure filesystem access rules for the sandbox
+		</p>
+
+		<SandboxFilesystemEditor {filesystem} onchange={handleFilesystemChange} />
 	</div>
 
 	<!-- Save Button -->

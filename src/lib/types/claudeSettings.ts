@@ -7,6 +7,13 @@ export interface SandboxNetworkSettings {
 	allowedDomains?: string[];
 	httpProxyPort?: number;
 	socksProxyPort?: number;
+	allowManagedDomainsOnly?: boolean;
+}
+
+export interface SandboxFilesystemSettings {
+	allowRead?: string[];
+	denyRead?: string[];
+	allowUnixSockets?: string[];
 }
 
 export interface SandboxSettings {
@@ -16,6 +23,7 @@ export interface SandboxSettings {
 	allowUnsandboxedCommands?: boolean;
 	enableWeakerNestedSandbox?: boolean;
 	network?: SandboxNetworkSettings;
+	filesystem?: SandboxFilesystemSettings;
 }
 
 // Plugin/Marketplace types
