@@ -58,6 +58,7 @@
 		'spinner-verbs': 'Customize the action verbs shown in Claude Code\'s spinner',
 		'admin': 'View enterprise managed settings deployed by your IT administrator',
 		'cli': 'CLI startup flags reference and scheduling commands',
+		'cloud-sync': 'Sync your Claude Code config across machines via GitHub',
 		'editor-sync': 'Configure editors, servers, tokens, paths, and backups'
 	};
 
@@ -77,6 +78,7 @@
 		'spinner-verbs': () => import('$lib/components/settings/tabs/SettingsSpinnerVerbsTab.svelte'),
 		'admin': () => import('$lib/components/settings/tabs/SettingsAdminTab.svelte'),
 		'cli': () => import('$lib/components/settings/tabs/SettingsCliTab.svelte'),
+		'cloud-sync': () => import('$lib/components/settings/tabs/SettingsCloudSyncTab.svelte'),
 		'editor-sync': () => import('$lib/components/settings/tabs/SettingsEditorSyncTab.svelte'),
 	};
 

@@ -3,9 +3,13 @@ use log::info;
 
 /// Get usage stats from ~/.claude/stats-cache.json
 #[tauri::command]
-pub fn get_usage_stats() -> Result<StatsCacheInfo, String> {
+pub async fn get_usage_stats() -> Result<StatsCacheInfo, String> {
     info!("[Analytics] Reading usage stats");
-    stats_cache::read_stats_cache().map_err(|e| e.to_string())
+    tokio::task::spawn_blocking(|| {
+        stats_cache::read_stats_cache().map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[cfg(test)]

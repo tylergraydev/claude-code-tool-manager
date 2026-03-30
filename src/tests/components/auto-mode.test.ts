@@ -70,6 +70,66 @@ describe('AutoModeEditor Component', () => {
 		expect(onsave).toHaveBeenCalledOnce();
 	});
 
+	it('should populate all textarea values from settings', async () => {
+		const { default: AutoModeEditor } = await import('$lib/components/auto-mode/AutoModeEditor.svelte');
+		render(AutoModeEditor, {
+			props: { settings: mockSettings as any, onsave: vi.fn() }
+		});
+		expect((screen.getByLabelText('Environment') as HTMLTextAreaElement).value).toBe('CI server');
+		expect((screen.getByLabelText('Allow') as HTMLTextAreaElement).value).toBe('File reads, git operations');
+		expect((screen.getByLabelText('Soft Deny') as HTMLTextAreaElement).value).toBe('Network access to production');
+	});
+
+	it('should save with correct field values', async () => {
+		const { default: AutoModeEditor } = await import('$lib/components/auto-mode/AutoModeEditor.svelte');
+		const onsave = vi.fn();
+		render(AutoModeEditor, {
+			props: { settings: mockSettings as any, onsave }
+		});
+		await fireEvent.click(screen.getByText('Save Auto Mode Settings'));
+		const saved = onsave.mock.calls[0][0];
+		expect(saved.autoModeEnvironment).toBe('CI server');
+		expect(saved.autoModeAllow).toBe('File reads, git operations');
+		expect(saved.autoModeSoftDeny).toBe('Network access to production');
+	});
+
+	it('should save with disableAutoMode when toggle checked', async () => {
+		const { default: AutoModeEditor } = await import('$lib/components/auto-mode/AutoModeEditor.svelte');
+		const onsave = vi.fn();
+		const settingsWithDisable = { ...mockSettings, disableAutoMode: true };
+		render(AutoModeEditor, {
+			props: { settings: settingsWithDisable as any, onsave }
+		});
+		await fireEvent.click(screen.getByText('Save Auto Mode Settings'));
+		expect(onsave.mock.calls[0][0].disableAutoMode).toBe(true);
+	});
+
+	it('should handle toggle interaction', async () => {
+		const { default: AutoModeEditor } = await import('$lib/components/auto-mode/AutoModeEditor.svelte');
+		const onsave = vi.fn();
+		render(AutoModeEditor, {
+			props: { settings: mockSettings as any, onsave }
+		});
+		const checkbox = screen.getByLabelText('Disable Auto Mode') as HTMLInputElement;
+		await fireEvent.click(checkbox);
+		await fireEvent.click(screen.getByText('Save Auto Mode Settings'));
+		expect(onsave.mock.calls[0][0].disableAutoMode).toBe(true);
+	});
+
+	it('should save partial updates (only one field set)', async () => {
+		const { default: AutoModeEditor } = await import('$lib/components/auto-mode/AutoModeEditor.svelte');
+		const onsave = vi.fn();
+		const partialSettings = { ...mockSettings, autoModeEnvironment: 'staging', autoModeAllow: '', autoModeSoftDeny: '' };
+		render(AutoModeEditor, {
+			props: { settings: partialSettings as any, onsave }
+		});
+		await fireEvent.click(screen.getByText('Save Auto Mode Settings'));
+		const saved = onsave.mock.calls[0][0];
+		expect(saved.autoModeEnvironment).toBe('staging');
+		expect(saved.autoModeAllow).toBeUndefined();
+		expect(saved.autoModeSoftDeny).toBeUndefined();
+	});
+
 	it('should pass undefined for empty string fields', async () => {
 		const { default: AutoModeEditor } = await import('$lib/components/auto-mode/AutoModeEditor.svelte');
 		const onsave = vi.fn();

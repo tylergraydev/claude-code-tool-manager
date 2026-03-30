@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { Project, Mcp, Skill, SubAgent, Command, Hook, ProjectSkill, ProjectSubAgent, ProjectCommand, ProjectHook } from '$lib/types';
 	import { mcpLibrary, projectsStore, notifications, skillLibrary, subagentLibrary, commandLibrary, hookLibrary } from '$lib/stores';
-	import { Plus, Minus, Plug, Globe, Server, Radio, Sparkles, Bot, Terminal, Search, Zap } from 'lucide-svelte';
+	import { Plus, Minus, Plug, Globe, Server, Radio, Sparkles, Bot, Terminal, Search, Zap, SquareCheck, Square, Power, PowerOff, Trash2 } from 'lucide-svelte';
 
 	type Props = {
 		project: Project;
@@ -15,6 +15,104 @@
 
 	// Search state
 	let searchQuery = $state('');
+
+	// Multi-select state
+	let selectedIds = $state<Set<number>>(new Set());
+	let bulkLoading = $state(false);
+
+	// Helpers for selection
+	function toggleSelection(id: number) {
+		const next = new Set(selectedIds);
+		if (next.has(id)) next.delete(id);
+		else next.add(id);
+		selectedIds = next;
+	}
+
+	function toggleSelectAll(assignmentIds: number[]) {
+		const allSelected = assignmentIds.every((id) => selectedIds.has(id));
+		if (allSelected) {
+			selectedIds = new Set();
+		} else {
+			selectedIds = new Set(assignmentIds);
+		}
+	}
+
+	function clearSelection() {
+		selectedIds = new Set();
+	}
+
+	// Bulk action handlers
+	async function bulkToggle(enabled: boolean) {
+		if (selectedIds.size === 0) return;
+		bulkLoading = true;
+		try {
+			const ids = [...selectedIds];
+			if (activeTab === 'mcps') {
+				for (const id of ids) await projectsStore.toggleProjectMcp(id, enabled);
+			} else if (activeTab === 'skills') {
+				for (const id of ids) await skillLibrary.toggleProjectSkill(id, enabled);
+			} else if (activeTab === 'agents') {
+				for (const id of ids) await subagentLibrary.toggleProjectSubAgent(id, enabled);
+			} else if (activeTab === 'commands') {
+				for (const id of ids) await commandLibrary.toggleProjectCommand(id, enabled);
+			} else if (activeTab === 'hooks') {
+				for (const id of ids) await hookLibrary.toggleProjectHook(id, enabled);
+			}
+			await projectsStore.syncProjectConfig(project.id);
+			if (activeTab !== 'mcps') await loadProjectData();
+			notifications.success(`${enabled ? 'Enabled' : 'Disabled'} ${ids.length} item${ids.length > 1 ? 's' : ''}`);
+			clearSelection();
+		} catch (err) {
+			notifications.error(`Failed to ${enabled ? 'enable' : 'disable'} items`);
+			console.error(err);
+		} finally {
+			bulkLoading = false;
+		}
+	}
+
+	async function bulkRemove() {
+		if (selectedIds.size === 0) return;
+		bulkLoading = true;
+		try {
+			const ids = [...selectedIds];
+			if (activeTab === 'mcps') {
+				for (const id of ids) {
+					const assignment = project.assignedMcps.find((a) => a.id === id);
+					if (assignment) await projectsStore.removeMcpFromProject(project.id, assignment.mcpId);
+				}
+			} else if (activeTab === 'skills') {
+				for (const id of ids) {
+					const assignment = projectSkills.find((a) => a.id === id);
+					if (assignment) await skillLibrary.removeFromProject(project.id, assignment.skillId);
+				}
+			} else if (activeTab === 'agents') {
+				for (const id of ids) {
+					const assignment = projectSubAgents.find((a) => a.id === id);
+					if (assignment) await subagentLibrary.removeFromProject(project.id, assignment.subagentId);
+				}
+			} else if (activeTab === 'commands') {
+				for (const id of ids) {
+					const assignment = projectCommands.find((a) => a.id === id);
+					if (assignment) await commandLibrary.removeFromProject(project.id, assignment.commandId);
+				}
+			} else if (activeTab === 'hooks') {
+				for (const id of ids) {
+					const assignment = projectHooks.find((a) => a.id === id);
+					if (assignment) await hookLibrary.removeFromProject(project.id, assignment.hookId);
+				}
+			}
+			await projectsStore.syncProjectConfig(project.id);
+			if (activeTab !== 'mcps') await loadProjectData();
+			notifications.success(`Removed ${ids.length} item${ids.length > 1 ? 's' : ''}`);
+			clearSelection();
+		} catch (err) {
+			notifications.error('Failed to remove items');
+			console.error(err);
+		} finally {
+			bulkLoading = false;
+		}
+	}
+
 
 	const typeIcons = {
 		stdio: Plug,
@@ -108,6 +206,18 @@
 				})
 			: availableHooks
 	);
+
+	// Derived selection helpers (must be after all state declarations)
+	let currentAssignmentIds = $derived<number[]>(
+		activeTab === 'mcps' ? project.assignedMcps.map((a) => a.id) :
+		activeTab === 'skills' ? projectSkills.map((a) => a.id) :
+		activeTab === 'agents' ? projectSubAgents.map((a) => a.id) :
+		activeTab === 'commands' ? projectCommands.map((a) => a.id) :
+		projectHooks.map((a) => a.id)
+	);
+
+	let allSelected = $derived(currentAssignmentIds.length > 0 && currentAssignmentIds.every((id) => selectedIds.has(id)));
+	let selectedCount = $derived([...selectedIds].filter((id) => currentAssignmentIds.includes(id)).length);
 
 	// Load project data
 	$effect(() => {
@@ -307,9 +417,10 @@
 		}
 	}
 
-	// Clear search when switching tabs
+	// Clear search and selection when switching tabs
 	function handleTabChange(tab: Tab) {
 		searchQuery = '';
+		clearSelection();
 		activeTab = tab;
 	}
 
@@ -368,20 +479,86 @@
 	</button>
 </div>
 
+<!-- Bulk Action Bar -->
+{#if selectedCount > 0}
+	<div class="sticky top-0 z-10 mx-6 mt-4 flex items-center justify-between gap-3 px-4 py-2.5 bg-primary-50 dark:bg-primary-900/30 border border-primary-200 dark:border-primary-800 rounded-xl">
+		<span class="text-sm font-medium text-primary-700 dark:text-primary-300">
+			{selectedCount} selected
+		</span>
+		<div class="flex items-center gap-2">
+			<button
+				onclick={() => bulkToggle(true)}
+				disabled={bulkLoading}
+				class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-green-100 text-green-700 hover:bg-green-200 dark:bg-green-900/40 dark:text-green-400 dark:hover:bg-green-900/60 transition-colors disabled:opacity-50"
+			>
+				<Power class="w-3.5 h-3.5" />
+				Enable
+			</button>
+			<button
+				onclick={() => bulkToggle(false)}
+				disabled={bulkLoading}
+				class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600 transition-colors disabled:opacity-50"
+			>
+				<PowerOff class="w-3.5 h-3.5" />
+				Disable
+			</button>
+			<button
+				onclick={bulkRemove}
+				disabled={bulkLoading}
+				class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-red-100 text-red-700 hover:bg-red-200 dark:bg-red-900/40 dark:text-red-400 dark:hover:bg-red-900/60 transition-colors disabled:opacity-50"
+			>
+				<Trash2 class="w-3.5 h-3.5" />
+				Remove
+			</button>
+			<button
+				onclick={clearSelection}
+				class="ml-1 px-2 py-1.5 text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
+			>
+				Cancel
+			</button>
+		</div>
+	</div>
+{/if}
+
 <!-- Content -->
 <div class="flex-1 overflow-auto p-6 space-y-6">
 	{#if activeTab === 'mcps'}
 		<!-- Assigned MCPs -->
 		<div>
-			<h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-				Assigned MCPs ({project.assignedMcps.length})
-			</h3>
+			<div class="flex items-center gap-3 mb-3">
+				{#if project.assignedMcps.length > 1}
+					<button
+						onclick={() => toggleSelectAll(project.assignedMcps.map(a => a.id))}
+						class="p-0.5 text-gray-400 hover:text-primary-500 transition-colors"
+						title={allSelected ? 'Deselect all' : 'Select all'}
+					>
+						{#if allSelected}
+							<SquareCheck class="w-4 h-4 text-primary-500" />
+						{:else}
+							<Square class="w-4 h-4" />
+						{/if}
+					</button>
+				{/if}
+				<h3 class="text-sm font-medium text-gray-700 dark:text-gray-300">
+					Assigned MCPs ({project.assignedMcps.length})
+				</h3>
+			</div>
 			{#if project.assignedMcps.length > 0}
 				<div class="space-y-2">
 					{#each project.assignedMcps as assignment (assignment.id)}
 						{@const mcp = mcpLibrary.getMcpById(assignment.mcpId) ?? assignment.mcp}
-						<div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+						<div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg {selectedIds.has(assignment.id) ? 'ring-2 ring-primary-500/50' : ''}">
 							<div class="flex items-center gap-3">
+								<button
+									onclick={() => toggleSelection(assignment.id)}
+									class="p-0.5 text-gray-400 hover:text-primary-500 transition-colors flex-shrink-0"
+								>
+									{#if selectedIds.has(assignment.id)}
+										<SquareCheck class="w-4 h-4 text-primary-500" />
+									{:else}
+										<Square class="w-4 h-4" />
+									{/if}
+								</button>
 								<div class="w-8 h-8 rounded-lg {typeColors[mcp.type]} flex items-center justify-center">
 									<svelte:component this={typeIcons[mcp.type]} class="w-4 h-4" />
 								</div>
@@ -477,15 +654,40 @@
 	{:else if activeTab === 'skills'}
 		<!-- Assigned Skills -->
 		<div>
-			<h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-				Assigned Skills ({projectSkills.length})
-			</h3>
+			<div class="flex items-center gap-3 mb-3">
+				{#if projectSkills.length > 1}
+					<button
+						onclick={() => toggleSelectAll(projectSkills.map(a => a.id))}
+						class="p-0.5 text-gray-400 hover:text-primary-500 transition-colors"
+						title={allSelected ? 'Deselect all' : 'Select all'}
+					>
+						{#if allSelected}
+							<SquareCheck class="w-4 h-4 text-primary-500" />
+						{:else}
+							<Square class="w-4 h-4" />
+						{/if}
+					</button>
+				{/if}
+				<h3 class="text-sm font-medium text-gray-700 dark:text-gray-300">
+					Assigned Skills ({projectSkills.length})
+				</h3>
+			</div>
 			{#if projectSkills.length > 0}
 				<div class="space-y-2">
 					{#each projectSkills as assignment (assignment.id)}
 						{@const skill = skillLibrary.getSkillById(assignment.skillId) ?? assignment.skill}
-						<div class="flex items-center justify-between gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+						<div class="flex items-center justify-between gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg {selectedIds.has(assignment.id) ? 'ring-2 ring-primary-500/50' : ''}">
 							<div class="flex items-center gap-3 min-w-0 flex-1">
+								<button
+									onclick={() => toggleSelection(assignment.id)}
+									class="p-0.5 text-gray-400 hover:text-primary-500 transition-colors flex-shrink-0"
+								>
+									{#if selectedIds.has(assignment.id)}
+										<SquareCheck class="w-4 h-4 text-primary-500" />
+									{:else}
+										<Square class="w-4 h-4" />
+									{/if}
+								</button>
 								<div class="w-8 h-8 rounded-lg bg-yellow-100 text-yellow-600 dark:bg-yellow-900/50 dark:text-yellow-400 flex items-center justify-center flex-shrink-0">
 									<Sparkles class="w-4 h-4" />
 								</div>
@@ -585,15 +787,40 @@
 	{:else if activeTab === 'agents'}
 		<!-- Assigned SubAgents -->
 		<div>
-			<h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-				Assigned Agents ({projectSubAgents.length})
-			</h3>
+			<div class="flex items-center gap-3 mb-3">
+				{#if projectSubAgents.length > 1}
+					<button
+						onclick={() => toggleSelectAll(projectSubAgents.map(a => a.id))}
+						class="p-0.5 text-gray-400 hover:text-primary-500 transition-colors"
+						title={allSelected ? 'Deselect all' : 'Select all'}
+					>
+						{#if allSelected}
+							<SquareCheck class="w-4 h-4 text-primary-500" />
+						{:else}
+							<Square class="w-4 h-4" />
+						{/if}
+					</button>
+				{/if}
+				<h3 class="text-sm font-medium text-gray-700 dark:text-gray-300">
+					Assigned Agents ({projectSubAgents.length})
+				</h3>
+			</div>
 			{#if projectSubAgents.length > 0}
 				<div class="space-y-2">
 					{#each projectSubAgents as assignment (assignment.id)}
 						{@const agent = subagentLibrary.getSubAgentById(assignment.subagentId) ?? assignment.subagent}
-						<div class="flex items-center justify-between gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+						<div class="flex items-center justify-between gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg {selectedIds.has(assignment.id) ? 'ring-2 ring-primary-500/50' : ''}">
 							<div class="flex items-center gap-3 min-w-0 flex-1">
+								<button
+									onclick={() => toggleSelection(assignment.id)}
+									class="p-0.5 text-gray-400 hover:text-primary-500 transition-colors flex-shrink-0"
+								>
+									{#if selectedIds.has(assignment.id)}
+										<SquareCheck class="w-4 h-4 text-primary-500" />
+									{:else}
+										<Square class="w-4 h-4" />
+									{/if}
+								</button>
 								<div class="w-8 h-8 rounded-lg bg-cyan-100 text-cyan-600 dark:bg-cyan-900/50 dark:text-cyan-400 flex items-center justify-center flex-shrink-0">
 									<Bot class="w-4 h-4" />
 								</div>
@@ -693,15 +920,40 @@
 	{:else if activeTab === 'commands'}
 		<!-- Assigned Commands -->
 		<div>
-			<h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-				Assigned Commands ({projectCommands.length})
-			</h3>
+			<div class="flex items-center gap-3 mb-3">
+				{#if projectCommands.length > 1}
+					<button
+						onclick={() => toggleSelectAll(projectCommands.map(a => a.id))}
+						class="p-0.5 text-gray-400 hover:text-primary-500 transition-colors"
+						title={allSelected ? 'Deselect all' : 'Select all'}
+					>
+						{#if allSelected}
+							<SquareCheck class="w-4 h-4 text-primary-500" />
+						{:else}
+							<Square class="w-4 h-4" />
+						{/if}
+					</button>
+				{/if}
+				<h3 class="text-sm font-medium text-gray-700 dark:text-gray-300">
+					Assigned Commands ({projectCommands.length})
+				</h3>
+			</div>
 			{#if projectCommands.length > 0}
 				<div class="space-y-2">
 					{#each projectCommands as assignment (assignment.id)}
 						{@const command = commandLibrary.getCommandById(assignment.commandId) ?? assignment.command}
-						<div class="flex items-center justify-between gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+						<div class="flex items-center justify-between gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg {selectedIds.has(assignment.id) ? 'ring-2 ring-primary-500/50' : ''}">
 							<div class="flex items-center gap-3 min-w-0 flex-1">
+								<button
+									onclick={() => toggleSelection(assignment.id)}
+									class="p-0.5 text-gray-400 hover:text-primary-500 transition-colors flex-shrink-0"
+								>
+									{#if selectedIds.has(assignment.id)}
+										<SquareCheck class="w-4 h-4 text-primary-500" />
+									{:else}
+										<Square class="w-4 h-4" />
+									{/if}
+								</button>
 								<div class="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-600 dark:bg-indigo-900/50 dark:text-indigo-400 flex items-center justify-center flex-shrink-0">
 									<Terminal class="w-4 h-4" />
 								</div>
@@ -801,15 +1053,40 @@
 	{:else if activeTab === 'hooks'}
 		<!-- Assigned Hooks -->
 		<div>
-			<h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-				Assigned Hooks ({projectHooks.length})
-			</h3>
+			<div class="flex items-center gap-3 mb-3">
+				{#if projectHooks.length > 1}
+					<button
+						onclick={() => toggleSelectAll(projectHooks.map(a => a.id))}
+						class="p-0.5 text-gray-400 hover:text-primary-500 transition-colors"
+						title={allSelected ? 'Deselect all' : 'Select all'}
+					>
+						{#if allSelected}
+							<SquareCheck class="w-4 h-4 text-primary-500" />
+						{:else}
+							<Square class="w-4 h-4" />
+						{/if}
+					</button>
+				{/if}
+				<h3 class="text-sm font-medium text-gray-700 dark:text-gray-300">
+					Assigned Hooks ({projectHooks.length})
+				</h3>
+			</div>
 			{#if projectHooks.length > 0}
 				<div class="space-y-2">
 					{#each projectHooks as assignment (assignment.id)}
 						{@const hook = hookLibrary.getHookById(assignment.hookId) ?? assignment.hook}
-						<div class="flex items-center justify-between gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+						<div class="flex items-center justify-between gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg {selectedIds.has(assignment.id) ? 'ring-2 ring-primary-500/50' : ''}">
 							<div class="flex items-center gap-3 min-w-0 flex-1">
+								<button
+									onclick={() => toggleSelection(assignment.id)}
+									class="p-0.5 text-gray-400 hover:text-primary-500 transition-colors flex-shrink-0"
+								>
+									{#if selectedIds.has(assignment.id)}
+										<SquareCheck class="w-4 h-4 text-primary-500" />
+									{:else}
+										<Square class="w-4 h-4" />
+									{/if}
+								</button>
 								<div class="w-8 h-8 rounded-lg bg-orange-100 text-orange-600 dark:bg-orange-900/50 dark:text-orange-400 flex items-center justify-center flex-shrink-0">
 									<Zap class="w-4 h-4" />
 								</div>

@@ -58,6 +58,11 @@ class UsageStoreState {
 		return total;
 	});
 
+	filteredDailyCosts = $derived.by(() => {
+		const tokens = this.stats?.dailyModelTokens ?? [];
+		return this.filterByDateRange(tokens);
+	});
+
 	hourCountsArray = $derived.by(() => {
 		const counts = this.stats?.hourCounts ?? {};
 		const arr: number[] = new Array(24).fill(0);

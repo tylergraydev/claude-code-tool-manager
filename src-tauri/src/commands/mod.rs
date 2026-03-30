@@ -1,5 +1,6 @@
 pub mod agent_memory;
 pub mod analytics;
+pub mod cloud_sync;
 pub mod claude_json;
 pub mod claude_settings;
 pub mod commands;

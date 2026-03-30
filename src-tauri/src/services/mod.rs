@@ -33,3 +33,4 @@ pub mod statusline_gallery;
 pub mod statusline_writer;
 pub mod subagent_writer;
 pub mod docker;
+pub mod gist_sync;

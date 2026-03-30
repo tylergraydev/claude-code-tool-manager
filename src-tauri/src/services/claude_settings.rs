@@ -3119,4 +3119,112 @@ mod tests {
         let settings = read_claude_settings_from_file(&path, "user").unwrap();
         assert_eq!(settings.agent_team_enabled, Some(true));
     }
+
+    #[test]
+    fn test_write_model_overrides_round_trip() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings.json");
+        std::fs::write(&path, "{}").unwrap();
+
+        let mut settings = read_claude_settings_from_file(&path, "user").unwrap();
+        settings.model_overrides = Some(json!({
+            "claude-sonnet-4-5": "bedrock-sonnet",
+            "claude-opus-4-6": "bedrock-opus"
+        }));
+
+        write_claude_settings(&PermissionScope::User, None, &settings).unwrap();
+
+        let reread = read_claude_settings_from_file(
+            &resolve_settings_path(&PermissionScope::User, None).unwrap(),
+            "user",
+        ).unwrap();
+        let overrides = reread.model_overrides.unwrap();
+        assert_eq!(overrides["claude-sonnet-4-5"], "bedrock-sonnet");
+        assert_eq!(overrides["claude-opus-4-6"], "bedrock-opus");
+    }
+
+    #[test]
+    fn test_write_sandbox_filesystem_round_trip() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings.json");
+        std::fs::write(&path, "{}").unwrap();
+
+        let mut settings = read_claude_settings_from_file(&path, "user").unwrap();
+        settings.sandbox = Some(SandboxSettings {
+            filesystem: Some(SandboxFilesystemSettings {
+                allow_read: Some(vec!["/opt".to_string()]),
+                deny_read: Some(vec!["/etc/secrets".to_string()]),
+                allow_unix_sockets: None,
+            }),
+            ..Default::default()
+        });
+
+        write_claude_settings(&PermissionScope::User, None, &settings).unwrap();
+
+        let reread = read_claude_settings_from_file(
+            &resolve_settings_path(&PermissionScope::User, None).unwrap(),
+            "user",
+        ).unwrap();
+        let fs = reread.sandbox.unwrap().filesystem.unwrap();
+        assert_eq!(fs.allow_read, Some(vec!["/opt".to_string()]));
+        assert_eq!(fs.deny_read, Some(vec!["/etc/secrets".to_string()]));
+        assert!(fs.allow_unix_sockets.is_none());
+    }
+
+    #[test]
+    fn test_write_agent_team_enabled_round_trip() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings.json");
+        std::fs::write(&path, "{}").unwrap();
+
+        let mut settings = read_claude_settings_from_file(&path, "user").unwrap();
+        settings.agent_team_enabled = Some(true);
+
+        write_claude_settings(&PermissionScope::User, None, &settings).unwrap();
+
+        let reread = read_claude_settings_from_file(
+            &resolve_settings_path(&PermissionScope::User, None).unwrap(),
+            "user",
+        ).unwrap();
+        assert_eq!(reread.agent_team_enabled, Some(true));
+    }
+
+    #[test]
+    fn test_write_auto_mode_empty_removes_key() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings.json");
+        std::fs::write(&path, r#"{"autoMode": {"environment": "test"}}"#).unwrap();
+
+        let mut settings = read_claude_settings_from_file(&path, "user").unwrap();
+        assert_eq!(settings.auto_mode_environment, Some("test".to_string()));
+
+        // Clear the field
+        settings.auto_mode_environment = None;
+
+        write_claude_settings(&PermissionScope::User, None, &settings).unwrap();
+
+        let content = std::fs::read_to_string(
+            resolve_settings_path(&PermissionScope::User, None).unwrap(),
+        ).unwrap();
+        let json: Value = serde_json::from_str(&content).unwrap();
+        assert!(json.get("autoMode").is_none());
+    }
+
+    #[test]
+    fn test_write_model_overrides_none_removes_key() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings.json");
+        std::fs::write(&path, r#"{"modelOverrides": {"a": "b"}}"#).unwrap();
+
+        let mut settings = read_claude_settings_from_file(&path, "user").unwrap();
+        settings.model_overrides = None;
+
+        write_claude_settings(&PermissionScope::User, None, &settings).unwrap();
+
+        let content = std::fs::read_to_string(
+            resolve_settings_path(&PermissionScope::User, None).unwrap(),
+        ).unwrap();
+        let json: Value = serde_json::from_str(&content).unwrap();
+        assert!(json.get("modelOverrides").is_none());
+    }
 }

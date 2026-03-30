@@ -1,12 +1,12 @@
 {
   "mcpServers": {
-    "Tool Manager MCP": {
-      "type": "http",
-      "url": "http://127.0.0.1:23847/mcp"
-    },
-    "tauri-mcp": {
+    "tauri-mcp-server": {
+      "args": [
+        "-y",
+        "@hypothesi/tauri-mcp-server"
+      ],
       "command": "npx",
-      "args": ["-y", "@hypothesi/tauri-mcp-server"]
+      "env": {}
     }
   }
 }

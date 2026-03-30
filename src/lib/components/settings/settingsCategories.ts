@@ -1,4 +1,4 @@
-import { Sliders, ShieldCheck, Puzzle, Variable, ToggleRight, FileSearch, Clock, KeyRound, ServerCog, Keyboard, RotateCw, Building, Settings, Bot, Terminal } from 'lucide-svelte';
+import { Sliders, ShieldCheck, Puzzle, Variable, ToggleRight, FileSearch, Clock, KeyRound, ServerCog, Keyboard, RotateCw, Building, Settings, Bot, Terminal, Cloud } from 'lucide-svelte';
 
 export type SettingsCategoryType = 'scoped' | 'standalone';
 
@@ -24,5 +24,6 @@ export const SETTINGS_CATEGORIES: SettingsCategory[] = [
 	{ id: 'spinner-verbs', label: 'Spinner Verbs', icon: RotateCw, type: 'standalone' },
 	{ id: 'admin', label: 'Admin', icon: Building, type: 'standalone' },
 	{ id: 'cli', label: 'CLI & Scheduling', icon: Terminal, type: 'standalone' },
+	{ id: 'cloud-sync', label: 'Cloud Sync', icon: Cloud, type: 'standalone' },
 	{ id: 'editor-sync', label: 'Editor Sync', icon: Settings, type: 'standalone' }
 ];

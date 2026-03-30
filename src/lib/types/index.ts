@@ -20,3 +20,4 @@ export * from './keybindings';
 export * from './usage';
 export * from './insights';
 export * from './session';
+export * from './cloudSync';
