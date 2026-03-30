@@ -89,7 +89,13 @@ pub fn create_rule(
     db.conn()
         .execute(
             "INSERT INTO rules (name, description, content, paths, tags) VALUES (?, ?, ?, ?, ?)",
-            params![rule.name, rule.description, rule.content, paths_json, tags_json],
+            params![
+                rule.name,
+                rule.description,
+                rule.content,
+                paths_json,
+                tags_json
+            ],
         )
         .map_err(|e| e.to_string())?;
 
@@ -97,8 +103,7 @@ pub fn create_rule(
     let query = format!("SELECT {} FROM rules WHERE id = ?", RULE_SELECT_FIELDS);
     let mut stmt = db.conn().prepare(&query).map_err(|e| e.to_string())?;
 
-    stmt.query_row([id], row_to_rule)
-        .map_err(|e| e.to_string())
+    stmt.query_row([id], row_to_rule).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -131,8 +136,7 @@ pub fn update_rule(
     let query = format!("SELECT {} FROM rules WHERE id = ?", RULE_SELECT_FIELDS);
     let mut stmt = db.conn().prepare(&query).map_err(|e| e.to_string())?;
 
-    stmt.query_row([id], row_to_rule)
-        .map_err(|e| e.to_string())
+    stmt.query_row([id], row_to_rule).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -194,10 +198,7 @@ pub fn get_global_rules(db: State<'_, Arc<Mutex<Database>>>) -> Result<Vec<Globa
 }
 
 #[tauri::command]
-pub fn add_global_rule(
-    db: State<'_, Arc<Mutex<Database>>>,
-    rule_id: i64,
-) -> Result<(), String> {
+pub fn add_global_rule(db: State<'_, Arc<Mutex<Database>>>, rule_id: i64) -> Result<(), String> {
     let db_guard = db.lock().map_err(|e| e.to_string())?;
 
     let query = format!("SELECT {} FROM rules WHERE id = ?", RULE_SELECT_FIELDS);
@@ -220,10 +221,7 @@ pub fn add_global_rule(
 }
 
 #[tauri::command]
-pub fn remove_global_rule(
-    db: State<'_, Arc<Mutex<Database>>>,
-    rule_id: i64,
-) -> Result<(), String> {
+pub fn remove_global_rule(db: State<'_, Arc<Mutex<Database>>>, rule_id: i64) -> Result<(), String> {
     let db_guard = db.lock().map_err(|e| e.to_string())?;
 
     let query = format!("SELECT {} FROM rules WHERE id = ?", RULE_SELECT_FIELDS);
@@ -347,8 +345,7 @@ pub fn assign_rule_to_project(
         )
         .map_err(|e| e.to_string())?;
 
-    rule_writer::write_project_rule(Path::new(&project_path), &rule)
-        .map_err(|e| e.to_string())?;
+    rule_writer::write_project_rule(Path::new(&project_path), &rule).map_err(|e| e.to_string())?;
 
     Ok(())
 }
@@ -384,8 +381,7 @@ pub fn remove_rule_from_project(
         )
         .map_err(|e| e.to_string())?;
 
-    rule_writer::delete_project_rule(Path::new(&project_path), &rule)
-        .map_err(|e| e.to_string())?;
+    rule_writer::delete_project_rule(Path::new(&project_path), &rule).map_err(|e| e.to_string())?;
 
     Ok(())
 }
@@ -459,9 +455,9 @@ pub fn get_active_rules_for_path(
             match &rule.paths {
                 None => true, // No paths = always active
                 Some(patterns) if patterns.is_empty() => true,
-                Some(patterns) => patterns.iter().any(|pattern| {
-                    glob_match(pattern, &file_path)
-                }),
+                Some(patterns) => patterns
+                    .iter()
+                    .any(|pattern| glob_match(pattern, &file_path)),
             }
         })
         .collect();

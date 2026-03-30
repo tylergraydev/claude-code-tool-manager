@@ -33,10 +33,7 @@ fn resolve_agent_memory_dir(scope: &str, project_path: Option<&Path>) -> Result<
         "user" => {
             let base_dirs =
                 BaseDirs::new().ok_or_else(|| anyhow::anyhow!("Could not find home directory"))?;
-            Ok(base_dirs
-                .home_dir()
-                .join(".claude")
-                .join("agent-memory"))
+            Ok(base_dirs.home_dir().join(".claude").join("agent-memory"))
         }
         "project" => {
             let project = project_path

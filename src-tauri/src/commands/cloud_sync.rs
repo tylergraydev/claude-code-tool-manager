@@ -1,7 +1,7 @@
 use crate::db::Database;
 use crate::services::gist_sync::{
-    self, GistSyncService, ProjectMapping, SyncAuthStatus, SyncConfig, SyncMeta, SyncResult,
-    SyncStatus, SyncItemCounts,
+    self, GistSyncService, ProjectMapping, SyncAuthStatus, SyncConfig, SyncItemCounts, SyncMeta,
+    SyncResult, SyncStatus,
 };
 use log::info;
 use std::sync::{Arc, Mutex};
@@ -107,9 +107,7 @@ pub async fn connect_cloud_sync(
 
 /// Get current sync auth status
 #[tauri::command]
-pub fn get_sync_auth_status(
-    db: State<'_, Arc<Mutex<Database>>>,
-) -> Result<SyncAuthStatus, String> {
+pub fn get_sync_auth_status(db: State<'_, Arc<Mutex<Database>>>) -> Result<SyncAuthStatus, String> {
     let db = db.lock().map_err(|e| e.to_string())?;
     let token = db.get_setting("github_token");
     let username = db.get_setting("sync_username");
@@ -198,9 +196,7 @@ pub async fn push_sync(db: State<'_, Arc<Mutex<Database>>>) -> Result<SyncResult
 
     let (token, gist_id, config, mappings) = {
         let db = db.lock().map_err(|e| e.to_string())?;
-        let token = db
-            .get_setting("github_token")
-            .ok_or("Not authenticated")?;
+        let token = db.get_setting("github_token").ok_or("Not authenticated")?;
         let gist_id = db
             .get_setting("sync_gist_id")
             .ok_or("No sync gist configured")?;
@@ -254,9 +250,7 @@ pub async fn pull_sync(db: State<'_, Arc<Mutex<Database>>>) -> Result<SyncResult
 
     let (token, gist_id, config, mappings) = {
         let db = db.lock().map_err(|e| e.to_string())?;
-        let token = db
-            .get_setting("github_token")
-            .ok_or("Not authenticated")?;
+        let token = db.get_setting("github_token").ok_or("Not authenticated")?;
         let gist_id = db
             .get_setting("sync_gist_id")
             .ok_or("No sync gist configured")?;
@@ -332,8 +326,12 @@ pub fn get_sync_status(db: State<'_, Arc<Mutex<Database>>>) -> Result<SyncStatus
     };
 
     Ok(SyncStatus {
-        last_pushed_at: db.get_setting("sync_last_pushed_at").filter(|s| !s.is_empty()),
-        last_pulled_at: db.get_setting("sync_last_pulled_at").filter(|s| !s.is_empty()),
+        last_pushed_at: db
+            .get_setting("sync_last_pushed_at")
+            .filter(|s| !s.is_empty()),
+        last_pulled_at: db
+            .get_setting("sync_last_pulled_at")
+            .filter(|s| !s.is_empty()),
         gist_id: db.get_setting("sync_gist_id").filter(|s| !s.is_empty()),
         gist_url: db.get_setting("sync_gist_url").filter(|s| !s.is_empty()),
         item_counts: SyncItemCounts {

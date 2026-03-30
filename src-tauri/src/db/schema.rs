@@ -1933,8 +1933,12 @@ impl Database {
                     prompt: row.get(7)?,
                     timeout: row.get(8)?,
                     url: row.get(9)?,
-                    headers: row.get::<_, Option<String>>(10)?.and_then(|s| serde_json::from_str(&s).ok()),
-                    allowed_env_vars: row.get::<_, Option<String>>(11)?.and_then(|s| serde_json::from_str(&s).ok()),
+                    headers: row
+                        .get::<_, Option<String>>(10)?
+                        .and_then(|s| serde_json::from_str(&s).ok()),
+                    allowed_env_vars: row
+                        .get::<_, Option<String>>(11)?
+                        .and_then(|s| serde_json::from_str(&s).ok()),
                     if_condition: row.get(12)?,
                     status_message: row.get(13)?,
                     once: row.get::<_, i32>(14).unwrap_or(0) != 0,
@@ -2000,8 +2004,14 @@ impl Database {
         req: &crate::db::models::CreateHookRequest,
     ) -> Result<crate::db::models::Hook> {
         let tags_json = req.tags.as_ref().map(|t| serde_json::to_string(t).unwrap());
-        let headers_json = req.headers.as_ref().map(|h| serde_json::to_string(h).unwrap());
-        let env_vars_json = req.allowed_env_vars.as_ref().map(|v| serde_json::to_string(v).unwrap());
+        let headers_json = req
+            .headers
+            .as_ref()
+            .map(|h| serde_json::to_string(h).unwrap());
+        let env_vars_json = req
+            .allowed_env_vars
+            .as_ref()
+            .map(|v| serde_json::to_string(v).unwrap());
 
         self.conn.execute(
             "INSERT INTO hooks (name, description, event_type, matcher, hook_type, command, prompt, timeout, url, headers, allowed_env_vars, if_condition, status_message, once, async_mode, shell, tags, source)

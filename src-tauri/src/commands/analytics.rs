@@ -5,11 +5,9 @@ use log::info;
 #[tauri::command]
 pub async fn get_usage_stats() -> Result<StatsCacheInfo, String> {
     info!("[Analytics] Reading usage stats");
-    tokio::task::spawn_blocking(|| {
-        stats_cache::read_stats_cache().map_err(|e| e.to_string())
-    })
-    .await
-    .map_err(|e| e.to_string())?
+    tokio::task::spawn_blocking(|| stats_cache::read_stats_cache().map_err(|e| e.to_string()))
+        .await
+        .map_err(|e| e.to_string())?
 }
 
 #[cfg(test)]

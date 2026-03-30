@@ -679,17 +679,12 @@ pub fn apply_pulled_payload(
                                     project_entry.canonical_name, e
                                 ));
                             } else {
-                                pulled.push(format!(
-                                    "Project '{}'",
-                                    project_entry.canonical_name
-                                ));
+                                pulled.push(format!("Project '{}'", project_entry.canonical_name));
                             }
                         }
                         Err(e) => {
-                            conflicts.push(format!(
-                                "Project '{}': {}",
-                                project_entry.canonical_name, e
-                            ));
+                            conflicts
+                                .push(format!("Project '{}': {}", project_entry.canonical_name, e));
                         }
                     }
                 } else {

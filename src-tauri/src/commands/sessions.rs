@@ -5,11 +5,9 @@ use log::info;
 #[tauri::command]
 pub async fn get_session_projects() -> Result<ProjectListInfo, String> {
     info!("[Sessions] Listing session projects");
-    tokio::task::spawn_blocking(|| {
-        session_explorer::list_projects().map_err(|e| e.to_string())
-    })
-    .await
-    .map_err(|e| e.to_string())?
+    tokio::task::spawn_blocking(|| session_explorer::list_projects().map_err(|e| e.to_string()))
+        .await
+        .map_err(|e| e.to_string())?
 }
 
 /// List all sessions for a given project folder
