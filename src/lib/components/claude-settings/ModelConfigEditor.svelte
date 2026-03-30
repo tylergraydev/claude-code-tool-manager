@@ -3,6 +3,7 @@
 		CLAUDE_MODELS,
 		AVAILABLE_MODEL_SHORTCUTS,
 		OUTPUT_STYLES,
+		EFFORT_LEVELS,
 		COMMON_LANGUAGES
 	} from '$lib/types';
 	import type { ClaudeSettings } from '$lib/types';
@@ -20,6 +21,7 @@
 	let outputStyle = $state(settings.outputStyle ?? '');
 	let language = $state(settings.language ?? '');
 	let alwaysThinkingEnabled = $state<boolean | undefined>(settings.alwaysThinkingEnabled);
+	let effortLevel = $state(settings.effortLevel ?? '');
 
 	// Reset local state when settings prop changes
 	$effect(() => {
@@ -28,6 +30,7 @@
 		outputStyle = settings.outputStyle ?? '';
 		language = settings.language ?? '';
 		alwaysThinkingEnabled = settings.alwaysThinkingEnabled;
+		effortLevel = settings.effortLevel ?? '';
 	});
 
 	function handleSave() {
@@ -37,7 +40,8 @@
 			availableModels,
 			outputStyle: outputStyle || undefined,
 			language: language || undefined,
-			alwaysThinkingEnabled
+			alwaysThinkingEnabled,
+			effortLevel: effortLevel || undefined
 		});
 	}
 
@@ -164,6 +168,28 @@
 				<option value="true">Always enabled</option>
 				<option value="false">Disabled</option>
 			</select>
+		</div>
+
+		<!-- Effort Level -->
+		<div>
+			<label
+				for="effort-select"
+				class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+			>
+				Effort Level
+			</label>
+			<select
+				id="effort-select"
+				bind:value={effortLevel}
+				class="input text-sm w-full"
+			>
+				{#each EFFORT_LEVELS as level}
+					<option value={level.value}>{level.label}</option>
+				{/each}
+			</select>
+			<p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+				Controls how much thinking Claude does. Higher = more thorough but slower.
+			</p>
 		</div>
 	</div>
 

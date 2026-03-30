@@ -41,7 +41,7 @@ export const SOUND_HOOK_PRESETS: SoundHookPreset[] = [
 		id: 'task-complete',
 		name: 'Task Complete',
 		description: 'Play sound when Claude finishes responding',
-		events: ['Stop', 'SubagentStop'],
+		events: ['Stop', 'SubagentStop', 'TaskCompleted'],
 		icon: 'check-circle'
 	},
 	{
@@ -52,10 +52,17 @@ export const SOUND_HOOK_PRESETS: SoundHookPreset[] = [
 		icon: 'shield-alert'
 	},
 	{
+		id: 'error-alert',
+		name: 'Error Alert',
+		description: 'Alert on failures and errors',
+		events: ['StopFailure', 'PostToolUseFailure'],
+		icon: 'alert-triangle'
+	},
+	{
 		id: 'full-suite',
 		name: 'Full Notification Suite',
 		description: 'Sounds for all key events',
-		events: ['Stop', 'SubagentStop', 'Notification'],
+		events: ['Stop', 'SubagentStop', 'TaskCompleted', 'StopFailure', 'Notification'],
 		icon: 'bell-ring'
 	}
 ];
@@ -89,7 +96,11 @@ export function getSuggestedSound(eventType: HookEventType): string {
 	switch (eventType) {
 		case 'Stop':
 		case 'SubagentStop':
+		case 'TaskCompleted':
 			return '/System/Library/Sounds/Glass.aiff';
+		case 'StopFailure':
+		case 'PostToolUseFailure':
+			return '/System/Library/Sounds/Basso.aiff';
 		case 'Notification':
 			return '/System/Library/Sounds/Ping.aiff';
 		case 'SessionStart':

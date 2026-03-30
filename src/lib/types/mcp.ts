@@ -1,4 +1,4 @@
-export type McpType = 'stdio' | 'sse' | 'http';
+export type McpType = 'stdio' | 'sse' | 'http' | 'ws';
 export type McpSource = 'manual' | 'auto-detected' | 'imported' | 'system';
 
 export interface Mcp {

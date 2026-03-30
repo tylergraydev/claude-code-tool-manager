@@ -40,9 +40,12 @@ pub struct ClaudeSettings {
     pub output_style: Option<String>,
     pub language: Option<String>,
     pub always_thinking_enabled: Option<bool>,
+    pub effort_level: Option<String>,
     // Attribution
     pub attribution_commit: Option<String>,
     pub attribution_pr: Option<String>,
+    pub attribution_enabled: Option<bool>,
+    pub attribution_rules: Option<Value>,
     // Sandbox
     pub sandbox: Option<SandboxSettings>,
     // Plugins (Value because enabledPlugins has heterogeneous values: bool | string[])
@@ -59,11 +62,20 @@ pub struct ClaudeSettings {
     // File Suggestion (nested: fileSuggestion.type / fileSuggestion.command)
     pub file_suggestion_type: Option<String>,
     pub file_suggestion_command: Option<String>,
+    // Memory
+    pub auto_memory_enabled: Option<bool>,
+    pub auto_memory_directory: Option<String>,
+    // CLAUDE.md
+    pub claude_md_excludes: Option<Vec<String>>,
+    // Default Agent
+    pub agent: Option<String>,
     // Session & Cleanup
     pub cleanup_period_days: Option<u32>,
     pub auto_updates_channel: Option<String>,
     pub teammate_mode: Option<String>,
     pub plans_directory: Option<String>,
+    // Auto Mode
+    pub disable_auto_mode: Option<bool>,
     // Auth & API Key Helpers
     pub api_key_helper: Option<String>,
     pub otel_headers_helper: Option<String>,
@@ -83,6 +95,8 @@ pub struct ClaudeSettings {
     pub company_announcements: Option<Vec<String>>,
     pub force_login_method: Option<String>,
     pub force_login_org_uuid: Option<String>,
+    pub allow_managed_mcp_servers_only: Option<bool>,
+    pub allowed_channel_plugins: Option<Vec<String>>,
 }
 
 /// All claude settings across all three scopes
@@ -161,6 +175,11 @@ pub fn read_claude_settings_from_file(path: &Path, scope: &str) -> Result<Claude
         .get("alwaysThinkingEnabled")
         .and_then(|v| v.as_bool());
 
+    let effort_level = settings
+        .get("effortLevel")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
+
     // Attribution is nested: { "attribution": { "commit": "...", "pr": "..." } }
     let attribution = settings.get("attribution").cloned().unwrap_or(json!({}));
 
@@ -171,6 +190,26 @@ pub fn read_claude_settings_from_file(path: &Path, scope: &str) -> Result<Claude
 
     let attribution_pr = attribution
         .get("pr")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
+
+    let attribution_enabled = attribution.get("enabled").and_then(|v| v.as_bool());
+
+    let attribution_rules = attribution.get("rules").cloned();
+
+    // Memory
+    let auto_memory_enabled = settings.get("autoMemoryEnabled").and_then(|v| v.as_bool());
+    let auto_memory_directory = settings
+        .get("autoMemoryDirectory")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
+
+    // CLAUDE.md excludes
+    let claude_md_excludes = extract_optional_string_array(&settings, "claudeMdExcludes");
+
+    // Default agent
+    let agent = settings
+        .get("agent")
         .and_then(|v| v.as_str())
         .map(|s| s.to_string());
 
@@ -280,6 +319,16 @@ pub fn read_claude_settings_from_file(path: &Path, scope: &str) -> Result<Claude
         .get("forceLoginOrgUUID")
         .and_then(|v| v.as_str())
         .map(|s| s.to_string());
+    let allow_managed_mcp_servers_only = settings
+        .get("allowManagedMcpServersOnly")
+        .and_then(|v| v.as_bool());
+    let allowed_channel_plugins =
+        extract_optional_string_array(&settings, "allowedChannelPlugins");
+
+    // Auto Mode
+    let disable_auto_mode = settings
+        .get("disableAutoMode")
+        .and_then(|v| v.as_bool());
 
     Ok(ClaudeSettings {
         scope: scope.to_string(),
@@ -288,8 +337,15 @@ pub fn read_claude_settings_from_file(path: &Path, scope: &str) -> Result<Claude
         output_style,
         language,
         always_thinking_enabled,
+        effort_level,
         attribution_commit,
         attribution_pr,
+        attribution_enabled,
+        attribution_rules,
+        auto_memory_enabled,
+        auto_memory_directory,
+        claude_md_excludes,
+        agent,
         sandbox,
         enabled_plugins,
         extra_known_marketplaces,
@@ -319,8 +375,11 @@ pub fn read_claude_settings_from_file(path: &Path, scope: &str) -> Result<Claude
         denied_mcp_servers,
         strict_known_marketplaces,
         company_announcements,
+        disable_auto_mode,
         force_login_method,
         force_login_org_uuid,
+        allow_managed_mcp_servers_only,
+        allowed_channel_plugins,
     })
 }
 
@@ -348,8 +407,15 @@ pub fn read_all_claude_settings(project_path: Option<&Path>) -> Result<AllClaude
                 output_style: None,
                 language: None,
                 always_thinking_enabled: None,
+                effort_level: None,
                 attribution_commit: None,
                 attribution_pr: None,
+                attribution_enabled: None,
+                attribution_rules: None,
+                auto_memory_enabled: None,
+                auto_memory_directory: None,
+                claude_md_excludes: None,
+                agent: None,
                 sandbox: None,
                 enabled_plugins: None,
                 extra_known_marketplaces: None,
@@ -379,8 +445,11 @@ pub fn read_all_claude_settings(project_path: Option<&Path>) -> Result<AllClaude
                 denied_mcp_servers: None,
                 strict_known_marketplaces: None,
                 company_announcements: None,
+                disable_auto_mode: None,
                 force_login_method: None,
                 force_login_org_uuid: None,
+                allow_managed_mcp_servers_only: None,
+                allowed_channel_plugins: None,
             })
         };
 
@@ -394,8 +463,15 @@ pub fn read_all_claude_settings(project_path: Option<&Path>) -> Result<AllClaude
                 output_style: None,
                 language: None,
                 always_thinking_enabled: None,
+                effort_level: None,
                 attribution_commit: None,
                 attribution_pr: None,
+                attribution_enabled: None,
+                attribution_rules: None,
+                auto_memory_enabled: None,
+                auto_memory_directory: None,
+                claude_md_excludes: None,
+                agent: None,
                 sandbox: None,
                 enabled_plugins: None,
                 extra_known_marketplaces: None,
@@ -425,8 +501,11 @@ pub fn read_all_claude_settings(project_path: Option<&Path>) -> Result<AllClaude
                 denied_mcp_servers: None,
                 strict_known_marketplaces: None,
                 company_announcements: None,
+                disable_auto_mode: None,
                 force_login_method: None,
                 force_login_org_uuid: None,
+                allow_managed_mcp_servers_only: None,
+                allowed_channel_plugins: None,
             })
         };
 
@@ -477,11 +556,19 @@ pub fn write_claude_settings(
         }
     }
 
+    // Effort level: set or remove string
+    set_or_remove_string(&mut file_settings, "effortLevel", &settings.effort_level);
+
     // Attribution: manage nested object
     let has_commit = settings.attribution_commit.is_some();
     let has_pr = settings.attribution_pr.is_some();
 
-    if has_commit || has_pr {
+    let has_any_attribution = has_commit
+        || has_pr
+        || settings.attribution_enabled.is_some()
+        || settings.attribution_rules.is_some();
+
+    if has_any_attribution {
         let mut attribution = file_settings
             .get("attribution")
             .cloned()
@@ -489,6 +576,14 @@ pub fn write_claude_settings(
 
         set_or_remove_string_in(&mut attribution, "commit", &settings.attribution_commit);
         set_or_remove_string_in(&mut attribution, "pr", &settings.attribution_pr);
+        set_or_remove_bool_in(&mut attribution, "enabled", &settings.attribution_enabled);
+        if let Some(rules) = &settings.attribution_rules {
+            attribution["rules"] = rules.clone();
+        } else {
+            if let Some(obj) = attribution.as_object_mut() {
+                obj.remove("rules");
+            }
+        }
 
         // If attribution object is now empty, remove it
         if attribution.as_object().map_or(true, |o| o.is_empty()) {
@@ -499,7 +594,7 @@ pub fn write_claude_settings(
             file_settings["attribution"] = attribution;
         }
     } else {
-        // Both None — remove attribution object entirely
+        // All None — remove attribution object entirely
         if let Some(obj) = file_settings.as_object_mut() {
             obj.remove("attribution");
         }
@@ -576,6 +671,28 @@ pub fn write_claude_settings(
         "extraKnownMarketplaces",
         &settings.extra_known_marketplaces,
     );
+
+    // Memory
+    set_or_remove_bool(
+        &mut file_settings,
+        "autoMemoryEnabled",
+        &settings.auto_memory_enabled,
+    );
+    set_or_remove_string(
+        &mut file_settings,
+        "autoMemoryDirectory",
+        &settings.auto_memory_directory,
+    );
+
+    // CLAUDE.md excludes
+    set_or_remove_string_array(
+        &mut file_settings,
+        "claudeMdExcludes",
+        &settings.claude_md_excludes,
+    );
+
+    // Default agent
+    set_or_remove_string(&mut file_settings, "agent", &settings.agent);
 
     // Environment variables (pass-through Value)
     set_or_remove_value(&mut file_settings, "env", &settings.env);
@@ -736,6 +853,23 @@ pub fn write_claude_settings(
         "forceLoginOrgUUID",
         &settings.force_login_org_uuid,
     );
+    set_or_remove_bool(
+        &mut file_settings,
+        "allowManagedMcpServersOnly",
+        &settings.allow_managed_mcp_servers_only,
+    );
+    set_or_remove_string_array(
+        &mut file_settings,
+        "allowedChannelPlugins",
+        &settings.allowed_channel_plugins,
+    );
+
+    // Auto Mode
+    set_or_remove_bool(
+        &mut file_settings,
+        "disableAutoMode",
+        &settings.disable_auto_mode,
+    );
 
     write_settings_file(&path, &file_settings)
 }
@@ -776,6 +910,20 @@ fn set_or_remove_string(settings: &mut Value, key: &str, value: &Option<String>)
         }
         None => {
             if let Some(obj) = settings.as_object_mut() {
+                obj.remove(key);
+            }
+        }
+    }
+}
+
+/// Helper: set a bool key within a nested object, or remove it if None
+fn set_or_remove_bool_in(parent: &mut Value, key: &str, value: &Option<bool>) {
+    match value {
+        Some(v) => {
+            parent[key] = json!(v);
+        }
+        None => {
+            if let Some(obj) = parent.as_object_mut() {
                 obj.remove(key);
             }
         }
@@ -914,6 +1062,7 @@ mod tests {
             output_style: Some("Concise".to_string()),
             language: Some("japanese".to_string()),
             always_thinking_enabled: Some(true),
+            effort_level: None,
             attribution_commit: Some("Generated by Claude".to_string()),
             attribution_pr: Some("Created with AI".to_string()),
             sandbox: None,
@@ -947,6 +1096,15 @@ mod tests {
             company_announcements: None,
             force_login_method: None,
             force_login_org_uuid: None,
+            allow_managed_mcp_servers_only: None,
+            allowed_channel_plugins: None,
+            attribution_enabled: None,
+            attribution_rules: None,
+            auto_memory_enabled: None,
+            auto_memory_directory: None,
+            claude_md_excludes: None,
+            agent: None,
+            disable_auto_mode: None,
         };
 
         write_claude_settings(&PermissionScope::Local, Some(project_path), &settings).unwrap();
@@ -987,6 +1145,7 @@ mod tests {
             output_style: None,
             language: None,
             always_thinking_enabled: None,
+            effort_level: None,
             attribution_commit: None,
             attribution_pr: None,
             sandbox: None,
@@ -1020,6 +1179,15 @@ mod tests {
             company_announcements: None,
             force_login_method: None,
             force_login_org_uuid: None,
+            allow_managed_mcp_servers_only: None,
+            allowed_channel_plugins: None,
+            attribution_enabled: None,
+            attribution_rules: None,
+            auto_memory_enabled: None,
+            auto_memory_directory: None,
+            claude_md_excludes: None,
+            agent: None,
+            disable_auto_mode: None,
         };
 
         write_claude_settings(&PermissionScope::Local, Some(project_path), &settings).unwrap();
@@ -1050,6 +1218,7 @@ mod tests {
             output_style: Some("Concise".to_string()),
             language: Some("japanese".to_string()),
             always_thinking_enabled: Some(true),
+            effort_level: None,
             attribution_commit: Some("test".to_string()),
             attribution_pr: Some("test".to_string()),
             sandbox: None,
@@ -1083,6 +1252,15 @@ mod tests {
             company_announcements: None,
             force_login_method: None,
             force_login_org_uuid: None,
+            allow_managed_mcp_servers_only: None,
+            allowed_channel_plugins: None,
+            attribution_enabled: None,
+            attribution_rules: None,
+            auto_memory_enabled: None,
+            auto_memory_directory: None,
+            claude_md_excludes: None,
+            agent: None,
+            disable_auto_mode: None,
         };
 
         write_claude_settings(&PermissionScope::Local, Some(project_path), &settings).unwrap();
@@ -1095,6 +1273,7 @@ mod tests {
             output_style: None,
             language: None,
             always_thinking_enabled: None,
+            effort_level: None,
             attribution_commit: None,
             attribution_pr: None,
             sandbox: None,
@@ -1128,6 +1307,15 @@ mod tests {
             company_announcements: None,
             force_login_method: None,
             force_login_org_uuid: None,
+            allow_managed_mcp_servers_only: None,
+            allowed_channel_plugins: None,
+            attribution_enabled: None,
+            attribution_rules: None,
+            auto_memory_enabled: None,
+            auto_memory_directory: None,
+            claude_md_excludes: None,
+            agent: None,
+            disable_auto_mode: None,
         };
 
         write_claude_settings(&PermissionScope::Local, Some(project_path), &clear_settings)
@@ -1222,6 +1410,7 @@ mod tests {
             output_style: None,
             language: None,
             always_thinking_enabled: None,
+            effort_level: None,
             attribution_commit: None,
             attribution_pr: None,
             sandbox: Some(SandboxSettings {
@@ -1266,6 +1455,15 @@ mod tests {
             company_announcements: None,
             force_login_method: None,
             force_login_org_uuid: None,
+            allow_managed_mcp_servers_only: None,
+            allowed_channel_plugins: None,
+            attribution_enabled: None,
+            attribution_rules: None,
+            auto_memory_enabled: None,
+            auto_memory_directory: None,
+            claude_md_excludes: None,
+            agent: None,
+            disable_auto_mode: None,
         };
 
         write_claude_settings(&PermissionScope::Local, Some(project_path), &settings).unwrap();
@@ -1309,6 +1507,7 @@ mod tests {
             output_style: None,
             language: None,
             always_thinking_enabled: None,
+            effort_level: None,
             attribution_commit: None,
             attribution_pr: None,
             sandbox: Some(SandboxSettings {
@@ -1345,6 +1544,15 @@ mod tests {
             company_announcements: None,
             force_login_method: None,
             force_login_org_uuid: None,
+            allow_managed_mcp_servers_only: None,
+            allowed_channel_plugins: None,
+            attribution_enabled: None,
+            attribution_rules: None,
+            auto_memory_enabled: None,
+            auto_memory_directory: None,
+            claude_md_excludes: None,
+            agent: None,
+            disable_auto_mode: None,
         };
 
         write_claude_settings(&PermissionScope::Local, Some(project_path), &settings).unwrap();
@@ -1373,6 +1581,7 @@ mod tests {
             output_style: None,
             language: None,
             always_thinking_enabled: None,
+            effort_level: None,
             attribution_commit: None,
             attribution_pr: None,
             sandbox: Some(SandboxSettings {
@@ -1409,6 +1618,15 @@ mod tests {
             company_announcements: None,
             force_login_method: None,
             force_login_org_uuid: None,
+            allow_managed_mcp_servers_only: None,
+            allowed_channel_plugins: None,
+            attribution_enabled: None,
+            attribution_rules: None,
+            auto_memory_enabled: None,
+            auto_memory_directory: None,
+            claude_md_excludes: None,
+            agent: None,
+            disable_auto_mode: None,
         };
 
         write_claude_settings(&PermissionScope::Local, Some(project_path), &settings).unwrap();
@@ -1426,6 +1644,7 @@ mod tests {
             output_style: None,
             language: None,
             always_thinking_enabled: None,
+            effort_level: None,
             attribution_commit: None,
             attribution_pr: None,
             sandbox: None,
@@ -1459,6 +1678,15 @@ mod tests {
             company_announcements: None,
             force_login_method: None,
             force_login_org_uuid: None,
+            allow_managed_mcp_servers_only: None,
+            allowed_channel_plugins: None,
+            attribution_enabled: None,
+            attribution_rules: None,
+            auto_memory_enabled: None,
+            auto_memory_directory: None,
+            claude_md_excludes: None,
+            agent: None,
+            disable_auto_mode: None,
         };
 
         write_claude_settings(&PermissionScope::Local, Some(project_path), &clear_settings)
@@ -1561,6 +1789,7 @@ mod tests {
             output_style: None,
             language: None,
             always_thinking_enabled: None,
+            effort_level: None,
             attribution_commit: None,
             attribution_pr: None,
             sandbox: None,
@@ -1601,6 +1830,15 @@ mod tests {
             company_announcements: None,
             force_login_method: None,
             force_login_org_uuid: None,
+            allow_managed_mcp_servers_only: None,
+            allowed_channel_plugins: None,
+            attribution_enabled: None,
+            attribution_rules: None,
+            auto_memory_enabled: None,
+            auto_memory_directory: None,
+            claude_md_excludes: None,
+            agent: None,
+            disable_auto_mode: None,
         };
 
         write_claude_settings(&PermissionScope::Local, Some(project_path), &settings).unwrap();
@@ -1630,6 +1868,7 @@ mod tests {
             output_style: None,
             language: None,
             always_thinking_enabled: None,
+            effort_level: None,
             attribution_commit: None,
             attribution_pr: None,
             sandbox: None,
@@ -1663,6 +1902,15 @@ mod tests {
             company_announcements: None,
             force_login_method: None,
             force_login_org_uuid: None,
+            allow_managed_mcp_servers_only: None,
+            allowed_channel_plugins: None,
+            attribution_enabled: None,
+            attribution_rules: None,
+            auto_memory_enabled: None,
+            auto_memory_directory: None,
+            claude_md_excludes: None,
+            agent: None,
+            disable_auto_mode: None,
         };
 
         write_claude_settings(&PermissionScope::Local, Some(project_path), &settings).unwrap();
@@ -1691,6 +1939,7 @@ mod tests {
             output_style: None,
             language: None,
             always_thinking_enabled: None,
+            effort_level: None,
             attribution_commit: None,
             attribution_pr: None,
             sandbox: None,
@@ -1724,6 +1973,15 @@ mod tests {
             company_announcements: None,
             force_login_method: None,
             force_login_org_uuid: None,
+            allow_managed_mcp_servers_only: None,
+            allowed_channel_plugins: None,
+            attribution_enabled: None,
+            attribution_rules: None,
+            auto_memory_enabled: None,
+            auto_memory_directory: None,
+            claude_md_excludes: None,
+            agent: None,
+            disable_auto_mode: None,
         };
 
         write_claude_settings(&PermissionScope::Local, Some(project_path), &settings).unwrap();
@@ -1736,6 +1994,7 @@ mod tests {
             output_style: None,
             language: None,
             always_thinking_enabled: None,
+            effort_level: None,
             attribution_commit: None,
             attribution_pr: None,
             sandbox: None,
@@ -1769,6 +2028,15 @@ mod tests {
             company_announcements: None,
             force_login_method: None,
             force_login_org_uuid: None,
+            allow_managed_mcp_servers_only: None,
+            allowed_channel_plugins: None,
+            attribution_enabled: None,
+            attribution_rules: None,
+            auto_memory_enabled: None,
+            auto_memory_directory: None,
+            claude_md_excludes: None,
+            agent: None,
+            disable_auto_mode: None,
         };
 
         write_claude_settings(&PermissionScope::Local, Some(project_path), &clear).unwrap();
@@ -1822,6 +2090,7 @@ mod tests {
             output_style: None,
             language: None,
             always_thinking_enabled: None,
+            effort_level: None,
             attribution_commit: None,
             attribution_pr: None,
             sandbox: None,
@@ -1855,6 +2124,15 @@ mod tests {
             company_announcements: None,
             force_login_method: None,
             force_login_org_uuid: None,
+            allow_managed_mcp_servers_only: None,
+            allowed_channel_plugins: None,
+            attribution_enabled: None,
+            attribution_rules: None,
+            auto_memory_enabled: None,
+            auto_memory_directory: None,
+            claude_md_excludes: None,
+            agent: None,
+            disable_auto_mode: None,
         };
 
         write_claude_settings(&PermissionScope::Local, Some(project_path), &settings).unwrap();
@@ -1879,6 +2157,7 @@ mod tests {
             output_style: None,
             language: None,
             always_thinking_enabled: None,
+            effort_level: None,
             attribution_commit: None,
             attribution_pr: None,
             sandbox: None,
@@ -1912,6 +2191,15 @@ mod tests {
             company_announcements: None,
             force_login_method: None,
             force_login_org_uuid: None,
+            allow_managed_mcp_servers_only: None,
+            allowed_channel_plugins: None,
+            attribution_enabled: None,
+            attribution_rules: None,
+            auto_memory_enabled: None,
+            auto_memory_directory: None,
+            claude_md_excludes: None,
+            agent: None,
+            disable_auto_mode: None,
         };
 
         write_claude_settings(&PermissionScope::Local, Some(project_path), &settings).unwrap();
@@ -1962,6 +2250,7 @@ mod tests {
             output_style: None,
             language: None,
             always_thinking_enabled: None,
+            effort_level: None,
             attribution_commit: None,
             attribution_pr: None,
             sandbox: None,
@@ -1995,6 +2284,15 @@ mod tests {
             company_announcements: None,
             force_login_method: None,
             force_login_org_uuid: None,
+            allow_managed_mcp_servers_only: None,
+            allowed_channel_plugins: None,
+            attribution_enabled: None,
+            attribution_rules: None,
+            auto_memory_enabled: None,
+            auto_memory_directory: None,
+            claude_md_excludes: None,
+            agent: None,
+            disable_auto_mode: None,
         };
 
         write_claude_settings(&PermissionScope::Local, Some(project_path), &settings).unwrap();
@@ -2055,6 +2353,7 @@ mod tests {
             output_style: None,
             language: None,
             always_thinking_enabled: None,
+            effort_level: None,
             attribution_commit: None,
             attribution_pr: None,
             sandbox: None,
@@ -2088,6 +2387,15 @@ mod tests {
             company_announcements: None,
             force_login_method: None,
             force_login_org_uuid: None,
+            allow_managed_mcp_servers_only: None,
+            allowed_channel_plugins: None,
+            attribution_enabled: None,
+            attribution_rules: None,
+            auto_memory_enabled: None,
+            auto_memory_directory: None,
+            claude_md_excludes: None,
+            agent: None,
+            disable_auto_mode: None,
         };
 
         write_claude_settings(&PermissionScope::Local, Some(project_path), &settings).unwrap();
@@ -2140,6 +2448,7 @@ mod tests {
             output_style: None,
             language: None,
             always_thinking_enabled: None,
+            effort_level: None,
             attribution_commit: None,
             attribution_pr: None,
             sandbox: None,
@@ -2173,6 +2482,15 @@ mod tests {
             company_announcements: None,
             force_login_method: None,
             force_login_org_uuid: None,
+            allow_managed_mcp_servers_only: None,
+            allowed_channel_plugins: None,
+            attribution_enabled: None,
+            attribution_rules: None,
+            auto_memory_enabled: None,
+            auto_memory_directory: None,
+            claude_md_excludes: None,
+            agent: None,
+            disable_auto_mode: None,
         };
 
         write_claude_settings(&PermissionScope::Local, Some(project_path), &settings).unwrap();
@@ -2300,6 +2618,7 @@ mod tests {
             output_style: None,
             language: None,
             always_thinking_enabled: None,
+            effort_level: None,
             attribution_commit: None,
             attribution_pr: None,
             sandbox: Some(SandboxSettings {
@@ -2347,6 +2666,15 @@ mod tests {
             company_announcements: None,
             force_login_method: None,
             force_login_org_uuid: None,
+            allow_managed_mcp_servers_only: None,
+            allowed_channel_plugins: None,
+            attribution_enabled: None,
+            attribution_rules: None,
+            auto_memory_enabled: None,
+            auto_memory_directory: None,
+            claude_md_excludes: None,
+            agent: None,
+            disable_auto_mode: None,
         };
 
         // Write directly to file (bypassing scope resolution)
@@ -2417,6 +2745,7 @@ mod tests {
             output_style: None,
             language: None,
             always_thinking_enabled: None,
+            effort_level: None,
             attribution_commit: None,
             attribution_pr: None,
             sandbox: None,
@@ -2450,6 +2779,15 @@ mod tests {
             company_announcements: None,
             force_login_method: None,
             force_login_org_uuid: None,
+            allow_managed_mcp_servers_only: None,
+            allowed_channel_plugins: None,
+            attribution_enabled: None,
+            attribution_rules: None,
+            auto_memory_enabled: None,
+            auto_memory_directory: None,
+            claude_md_excludes: None,
+            agent: None,
+            disable_auto_mode: None,
         };
 
         write_claude_settings(&PermissionScope::Local, Some(project_path), &settings).unwrap();
@@ -2462,6 +2800,7 @@ mod tests {
             output_style: None,
             language: None,
             always_thinking_enabled: None,
+            effort_level: None,
             attribution_commit: None,
             attribution_pr: None,
             sandbox: None,
@@ -2495,6 +2834,15 @@ mod tests {
             company_announcements: None,
             force_login_method: None,
             force_login_org_uuid: None,
+            allow_managed_mcp_servers_only: None,
+            allowed_channel_plugins: None,
+            attribution_enabled: None,
+            attribution_rules: None,
+            auto_memory_enabled: None,
+            auto_memory_directory: None,
+            claude_md_excludes: None,
+            agent: None,
+            disable_auto_mode: None,
         };
 
         write_claude_settings(&PermissionScope::Local, Some(project_path), &clear).unwrap();

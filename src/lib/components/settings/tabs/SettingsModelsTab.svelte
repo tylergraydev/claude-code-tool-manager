@@ -19,8 +19,11 @@
 		if (s.outputStyle) count++;
 		if (s.language) count++;
 		if (s.alwaysThinkingEnabled !== undefined) count++;
+		if (s.effortLevel) count++;
 		if (s.attributionCommit !== undefined) count++;
 		if (s.attributionPr !== undefined) count++;
+		if (s.attributionEnabled !== undefined) count++;
+		if (s.attributionRules && s.attributionRules.length > 0) count++;
 		return count;
 	}
 </script>

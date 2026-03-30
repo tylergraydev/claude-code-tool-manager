@@ -39,6 +39,13 @@ export interface ParsedSkill {
 	model?: string;
 	disableModelInvocation?: boolean;
 	tags?: string[];
+	context?: string;
+	agent?: string;
+	hooks?: string;
+	paths?: string[];
+	shell?: string;
+	once?: boolean;
+	effort?: string;
 }
 
 export interface ParsedSubAgent {
@@ -50,6 +57,13 @@ export interface ParsedSubAgent {
 	permissionMode?: string;
 	skills?: string[];
 	tags?: string[];
+	disallowedTools?: string[];
+	maxTurns?: number;
+	memory?: string;
+	background?: boolean;
+	effort?: string;
+	isolation?: string;
+	initialPrompt?: string;
 }
 
 export interface ParseResult<T> {
@@ -135,6 +149,11 @@ export function parseSkillMarkdown(text: string): ParseResult<ParsedSkill> {
 		const disableModelInvocationRaw = frontmatter['disable-model-invocation'] || frontmatter['disableModelInvocation'];
 		const disableModelInvocation = disableModelInvocationRaw?.toLowerCase() === 'true';
 
+		const pathsRaw = frontmatter['paths'];
+		const paths = pathsRaw?.split(',').map(p => p.trim()).filter(p => p.length > 0);
+		const onceRaw = frontmatter['once'];
+		const once = onceRaw ? onceRaw.toLowerCase() === 'true' : undefined;
+
 		const skill: ParsedSkill = {
 			name: frontmatter.name,
 			description: frontmatter.description,
@@ -144,7 +163,14 @@ export function parseSkillMarkdown(text: string): ParseResult<ParsedSkill> {
 			argumentHint: frontmatter['argument-hint'] || frontmatter['argumentHint'],
 			model: frontmatter.model,
 			disableModelInvocation,
-			tags: frontmatter.tags?.split(',').map(t => t.trim()).filter(t => t.length > 0)
+			tags: frontmatter.tags?.split(',').map(t => t.trim()).filter(t => t.length > 0),
+			context: frontmatter['context'],
+			agent: frontmatter['agent'],
+			hooks: frontmatter['hooks'],
+			paths,
+			shell: frontmatter['shell'],
+			once,
+			effort: frontmatter['effort']
 		};
 
 		return { success: true, data: skill };
@@ -188,6 +214,11 @@ export function parseSubAgentMarkdown(text: string): ParseResult<ParsedSubAgent>
 			return { success: false, error: 'Missing content after frontmatter' };
 		}
 
+		const disallowedToolsRaw = frontmatter.disallowedTools || frontmatter['disallowed-tools'];
+		const maxTurnsRaw = frontmatter.maxTurns || frontmatter['max-turns'];
+		const backgroundRaw = frontmatter.background;
+		const initialPromptRaw = frontmatter.initialPrompt || frontmatter['initial-prompt'];
+
 		const subagent: ParsedSubAgent = {
 			name: frontmatter.name,
 			description: frontmatter.description,
@@ -196,7 +227,14 @@ export function parseSubAgentMarkdown(text: string): ParseResult<ParsedSubAgent>
 			model: frontmatter.model,
 			permissionMode: frontmatter.permissionMode || frontmatter['permission-mode'],
 			skills: frontmatter.skills?.split(',').map(t => t.trim()).filter(t => t.length > 0),
-			tags: frontmatter.tags?.split(',').map(t => t.trim()).filter(t => t.length > 0)
+			tags: frontmatter.tags?.split(',').map(t => t.trim()).filter(t => t.length > 0),
+			disallowedTools: disallowedToolsRaw?.split(',').map(t => t.trim()).filter(t => t.length > 0),
+			maxTurns: maxTurnsRaw ? parseInt(maxTurnsRaw, 10) : undefined,
+			memory: frontmatter.memory,
+			background: backgroundRaw ? backgroundRaw.toLowerCase() === 'true' : undefined,
+			effort: frontmatter.effort,
+			isolation: frontmatter.isolation,
+			initialPrompt: initialPromptRaw
 		};
 
 		return { success: true, data: subagent };

@@ -77,6 +77,7 @@ describe('Badge Component', () => {
 		const { container } = render(Badge, { props: { title: 'Help text', children } });
 		const badge = container.querySelector('span.inline-flex');
 		expect(badge?.getAttribute('title')).toBe('Help text');
+		expect(badge?.className).toContain('cursor-help');
 	});
 });
 

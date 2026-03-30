@@ -11,6 +11,10 @@ fn parse_json_array(s: Option<String>) -> Option<Vec<String>> {
     s.and_then(|v| serde_json::from_str(&v).ok())
 }
 
+fn parse_json_value(s: Option<String>) -> Option<serde_json::Value> {
+    s.and_then(|v| serde_json::from_str(&v).ok())
+}
+
 fn row_to_hook(row: &rusqlite::Row) -> rusqlite::Result<Hook> {
     Ok(Hook {
         id: row.get(0)?,
@@ -22,11 +26,19 @@ fn row_to_hook(row: &rusqlite::Row) -> rusqlite::Result<Hook> {
         command: row.get(6)?,
         prompt: row.get(7)?,
         timeout: row.get(8)?,
-        tags: parse_json_array(row.get(9)?),
-        source: row.get(10)?,
-        is_template: row.get::<_, i32>(11)? != 0,
-        created_at: row.get(12)?,
-        updated_at: row.get(13)?,
+        url: row.get(9)?,
+        headers: parse_json_value(row.get(10)?),
+        allowed_env_vars: parse_json_array(row.get(11)?),
+        if_condition: row.get(12)?,
+        status_message: row.get(13)?,
+        once: row.get::<_, i32>(14).unwrap_or(0) != 0,
+        async_mode: row.get::<_, i32>(15).unwrap_or(0) != 0,
+        shell: row.get(16)?,
+        tags: parse_json_array(row.get(17)?),
+        source: row.get(18)?,
+        is_template: row.get::<_, i32>(19)? != 0,
+        created_at: row.get(20)?,
+        updated_at: row.get(21)?,
     })
 }
 
@@ -41,18 +53,26 @@ fn row_to_hook_with_offset(row: &rusqlite::Row, offset: usize) -> rusqlite::Resu
         command: row.get(offset + 6)?,
         prompt: row.get(offset + 7)?,
         timeout: row.get(offset + 8)?,
-        tags: parse_json_array(row.get(offset + 9)?),
-        source: row.get(offset + 10)?,
-        is_template: row.get::<_, i32>(offset + 11)? != 0,
-        created_at: row.get(offset + 12)?,
-        updated_at: row.get(offset + 13)?,
+        url: row.get(offset + 9)?,
+        headers: parse_json_value(row.get(offset + 10)?),
+        allowed_env_vars: parse_json_array(row.get(offset + 11)?),
+        if_condition: row.get(offset + 12)?,
+        status_message: row.get(offset + 13)?,
+        once: row.get::<_, i32>(offset + 14).unwrap_or(0) != 0,
+        async_mode: row.get::<_, i32>(offset + 15).unwrap_or(0) != 0,
+        shell: row.get(offset + 16)?,
+        tags: parse_json_array(row.get(offset + 17)?),
+        source: row.get(offset + 18)?,
+        is_template: row.get::<_, i32>(offset + 19)? != 0,
+        created_at: row.get(offset + 20)?,
+        updated_at: row.get(offset + 21)?,
     })
 }
 
-const HOOK_SELECT_FIELDS: &str = "id, name, description, event_type, matcher, hook_type, command, prompt, timeout, tags, source, is_template, created_at, updated_at";
+const HOOK_SELECT_FIELDS: &str = "id, name, description, event_type, matcher, hook_type, command, prompt, timeout, url, headers, allowed_env_vars, if_condition, status_message, once, async_mode, shell, tags, source, is_template, created_at, updated_at";
 
 // Table-prefixed version for JOIN queries to avoid ambiguous column names
-const HOOK_SELECT_FIELDS_H: &str = "h.id, h.name, h.description, h.event_type, h.matcher, h.hook_type, h.command, h.prompt, h.timeout, h.tags, h.source, h.is_template, h.created_at, h.updated_at";
+const HOOK_SELECT_FIELDS_H: &str = "h.id, h.name, h.description, h.event_type, h.matcher, h.hook_type, h.command, h.prompt, h.timeout, h.url, h.headers, h.allowed_env_vars, h.if_condition, h.status_message, h.once, h.async_mode, h.shell, h.tags, h.source, h.is_template, h.created_at, h.updated_at";
 
 // Helper to get all enabled global hooks and write to settings.json
 fn sync_global_hooks(db: &Database) -> Result<(), String> {
@@ -142,12 +162,20 @@ pub fn create_hook(
         .tags
         .as_ref()
         .map(|t| serde_json::to_string(t).unwrap());
+    let headers_json = hook
+        .headers
+        .as_ref()
+        .map(|h| serde_json::to_string(h).unwrap());
+    let env_vars_json = hook
+        .allowed_env_vars
+        .as_ref()
+        .map(|v| serde_json::to_string(v).unwrap());
 
     db_guard
         .conn()
         .execute(
-            "INSERT INTO hooks (name, description, event_type, matcher, hook_type, command, prompt, timeout, tags, source)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'manual')",
+            "INSERT INTO hooks (name, description, event_type, matcher, hook_type, command, prompt, timeout, url, headers, allowed_env_vars, if_condition, status_message, once, async_mode, shell, tags, source)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'manual')",
             params![
                 hook.name,
                 hook.description,
@@ -157,6 +185,14 @@ pub fn create_hook(
                 hook.command,
                 hook.prompt,
                 hook.timeout,
+                hook.url,
+                headers_json,
+                env_vars_json,
+                hook.if_condition,
+                hook.status_message,
+                hook.once.unwrap_or(false) as i32,
+                hook.async_mode.unwrap_or(false) as i32,
+                hook.shell,
                 tags_json
             ],
         )
@@ -200,8 +236,8 @@ pub fn create_hook_from_template(
     db_guard
         .conn()
         .execute(
-            "INSERT INTO hooks (name, description, event_type, matcher, hook_type, command, prompt, timeout, tags, source, is_template)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'template', 0)",
+            "INSERT INTO hooks (name, description, event_type, matcher, hook_type, command, prompt, timeout, url, headers, allowed_env_vars, if_condition, status_message, once, async_mode, shell, tags, source, is_template)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'template', 0)",
             params![
                 name,
                 template.description,
@@ -211,6 +247,14 @@ pub fn create_hook_from_template(
                 template.command,
                 template.prompt,
                 template.timeout,
+                template.url,
+                template.headers.as_ref().map(|h| serde_json::to_string(h).unwrap()),
+                template.allowed_env_vars.as_ref().map(|v| serde_json::to_string(v).unwrap()),
+                template.if_condition,
+                template.status_message,
+                template.once as i32,
+                template.async_mode as i32,
+                template.shell,
                 template.tags.as_ref().map(|t| serde_json::to_string(t).unwrap())
             ],
         )
@@ -241,11 +285,19 @@ pub fn update_hook(
         .tags
         .as_ref()
         .map(|t| serde_json::to_string(t).unwrap());
+    let headers_json = hook
+        .headers
+        .as_ref()
+        .map(|h| serde_json::to_string(h).unwrap());
+    let env_vars_json = hook
+        .allowed_env_vars
+        .as_ref()
+        .map(|v| serde_json::to_string(v).unwrap());
 
     db_guard
         .conn()
         .execute(
-            "UPDATE hooks SET name = ?, description = ?, event_type = ?, matcher = ?, hook_type = ?, command = ?, prompt = ?, timeout = ?, tags = ?, updated_at = CURRENT_TIMESTAMP
+            "UPDATE hooks SET name = ?, description = ?, event_type = ?, matcher = ?, hook_type = ?, command = ?, prompt = ?, timeout = ?, url = ?, headers = ?, allowed_env_vars = ?, if_condition = ?, status_message = ?, once = ?, async_mode = ?, shell = ?, tags = ?, updated_at = CURRENT_TIMESTAMP
              WHERE id = ?",
             params![
                 hook.name,
@@ -256,6 +308,14 @@ pub fn update_hook(
                 hook.command,
                 hook.prompt,
                 hook.timeout,
+                hook.url,
+                headers_json,
+                env_vars_json,
+                hook.if_condition,
+                hook.status_message,
+                hook.once.unwrap_or(false) as i32,
+                hook.async_mode.unwrap_or(false) as i32,
+                hook.shell,
                 tags_json,
                 id
             ],
@@ -598,10 +658,10 @@ pub fn seed_hook_templates(db: State<'_, Arc<Mutex<Database>>>) -> Result<(), St
             "PostToolUse",
             Some("Write|Edit"),
             "command",
-            // Read the file path from stdin JSON tool_input
             Some("FILE=$(cat | jq -r '.tool_input.file_path // empty') && [ -n \"$FILE\" ] && npx prettier --write \"$FILE\""),
             None::<&str>,
             Some(30),
+            None::<&str>,
         ),
         (
             "Protect .env files",
@@ -609,10 +669,10 @@ pub fn seed_hook_templates(db: State<'_, Arc<Mutex<Database>>>) -> Result<(), St
             "PreToolUse",
             Some("Write|Edit"),
             "command",
-            // Read tool_input from stdin and check for .env files
             Some("INPUT=$(cat) && FILE=$(echo \"$INPUT\" | jq -r '.tool_input.file_path // empty') && if echo \"$FILE\" | grep -q '\\.env'; then echo 'Cannot modify .env files' >&2; exit 2; fi"),
-            None,
+            None::<&str>,
             Some(5),
+            None::<&str>,
         ),
         (
             "Log tool usage",
@@ -620,10 +680,10 @@ pub fn seed_hook_templates(db: State<'_, Arc<Mutex<Database>>>) -> Result<(), St
             "PostToolUse",
             None::<&str>,
             "command",
-            // Read tool_name from stdin JSON
             Some("TOOL=$(cat | jq -r '.tool_name') && echo \"$(date): $TOOL\" >> ~/.claude/tool-log.txt"),
-            None,
+            None::<&str>,
             Some(5),
+            None::<&str>,
         ),
         (
             "Session greeting",
@@ -632,8 +692,9 @@ pub fn seed_hook_templates(db: State<'_, Arc<Mutex<Database>>>) -> Result<(), St
             Some("startup"),
             "command",
             Some("echo 'Welcome! Type /help for available commands.'"),
-            None,
+            None::<&str>,
             None::<i32>,
+            None::<&str>,
         ),
         (
             "Lint on save",
@@ -641,20 +702,86 @@ pub fn seed_hook_templates(db: State<'_, Arc<Mutex<Database>>>) -> Result<(), St
             "PostToolUse",
             Some("Write|Edit"),
             "command",
-            // Read file path from stdin JSON and check extension
             Some("FILE=$(cat | jq -r '.tool_input.file_path // empty') && if echo \"$FILE\" | grep -qE '\\.(js|ts|jsx|tsx)$'; then npx eslint --fix \"$FILE\"; fi"),
-            None,
+            None::<&str>,
             Some(60),
+            None::<&str>,
+        ),
+        (
+            "Log tool failures",
+            "Log failed tool invocations for debugging",
+            "PostToolUseFailure",
+            None::<&str>,
+            "command",
+            Some("INPUT=$(cat) && TOOL=$(echo \"$INPUT\" | jq -r '.tool_name') && echo \"$(date): FAILED $TOOL\" >> ~/.claude/tool-failures.txt"),
+            None::<&str>,
+            Some(5),
+            None::<&str>,
+        ),
+        (
+            "Alert on error stop",
+            "Notify when session stops due to an error",
+            "StopFailure",
+            None::<&str>,
+            "command",
+            Some("INPUT=$(cat) && TYPE=$(echo \"$INPUT\" | jq -r '.error_type // \"unknown\"') && echo \"Session stopped: $TYPE\" >&2"),
+            None::<&str>,
+            None::<i32>,
+            None::<&str>,
+        ),
+        (
+            "Track config changes",
+            "Log when Claude Code settings are modified",
+            "ConfigChange",
+            None::<&str>,
+            "command",
+            Some("INPUT=$(cat) && SOURCE=$(echo \"$INPUT\" | jq -r '.source // \"unknown\"') && echo \"$(date): Config changed ($SOURCE)\" >> ~/.claude/config-changes.txt"),
+            None::<&str>,
+            Some(5),
+            None::<&str>,
+        ),
+        (
+            "Auto-lint on file change",
+            "Run linter when a watched file changes externally",
+            "FileChanged",
+            None::<&str>,
+            "command",
+            Some("FILE=$(cat | jq -r '.filename // empty') && [ -n \"$FILE\" ] && echo \"File changed: $FILE\""),
+            None::<&str>,
+            Some(10),
+            None::<&str>, // url
+        ),
+        (
+            "Webhook on stop",
+            "POST session summary to a webhook URL when the session ends",
+            "Stop",
+            None::<&str>,
+            "http",
+            None::<&str>,
+            None::<&str>,
+            Some(10),
+            Some("https://example.com/hooks/session-end"),
+        ),
+        (
+            "Agent code review",
+            "Spawn a review subagent after tool use",
+            "PostToolUse",
+            Some("Write|Edit"),
+            "agent",
+            None::<&str>,
+            None::<&str>,
+            None::<i32>,
+            None::<&str>,
         ),
     ];
 
-    for (name, desc, event, matcher, hook_type, command, prompt, timeout) in templates {
+    for (name, desc, event, matcher, hook_type, command, prompt, timeout, url) in templates {
         db_guard
             .conn()
             .execute(
-                "INSERT OR IGNORE INTO hooks (name, description, event_type, matcher, hook_type, command, prompt, timeout, source, is_template)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'system', 1)",
-                params![name, desc, event, matcher, hook_type, command, prompt, timeout],
+                "INSERT OR IGNORE INTO hooks (name, description, event_type, matcher, hook_type, command, prompt, timeout, url, source, is_template)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'system', 1)",
+                params![name, desc, event, matcher, hook_type, command, prompt, timeout, url],
             )
             .map_err(|e| e.to_string())?;
     }
@@ -815,8 +942,8 @@ pub fn duplicate_hook(
     db_guard
         .conn()
         .execute(
-            "INSERT INTO hooks (name, description, event_type, matcher, hook_type, command, prompt, timeout, tags, source, is_template)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'manual', 0)",
+            "INSERT INTO hooks (name, description, event_type, matcher, hook_type, command, prompt, timeout, url, headers, allowed_env_vars, if_condition, status_message, once, async_mode, shell, tags, source, is_template)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'manual', 0)",
             params![
                 new_name,
                 original.description,
@@ -826,6 +953,14 @@ pub fn duplicate_hook(
                 original.command,
                 original.prompt,
                 original.timeout,
+                original.url,
+                original.headers.as_ref().map(|h| serde_json::to_string(h).unwrap()),
+                original.allowed_env_vars.as_ref().map(|v| serde_json::to_string(v).unwrap()),
+                original.if_condition,
+                original.status_message,
+                original.once as i32,
+                original.async_mode as i32,
+                original.shell,
                 original.tags.as_ref().map(|t| serde_json::to_string(t).unwrap())
             ],
         )
@@ -855,11 +990,19 @@ pub(crate) fn create_hook_in_db(db: &Database, hook: &CreateHookRequest) -> Resu
         .tags
         .as_ref()
         .map(|t| serde_json::to_string(t).unwrap());
+    let headers_json = hook
+        .headers
+        .as_ref()
+        .map(|h| serde_json::to_string(h).unwrap());
+    let env_vars_json = hook
+        .allowed_env_vars
+        .as_ref()
+        .map(|v| serde_json::to_string(v).unwrap());
 
     db.conn()
         .execute(
-            "INSERT INTO hooks (name, description, event_type, matcher, hook_type, command, prompt, timeout, tags, source)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'manual')",
+            "INSERT INTO hooks (name, description, event_type, matcher, hook_type, command, prompt, timeout, url, headers, allowed_env_vars, if_condition, status_message, once, async_mode, shell, tags, source)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'manual')",
             params![
                 hook.name,
                 hook.description,
@@ -869,6 +1012,14 @@ pub(crate) fn create_hook_in_db(db: &Database, hook: &CreateHookRequest) -> Resu
                 hook.command,
                 hook.prompt,
                 hook.timeout,
+                hook.url,
+                headers_json,
+                env_vars_json,
+                hook.if_condition,
+                hook.status_message,
+                hook.once.unwrap_or(false) as i32,
+                hook.async_mode.unwrap_or(false) as i32,
+                hook.shell,
                 tags_json
             ],
         )
@@ -920,10 +1071,18 @@ pub(crate) fn update_hook_in_db(
         .tags
         .as_ref()
         .map(|t| serde_json::to_string(t).unwrap());
+    let headers_json = hook
+        .headers
+        .as_ref()
+        .map(|h| serde_json::to_string(h).unwrap());
+    let env_vars_json = hook
+        .allowed_env_vars
+        .as_ref()
+        .map(|v| serde_json::to_string(v).unwrap());
 
     db.conn()
         .execute(
-            "UPDATE hooks SET name = ?, description = ?, event_type = ?, matcher = ?, hook_type = ?, command = ?, prompt = ?, timeout = ?, tags = ?, updated_at = CURRENT_TIMESTAMP
+            "UPDATE hooks SET name = ?, description = ?, event_type = ?, matcher = ?, hook_type = ?, command = ?, prompt = ?, timeout = ?, url = ?, headers = ?, allowed_env_vars = ?, if_condition = ?, status_message = ?, once = ?, async_mode = ?, shell = ?, tags = ?, updated_at = CURRENT_TIMESTAMP
              WHERE id = ?",
             params![
                 hook.name,
@@ -934,6 +1093,14 @@ pub(crate) fn update_hook_in_db(
                 hook.command,
                 hook.prompt,
                 hook.timeout,
+                hook.url,
+                headers_json,
+                env_vars_json,
+                hook.if_condition,
+                hook.status_message,
+                hook.once.unwrap_or(false) as i32,
+                hook.async_mode.unwrap_or(false) as i32,
+                hook.shell,
                 tags_json,
                 id
             ],
@@ -1035,6 +1202,14 @@ mod tests {
             command: Some("npm run lint".to_string()),
             prompt: None,
             timeout: Some(30),
+            url: None,
+            headers: None,
+            allowed_env_vars: None,
+            if_condition: None,
+            status_message: None,
+            once: None,
+            async_mode: None,
+            shell: None,
             tags: Some(vec!["lint".to_string(), "format".to_string()]),
         };
 
@@ -1069,6 +1244,14 @@ mod tests {
             command: None,
             prompt: Some("Always verify before writing".to_string()),
             timeout: None,
+            url: None,
+            headers: None,
+            allowed_env_vars: None,
+            if_condition: None,
+            status_message: None,
+            once: None,
+            async_mode: None,
+            shell: None,
             tags: None,
         };
 
@@ -1096,6 +1279,14 @@ mod tests {
             command: Some("echo hello".to_string()),
             prompt: None,
             timeout: None,
+            url: None,
+            headers: None,
+            allowed_env_vars: None,
+            if_condition: None,
+            status_message: None,
+            once: None,
+            async_mode: None,
+            shell: None,
             tags: None,
         };
 
@@ -1130,6 +1321,14 @@ mod tests {
                 command: Some("cmd".to_string()),
                 prompt: None,
                 timeout: None,
+                url: None,
+                headers: None,
+                allowed_env_vars: None,
+                if_condition: None,
+                status_message: None,
+                once: None,
+                async_mode: None,
+                shell: None,
                 tags: None,
             };
             create_hook_in_db(&db, &hook).unwrap();
@@ -1158,6 +1357,14 @@ mod tests {
             command: Some("cmd".to_string()),
             prompt: None,
             timeout: None,
+            url: None,
+            headers: None,
+            allowed_env_vars: None,
+            if_condition: None,
+            status_message: None,
+            once: None,
+            async_mode: None,
+            shell: None,
             tags: None,
         };
         create_hook_in_db(&db, &hook).unwrap();
@@ -1190,6 +1397,14 @@ mod tests {
             command: Some("original-cmd".to_string()),
             prompt: None,
             timeout: Some(10),
+            url: None,
+            headers: None,
+            allowed_env_vars: None,
+            if_condition: None,
+            status_message: None,
+            once: None,
+            async_mode: None,
+            shell: None,
             tags: None,
         };
 
@@ -1204,6 +1419,14 @@ mod tests {
             command: Some("updated-cmd".to_string()),
             prompt: None,
             timeout: Some(60),
+            url: None,
+            headers: None,
+            allowed_env_vars: None,
+            if_condition: None,
+            status_message: None,
+            once: None,
+            async_mode: None,
+            shell: None,
             tags: Some(vec!["updated".to_string()]),
         };
 
@@ -1235,6 +1458,14 @@ mod tests {
             command: Some("cmd".to_string()),
             prompt: None,
             timeout: None,
+            url: None,
+            headers: None,
+            allowed_env_vars: None,
+            if_condition: None,
+            status_message: None,
+            once: None,
+            async_mode: None,
+            shell: None,
             tags: None,
         };
 
@@ -1262,6 +1493,14 @@ mod tests {
             command: Some("cmd".to_string()),
             prompt: None,
             timeout: None,
+            url: None,
+            headers: None,
+            allowed_env_vars: None,
+            if_condition: None,
+            status_message: None,
+            once: None,
+            async_mode: None,
+            shell: None,
             tags: None,
         };
 
@@ -1288,6 +1527,14 @@ mod tests {
             command: Some("cmd".to_string()),
             prompt: None,
             timeout: None,
+            url: None,
+            headers: None,
+            allowed_env_vars: None,
+            if_condition: None,
+            status_message: None,
+            once: None,
+            async_mode: None,
+            shell: None,
             tags: None,
         };
 
@@ -1321,6 +1568,14 @@ mod tests {
             command: Some("cmd".to_string()),
             prompt: None,
             timeout: None,
+            url: None,
+            headers: None,
+            allowed_env_vars: None,
+            if_condition: None,
+            status_message: None,
+            once: None,
+            async_mode: None,
+            shell: None,
             tags: None,
         };
 
@@ -1356,6 +1611,14 @@ mod tests {
             command: Some("cmd".to_string()),
             prompt: None,
             timeout: None,
+            url: None,
+            headers: None,
+            allowed_env_vars: None,
+            if_condition: None,
+            status_message: None,
+            once: None,
+            async_mode: None,
+            shell: None,
             tags: None,
         };
 
@@ -1390,6 +1653,14 @@ mod tests {
                 command: Some("cmd".to_string()),
                 prompt: None,
                 timeout: None,
+                url: None,
+                headers: None,
+                allowed_env_vars: None,
+                if_condition: None,
+                status_message: None,
+                once: None,
+                async_mode: None,
+                shell: None,
                 tags: None,
             };
 
@@ -1411,6 +1682,14 @@ mod tests {
             command: Some("cmd".to_string()),
             prompt: None,
             timeout: None,
+            url: None,
+            headers: None,
+            allowed_env_vars: None,
+            if_condition: None,
+            status_message: None,
+            once: None,
+            async_mode: None,
+            shell: None,
             tags: None,
         };
 
@@ -1431,6 +1710,14 @@ mod tests {
             command: Some("cmd".to_string()),
             prompt: None,
             timeout: None,
+            url: None,
+            headers: None,
+            allowed_env_vars: None,
+            if_condition: None,
+            status_message: None,
+            once: None,
+            async_mode: None,
+            shell: None,
             tags: Some(vec![]),
         };
 

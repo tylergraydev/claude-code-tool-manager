@@ -9,9 +9,10 @@
 	type Props = {
 		onEdit?: (subagent: SubAgent) => void;
 		onDelete?: (subagent: SubAgent) => void;
+		onViewMemory?: (subagent: SubAgent) => void;
 	};
 
-	let { onEdit, onDelete }: Props = $props();
+	let { onEdit, onDelete, onViewMemory }: Props = $props();
 
 	async function handleFavoriteToggle(subagent: SubAgent, favorite: boolean) {
 		try {
@@ -65,6 +66,7 @@
 					{subagent}
 					{onEdit}
 					{onDelete}
+					{onViewMemory}
 					onFavoriteToggle={handleFavoriteToggle}
 				/>
 			{/each}

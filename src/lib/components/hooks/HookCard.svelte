@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { Hook } from '$lib/types';
-	import { Zap, Terminal, MessageSquare, MoreVertical, Edit, Trash2, Copy } from 'lucide-svelte';
+	import { Zap, Terminal, MessageSquare, Globe, Bot, MoreVertical, Edit, Trash2, Copy } from 'lucide-svelte';
 
 	type Props = {
 		hook: Hook;
@@ -37,7 +37,13 @@
 		showMenu = !showMenu;
 	}
 
-	const isCommand = hook.hookType === 'command';
+	const hookTypeConfig: Record<string, { icon: typeof Terminal; label: string; class: string }> = {
+		command: { icon: Terminal, label: 'Command', class: 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300' },
+		prompt: { icon: MessageSquare, label: 'Prompt', class: 'bg-violet-100 text-violet-600 dark:bg-violet-900/50 dark:text-violet-300' },
+		http: { icon: Globe, label: 'HTTP', class: 'bg-blue-100 text-blue-600 dark:bg-blue-900/50 dark:text-blue-300' },
+		agent: { icon: Bot, label: 'Agent', class: 'bg-green-100 text-green-600 dark:bg-green-900/50 dark:text-green-300' },
+	};
+	const typeConf = hookTypeConfig[hook.hookType] ?? hookTypeConfig.command;
 
 	// Event type color mapping
 	const eventColors: Record<string, string> = {
@@ -82,14 +88,9 @@
 
 			<div class="flex items-center gap-1.5 mt-2 flex-wrap">
 				<!-- Hook type badge -->
-				<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium {isCommand ? 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300' : 'bg-violet-100 text-violet-600 dark:bg-violet-900/50 dark:text-violet-300'}">
-					{#if isCommand}
-						<Terminal class="w-3 h-3" />
-						Command
-					{:else}
-						<MessageSquare class="w-3 h-3" />
-						Prompt
-					{/if}
+				<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium {typeConf.class}">
+					<svelte:component this={typeConf.icon} class="w-3 h-3" />
+					{typeConf.label}
 				</span>
 
 				<!-- Matcher badge -->
@@ -103,6 +104,28 @@
 				{#if hook.timeout}
 					<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300">
 						{hook.timeout}s timeout
+					</span>
+				{/if}
+
+				<!-- Advanced field badges -->
+				{#if hook.once}
+					<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-600 dark:bg-amber-900/50 dark:text-amber-300">
+						Once
+					</span>
+				{/if}
+				{#if hook.asyncMode}
+					<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-cyan-100 text-cyan-600 dark:bg-cyan-900/50 dark:text-cyan-300">
+						Async
+					</span>
+				{/if}
+				{#if hook.shell && hook.shell !== 'bash'}
+					<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300">
+						{hook.shell}
+					</span>
+				{/if}
+				{#if hook.ifCondition}
+					<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-600 dark:bg-orange-900/50 dark:text-orange-300 font-mono">
+						if: {hook.ifCondition}
 					</span>
 				{/if}
 

@@ -36,13 +36,15 @@
 	const typeIcons = {
 		stdio: Plug,
 		sse: Globe,
-		http: Server
+		http: Server,
+		ws: Radio
 	};
 
 	const typeColors = {
 		stdio: 'bg-purple-100 text-purple-600 dark:bg-purple-900/50 dark:text-purple-400',
 		sse: 'bg-green-100 text-green-600 dark:bg-green-900/50 dark:text-green-400',
-		http: 'bg-blue-100 text-blue-600 dark:bg-blue-900/50 dark:text-blue-400'
+		http: 'bg-blue-100 text-blue-600 dark:bg-blue-900/50 dark:text-blue-400',
+		ws: 'bg-orange-100 text-orange-600 dark:bg-orange-900/50 dark:text-orange-400'
 	};
 
 	const TypeIcon = typeIcons[mcp.type];

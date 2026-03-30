@@ -20,6 +20,15 @@
 	let toolsInput = $state(initialValues.tools?.join(', ') ?? '');
 	let skillsInput = $state(initialValues.skills?.join(', ') ?? '');
 	let tagsInput = $state(initialValues.tags?.join(', ') ?? '');
+	let disallowedToolsInput = $state(initialValues.disallowedTools?.join(', ') ?? '');
+	let maxTurns = $state(initialValues.maxTurns?.toString() ?? '');
+	let memory = $state(initialValues.memory ?? '');
+	let background = $state(initialValues.background ?? false);
+	let effort = $state(initialValues.effort ?? '');
+	let isolation = $state(initialValues.isolation ?? '');
+	let hooksInput = $state(initialValues.hooks ?? '');
+	let mcpServersInput = $state(initialValues.mcpServers ?? '');
+	let initialPrompt = $state(initialValues.initialPrompt ?? '');
 
 	let isSubmitting = $state(false);
 	let errors = $state<Record<string, string>>({});
@@ -37,6 +46,13 @@
 		if (subagent.permissionMode) permissionMode = subagent.permissionMode;
 		if (subagent.skills) skillsInput = subagent.skills.join(', ');
 		if (subagent.tags) tagsInput = subagent.tags.join(', ');
+		if (subagent.disallowedTools) disallowedToolsInput = subagent.disallowedTools.join(', ');
+		if (subagent.maxTurns !== undefined) maxTurns = subagent.maxTurns.toString();
+		if (subagent.memory) memory = subagent.memory;
+		if (subagent.background !== undefined) background = subagent.background;
+		if (subagent.effort) effort = subagent.effort;
+		if (subagent.isolation) isolation = subagent.isolation;
+		if (subagent.initialPrompt) initialPrompt = subagent.initialPrompt;
 
 		importStatus = 'success';
 		importMessage = subagent.name ? `Imported "${subagent.name}"` : 'Content imported';
@@ -129,6 +145,26 @@
 		{ value: 'inherit', label: 'Inherit (use main conversation model)' }
 	];
 
+	const effortOptions = [
+		{ value: '', label: 'Default (inherit from parent)' },
+		{ value: 'low', label: 'Low' },
+		{ value: 'medium', label: 'Medium' },
+		{ value: 'high', label: 'High' },
+		{ value: 'max', label: 'Max' }
+	];
+
+	const memoryOptions = [
+		{ value: '', label: 'None' },
+		{ value: 'user', label: 'User (global across projects)' },
+		{ value: 'project', label: 'Project (scoped to project)' },
+		{ value: 'local', label: 'Local (scoped to working directory)' }
+	];
+
+	const isolationOptions = [
+		{ value: '', label: 'None (shared workspace)' },
+		{ value: 'worktree', label: 'Worktree (isolated git worktree)' }
+	];
+
 	const permissionModeOptions = [
 		{ value: '', label: 'Default (standard permission prompting)' },
 		{ value: 'default', label: 'Default' },
@@ -181,6 +217,13 @@
 			.map((t) => t.trim())
 			.filter((t) => t.length > 0);
 
+		const disallowedTools = disallowedToolsInput
+			.split(',')
+			.map((t) => t.trim())
+			.filter((t) => t.length > 0);
+
+		const parsedMaxTurns = maxTurns ? parseInt(maxTurns, 10) : undefined;
+
 		const request: CreateSubAgentRequest = {
 			name: name.trim(),
 			description: description.trim(),
@@ -189,7 +232,16 @@
 			permissionMode: permissionMode || undefined,
 			tools: tools.length > 0 ? tools : undefined,
 			skills: skills.length > 0 ? skills : undefined,
-			tags: tags.length > 0 ? tags : undefined
+			tags: tags.length > 0 ? tags : undefined,
+			disallowedTools: disallowedTools.length > 0 ? disallowedTools : undefined,
+			maxTurns: parsedMaxTurns && !isNaN(parsedMaxTurns) ? parsedMaxTurns : undefined,
+			memory: memory || undefined,
+			background: background || undefined,
+			effort: effort || undefined,
+			isolation: isolation || undefined,
+			hooks: hooksInput.trim() || undefined,
+			mcpServers: mcpServersInput.trim() || undefined,
+			initialPrompt: initialPrompt.trim() || undefined
 		};
 
 		onSubmit(request);
@@ -363,6 +415,162 @@
 		/>
 		<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
 			Comma-separated list of skills to automatically load when sub-agent starts
+		</p>
+	</div>
+
+	<!-- Disallowed Tools -->
+	<div>
+		<label for="disallowedTools" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+			Disallowed Tools
+		</label>
+		<input
+			type="text"
+			id="disallowedTools"
+			bind:value={disallowedToolsInput}
+			class="input mt-1"
+			placeholder="Bash, Write, Edit"
+		/>
+		<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+			Comma-separated list of tools to deny. Complement of allowed tools.
+		</p>
+	</div>
+
+	<!-- Max Turns -->
+	<div>
+		<label for="maxTurns" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+			Max Turns
+		</label>
+		<input
+			type="number"
+			id="maxTurns"
+			bind:value={maxTurns}
+			class="input mt-1"
+			min="1"
+			placeholder="e.g. 10"
+		/>
+		<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+			Maximum number of iterations before the sub-agent stops
+		</p>
+	</div>
+
+	<!-- Effort -->
+	<div>
+		<label for="effort" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+			Effort Level
+		</label>
+		<select
+			id="effort"
+			bind:value={effort}
+			class="input mt-1"
+		>
+			{#each effortOptions as option}
+				<option value={option.value}>{option.label}</option>
+			{/each}
+		</select>
+		<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+			Controls how much thinking the sub-agent does
+		</p>
+	</div>
+
+	<!-- Memory -->
+	<div>
+		<label for="memory" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+			Memory
+		</label>
+		<select
+			id="memory"
+			bind:value={memory}
+			class="input mt-1"
+		>
+			{#each memoryOptions as option}
+				<option value={option.value}>{option.label}</option>
+			{/each}
+		</select>
+		<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+			Persistent memory scope for this sub-agent
+		</p>
+	</div>
+
+	<!-- Isolation -->
+	<div>
+		<label for="isolation" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+			Isolation
+		</label>
+		<select
+			id="isolation"
+			bind:value={isolation}
+			class="input mt-1"
+		>
+			{#each isolationOptions as option}
+				<option value={option.value}>{option.label}</option>
+			{/each}
+		</select>
+		<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+			Run the sub-agent in an isolated git worktree
+		</p>
+	</div>
+
+	<!-- Background -->
+	<div class="flex items-center gap-3">
+		<input
+			type="checkbox"
+			id="background"
+			bind:checked={background}
+			class="h-4 w-4 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500"
+		/>
+		<label for="background" class="text-sm font-medium text-gray-700 dark:text-gray-300">
+			Always run in background
+		</label>
+	</div>
+
+	<!-- Initial Prompt -->
+	<div>
+		<label for="initialPrompt" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+			Initial Prompt
+		</label>
+		<textarea
+			id="initialPrompt"
+			bind:value={initialPrompt}
+			rows={2}
+			class="input mt-1 resize-none"
+			placeholder="Auto-submitted first prompt when the sub-agent starts"
+		></textarea>
+		<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+			Automatically submitted as the first prompt when this sub-agent is invoked
+		</p>
+	</div>
+
+	<!-- Hooks (JSON) -->
+	<div>
+		<label for="hooks" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+			Scoped Hooks
+		</label>
+		<textarea
+			id="hooks"
+			bind:value={hooksInput}
+			rows={3}
+			class="input mt-1 font-mono text-sm resize-y"
+			placeholder={'{"PreToolUse": [{"command": "echo pre"}]}'}
+		></textarea>
+		<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+			JSON object of hooks that run only within this sub-agent
+		</p>
+	</div>
+
+	<!-- MCP Servers (JSON) -->
+	<div>
+		<label for="mcpServers" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+			Scoped MCP Servers
+		</label>
+		<textarea
+			id="mcpServers"
+			bind:value={mcpServersInput}
+			rows={3}
+			class="input mt-1 font-mono text-sm resize-y"
+			placeholder={'{"my-server": {"command": "npx", "args": ["-y", "my-server"]}}'}
+		></textarea>
+		<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+			JSON object of MCP servers available only to this sub-agent
 		</p>
 	</div>
 

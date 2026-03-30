@@ -305,6 +305,21 @@ pub fn run() {
             commands::hooks::export_hooks_to_json,
             commands::hooks::create_sound_notification_hooks,
             commands::hooks::duplicate_hook,
+            // Rule Commands
+            commands::rules::get_all_rules,
+            commands::rules::create_rule,
+            commands::rules::update_rule,
+            commands::rules::delete_rule,
+            commands::rules::toggle_rule_favorite,
+            commands::rules::get_global_rules,
+            commands::rules::add_global_rule,
+            commands::rules::remove_global_rule,
+            commands::rules::toggle_global_rule,
+            commands::rules::get_project_rules,
+            commands::rules::assign_rule_to_project,
+            commands::rules::remove_rule_from_project,
+            commands::rules::toggle_project_rule,
+            commands::rules::get_active_rules_for_path,
             // Sound Commands
             commands::sounds::get_system_sounds,
             commands::sounds::get_custom_sounds,
@@ -422,6 +437,11 @@ pub fn run() {
             commands::permissions::set_additional_directories,
             commands::permissions::get_permission_templates,
             commands::permissions::seed_permission_templates,
+            // Agent Memory Commands
+            commands::agent_memory::get_agent_memory,
+            commands::agent_memory::save_agent_memory,
+            commands::agent_memory::delete_agent_memory,
+            commands::agent_memory::list_agent_memories,
             // Memory Commands
             commands::memory::get_all_memory_files,
             commands::memory::get_memory_file,

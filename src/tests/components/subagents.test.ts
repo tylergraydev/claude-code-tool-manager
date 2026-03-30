@@ -193,7 +193,7 @@ describe('SubAgentForm Component', () => {
 
 	it('should render model options', () => {
 		render(SubAgentForm, { props: { onSubmit: vi.fn(), onCancel: vi.fn() } });
-		expect(screen.getByText('Default (inherit from parent)')).toBeInTheDocument();
+		expect(screen.getAllByText('Default (inherit from parent)').length).toBeGreaterThanOrEqual(1);
 		expect(screen.getByText('Sonnet')).toBeInTheDocument();
 		expect(screen.getByText('Opus')).toBeInTheDocument();
 		expect(screen.getByText('Haiku')).toBeInTheDocument();

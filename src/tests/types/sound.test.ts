@@ -40,6 +40,15 @@ describe('Sound Types', () => {
 			expect(getSuggestedSound('PostToolUse')).toBe('/System/Library/Sounds/Pop.aiff');
 			expect(getSuggestedSound('UserPromptSubmit')).toBe('/System/Library/Sounds/Pop.aiff');
 		});
+
+		it('should suggest Glass for TaskCompleted event', () => {
+			expect(getSuggestedSound('TaskCompleted')).toBe('/System/Library/Sounds/Glass.aiff');
+		});
+
+		it('should suggest Basso for failure events', () => {
+			expect(getSuggestedSound('StopFailure')).toBe('/System/Library/Sounds/Basso.aiff');
+			expect(getSuggestedSound('PostToolUseFailure')).toBe('/System/Library/Sounds/Basso.aiff');
+		});
 	});
 
 	describe('SOUND_HOOK_PRESETS', () => {
@@ -49,6 +58,7 @@ describe('Sound Types', () => {
 			expect(preset?.name).toBe('Task Complete');
 			expect(preset?.events).toContain('Stop');
 			expect(preset?.events).toContain('SubagentStop');
+			expect(preset?.events).toContain('TaskCompleted');
 		});
 
 		it('should have permission-required preset', () => {
@@ -58,12 +68,22 @@ describe('Sound Types', () => {
 			expect(preset?.events).toContain('Notification');
 		});
 
+		it('should have error-alert preset', () => {
+			const preset = SOUND_HOOK_PRESETS.find((p) => p.id === 'error-alert');
+			expect(preset).toBeDefined();
+			expect(preset?.name).toBe('Error Alert');
+			expect(preset?.events).toContain('StopFailure');
+			expect(preset?.events).toContain('PostToolUseFailure');
+		});
+
 		it('should have full-suite preset', () => {
 			const preset = SOUND_HOOK_PRESETS.find((p) => p.id === 'full-suite');
 			expect(preset).toBeDefined();
 			expect(preset?.name).toBe('Full Notification Suite');
 			expect(preset?.events).toContain('Stop');
 			expect(preset?.events).toContain('SubagentStop');
+			expect(preset?.events).toContain('TaskCompleted');
+			expect(preset?.events).toContain('StopFailure');
 			expect(preset?.events).toContain('Notification');
 		});
 

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { Header } from '$lib/components/layout';
-	import { SubAgentLibrary, SubAgentForm } from '$lib/components/subagents';
+	import { SubAgentLibrary, SubAgentForm, AgentMemoryPanel } from '$lib/components/subagents';
 	import { ConfirmDialog } from '$lib/components/shared';
 	import { subagentLibrary, notifications } from '$lib/stores';
 	import type { SubAgent } from '$lib/types';
@@ -9,6 +9,7 @@
 	let showAddSubAgent = $state(false);
 	let editingSubAgent = $state<SubAgent | null>(null);
 	let deletingSubAgent = $state<SubAgent | null>(null);
+	let memorySubAgent = $state<SubAgent | null>(null);
 
 	async function handleCreateSubAgent(values: any) {
 		try {
@@ -60,6 +61,7 @@
 	<SubAgentLibrary
 		onEdit={(subagent) => (editingSubAgent = subagent)}
 		onDelete={(subagent) => (deletingSubAgent = subagent)}
+		onViewMemory={(subagent) => (memorySubAgent = subagent)}
 	/>
 </div>
 
@@ -89,6 +91,14 @@
 			</div>
 		</div>
 	</div>
+{/if}
+
+<!-- Agent Memory Panel -->
+{#if memorySubAgent}
+	<AgentMemoryPanel
+		subagent={memorySubAgent}
+		onClose={() => (memorySubAgent = null)}
+	/>
 {/if}
 
 <ConfirmDialog

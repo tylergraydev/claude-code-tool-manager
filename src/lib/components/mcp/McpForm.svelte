@@ -153,7 +153,7 @@
 			command: mcpType === 'stdio' ? command.trim() : undefined,
 			args: mcpType === 'stdio' && args.trim() ? args.trim().split(/\s+/) : undefined,
 			url: mcpType !== 'stdio' ? url.trim() : undefined,
-			headers: mcpType === 'http' && Object.keys(headers).length ? headers : undefined,
+			headers: (mcpType === 'http' || mcpType === 'ws') && Object.keys(headers).length ? headers : undefined,
 			env: Object.keys(env).length ? env : undefined
 		};
 
@@ -288,14 +288,14 @@
 					bind:value={url}
 					class="input mt-1 font-mono"
 					class:border-red-500={errors.url}
-					placeholder={mcpType === 'sse' ? 'https://mcp.service.com/sse' : 'https://api.service.com/mcp'}
+					placeholder={mcpType === 'sse' ? 'https://mcp.service.com/sse' : mcpType === 'ws' ? 'wss://mcp.service.com/ws' : 'https://api.service.com/mcp'}
 				/>
 				{#if errors.url}
 					<p class="mt-1 text-sm text-red-500">{errors.url}</p>
 				{/if}
 			</div>
 
-			{#if mcpType === 'http'}
+			{#if mcpType === 'http' || mcpType === 'ws'}
 				<div>
 					<label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
 						Headers

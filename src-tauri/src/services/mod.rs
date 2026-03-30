@@ -1,3 +1,4 @@
+pub mod agent_memory_writer;
 pub mod claude_json;
 pub mod claude_settings;
 pub mod codex_config;
@@ -21,6 +22,7 @@ pub mod opencode_config;
 pub mod permission_writer;
 pub mod repo_parser;
 pub mod repo_sync;
+pub mod rule_writer;
 pub mod scanner;
 pub mod session_explorer;
 pub mod skill_writer;

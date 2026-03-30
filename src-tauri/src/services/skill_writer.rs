@@ -32,6 +32,48 @@ pub(crate) fn generate_skill_markdown(skill: &Skill) -> String {
         frontmatter.push_str("disable-model-invocation: true\n");
     }
 
+    if let Some(ref context) = skill.context {
+        if !context.is_empty() {
+            frontmatter.push_str(&format!("context: {}\n", context));
+        }
+    }
+
+    if let Some(ref agent) = skill.agent {
+        if !agent.is_empty() {
+            frontmatter.push_str(&format!("agent: {}\n", agent));
+        }
+    }
+
+    if let Some(ref shell) = skill.shell {
+        if !shell.is_empty() {
+            frontmatter.push_str(&format!("shell: {}\n", shell));
+        }
+    }
+
+    if let Some(once) = skill.once {
+        if once {
+            frontmatter.push_str("once: true\n");
+        }
+    }
+
+    if let Some(ref paths) = skill.paths {
+        if !paths.is_empty() {
+            frontmatter.push_str(&format!("paths: {}\n", paths.join(", ")));
+        }
+    }
+
+    if let Some(ref hooks) = skill.hooks {
+        if !hooks.is_empty() {
+            frontmatter.push_str(&format!("hooks: {}\n", hooks));
+        }
+    }
+
+    if let Some(ref effort) = skill.effort {
+        if !effort.is_empty() {
+            frontmatter.push_str(&format!("effort: {}\n", effort));
+        }
+    }
+
     frontmatter.push_str("---\n\n");
     format!("{}{}", frontmatter, skill.content)
 }
@@ -158,6 +200,13 @@ mod tests {
             source: "manual".to_string(),
             source_path: None,
             is_favorite: false,
+            context: Some("fork".to_string()),
+            agent: Some("code-reviewer".to_string()),
+            hooks: Some(r#"{"preToolUse": {"command": "echo hi"}}"#.to_string()),
+            paths: Some(vec!["src/**/*.ts".to_string(), "lib/**/*.js".to_string()]),
+            shell: Some("bash".to_string()),
+            once: Some(true),
+            effort: Some("high".to_string()),
             created_at: "2024-01-01".to_string(),
             updated_at: "2024-01-01".to_string(),
         }
@@ -176,6 +225,13 @@ mod tests {
             source: "manual".to_string(),
             source_path: None,
             is_favorite: false,
+            context: None,
+            agent: None,
+            hooks: None,
+            paths: None,
+            shell: None,
+            once: None,
+            effort: None,
             created_at: "2024-01-01".to_string(),
             updated_at: "2024-01-01".to_string(),
         }

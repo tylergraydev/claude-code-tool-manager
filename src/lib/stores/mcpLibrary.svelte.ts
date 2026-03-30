@@ -6,7 +6,7 @@ class McpLibraryState {
 	isLoading = $state(false);
 	error = $state<string | null>(null);
 	searchQuery = $state('');
-	selectedType = $state<'all' | 'stdio' | 'sse' | 'http'>('all');
+	selectedType = $state<'all' | 'stdio' | 'sse' | 'http' | 'ws'>('all');
 
 	filteredMcps = $derived.by(() => {
 		let result = this.mcps;
@@ -35,13 +35,14 @@ class McpLibraryState {
 	});
 
 	mcpCount = $derived.by(() => {
-		let stdio = 0, sse = 0, http = 0;
+		let stdio = 0, sse = 0, http = 0, ws = 0;
 		for (const m of this.mcps) {
 			if (m.type === 'stdio') stdio++;
 			else if (m.type === 'sse') sse++;
 			else if (m.type === 'http') http++;
+			else if (m.type === 'ws') ws++;
 		}
-		return { total: this.mcps.length, stdio, sse, http };
+		return { total: this.mcps.length, stdio, sse, http, ws };
 	});
 
 	async load() {
@@ -108,7 +109,7 @@ class McpLibraryState {
 		this.searchQuery = query;
 	}
 
-	setTypeFilter(type: 'all' | 'stdio' | 'sse' | 'http') {
+	setTypeFilter(type: 'all' | 'stdio' | 'sse' | 'http' | 'ws') {
 		this.selectedType = type;
 	}
 }

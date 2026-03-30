@@ -69,14 +69,28 @@ class HookLibraryState {
 		// Sort event types in a logical order (matches session lifecycle)
 		const eventOrder = [
 			'SessionStart',
+			'InstructionsLoaded',
 			'UserPromptSubmit',
 			'PreToolUse',
 			'PermissionRequest',
 			'PostToolUse',
+			'PostToolUseFailure',
 			'Notification',
 			'Stop',
+			'StopFailure',
+			'SubagentStart',
 			'SubagentStop',
+			'TaskCompleted',
+			'TeammateIdle',
 			'PreCompact',
+			'PostCompact',
+			'ConfigChange',
+			'CwdChanged',
+			'FileChanged',
+			'WorktreeCreate',
+			'WorktreeRemove',
+			'Elicitation',
+			'ElicitationResult',
 			'SessionEnd'
 		];
 		return eventOrder

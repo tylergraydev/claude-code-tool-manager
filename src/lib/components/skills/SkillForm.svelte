@@ -26,6 +26,13 @@
 	let model = $state(initialValues.model ?? '');
 	let disableModelInvocation = $state(initialValues.disableModelInvocation ?? false);
 	let tagsInput = $state(initialValues.tags?.join(', ') ?? '');
+	let contextValue = $state(initialValues.context ?? '');
+	let agent = $state(initialValues.agent ?? '');
+	let hooksInput = $state(initialValues.hooks ?? '');
+	let pathsInput = $state(initialValues.paths?.join(', ') ?? '');
+	let shell = $state(initialValues.shell ?? '');
+	let once = $state(initialValues.once ?? false);
+	let effort = $state(initialValues.effort ?? '');
 
 	let isSubmitting = $state(false);
 	let errors = $state<Record<string, string>>({});
@@ -43,6 +50,13 @@
 		if (parsed.model) model = parsed.model;
 		if (parsed.disableModelInvocation !== undefined) disableModelInvocation = parsed.disableModelInvocation;
 		if (parsed.tags) tagsInput = parsed.tags.join(', ');
+		if (parsed.context) contextValue = parsed.context;
+		if (parsed.agent) agent = parsed.agent;
+		if (parsed.hooks) hooksInput = parsed.hooks;
+		if (parsed.paths) pathsInput = parsed.paths.join(', ');
+		if (parsed.shell) shell = parsed.shell;
+		if (parsed.once !== undefined) once = parsed.once;
+		if (parsed.effort) effort = parsed.effort;
 
 		importStatus = 'success';
 		importMessage = parsed.name ? `Imported "${parsed.name}"` : 'Content imported';
@@ -194,6 +208,11 @@
 			.map((t) => t.trim())
 			.filter((t) => t.length > 0);
 
+		const paths = pathsInput
+			.split(',')
+			.map((p) => p.trim())
+			.filter((p) => p.length > 0);
+
 		const request: CreateSkillRequest = {
 			name: name.trim(),
 			description: description.trim() || undefined,
@@ -201,7 +220,14 @@
 			allowedTools: allowedTools.length > 0 ? allowedTools : undefined,
 			model: model.trim() || undefined,
 			disableModelInvocation: disableModelInvocation || undefined,
-			tags: tags.length > 0 ? tags : undefined
+			tags: tags.length > 0 ? tags : undefined,
+			context: contextValue || undefined,
+			agent: agent.trim() || undefined,
+			hooks: hooksInput.trim() || undefined,
+			paths: paths.length > 0 ? paths : undefined,
+			shell: shell || undefined,
+			once: once || undefined,
+			effort: effort || undefined
 		};
 
 		onSubmit(request);
@@ -361,6 +387,135 @@
 				Prevent Claude from automatically invoking this skill. Useful for skills that should only be called by other skills.
 			</p>
 		</div>
+	</div>
+
+	<!-- Context -->
+	<div>
+		<label for="context" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+			Context
+		</label>
+		<select
+			id="context"
+			bind:value={contextValue}
+			class="input mt-1"
+		>
+			<option value="">Default (inline)</option>
+			<option value="fork">Fork (run in subagent)</option>
+		</select>
+		<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+			Run this skill inline or fork it into a subagent context
+		</p>
+	</div>
+
+	<!-- Agent (shown when context is fork) -->
+	{#if contextValue === 'fork'}
+		<div>
+			<label for="agent" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+				Agent
+			</label>
+			<input
+				type="text"
+				id="agent"
+				bind:value={agent}
+				class="input mt-1"
+				placeholder="code-reviewer"
+			/>
+			<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+				Which subagent type to use when running in fork context
+			</p>
+		</div>
+	{/if}
+
+	<!-- Shell -->
+	<div>
+		<label for="shell" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+			Shell
+		</label>
+		<select
+			id="shell"
+			bind:value={shell}
+			class="input mt-1"
+		>
+			<option value="">Default (bash)</option>
+			<option value="bash">bash</option>
+			<option value="powershell">powershell</option>
+		</select>
+		<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+			Shell used for command execution within this skill
+		</p>
+	</div>
+
+	<!-- Effort Level -->
+	<div>
+		<label for="effort" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+			Effort Level
+		</label>
+		<select
+			id="effort"
+			bind:value={effort}
+			class="input mt-1"
+		>
+			<option value="">Default (inherit from parent)</option>
+			<option value="low">Low</option>
+			<option value="medium">Medium</option>
+			<option value="high">High</option>
+			<option value="max">Max</option>
+		</select>
+		<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+			Controls how much thinking Claude does within this skill
+		</p>
+	</div>
+
+	<!-- Once -->
+	<div class="flex items-start gap-3">
+		<input
+			type="checkbox"
+			id="once"
+			bind:checked={once}
+			class="mt-1 w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-purple-600 focus:ring-purple-500"
+		/>
+		<div>
+			<label for="once" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+				Run Once Per Session
+			</label>
+			<p class="text-xs text-gray-500 dark:text-gray-400">
+				Only execute this skill once per Claude Code session
+			</p>
+		</div>
+	</div>
+
+	<!-- Paths -->
+	<div>
+		<label for="paths" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+			Paths
+		</label>
+		<input
+			type="text"
+			id="paths"
+			bind:value={pathsInput}
+			class="input mt-1"
+			placeholder="src/**/*.ts, lib/**/*.js"
+		/>
+		<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+			Comma-separated glob patterns for auto-loading this skill
+		</p>
+	</div>
+
+	<!-- Hooks -->
+	<div>
+		<label for="hooks" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+			Hooks
+		</label>
+		<textarea
+			id="hooks"
+			bind:value={hooksInput}
+			rows={4}
+			class="input mt-1 font-mono text-sm resize-y"
+			placeholder={`{"preToolUse": {"command": "echo pre"}, "postToolUse": {"command": "echo post"}}`}
+		></textarea>
+		<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+			JSON object defining lifecycle hooks scoped to this skill
+		</p>
 	</div>
 
 	<!-- Content -->

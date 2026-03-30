@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { CreateHookRequest, Hook, HookEventType, HookType } from '$lib/types';
 	import { HOOK_EVENT_TYPES } from '$lib/types';
-	import { Clipboard, Check, AlertCircle, FileUp, Terminal, MessageSquare, Zap } from 'lucide-svelte';
+	import { Clipboard, Check, AlertCircle, FileUp, Terminal, MessageSquare, Zap, Globe, Bot, ChevronDown, ChevronRight } from 'lucide-svelte';
 
 	type Props = {
 		initialValues?: Partial<Hook>;
@@ -20,7 +20,16 @@
 	let command = $state(initialValues.command ?? '');
 	let prompt = $state(initialValues.prompt ?? '');
 	let timeout = $state(initialValues.timeout?.toString() ?? '');
+	let url = $state(initialValues.url ?? '');
+	let headersInput = $state(initialValues.headers ? JSON.stringify(initialValues.headers, null, 2) : '');
+	let allowedEnvVarsInput = $state(initialValues.allowedEnvVars?.join(', ') ?? '');
+	let ifCondition = $state(initialValues.ifCondition ?? '');
+	let statusMessage = $state(initialValues.statusMessage ?? '');
+	let once = $state(initialValues.once ?? false);
+	let asyncMode = $state(initialValues.asyncMode ?? false);
+	let shell = $state(initialValues.shell ?? 'bash');
 	let tagsInput = $state(initialValues.tags?.join(', ') ?? '');
+	let showAdvanced = $state(false);
 
 	let isSubmitting = $state(false);
 	let errors = $state<Record<string, string>>({});
@@ -174,6 +183,18 @@
 			errors.prompt = 'Prompt is required for prompt hooks';
 		}
 
+		if (hookType === 'http' && !url.trim()) {
+			errors.url = 'URL is required for HTTP hooks';
+		}
+
+		if (headersInput.trim()) {
+			try {
+				JSON.parse(headersInput);
+			} catch {
+				errors.headers = 'Headers must be valid JSON';
+			}
+		}
+
 		if (timeout && (isNaN(Number(timeout)) || Number(timeout) < 0)) {
 			errors.timeout = 'Timeout must be a positive number';
 		}
@@ -193,6 +214,9 @@
 			.map((t) => t.trim())
 			.filter((t) => t.length > 0);
 
+		const parsedHeaders = headersInput.trim() ? JSON.parse(headersInput) : undefined;
+		const envVars = allowedEnvVarsInput.split(',').map((v) => v.trim()).filter((v) => v.length > 0);
+
 		const request: CreateHookRequest = {
 			name: generateName(),
 			description: description.trim() || undefined,
@@ -201,7 +225,15 @@
 			hookType,
 			command: hookType === 'command' ? command.trim() : undefined,
 			prompt: hookType === 'prompt' ? prompt.trim() : undefined,
-			timeout: timeout ? Number(timeout) : undefined,
+			timeout: hookType === 'command' || hookType === 'http' ? (timeout ? Number(timeout) : undefined) : undefined,
+			url: hookType === 'http' ? url.trim() : undefined,
+			headers: hookType === 'http' ? parsedHeaders : undefined,
+			allowedEnvVars: hookType === 'http' && envVars.length > 0 ? envVars : undefined,
+			ifCondition: ifCondition.trim() || undefined,
+			statusMessage: statusMessage.trim() || undefined,
+			once: once || undefined,
+			asyncMode: hookType === 'command' && asyncMode ? true : undefined,
+			shell: hookType === 'command' && shell !== 'bash' ? shell : undefined,
 			tags: tags.length > 0 ? tags : undefined
 		};
 
@@ -335,15 +367,15 @@
 		<label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
 			Hook Type <span class="text-red-500">*</span>
 		</label>
-		<div class="flex gap-3">
+		<div class="grid grid-cols-2 gap-3">
 			<button
 				type="button"
 				onclick={() => (hookType = 'command')}
-				class="flex-1 flex items-center gap-3 p-4 rounded-xl border-2 transition-all duration-200 {hookType === 'command'
+				class="flex items-center gap-3 p-4 rounded-xl border-2 transition-all duration-200 {hookType === 'command'
 					? 'border-gray-500 bg-gray-50 dark:bg-gray-800'
 					: 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'}"
 			>
-				<div class="w-10 h-10 rounded-lg bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
+				<div class="w-10 h-10 rounded-lg bg-gray-100 dark:bg-gray-700 flex items-center justify-center shrink-0">
 					<Terminal class="w-5 h-5 text-gray-600 dark:text-gray-400" />
 				</div>
 				<div class="text-left">
@@ -355,16 +387,48 @@
 			<button
 				type="button"
 				onclick={() => (hookType = 'prompt')}
-				class="flex-1 flex items-center gap-3 p-4 rounded-xl border-2 transition-all duration-200 {hookType === 'prompt'
+				class="flex items-center gap-3 p-4 rounded-xl border-2 transition-all duration-200 {hookType === 'prompt'
 					? 'border-violet-500 bg-violet-50 dark:bg-violet-900/20'
 					: 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'}"
 			>
-				<div class="w-10 h-10 rounded-lg bg-violet-100 dark:bg-violet-900/50 flex items-center justify-center">
+				<div class="w-10 h-10 rounded-lg bg-violet-100 dark:bg-violet-900/50 flex items-center justify-center shrink-0">
 					<MessageSquare class="w-5 h-5 text-violet-600 dark:text-violet-400" />
 				</div>
 				<div class="text-left">
 					<div class="font-medium text-gray-900 dark:text-white">Prompt</div>
 					<div class="text-xs text-gray-500 dark:text-gray-400">Inject text into conversation</div>
+				</div>
+			</button>
+
+			<button
+				type="button"
+				onclick={() => (hookType = 'http')}
+				class="flex items-center gap-3 p-4 rounded-xl border-2 transition-all duration-200 {hookType === 'http'
+					? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+					: 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'}"
+			>
+				<div class="w-10 h-10 rounded-lg bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center shrink-0">
+					<Globe class="w-5 h-5 text-blue-600 dark:text-blue-400" />
+				</div>
+				<div class="text-left">
+					<div class="font-medium text-gray-900 dark:text-white">HTTP</div>
+					<div class="text-xs text-gray-500 dark:text-gray-400">POST to a URL</div>
+				</div>
+			</button>
+
+			<button
+				type="button"
+				onclick={() => (hookType = 'agent')}
+				class="flex items-center gap-3 p-4 rounded-xl border-2 transition-all duration-200 {hookType === 'agent'
+					? 'border-green-500 bg-green-50 dark:bg-green-900/20'
+					: 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'}"
+			>
+				<div class="w-10 h-10 rounded-lg bg-green-100 dark:bg-green-900/50 flex items-center justify-center shrink-0">
+					<Bot class="w-5 h-5 text-green-600 dark:text-green-400" />
+				</div>
+				<div class="text-left">
+					<div class="font-medium text-gray-900 dark:text-white">Agent</div>
+					<div class="text-xs text-gray-500 dark:text-gray-400">Spawn a subagent</div>
 				</div>
 			</button>
 		</div>
@@ -442,6 +506,164 @@
 			{/if}
 		</div>
 	{/if}
+
+	<!-- HTTP fields -->
+	{#if hookType === 'http'}
+		<div>
+			<label for="url" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+				URL <span class="text-red-500">*</span>
+			</label>
+			<input
+				type="text"
+				id="url"
+				bind:value={url}
+				class="input mt-1 font-mono text-sm"
+				class:border-red-500={errors.url}
+				placeholder="https://example.com/hooks/event"
+			/>
+			{#if errors.url}
+				<p class="mt-1 text-sm text-red-500">{errors.url}</p>
+			{:else}
+				<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+					URL to POST to. Use <code class="px-1 bg-gray-100 dark:bg-gray-700 rounded">$VARIABLE</code> for env var substitution.
+				</p>
+			{/if}
+		</div>
+
+		<div>
+			<label for="headers" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+				Headers
+			</label>
+			<textarea
+				id="headers"
+				bind:value={headersInput}
+				rows={3}
+				class="input mt-1 font-mono text-sm resize-y"
+				class:border-red-500={errors.headers}
+				placeholder={'{"Authorization": "Bearer $API_TOKEN"}'}
+			></textarea>
+			{#if errors.headers}
+				<p class="mt-1 text-sm text-red-500">{errors.headers}</p>
+			{:else}
+				<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+					JSON object of HTTP headers
+				</p>
+			{/if}
+		</div>
+
+		<div>
+			<label for="allowed-env-vars" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+				Allowed Env Vars
+			</label>
+			<input
+				type="text"
+				id="allowed-env-vars"
+				bind:value={allowedEnvVarsInput}
+				class="input mt-1 font-mono text-sm"
+				placeholder="API_TOKEN, WEBHOOK_SECRET"
+			/>
+			<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+				Comma-separated env vars allowed in URL and header substitution
+			</p>
+		</div>
+
+		<!-- Timeout for HTTP -->
+		<div>
+			<label for="timeout" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+				Timeout (seconds)
+			</label>
+			<input
+				type="number"
+				id="timeout"
+				bind:value={timeout}
+				min="0"
+				class="input mt-1 w-32"
+				class:border-red-500={errors.timeout}
+				placeholder="30"
+			/>
+			{#if errors.timeout}
+				<p class="mt-1 text-sm text-red-500">{errors.timeout}</p>
+			{/if}
+		</div>
+	{/if}
+
+	<!-- Advanced Options -->
+	<div>
+		<button
+			type="button"
+			onclick={() => (showAdvanced = !showAdvanced)}
+			class="flex items-center gap-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 transition-colors"
+		>
+			{#if showAdvanced}
+				<ChevronDown class="w-4 h-4" />
+			{:else}
+				<ChevronRight class="w-4 h-4" />
+			{/if}
+			Advanced Options
+		</button>
+
+		{#if showAdvanced}
+			<div class="mt-3 space-y-4 pl-4 border-l-2 border-gray-200 dark:border-gray-700">
+				<div>
+					<label for="if-condition" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+						If Condition
+					</label>
+					<input
+						type="text"
+						id="if-condition"
+						bind:value={ifCondition}
+						class="input mt-1 font-mono text-sm"
+						placeholder="Bash(rm *)"
+					/>
+					<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+						Permission rule syntax filter — hook only runs when this pattern matches
+					</p>
+				</div>
+
+				<div>
+					<label for="status-message" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+						Status Message
+					</label>
+					<input
+						type="text"
+						id="status-message"
+						bind:value={statusMessage}
+						class="input mt-1"
+						placeholder="Running formatter..."
+					/>
+					<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+						Custom spinner text shown while the hook runs
+					</p>
+				</div>
+
+				<div class="flex items-center gap-6">
+					<label class="flex items-center gap-2 cursor-pointer">
+						<input type="checkbox" bind:checked={once} class="rounded border-gray-300 dark:border-gray-600" />
+						<span class="text-sm text-gray-700 dark:text-gray-300">Run once per session</span>
+					</label>
+
+					{#if hookType === 'command'}
+						<label class="flex items-center gap-2 cursor-pointer">
+							<input type="checkbox" bind:checked={asyncMode} class="rounded border-gray-300 dark:border-gray-600" />
+							<span class="text-sm text-gray-700 dark:text-gray-300">Run in background</span>
+						</label>
+					{/if}
+				</div>
+
+				{#if hookType === 'command'}
+					<div>
+						<label for="shell" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+							Shell
+						</label>
+						<select id="shell" bind:value={shell} class="input mt-1 w-48">
+							<option value="bash">Bash (default)</option>
+							<option value="powershell">PowerShell</option>
+						</select>
+					</div>
+				{/if}
+			</div>
+		{/if}
+	</div>
 
 	<!-- Tags -->
 	<div>

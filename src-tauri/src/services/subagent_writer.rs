@@ -35,6 +35,49 @@ pub(crate) fn generate_subagent_markdown(subagent: &SubAgent) -> String {
         }
     }
 
+    if let Some(ref disallowed_tools) = subagent.disallowed_tools {
+        if !disallowed_tools.is_empty() {
+            frontmatter.push_str(&format!(
+                "disallowedTools: {}\n",
+                disallowed_tools.join(", ")
+            ));
+        }
+    }
+
+    if let Some(max_turns) = subagent.max_turns {
+        frontmatter.push_str(&format!("maxTurns: {}\n", max_turns));
+    }
+
+    if let Some(ref memory) = subagent.memory {
+        if !memory.is_empty() {
+            frontmatter.push_str(&format!("memory: {}\n", memory));
+        }
+    }
+
+    if let Some(background) = subagent.background {
+        if background {
+            frontmatter.push_str("background: true\n");
+        }
+    }
+
+    if let Some(ref effort) = subagent.effort {
+        if !effort.is_empty() {
+            frontmatter.push_str(&format!("effort: {}\n", effort));
+        }
+    }
+
+    if let Some(ref isolation) = subagent.isolation {
+        if !isolation.is_empty() {
+            frontmatter.push_str(&format!("isolation: {}\n", isolation));
+        }
+    }
+
+    if let Some(ref initial_prompt) = subagent.initial_prompt {
+        if !initial_prompt.is_empty() {
+            frontmatter.push_str(&format!("initialPrompt: {}\n", initial_prompt));
+        }
+    }
+
     frontmatter.push_str("---\n\n");
     format!("{}{}", frontmatter, subagent.content)
 }
@@ -200,6 +243,15 @@ mod tests {
             source: "manual".to_string(),
             source_path: None,
             is_favorite: false,
+            disallowed_tools: Some(vec!["Bash".to_string(), "Write".to_string()]),
+            max_turns: Some(10),
+            memory: Some("project".to_string()),
+            background: Some(false),
+            effort: Some("high".to_string()),
+            isolation: None,
+            hooks: None,
+            mcp_servers: None,
+            initial_prompt: Some("Review the latest changes".to_string()),
             created_at: "2024-01-01".to_string(),
             updated_at: "2024-01-01".to_string(),
         }
@@ -219,6 +271,15 @@ mod tests {
             source: "manual".to_string(),
             source_path: None,
             is_favorite: false,
+            disallowed_tools: None,
+            max_turns: None,
+            memory: None,
+            background: None,
+            effort: None,
+            isolation: None,
+            hooks: None,
+            mcp_servers: None,
+            initial_prompt: None,
             created_at: "2024-01-01".to_string(),
             updated_at: "2024-01-01".to_string(),
         }

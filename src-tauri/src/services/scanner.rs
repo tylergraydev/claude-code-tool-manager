@@ -50,6 +50,10 @@ pub async fn run_startup_scan(app: &tauri::AppHandle) -> Result<()> {
     let agent_count = scan_global_agents(&db)?;
     log::info!("Found {} agents from ~/.claude/agents/", agent_count);
 
+    // Scan global rules from ~/.claude/rules/
+    let rule_count = scan_global_rules(&db)?;
+    log::info!("Found {} rules from ~/.claude/rules/", rule_count);
+
     // Scan global hooks from ~/.claude/settings.json
     let hook_count = scan_global_hooks(&db)?;
     log::info!("Found {} hooks from ~/.claude/settings.json", hook_count);
@@ -259,6 +263,12 @@ pub fn scan_claude_json(db: &Database) -> Result<usize> {
             .join("settings.local.json");
         if project_settings_local_file.exists() {
             scan_project_hooks(db, project_id, &project_settings_local_file)?;
+        }
+
+        // Scan project-level rules from .claude/rules/
+        let project_rules_dir = Path::new(&path_to_check).join(".claude").join("rules");
+        if project_rules_dir.exists() {
+            scan_project_rules(db, project_id, &project_rules_dir)?;
         }
     }
 
@@ -570,9 +580,15 @@ pub fn scan_global_agents(db: &Database) -> Result<usize> {
                             Some(serde_json::to_string(&agent.tags).unwrap())
                         };
 
+                        let disallowed_tools_json = if agent.disallowed_tools.is_empty() {
+                            None
+                        } else {
+                            Some(serde_json::to_string(&agent.disallowed_tools).unwrap())
+                        };
+
                         let result = db.conn().execute(
-                            "INSERT INTO subagents (name, description, content, tools, model, permission_mode, skills, tags, source, source_path)
-                             VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'auto-detected', ?)",
+                            "INSERT INTO subagents (name, description, content, tools, model, permission_mode, skills, tags, disallowed_tools, max_turns, memory, background, effort, isolation, initial_prompt, source, source_path)
+                             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'auto-detected', ?)",
                             params![
                                 agent.name,
                                 agent.description,
@@ -582,6 +598,13 @@ pub fn scan_global_agents(db: &Database) -> Result<usize> {
                                 agent.permission_mode,
                                 skills_json,
                                 tags_json,
+                                disallowed_tools_json,
+                                agent.max_turns,
+                                agent.memory,
+                                agent.background.map(|b| b as i32),
+                                agent.effort,
+                                agent.isolation,
+                                agent.initial_prompt,
                                 source_path
                             ],
                         );
@@ -598,6 +621,190 @@ pub fn scan_global_agents(db: &Database) -> Result<usize> {
     Ok(count)
 }
 
+/// Scan global rules from ~/.claude/rules/
+pub fn scan_global_rules(db: &Database) -> Result<usize> {
+    let paths = get_claude_paths()?;
+    let mut count = 0;
+
+    if paths.rules_dir.exists() {
+        for entry in std::fs::read_dir(&paths.rules_dir)? {
+            let entry = entry?;
+            let path = entry.path();
+
+            // Only process .md files
+            if path.extension().map(|e| e == "md").unwrap_or(false) {
+                if let Some((name, rule_data)) = parse_rule_file(&path) {
+                    let source_path = path.to_string_lossy().to_string();
+                    let is_symlink = path.symlink_metadata()
+                        .map(|m| m.file_type().is_symlink())
+                        .unwrap_or(false);
+                    let symlink_target = if is_symlink {
+                        std::fs::read_link(&path)
+                            .ok()
+                            .map(|p| p.to_string_lossy().to_string())
+                    } else {
+                        None
+                    };
+
+                    let (rule_id, was_created) = get_or_create_rule(
+                        db,
+                        &name,
+                        &rule_data.description,
+                        &rule_data.content,
+                        &rule_data.paths,
+                        &source_path,
+                        is_symlink,
+                        symlink_target.as_deref(),
+                    )?;
+
+                    if was_created {
+                        // Auto-assign to global
+                        let _ = db.conn().execute(
+                            "INSERT OR IGNORE INTO global_rules (rule_id) VALUES (?)",
+                            [rule_id],
+                        );
+                        count += 1;
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(count)
+}
+
+/// Scan project-level rules from .claude/rules/ and assign to project
+fn scan_project_rules(db: &Database, project_id: i64, rules_dir: &Path) -> Result<usize> {
+    let mut count = 0;
+
+    for entry in std::fs::read_dir(rules_dir)? {
+        let entry = entry?;
+        let path = entry.path();
+
+        if path.extension().map(|e| e == "md").unwrap_or(false) {
+            if let Some((name, rule_data)) = parse_rule_file(&path) {
+                let source_path = path.to_string_lossy().to_string();
+                let is_symlink = path.symlink_metadata()
+                    .map(|m| m.file_type().is_symlink())
+                    .unwrap_or(false);
+                let symlink_target = if is_symlink {
+                    std::fs::read_link(&path)
+                        .ok()
+                        .map(|p| p.to_string_lossy().to_string())
+                } else {
+                    None
+                };
+
+                let (rule_id, was_created) = get_or_create_rule(
+                    db,
+                    &name,
+                    &rule_data.description,
+                    &rule_data.content,
+                    &rule_data.paths,
+                    &source_path,
+                    is_symlink,
+                    symlink_target.as_deref(),
+                )?;
+
+                // Assign to project
+                let _ = db.conn().execute(
+                    "INSERT OR IGNORE INTO project_rules (project_id, rule_id) VALUES (?, ?)",
+                    params![project_id, rule_id],
+                );
+
+                if was_created {
+                    count += 1;
+                }
+            }
+        }
+    }
+
+    Ok(count)
+}
+
+/// Parsed rule data from a markdown file
+struct ParsedRuleData {
+    description: Option<String>,
+    content: String,
+    paths: Option<Vec<String>>,
+}
+
+/// Parse a rule .md file (with optional frontmatter)
+fn parse_rule_file(path: &Path) -> Option<(String, ParsedRuleData)> {
+    let content = std::fs::read_to_string(path).ok()?;
+    let file_stem = path.file_stem()?.to_string_lossy().to_string();
+
+    let (frontmatter, body) = parse_frontmatter(&content);
+
+    let description = frontmatter.get("description").cloned();
+    let paths = frontmatter.get("paths").map(|p| {
+        p.split(',')
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .collect::<Vec<String>>()
+    });
+
+    Some((
+        file_stem,
+        ParsedRuleData {
+            description,
+            content: body,
+            paths,
+        },
+    ))
+}
+
+/// Get or create a rule in the database, returning (rule_id, was_created)
+fn get_or_create_rule(
+    db: &Database,
+    name: &str,
+    description: &Option<String>,
+    content: &str,
+    paths: &Option<Vec<String>>,
+    source_path: &str,
+    is_symlink: bool,
+    symlink_target: Option<&str>,
+) -> Result<(i64, bool)> {
+    let existing_id: Option<i64> = db
+        .conn()
+        .query_row(
+            "SELECT id FROM rules WHERE name = ?",
+            [name],
+            |row| row.get(0),
+        )
+        .ok();
+
+    if let Some(id) = existing_id {
+        db.conn().execute(
+            "UPDATE rules SET source_path = ? WHERE id = ? AND (source_path IS NULL OR source_path = '')",
+            params![source_path, id],
+        )?;
+        return Ok((id, false));
+    }
+
+    let paths_json = paths
+        .as_ref()
+        .filter(|p| !p.is_empty())
+        .map(|p| serde_json::to_string(p).unwrap());
+
+    db.conn().execute(
+        "INSERT INTO rules (name, description, content, paths, source, source_path, is_symlink, symlink_target)
+         VALUES (?, ?, ?, ?, 'auto-detected', ?, ?, ?)",
+        params![
+            name,
+            description,
+            content,
+            paths_json,
+            source_path,
+            is_symlink as i32,
+            symlink_target,
+        ],
+    )?;
+
+    let id = db.conn().last_insert_rowid();
+    Ok((id, true))
+}
+
 /// Parsed skill data from markdown file
 #[derive(Debug, PartialEq)]
 pub(crate) struct ParsedSkill {
@@ -610,6 +817,13 @@ pub(crate) struct ParsedSkill {
     pub(crate) model: Option<String>,
     pub(crate) disable_model_invocation: bool,
     pub(crate) tags: Vec<String>,
+    pub(crate) context: Option<String>,
+    pub(crate) agent: Option<String>,
+    pub(crate) hooks: Option<String>,
+    pub(crate) paths: Vec<String>,
+    pub(crate) shell: Option<String>,
+    pub(crate) once: Option<bool>,
+    pub(crate) effort: Option<String>,
 }
 
 /// Parsed skill file data (references, assets, scripts)
@@ -631,6 +845,13 @@ pub(crate) struct ParsedAgent {
     pub(crate) permission_mode: Option<String>,
     pub(crate) skills: Vec<String>,
     pub(crate) tags: Vec<String>,
+    pub(crate) disallowed_tools: Vec<String>,
+    pub(crate) max_turns: Option<i32>,
+    pub(crate) memory: Option<String>,
+    pub(crate) background: Option<bool>,
+    pub(crate) effort: Option<String>,
+    pub(crate) isolation: Option<String>,
+    pub(crate) initial_prompt: Option<String>,
 }
 
 /// Parse a skill markdown file
@@ -676,6 +897,23 @@ pub(crate) fn parse_skill_file(path: &Path) -> Option<ParsedSkill> {
                 .collect()
         })
         .unwrap_or_default();
+    let context = frontmatter.get("context").cloned();
+    let agent = frontmatter.get("agent").cloned();
+    let hooks = frontmatter.get("hooks").cloned();
+    let paths = frontmatter
+        .get("paths")
+        .map(|p| {
+            p.split(',')
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .collect()
+        })
+        .unwrap_or_default();
+    let shell = frontmatter.get("shell").cloned();
+    let once = frontmatter
+        .get("once")
+        .map(|v| v.to_lowercase() == "true");
+    let effort = frontmatter.get("effort").cloned();
 
     Some(ParsedSkill {
         name: file_name,
@@ -687,6 +925,13 @@ pub(crate) fn parse_skill_file(path: &Path) -> Option<ParsedSkill> {
         model,
         disable_model_invocation,
         tags,
+        context,
+        agent,
+        hooks,
+        paths,
+        shell,
+        once,
+        effort,
     })
 }
 
@@ -731,6 +976,23 @@ fn parse_agent_skill_dir(skill_dir: &Path) -> Option<(ParsedSkill, Vec<ParsedSki
                 .collect()
         })
         .unwrap_or_default();
+    let context = frontmatter.get("context").cloned();
+    let agent = frontmatter.get("agent").cloned();
+    let hooks = frontmatter.get("hooks").cloned();
+    let paths = frontmatter
+        .get("paths")
+        .map(|p| {
+            p.split(',')
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .collect()
+        })
+        .unwrap_or_default();
+    let shell = frontmatter.get("shell").cloned();
+    let once = frontmatter
+        .get("once")
+        .map(|v| v.to_lowercase() == "true");
+    let effort = frontmatter.get("effort").cloned();
 
     let skill = ParsedSkill {
         name: skill_name,
@@ -742,6 +1004,13 @@ fn parse_agent_skill_dir(skill_dir: &Path) -> Option<(ParsedSkill, Vec<ParsedSki
         model,
         disable_model_invocation,
         tags,
+        context,
+        agent,
+        hooks,
+        paths,
+        shell,
+        once,
+        effort,
     };
 
     // Scan subdirectories for files
@@ -825,6 +1094,30 @@ pub(crate) fn parse_agent_file(path: &Path) -> Option<ParsedAgent> {
                 .collect()
         })
         .unwrap_or_default();
+    let disallowed_tools = frontmatter
+        .get("disallowedTools")
+        .or_else(|| frontmatter.get("disallowed_tools"))
+        .map(|t| {
+            t.split(',')
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .collect()
+        })
+        .unwrap_or_default();
+    let max_turns = frontmatter
+        .get("maxTurns")
+        .or_else(|| frontmatter.get("max_turns"))
+        .and_then(|v| v.parse().ok());
+    let memory = frontmatter.get("memory").cloned();
+    let background = frontmatter
+        .get("background")
+        .map(|v| v.to_lowercase() == "true");
+    let effort = frontmatter.get("effort").cloned();
+    let isolation = frontmatter.get("isolation").cloned();
+    let initial_prompt = frontmatter
+        .get("initialPrompt")
+        .or_else(|| frontmatter.get("initial_prompt"))
+        .cloned();
 
     Some(ParsedAgent {
         name: file_name,
@@ -835,6 +1128,13 @@ pub(crate) fn parse_agent_file(path: &Path) -> Option<ParsedAgent> {
         permission_mode,
         skills,
         tags,
+        disallowed_tools,
+        max_turns,
+        memory,
+        background,
+        effort,
+        isolation,
+        initial_prompt,
     })
 }
 
@@ -984,10 +1284,16 @@ fn get_or_create_skill(
     } else {
         Some(serde_json::to_string(&skill.tags).unwrap())
     };
+    let paths_json = if skill.paths.is_empty() {
+        None
+    } else {
+        Some(serde_json::to_string(&skill.paths).unwrap())
+    };
+    let once_int = skill.once.map(|b| b as i32);
 
     db.conn().execute(
-        "INSERT INTO skills (name, description, content, allowed_tools, model, disable_model_invocation, tags, source, source_path)
-         VALUES (?, ?, ?, ?, ?, ?, ?, 'auto-detected', ?)",
+        "INSERT INTO skills (name, description, content, allowed_tools, model, disable_model_invocation, tags, source, source_path, context, agent, hooks, paths, shell, once_per_session, effort)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 'auto-detected', ?, ?, ?, ?, ?, ?, ?, ?)",
         params![
             skill.name,
             skill.description,
@@ -996,7 +1302,14 @@ fn get_or_create_skill(
             skill.model,
             skill.disable_model_invocation,
             tags_json,
-            source_path
+            source_path,
+            skill.context,
+            skill.agent,
+            skill.hooks,
+            paths_json,
+            skill.shell,
+            once_int,
+            skill.effort
         ],
     )?;
 
@@ -1065,10 +1378,15 @@ fn get_or_create_agent(db: &Database, agent: &ParsedAgent, source_path: &str) ->
     } else {
         Some(serde_json::to_string(&agent.tags).unwrap())
     };
+    let disallowed_tools_json = if agent.disallowed_tools.is_empty() {
+        None
+    } else {
+        Some(serde_json::to_string(&agent.disallowed_tools).unwrap())
+    };
 
     db.conn().execute(
-        "INSERT INTO subagents (name, description, content, tools, model, permission_mode, skills, tags, source, source_path)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'auto-detected', ?)",
+        "INSERT INTO subagents (name, description, content, tools, model, permission_mode, skills, tags, disallowed_tools, max_turns, memory, background, effort, isolation, initial_prompt, source, source_path)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'auto-detected', ?)",
         params![
             agent.name,
             agent.description,
@@ -1078,6 +1396,13 @@ fn get_or_create_agent(db: &Database, agent: &ParsedAgent, source_path: &str) ->
             agent.permission_mode,
             skills_json,
             tags_json,
+            disallowed_tools_json,
+            agent.max_turns,
+            agent.memory,
+            agent.background.map(|b| b as i32),
+            agent.effort,
+            agent.isolation,
+            agent.initial_prompt,
             source_path
         ],
     )?;
@@ -1211,6 +1536,14 @@ pub(crate) struct ParsedHook {
     pub(crate) command: Option<String>,
     pub(crate) prompt: Option<String>,
     pub(crate) timeout: Option<i32>,
+    pub(crate) url: Option<String>,
+    pub(crate) headers: Option<serde_json::Value>,
+    pub(crate) allowed_env_vars: Option<Vec<String>>,
+    pub(crate) if_condition: Option<String>,
+    pub(crate) status_message: Option<String>,
+    pub(crate) once: Option<bool>,
+    pub(crate) async_mode: Option<bool>,
+    pub(crate) shell: Option<String>,
 }
 
 /// Parse hooks from a settings.json file
@@ -1257,6 +1590,33 @@ pub(crate) fn parse_hooks_from_settings(path: &Path) -> Vec<ParsedHook> {
                                 .get("timeout")
                                 .and_then(|t| t.as_i64())
                                 .map(|t| t as i32);
+                            let url = inner_hook
+                                .get("url")
+                                .and_then(|u| u.as_str())
+                                .map(|s| s.to_string());
+                            let headers = inner_hook.get("headers").cloned();
+                            let allowed_env_vars = inner_hook
+                                .get("allowedEnvVars")
+                                .and_then(|a| a.as_array())
+                                .map(|arr| {
+                                    arr.iter()
+                                        .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                                        .collect()
+                                });
+                            let if_condition = inner_hook
+                                .get("if")
+                                .and_then(|v| v.as_str())
+                                .map(|s| s.to_string());
+                            let status_message = inner_hook
+                                .get("statusMessage")
+                                .and_then(|v| v.as_str())
+                                .map(|s| s.to_string());
+                            let once = inner_hook.get("once").and_then(|v| v.as_bool());
+                            let async_mode = inner_hook.get("async").and_then(|v| v.as_bool());
+                            let shell = inner_hook
+                                .get("shell")
+                                .and_then(|v| v.as_str())
+                                .map(|s| s.to_string());
 
                             // Generate a name from the event type and index
                             let name = if let Some(ref m) = matcher {
@@ -1289,6 +1649,14 @@ pub(crate) fn parse_hooks_from_settings(path: &Path) -> Vec<ParsedHook> {
                                 command,
                                 prompt,
                                 timeout,
+                                url,
+                                headers,
+                                allowed_env_vars,
+                                if_condition,
+                                status_message,
+                                once,
+                                async_mode,
+                                shell,
                             });
                         }
                     }
@@ -1326,8 +1694,8 @@ pub fn scan_global_hooks(db: &Database) -> Result<usize> {
         } else {
             // Create new hook
             db.conn().execute(
-                "INSERT INTO hooks (name, description, event_type, matcher, hook_type, command, prompt, timeout, source)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'auto-detected')",
+                "INSERT INTO hooks (name, description, event_type, matcher, hook_type, command, prompt, timeout, url, headers, allowed_env_vars, if_condition, status_message, once, async_mode, shell, source)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'auto-detected')",
                 params![
                     hook.name,
                     hook.description,
@@ -1336,7 +1704,15 @@ pub fn scan_global_hooks(db: &Database) -> Result<usize> {
                     hook.hook_type,
                     hook.command,
                     hook.prompt,
-                    hook.timeout
+                    hook.timeout,
+                    hook.url,
+                    hook.headers.as_ref().map(|h| serde_json::to_string(h).unwrap()),
+                    hook.allowed_env_vars.as_ref().map(|v| serde_json::to_string(v).unwrap()),
+                    hook.if_condition,
+                    hook.status_message,
+                    hook.once.unwrap_or(false) as i32,
+                    hook.async_mode.unwrap_or(false) as i32,
+                    hook.shell
                 ],
             )?;
             db.conn().last_insert_rowid()
@@ -1387,8 +1763,8 @@ fn get_or_create_hook(db: &Database, hook: &ParsedHook) -> Result<i64> {
 
     // Create new hook
     db.conn().execute(
-        "INSERT INTO hooks (name, description, event_type, matcher, hook_type, command, prompt, timeout, source)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'auto-detected')",
+        "INSERT INTO hooks (name, description, event_type, matcher, hook_type, command, prompt, timeout, url, headers, allowed_env_vars, if_condition, status_message, once, async_mode, shell, source)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'auto-detected')",
         params![
             hook.name,
             hook.description,
@@ -1397,7 +1773,15 @@ fn get_or_create_hook(db: &Database, hook: &ParsedHook) -> Result<i64> {
             hook.hook_type,
             hook.command,
             hook.prompt,
-            hook.timeout
+            hook.timeout,
+            hook.url,
+            hook.headers.as_ref().map(|h| serde_json::to_string(h).unwrap()),
+            hook.allowed_env_vars.as_ref().map(|v| serde_json::to_string(v).unwrap()),
+            hook.if_condition,
+            hook.status_message,
+            hook.once.unwrap_or(false) as i32,
+            hook.async_mode.unwrap_or(false) as i32,
+            hook.shell
         ],
     )?;
 
@@ -1636,9 +2020,15 @@ pub fn scan_opencode_global_agents(db: &Database) -> Result<usize> {
                         Some(serde_json::to_string(&agent.tags).unwrap())
                     };
 
+                    let disallowed_tools_json = if agent.disallowed_tools.is_empty() {
+                        None
+                    } else {
+                        Some(serde_json::to_string(&agent.disallowed_tools).unwrap())
+                    };
+
                     let result = db.conn().execute(
-                        "INSERT INTO subagents (name, description, content, tools, model, permission_mode, skills, tags, source, source_path)
-                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'opencode', ?)",
+                        "INSERT INTO subagents (name, description, content, tools, model, permission_mode, skills, tags, disallowed_tools, max_turns, memory, background, effort, isolation, initial_prompt, source, source_path)
+                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'opencode', ?)",
                         params![
                             agent.name,
                             agent.description,
@@ -1648,6 +2038,13 @@ pub fn scan_opencode_global_agents(db: &Database) -> Result<usize> {
                             agent.permission_mode,
                             skills_json,
                             tags_json,
+                            disallowed_tools_json,
+                            agent.max_turns,
+                            agent.memory,
+                            agent.background.map(|b| b as i32),
+                            agent.effort,
+                            agent.isolation,
+                            agent.initial_prompt,
                             source_path
                         ],
                     );
@@ -2690,6 +3087,13 @@ Content"#,
             model: Some("opus".to_string()),
             disable_model_invocation: false,
             tags: vec!["test".to_string()],
+            context: None,
+            agent: None,
+            hooks: None,
+            paths: vec![],
+            shell: None,
+            once: None,
+            effort: None,
         };
 
         let (id, created) = get_or_create_skill(&db, &skill, "/src/skill").unwrap();
@@ -2714,6 +3118,13 @@ Content"#,
             model: None,
             disable_model_invocation: false,
             tags: vec![],
+            context: None,
+            agent: None,
+            hooks: None,
+            paths: vec![],
+            shell: None,
+            once: None,
+            effort: None,
         };
 
         let (id, created) = get_or_create_command(&db, &cmd, "/src/cmd").unwrap();
@@ -2737,6 +3148,13 @@ Content"#,
             permission_mode: Some("bypassPermissions".to_string()),
             skills: vec!["lint".to_string()],
             tags: vec!["dev".to_string()],
+            disallowed_tools: vec![],
+            max_turns: None,
+            memory: None,
+            background: None,
+            effort: None,
+            isolation: None,
+            initial_prompt: None,
         };
 
         let id1 = get_or_create_agent(&db, &agent, "/src/agent").unwrap();
@@ -2760,6 +3178,13 @@ Content"#,
             model: None,
             disable_model_invocation: false,
             tags: vec![],
+            context: None,
+            agent: None,
+            hooks: None,
+            paths: vec![],
+            shell: None,
+            once: None,
+            effort: None,
         };
         let (skill_id, _) = get_or_create_skill(&db, &skill, "/src").unwrap();
 
@@ -2792,6 +3217,13 @@ Content"#,
             model: None,
             disable_model_invocation: false,
             tags: vec![],
+            context: None,
+            agent: None,
+            hooks: None,
+            paths: vec![],
+            shell: None,
+            once: None,
+            effort: None,
         };
         let (cmd_id, _) = get_or_create_command(&db, &cmd, "/src").unwrap();
 
@@ -2822,6 +3254,13 @@ Content"#,
             permission_mode: None,
             skills: vec![],
             tags: vec![],
+            disallowed_tools: vec![],
+            max_turns: None,
+            memory: None,
+            background: None,
+            effort: None,
+            isolation: None,
+            initial_prompt: None,
         };
         let agent_id = get_or_create_agent(&db, &agent, "/src").unwrap();
 
@@ -2851,6 +3290,14 @@ Content"#,
             command: Some("npm run lint".to_string()),
             prompt: None,
             timeout: Some(5000),
+            url: None,
+            headers: None,
+            allowed_env_vars: None,
+            if_condition: None,
+            status_message: None,
+            once: None,
+            async_mode: None,
+            shell: None,
         };
 
         let id1 = get_or_create_hook(&db, &hook).unwrap();
@@ -2873,6 +3320,14 @@ Content"#,
             command: Some("echo hi".to_string()),
             prompt: None,
             timeout: None,
+            url: None,
+            headers: None,
+            allowed_env_vars: None,
+            if_condition: None,
+            status_message: None,
+            once: None,
+            async_mode: None,
+            shell: None,
         };
         let hook_id = get_or_create_hook(&db, &hook).unwrap();
 
@@ -2903,6 +3358,13 @@ Content"#,
             model: None,
             disable_model_invocation: false,
             tags: vec![],
+            context: None,
+            agent: None,
+            hooks: None,
+            paths: vec![],
+            shell: None,
+            once: None,
+            effort: None,
         };
         let (skill_id, _) = get_or_create_skill(&db, &skill, "/src").unwrap();
 
@@ -3528,6 +3990,13 @@ Body"#,
             model: None,
             disable_model_invocation: false,
             tags: vec![],
+            context: None,
+            agent: None,
+            hooks: None,
+            paths: vec![],
+            shell: None,
+            once: None,
+            effort: None,
         };
         let (id, created) = get_or_create_skill(&db, &skill, "/src").unwrap();
         assert!(id > 0);
@@ -3559,6 +4028,13 @@ Body"#,
             permission_mode: None,
             skills: vec![],
             tags: vec![],
+            disallowed_tools: vec![],
+            max_turns: None,
+            memory: None,
+            background: None,
+            effort: None,
+            isolation: None,
+            initial_prompt: None,
         };
         let id = get_or_create_agent(&db, &agent, "/src").unwrap();
         assert!(id > 0);
@@ -3594,6 +4070,13 @@ Body"#,
             model: Some("opus".to_string()),
             disable_model_invocation: false,
             tags: vec!["deploy".to_string(), "ci".to_string()],
+            context: None,
+            agent: None,
+            hooks: None,
+            paths: vec![],
+            shell: None,
+            once: None,
+            effort: None,
         };
 
         let (id, created) = get_or_create_command(&db, &cmd, "/src/cmd").unwrap();
@@ -3627,6 +4110,13 @@ Body"#,
             model: None,
             disable_model_invocation: false,
             tags: vec![],
+            context: None,
+            agent: None,
+            hooks: None,
+            paths: vec![],
+            shell: None,
+            once: None,
+            effort: None,
         };
         let (skill_id, _) = get_or_create_skill(&db, &skill, "/src").unwrap();
 
@@ -3731,6 +4221,13 @@ Body"#,
             model: None,
             disable_model_invocation: false,
             tags: vec![],
+            context: None,
+            agent: None,
+            hooks: None,
+            paths: vec![],
+            shell: None,
+            once: None,
+            effort: None,
         };
 
         let (id, created) = get_or_create_command(&db, &cmd, "/new/source/path").unwrap();
@@ -3767,6 +4264,13 @@ Body"#,
             model: None,
             disable_model_invocation: false,
             tags: vec![],
+            context: None,
+            agent: None,
+            hooks: None,
+            paths: vec![],
+            shell: None,
+            once: None,
+            effort: None,
         };
 
         let (id, created) = get_or_create_skill(&db, &skill, "/new/skill/path").unwrap();
@@ -3802,6 +4306,13 @@ Body"#,
             permission_mode: None,
             skills: vec![],
             tags: vec![],
+            disallowed_tools: vec![],
+            max_turns: None,
+            memory: None,
+            background: None,
+            effort: None,
+            isolation: None,
+            initial_prompt: None,
         };
 
         let id = get_or_create_agent(&db, &agent, "/new/agent/path").unwrap();
@@ -3898,6 +4409,13 @@ Body content."#,
             permission_mode: Some("bypassPermissions".to_string()),
             skills: vec!["lint".to_string(), "format".to_string()],
             tags: vec!["dev".to_string(), "ci".to_string()],
+            disallowed_tools: vec![],
+            max_turns: None,
+            memory: None,
+            background: None,
+            effort: None,
+            isolation: None,
+            initial_prompt: None,
         };
 
         let id = get_or_create_agent(&db, &agent, "/full/path").unwrap();

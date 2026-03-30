@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { Project, Mcp, Skill, SubAgent, Command, Hook, ProjectSkill, ProjectSubAgent, ProjectCommand, ProjectHook } from '$lib/types';
 	import { mcpLibrary, projectsStore, notifications, skillLibrary, subagentLibrary, commandLibrary, hookLibrary } from '$lib/stores';
-	import { Plus, Minus, Plug, Globe, Server, Sparkles, Bot, Terminal, Search, Zap } from 'lucide-svelte';
+	import { Plus, Minus, Plug, Globe, Server, Radio, Sparkles, Bot, Terminal, Search, Zap } from 'lucide-svelte';
 
 	type Props = {
 		project: Project;
@@ -19,13 +19,15 @@
 	const typeIcons = {
 		stdio: Plug,
 		sse: Globe,
-		http: Server
+		http: Server,
+		ws: Radio
 	};
 
 	const typeColors = {
 		stdio: 'bg-purple-100 text-purple-600 dark:bg-purple-900/50 dark:text-purple-400',
 		sse: 'bg-green-100 text-green-600 dark:bg-green-900/50 dark:text-green-400',
-		http: 'bg-blue-100 text-blue-600 dark:bg-blue-900/50 dark:text-blue-400'
+		http: 'bg-blue-100 text-blue-600 dark:bg-blue-900/50 dark:text-blue-400',
+		ws: 'bg-orange-100 text-orange-600 dark:bg-orange-900/50 dark:text-orange-400'
 	};
 
 	// Get current project from store (updates after loadProjects)

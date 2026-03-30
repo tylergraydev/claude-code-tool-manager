@@ -16,6 +16,10 @@
 	let prText = $state(settings.attributionPr ?? '');
 	let commitHasValue = $state(settings.attributionCommit !== undefined);
 	let prHasValue = $state(settings.attributionPr !== undefined);
+	let attributionEnabled = $state<boolean | undefined>(settings.attributionEnabled);
+	let rulesText = $state(
+		settings.attributionRules ? JSON.stringify(settings.attributionRules, null, 2) : ''
+	);
 
 	// Reset local state when settings prop changes
 	$effect(() => {
@@ -23,13 +27,28 @@
 		prText = settings.attributionPr ?? '';
 		commitHasValue = settings.attributionCommit !== undefined;
 		prHasValue = settings.attributionPr !== undefined;
+		attributionEnabled = settings.attributionEnabled;
+		rulesText = settings.attributionRules
+			? JSON.stringify(settings.attributionRules, null, 2)
+			: '';
 	});
 
 	function handleSave() {
+		let parsedRules: Array<{ pattern: string; commit?: string; pr?: string }> | undefined;
+		if (rulesText.trim()) {
+			try {
+				parsedRules = JSON.parse(rulesText.trim());
+			} catch {
+				parsedRules = undefined;
+			}
+		}
+
 		onsave({
 			...settings,
 			attributionCommit: commitHasValue ? commitText : undefined,
-			attributionPr: prHasValue ? prText : undefined
+			attributionPr: prHasValue ? prText : undefined,
+			attributionEnabled: attributionEnabled,
+			attributionRules: parsedRules
 		});
 	}
 
@@ -61,6 +80,33 @@
 	</p>
 
 	<div class="space-y-4">
+		<!-- Enabled Toggle -->
+		<div class="flex items-center justify-between">
+			<div>
+				<label for="attribution-enabled" class="text-sm font-medium text-gray-700 dark:text-gray-300">
+					Attribution Enabled
+				</label>
+				<p class="text-xs text-gray-500 dark:text-gray-400">
+					Enable or disable all attribution globally
+				</p>
+			</div>
+			<label class="relative inline-flex items-center cursor-pointer">
+				<input
+					id="attribution-enabled"
+					type="checkbox"
+					checked={attributionEnabled === true}
+					onchange={(e) => {
+						const target = e.currentTarget;
+						attributionEnabled = target.checked ? true : undefined;
+					}}
+					class="sr-only peer"
+				/>
+				<div
+					class="w-9 h-5 bg-gray-300 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-500/40 rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:after:border-gray-500 peer-checked:bg-blue-500"
+				></div>
+			</label>
+		</div>
+
 		<!-- Commit Attribution -->
 		<div>
 			<div class="flex items-center justify-between mb-1">
@@ -155,6 +201,26 @@
 					Not set — using default: "{DEFAULT_PR}"
 				</p>
 			{/if}
+		</div>
+
+		<!-- Attribution Rules -->
+		<div>
+			<label
+				for="attribution-rules"
+				class="text-sm font-medium text-gray-700 dark:text-gray-300"
+			>
+				Attribution Rules
+			</label>
+			<p class="text-xs text-gray-500 dark:text-gray-400 mb-2">
+				JSON array of file-pattern rules with per-pattern commit/PR text overrides
+			</p>
+			<textarea
+				id="attribution-rules"
+				bind:value={rulesText}
+				placeholder={`[\n  { "pattern": "src/**", "commit": "Co-Authored-By: Claude" }\n]`}
+				rows={4}
+				class="input text-sm w-full resize-y font-mono"
+			></textarea>
 		</div>
 
 		<!-- Preview -->

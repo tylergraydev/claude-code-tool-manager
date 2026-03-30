@@ -180,7 +180,7 @@ fn parse_json_array(s: Option<String>) -> Option<Vec<String>> {
     s.and_then(|v| serde_json::from_str(&v).ok())
 }
 
-const SKILL_SELECT_FIELDS: &str = "id, name, description, content, allowed_tools, model, disable_model_invocation, tags, source, source_path, is_favorite, created_at, updated_at";
+const SKILL_SELECT_FIELDS: &str = "id, name, description, content, allowed_tools, model, disable_model_invocation, tags, source, source_path, is_favorite, context, agent, hooks, paths, shell, once_per_session, effort, created_at, updated_at";
 
 fn row_to_skill(row: &rusqlite::Row) -> rusqlite::Result<Skill> {
     Ok(Skill {
@@ -195,8 +195,15 @@ fn row_to_skill(row: &rusqlite::Row) -> rusqlite::Result<Skill> {
         source: row.get(8)?,
         source_path: row.get(9)?,
         is_favorite: row.get::<_, i32>(10).unwrap_or(0) != 0,
-        created_at: row.get(11)?,
-        updated_at: row.get(12)?,
+        context: row.get(11)?,
+        agent: row.get(12)?,
+        hooks: row.get(13)?,
+        paths: parse_json_array(row.get(14)?),
+        shell: row.get(15)?,
+        once: row.get::<_, Option<i32>>(16)?.map(|v| v != 0),
+        effort: row.get(17)?,
+        created_at: row.get(18)?,
+        updated_at: row.get(19)?,
     })
 }
 
@@ -213,8 +220,15 @@ fn row_to_skill_with_offset(row: &rusqlite::Row, offset: usize) -> rusqlite::Res
         source: row.get(offset + 8)?,
         source_path: row.get(offset + 9)?,
         is_favorite: row.get::<_, i32>(offset + 10).unwrap_or(0) != 0,
-        created_at: row.get(offset + 11)?,
-        updated_at: row.get(offset + 12)?,
+        context: row.get(offset + 11)?,
+        agent: row.get(offset + 12)?,
+        hooks: row.get(offset + 13)?,
+        paths: parse_json_array(row.get(offset + 14)?),
+        shell: row.get(offset + 15)?,
+        once: row.get::<_, Option<i32>>(offset + 16)?.map(|v| v != 0),
+        effort: row.get(offset + 17)?,
+        created_at: row.get(offset + 18)?,
+        updated_at: row.get(offset + 19)?,
     })
 }
 
@@ -268,7 +282,7 @@ pub fn get_global_skills(db: State<'_, Arc<Mutex<Database>>>) -> Result<Vec<Glob
     let db = db.lock().map_err(|e| e.to_string())?;
     let query = format!(
         "SELECT gs.id, gs.skill_id, gs.is_enabled,
-                s.id, s.name, s.description, s.content, s.allowed_tools, s.model, s.disable_model_invocation, s.tags, s.source, s.source_path, s.is_favorite, s.created_at, s.updated_at
+                s.id, s.name, s.description, s.content, s.allowed_tools, s.model, s.disable_model_invocation, s.tags, s.source, s.source_path, s.is_favorite, s.context, s.agent, s.hooks, s.paths, s.shell, s.once_per_session, s.created_at, s.updated_at
          FROM global_skills gs
          JOIN skills s ON gs.skill_id = s.id
          ORDER BY s.name"
@@ -387,7 +401,7 @@ pub fn toggle_global_skill(
 
     // Get the skill details
     let query = format!(
-        "SELECT s.id, s.name, s.description, s.content, s.allowed_tools, s.model, s.disable_model_invocation, s.tags, s.source, s.source_path, s.is_favorite, s.created_at, s.updated_at
+        "SELECT s.id, s.name, s.description, s.content, s.allowed_tools, s.model, s.disable_model_invocation, s.tags, s.source, s.source_path, s.is_favorite, s.context, s.agent, s.hooks, s.paths, s.shell, s.once_per_session, s.created_at, s.updated_at
          FROM global_skills gs
          JOIN skills s ON gs.skill_id = s.id
          WHERE gs.id = ?"
@@ -558,7 +572,7 @@ pub fn toggle_project_skill(
 
     // Get project path and skill details
     let query = format!(
-        "SELECT p.path, s.id, s.name, s.description, s.content, s.allowed_tools, s.model, s.disable_model_invocation, s.tags, s.source, s.source_path, s.is_favorite, s.created_at, s.updated_at
+        "SELECT p.path, s.id, s.name, s.description, s.content, s.allowed_tools, s.model, s.disable_model_invocation, s.tags, s.source, s.source_path, s.is_favorite, s.context, s.agent, s.hooks, s.paths, s.shell, s.once_per_session, s.created_at, s.updated_at
          FROM project_skills ps
          JOIN projects p ON ps.project_id = p.id
          JOIN skills s ON ps.skill_id = s.id
@@ -619,7 +633,7 @@ pub fn get_project_skills(
     let db = db.lock().map_err(|e| e.to_string())?;
     let query = format!(
         "SELECT ps.id, ps.skill_id, ps.is_enabled,
-                s.id, s.name, s.description, s.content, s.allowed_tools, s.model, s.disable_model_invocation, s.tags, s.source, s.source_path, s.is_favorite, s.created_at, s.updated_at
+                s.id, s.name, s.description, s.content, s.allowed_tools, s.model, s.disable_model_invocation, s.tags, s.source, s.source_path, s.is_favorite, s.context, s.agent, s.hooks, s.paths, s.shell, s.once_per_session, s.created_at, s.updated_at
          FROM project_skills ps
          JOIN skills s ON ps.skill_id = s.id
          WHERE ps.project_id = ?
@@ -787,13 +801,18 @@ pub(crate) fn create_skill_in_db_impl(
         .tags
         .as_ref()
         .map(|t| serde_json::to_string(t).unwrap());
+    let paths_json = skill
+        .paths
+        .as_ref()
+        .map(|p| serde_json::to_string(p).unwrap());
     let disable_model_invocation = skill.disable_model_invocation.unwrap_or(false) as i32;
+    let once_int = skill.once.map(|b| b as i32);
 
     db.conn()
         .execute(
-            "INSERT INTO skills (name, description, content, allowed_tools, model, disable_model_invocation, tags, source)
-             VALUES (?, ?, ?, ?, ?, ?, ?, 'manual')",
-            rusqlite::params![skill.name, skill.description, skill.content, allowed_tools_json, skill.model, disable_model_invocation, tags_json],
+            "INSERT INTO skills (name, description, content, allowed_tools, model, disable_model_invocation, tags, source, context, agent, hooks, paths, shell, once_per_session, effort)
+             VALUES (?, ?, ?, ?, ?, ?, ?, 'manual', ?, ?, ?, ?, ?, ?, ?)",
+            rusqlite::params![skill.name, skill.description, skill.content, allowed_tools_json, skill.model, disable_model_invocation, tags_json, skill.context, skill.agent, skill.hooks, paths_json, skill.shell, once_int, skill.effort],
         )
         .map_err(|e| e.to_string())?;
 
@@ -841,13 +860,18 @@ pub(crate) fn update_skill_in_db(
         .tags
         .as_ref()
         .map(|t| serde_json::to_string(t).unwrap());
+    let paths_json = skill
+        .paths
+        .as_ref()
+        .map(|p| serde_json::to_string(p).unwrap());
     let disable_model_invocation = skill.disable_model_invocation.unwrap_or(false) as i32;
+    let once_int = skill.once.map(|b| b as i32);
 
     db.conn()
         .execute(
-            "UPDATE skills SET name = ?, description = ?, content = ?, allowed_tools = ?, model = ?, disable_model_invocation = ?, tags = ?, updated_at = CURRENT_TIMESTAMP
+            "UPDATE skills SET name = ?, description = ?, content = ?, allowed_tools = ?, model = ?, disable_model_invocation = ?, tags = ?, context = ?, agent = ?, hooks = ?, paths = ?, shell = ?, once_per_session = ?, effort = ?, updated_at = CURRENT_TIMESTAMP
              WHERE id = ?",
-            rusqlite::params![skill.name, skill.description, skill.content, allowed_tools_json, skill.model, disable_model_invocation, tags_json, id],
+            rusqlite::params![skill.name, skill.description, skill.content, allowed_tools_json, skill.model, disable_model_invocation, tags_json, skill.context, skill.agent, skill.hooks, paths_json, skill.shell, once_int, skill.effort, id],
         )
         .map_err(|e| e.to_string())?;
 
@@ -952,6 +976,13 @@ mod tests {
             model: Some("opus".to_string()),
             disable_model_invocation: Some(true),
             tags: Some(vec!["review".to_string()]),
+            context: None,
+            agent: None,
+            hooks: None,
+            paths: None,
+            shell: None,
+            once: None,
+            effort: None,
         }
     }
 
@@ -964,6 +995,13 @@ mod tests {
             model: None,
             disable_model_invocation: None,
             tags: None,
+            context: None,
+            agent: None,
+            hooks: None,
+            paths: None,
+            shell: None,
+            once: None,
+            effort: None,
         }
     }
 
@@ -1116,6 +1154,13 @@ mod tests {
             model: Some("haiku".to_string()),
             disable_model_invocation: Some(false),
             tags: Some(vec!["updated".to_string()]),
+            context: None,
+            agent: None,
+            hooks: None,
+            paths: None,
+            shell: None,
+            once: None,
+            effort: None,
         };
 
         let updated = update_skill_in_db(&db, created.id, &update_req).unwrap();
@@ -1544,6 +1589,13 @@ mod tests {
             model: None,
             disable_model_invocation: None,
             tags: None,
+            context: None,
+            agent: None,
+            hooks: None,
+            paths: None,
+            shell: None,
+            once: None,
+            effort: None,
         };
         let result = validate_skill_request(&skill);
         assert!(result.is_ok());
@@ -1559,6 +1611,13 @@ mod tests {
             model: None,
             disable_model_invocation: None,
             tags: None,
+            context: None,
+            agent: None,
+            hooks: None,
+            paths: None,
+            shell: None,
+            once: None,
+            effort: None,
         };
         let result = validate_skill_request(&skill);
         assert!(result.is_err());
@@ -1574,6 +1633,13 @@ mod tests {
             model: None,
             disable_model_invocation: None,
             tags: None,
+            context: None,
+            agent: None,
+            hooks: None,
+            paths: None,
+            shell: None,
+            once: None,
+            effort: None,
         };
         let result = validate_skill_request(&skill);
         assert!(result.is_err());
@@ -1590,6 +1656,13 @@ mod tests {
             model: None,
             disable_model_invocation: None,
             tags: None,
+            context: None,
+            agent: None,
+            hooks: None,
+            paths: None,
+            shell: None,
+            once: None,
+            effort: None,
         };
         let result = create_skill_in_db(&db, &skill);
         assert!(result.is_err());
@@ -1607,6 +1680,13 @@ mod tests {
             model: None,
             disable_model_invocation: None,
             tags: None,
+            context: None,
+            agent: None,
+            hooks: None,
+            paths: None,
+            shell: None,
+            once: None,
+            effort: None,
         };
         let result = create_skill_in_db(&db, &skill);
         assert!(result.is_err());
@@ -1626,6 +1706,13 @@ mod tests {
             model: None,
             disable_model_invocation: None,
             tags: None,
+            context: None,
+            agent: None,
+            hooks: None,
+            paths: None,
+            shell: None,
+            once: None,
+            effort: None,
         };
         let result = update_skill_in_db(&db, skill.id, &update);
         assert!(result.is_err());
@@ -1696,6 +1783,13 @@ mod tests {
             model: None,
             disable_model_invocation: None,
             tags: None,
+            context: None,
+            agent: None,
+            hooks: None,
+            paths: None,
+            shell: None,
+            once: None,
+            effort: None,
         };
         let result = validate_skill_request(&skill);
         assert!(result.is_err());
@@ -1713,6 +1807,13 @@ mod tests {
             model: None,
             disable_model_invocation: None,
             tags: None,
+            context: None,
+            agent: None,
+            hooks: None,
+            paths: None,
+            shell: None,
+            once: None,
+            effort: None,
         };
         let result = validate_skill_request(&skill).unwrap();
         assert!(result.is_some());
@@ -1729,6 +1830,13 @@ mod tests {
             model: None,
             disable_model_invocation: None,
             tags: None,
+            context: None,
+            agent: None,
+            hooks: None,
+            paths: None,
+            shell: None,
+            once: None,
+            effort: None,
         };
         let result = validate_skill_request(&skill).unwrap();
         assert!(result.is_none());
@@ -1793,6 +1901,13 @@ mod tests {
             model: None,
             disable_model_invocation: Some(false),
             tags: None,
+            context: None,
+            agent: None,
+            hooks: None,
+            paths: None,
+            shell: None,
+            once: None,
+            effort: None,
         };
         let skill = create_skill_in_db(&db, &req).unwrap();
         assert!(!skill.disable_model_invocation);
@@ -1809,6 +1924,13 @@ mod tests {
             model: None,
             disable_model_invocation: None,
             tags: None,
+            context: None,
+            agent: None,
+            hooks: None,
+            paths: None,
+            shell: None,
+            once: None,
+            effort: None,
         };
         let skill = create_skill_in_db(&db, &req).unwrap();
         assert!(!skill.disable_model_invocation);
@@ -1829,6 +1951,13 @@ mod tests {
             model: None,
             disable_model_invocation: None,
             tags: None,
+            context: None,
+            agent: None,
+            hooks: None,
+            paths: None,
+            shell: None,
+            once: None,
+            effort: None,
         };
         // Should succeed since we skip validation
         let skill = create_skill_in_db_unvalidated(&db, &req).unwrap();

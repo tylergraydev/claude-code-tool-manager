@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { SubAgent } from '$lib/types';
-	import { Bot, MoreVertical, Edit, Trash2, Heart } from 'lucide-svelte';
+	import { Bot, MoreVertical, Edit, Trash2, Heart, Brain } from 'lucide-svelte';
 
 	type Props = {
 		subagent: SubAgent;
@@ -8,6 +8,7 @@
 		onEdit?: (subagent: SubAgent) => void;
 		onDelete?: (subagent: SubAgent) => void;
 		onFavoriteToggle?: (subagent: SubAgent, favorite: boolean) => void;
+		onViewMemory?: (subagent: SubAgent) => void;
 	};
 
 	let {
@@ -15,7 +16,8 @@
 		showActions = true,
 		onEdit,
 		onDelete,
-		onFavoriteToggle
+		onFavoriteToggle,
+		onViewMemory
 	}: Props = $props();
 
 	let showMenu = $state(false);
@@ -124,6 +126,18 @@
 								{menuAbove ? 'bottom-full mb-1' : 'top-full mt-1'}"
 							onclick={(e) => e.stopPropagation()}
 						>
+							{#if onViewMemory}
+								<button
+									onclick={() => {
+										onViewMemory(subagent);
+										closeMenu();
+									}}
+									class="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+								>
+									<Brain class="w-4 h-4" />
+									Memory
+								</button>
+							{/if}
 							{#if onEdit}
 								<button
 									onclick={() => {

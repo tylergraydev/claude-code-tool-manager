@@ -1,6 +1,6 @@
 export type PermissionCategory = 'allow' | 'deny' | 'ask';
 export type PermissionScope = 'user' | 'project' | 'local';
-export type PermissionDefaultMode = 'default' | 'allowEdits' | 'bypassPermissions';
+export type PermissionDefaultMode = 'default' | 'allowEdits' | 'bypassPermissions' | 'plan' | 'auto' | 'dontAsk';
 
 export interface ScopedPermissions {
 	scope: string;
@@ -62,6 +62,21 @@ export const PERMISSION_DEFAULT_MODES: { value: string; label: string; descripti
 		value: 'bypassPermissions',
 		label: 'Bypass Permissions',
 		description: 'Auto-approve everything (use with caution)'
+	},
+	{
+		value: 'plan',
+		label: 'Plan',
+		description: 'Read-only exploration mode — no edits or commands'
+	},
+	{
+		value: 'auto',
+		label: 'Auto',
+		description: 'Background safety checks (research preview)'
+	},
+	{
+		value: 'dontAsk',
+		label: "Don't Ask",
+		description: 'Auto-deny unless pre-approved by rules'
 	}
 ];
 

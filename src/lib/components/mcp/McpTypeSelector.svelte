@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { McpType } from '$lib/types';
-	import { Plug, Globe, Server } from 'lucide-svelte';
+	import { Plug, Globe, Server, Radio } from 'lucide-svelte';
 
 	type Props = {
 		value: McpType;
@@ -26,6 +26,12 @@
 			label: 'HTTP/REST',
 			icon: Server,
 			description: 'REST API with token authentication'
+		},
+		{
+			value: 'ws',
+			label: 'WebSocket',
+			icon: Radio,
+			description: 'Real-time WebSocket endpoint'
 		}
 	];
 </script>
@@ -35,7 +41,7 @@
 		Connection Type <span class="text-red-500">*</span>
 	</label>
 
-	<div class="grid grid-cols-3 gap-3">
+	<div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
 		{#each types as type}
 			<button
 				type="button"

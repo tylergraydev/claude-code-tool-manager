@@ -26,8 +26,17 @@ fn row_to_subagent(row: &rusqlite::Row) -> rusqlite::Result<SubAgent> {
         source: row.get(9)?,
         source_path: row.get(10)?,
         is_favorite: row.get::<_, i32>(11).unwrap_or(0) != 0,
-        created_at: row.get(12)?,
-        updated_at: row.get(13)?,
+        disallowed_tools: parse_json_array(row.get(12)?),
+        max_turns: row.get(13)?,
+        memory: row.get(14)?,
+        background: row.get::<_, Option<i32>>(15)?.map(|v| v != 0),
+        effort: row.get(16)?,
+        isolation: row.get(17)?,
+        hooks: row.get(18)?,
+        mcp_servers: row.get(19)?,
+        initial_prompt: row.get(20)?,
+        created_at: row.get(21)?,
+        updated_at: row.get(22)?,
     })
 }
 
@@ -45,8 +54,17 @@ fn row_to_subagent_with_offset(row: &rusqlite::Row, offset: usize) -> rusqlite::
         source: row.get(offset + 9)?,
         source_path: row.get(offset + 10)?,
         is_favorite: row.get::<_, i32>(offset + 11).unwrap_or(0) != 0,
-        created_at: row.get(offset + 12)?,
-        updated_at: row.get(offset + 13)?,
+        disallowed_tools: parse_json_array(row.get(offset + 12)?),
+        max_turns: row.get(offset + 13)?,
+        memory: row.get(offset + 14)?,
+        background: row.get::<_, Option<i32>>(offset + 15)?.map(|v| v != 0),
+        effort: row.get(offset + 16)?,
+        isolation: row.get(offset + 17)?,
+        hooks: row.get(offset + 18)?,
+        mcp_servers: row.get(offset + 19)?,
+        initial_prompt: row.get(offset + 20)?,
+        created_at: row.get(offset + 21)?,
+        updated_at: row.get(offset + 22)?,
     })
 }
 
@@ -104,7 +122,7 @@ pub fn get_global_subagents(
         .conn()
         .prepare(
             "SELECT gs.id, gs.subagent_id, gs.is_enabled,
-                    s.id, s.name, s.description, s.content, s.tools, s.model, s.permission_mode, s.skills, s.tags, s.source, s.source_path, s.is_favorite, s.created_at, s.updated_at
+                    s.id, s.name, s.description, s.content, s.tools, s.model, s.permission_mode, s.skills, s.tags, s.source, s.source_path, s.is_favorite, s.disallowed_tools, s.max_turns, s.memory, s.background, s.effort, s.isolation, s.hooks, s.mcp_servers, s.initial_prompt, s.created_at, s.updated_at
              FROM global_subagents gs
              JOIN subagents s ON gs.subagent_id = s.id
              ORDER BY s.name",
@@ -136,7 +154,7 @@ pub fn add_global_subagent(
 
     // Get the subagent details for file writing
     let mut stmt = db_guard.conn()
-        .prepare("SELECT id, name, description, content, tools, model, permission_mode, skills, tags, source, source_path, is_favorite, created_at, updated_at FROM subagents WHERE id = ?")
+        .prepare("SELECT id, name, description, content, tools, model, permission_mode, skills, tags, source, source_path, is_favorite, disallowed_tools, max_turns, memory, background, effort, isolation, hooks, mcp_servers, initial_prompt, created_at, updated_at FROM subagents WHERE id = ?")
         .map_err(|e| e.to_string())?;
 
     let subagent: SubAgent = stmt
@@ -233,7 +251,7 @@ pub fn toggle_global_subagent(
     // Get the subagent details
     let mut stmt = db_guard.conn()
         .prepare(
-            "SELECT s.id, s.name, s.description, s.content, s.tools, s.model, s.permission_mode, s.skills, s.tags, s.source, s.source_path, s.is_favorite, s.created_at, s.updated_at
+            "SELECT s.id, s.name, s.description, s.content, s.tools, s.model, s.permission_mode, s.skills, s.tags, s.source, s.source_path, s.is_favorite, s.disallowed_tools, s.max_turns, s.memory, s.background, s.effort, s.isolation, s.hooks, s.mcp_servers, s.initial_prompt, s.created_at, s.updated_at
              FROM global_subagents gs
              JOIN subagents s ON gs.subagent_id = s.id
              WHERE gs.id = ?"
@@ -296,7 +314,7 @@ pub fn assign_subagent_to_project(
         .map_err(|e| e.to_string())?;
 
     let mut stmt = db_guard.conn()
-        .prepare("SELECT id, name, description, content, tools, model, permission_mode, skills, tags, source, source_path, is_favorite, created_at, updated_at FROM subagents WHERE id = ?")
+        .prepare("SELECT id, name, description, content, tools, model, permission_mode, skills, tags, source, source_path, is_favorite, disallowed_tools, max_turns, memory, background, effort, isolation, hooks, mcp_servers, initial_prompt, created_at, updated_at FROM subagents WHERE id = ?")
         .map_err(|e| e.to_string())?;
 
     let subagent: SubAgent = stmt
@@ -410,7 +428,7 @@ pub fn toggle_project_subagent(
     // Get project path and subagent details
     let mut stmt = db_guard.conn()
         .prepare(
-            "SELECT p.path, s.id, s.name, s.description, s.content, s.tools, s.model, s.permission_mode, s.skills, s.tags, s.source, s.source_path, s.is_favorite, s.created_at, s.updated_at
+            "SELECT p.path, s.id, s.name, s.description, s.content, s.tools, s.model, s.permission_mode, s.skills, s.tags, s.source, s.source_path, s.is_favorite, s.disallowed_tools, s.max_turns, s.memory, s.background, s.effort, s.isolation, s.hooks, s.mcp_servers, s.initial_prompt, s.created_at, s.updated_at
              FROM project_subagents ps
              JOIN projects p ON ps.project_id = p.id
              JOIN subagents s ON ps.subagent_id = s.id
@@ -478,7 +496,7 @@ pub fn get_project_subagents(
         .conn()
         .prepare(
             "SELECT ps.id, ps.subagent_id, ps.is_enabled,
-                    s.id, s.name, s.description, s.content, s.tools, s.model, s.permission_mode, s.skills, s.tags, s.source, s.source_path, s.is_favorite, s.created_at, s.updated_at
+                    s.id, s.name, s.description, s.content, s.tools, s.model, s.permission_mode, s.skills, s.tags, s.source, s.source_path, s.is_favorite, s.disallowed_tools, s.max_turns, s.memory, s.background, s.effort, s.isolation, s.hooks, s.mcp_servers, s.initial_prompt, s.created_at, s.updated_at
              FROM project_subagents ps
              JOIN subagents s ON ps.subagent_id = s.id
              WHERE ps.project_id = ?
@@ -523,12 +541,16 @@ pub(crate) fn create_subagent_in_db(
         .tags
         .as_ref()
         .map(|t| serde_json::to_string(t).unwrap());
+    let disallowed_tools_json = subagent
+        .disallowed_tools
+        .as_ref()
+        .map(|t| serde_json::to_string(t).unwrap());
 
     db.conn()
         .execute(
-            "INSERT INTO subagents (name, description, content, tools, model, permission_mode, skills, tags, source)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'manual')",
-            params![subagent.name, subagent.description, subagent.content, tools_json, subagent.model, subagent.permission_mode, skills_json, tags_json],
+            "INSERT INTO subagents (name, description, content, tools, model, permission_mode, skills, tags, disallowed_tools, max_turns, memory, background, effort, isolation, hooks, mcp_servers, initial_prompt, source)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'manual')",
+            params![subagent.name, subagent.description, subagent.content, tools_json, subagent.model, subagent.permission_mode, skills_json, tags_json, disallowed_tools_json, subagent.max_turns, subagent.memory, subagent.background.map(|b| b as i32), subagent.effort, subagent.isolation, subagent.hooks, subagent.mcp_servers, subagent.initial_prompt],
         )
         .map_err(|e| e.to_string())?;
 
@@ -541,7 +563,7 @@ pub(crate) fn get_subagent_by_id(db: &Database, id: i64) -> Result<SubAgent, Str
     let mut stmt = db
         .conn()
         .prepare(
-            "SELECT id, name, description, content, tools, model, permission_mode, skills, tags, source, source_path, is_favorite, created_at, updated_at
+            "SELECT id, name, description, content, tools, model, permission_mode, skills, tags, source, source_path, is_favorite, disallowed_tools, max_turns, memory, background, effort, isolation, hooks, mcp_servers, initial_prompt, created_at, updated_at
              FROM subagents WHERE id = ?",
         )
         .map_err(|e| e.to_string())?;
@@ -555,7 +577,7 @@ pub(crate) fn get_all_subagents_from_db(db: &Database) -> Result<Vec<SubAgent>, 
     let mut stmt = db
         .conn()
         .prepare(
-            "SELECT id, name, description, content, tools, model, permission_mode, skills, tags, source, source_path, is_favorite, created_at, updated_at
+            "SELECT id, name, description, content, tools, model, permission_mode, skills, tags, source, source_path, is_favorite, disallowed_tools, max_turns, memory, background, effort, isolation, hooks, mcp_servers, initial_prompt, created_at, updated_at
              FROM subagents ORDER BY name",
         )
         .map_err(|e| e.to_string())?;
@@ -587,12 +609,16 @@ pub(crate) fn update_subagent_in_db(
         .tags
         .as_ref()
         .map(|t| serde_json::to_string(t).unwrap());
+    let disallowed_tools_json = subagent
+        .disallowed_tools
+        .as_ref()
+        .map(|t| serde_json::to_string(t).unwrap());
 
     db.conn()
         .execute(
-            "UPDATE subagents SET name = ?, description = ?, content = ?, tools = ?, model = ?, permission_mode = ?, skills = ?, tags = ?, updated_at = CURRENT_TIMESTAMP
+            "UPDATE subagents SET name = ?, description = ?, content = ?, tools = ?, model = ?, permission_mode = ?, skills = ?, tags = ?, disallowed_tools = ?, max_turns = ?, memory = ?, background = ?, effort = ?, isolation = ?, hooks = ?, mcp_servers = ?, initial_prompt = ?, updated_at = CURRENT_TIMESTAMP
              WHERE id = ?",
-            params![subagent.name, subagent.description, subagent.content, tools_json, subagent.model, subagent.permission_mode, skills_json, tags_json, id],
+            params![subagent.name, subagent.description, subagent.content, tools_json, subagent.model, subagent.permission_mode, skills_json, tags_json, disallowed_tools_json, subagent.max_turns, subagent.memory, subagent.background.map(|b| b as i32), subagent.effort, subagent.isolation, subagent.hooks, subagent.mcp_servers, subagent.initial_prompt, id],
         )
         .map_err(|e| e.to_string())?;
 
@@ -637,6 +663,15 @@ mod tests {
             permission_mode: Some("bypassPermissions".to_string()),
             skills: Some(vec!["lint".to_string(), "format".to_string()]),
             tags: Some(vec!["review".to_string(), "quality".to_string()]),
+            disallowed_tools: Some(vec!["Bash".to_string()]),
+            max_turns: Some(10),
+            memory: Some("project".to_string()),
+            background: Some(false),
+            effort: Some("high".to_string()),
+            isolation: None,
+            hooks: None,
+            mcp_servers: None,
+            initial_prompt: None,
         }
     }
 
@@ -656,6 +691,15 @@ mod tests {
             permission_mode: None,
             skills: None,
             tags: Some(vec!["testing".to_string()]),
+            disallowed_tools: None,
+            max_turns: Some(25),
+            memory: None,
+            background: Some(true),
+            effort: None,
+            isolation: Some("worktree".to_string()),
+            hooks: None,
+            mcp_servers: None,
+            initial_prompt: Some("Run all tests".to_string()),
         }
     }
 
@@ -669,6 +713,15 @@ mod tests {
             permission_mode: None,
             skills: None,
             tags: None,
+            disallowed_tools: None,
+            max_turns: None,
+            memory: None,
+            background: None,
+            effort: None,
+            isolation: None,
+            hooks: None,
+            mcp_servers: None,
+            initial_prompt: None,
         }
     }
 
@@ -832,6 +885,15 @@ mod tests {
             permission_mode: Some("default".to_string()),
             skills: Some(vec!["new-skill".to_string()]),
             tags: Some(vec!["updated".to_string()]),
+            disallowed_tools: None,
+            max_turns: Some(5),
+            memory: Some("user".to_string()),
+            background: None,
+            effort: Some("low".to_string()),
+            isolation: None,
+            hooks: None,
+            mcp_servers: None,
+            initial_prompt: None,
         };
 
         let updated = update_subagent_in_db(&db, created.id, &update_req).unwrap();
@@ -843,6 +905,9 @@ mod tests {
         assert_eq!(updated.tools, Some(vec!["Bash".to_string()]));
         assert_eq!(updated.model, Some("haiku".to_string()));
         assert_eq!(updated.permission_mode, Some("default".to_string()));
+        assert_eq!(updated.max_turns, Some(5));
+        assert_eq!(updated.memory, Some("user".to_string()));
+        assert_eq!(updated.effort, Some("low".to_string()));
     }
 
     #[test]
@@ -956,6 +1021,15 @@ mod tests {
             permission_mode: None,
             skills: None,
             tags: None,
+            disallowed_tools: None,
+            max_turns: None,
+            memory: None,
+            background: None,
+            effort: None,
+            isolation: None,
+            hooks: None,
+            mcp_servers: None,
+            initial_prompt: None,
         };
         let subagent = create_subagent_in_db(&db, &req).unwrap();
         assert_eq!(subagent.tools, Some(vec![]));
@@ -977,6 +1051,15 @@ mod tests {
             permission_mode: None,
             skills: None,
             tags: None,
+            disallowed_tools: None,
+            max_turns: None,
+            memory: None,
+            background: None,
+            effort: None,
+            isolation: None,
+            hooks: None,
+            mcp_servers: None,
+            initial_prompt: None,
         };
         let updated = update_subagent_in_db(&db, created.id, &update_req).unwrap();
         assert!(updated.tools.is_none());
@@ -1029,6 +1112,15 @@ mod tests {
             source: "manual".to_string(),
             source_path: None,
             is_favorite: false,
+            disallowed_tools: None,
+            max_turns: None,
+            memory: None,
+            background: None,
+            effort: None,
+            isolation: None,
+            hooks: None,
+            mcp_servers: None,
+            initial_prompt: None,
             created_at: "2024-01-01".to_string(),
             updated_at: "2024-01-01".to_string(),
         };

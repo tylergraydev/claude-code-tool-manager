@@ -63,7 +63,43 @@ fn generate_hooks_config(hooks: &[Hook]) -> Value {
                         hook_action.insert("prompt".to_string(), json!(prompt));
                     }
                 }
+                "http" => {
+                    if let Some(ref url) = hook.url {
+                        hook_action.insert("url".to_string(), json!(url));
+                    }
+                    if let Some(ref headers) = hook.headers {
+                        hook_action.insert("headers".to_string(), headers.clone());
+                    }
+                    if let Some(ref env_vars) = hook.allowed_env_vars {
+                        hook_action.insert("allowedEnvVars".to_string(), json!(env_vars));
+                    }
+                    if let Some(timeout) = hook.timeout {
+                        hook_action.insert("timeout".to_string(), json!(timeout));
+                    }
+                }
+                "agent" => {
+                    // agent type has no additional type-specific fields
+                }
                 _ => {}
+            }
+
+            // Universal fields (all hook types)
+            if let Some(ref if_cond) = hook.if_condition {
+                hook_action.insert("if".to_string(), json!(if_cond));
+            }
+            if let Some(ref status) = hook.status_message {
+                hook_action.insert("statusMessage".to_string(), json!(status));
+            }
+            if hook.once {
+                hook_action.insert("once".to_string(), json!(true));
+            }
+            if hook.async_mode {
+                hook_action.insert("async".to_string(), json!(true));
+            }
+            if let Some(ref shell) = hook.shell {
+                if shell != "bash" {
+                    hook_action.insert("shell".to_string(), json!(shell));
+                }
             }
 
             hook_entry.insert("hooks".to_string(), json!([Value::Object(hook_action)]));
@@ -162,6 +198,14 @@ mod tests {
                 command: Some("prettier --write .".to_string()),
                 prompt: None,
                 timeout: Some(30),
+                url: None,
+                headers: None,
+                allowed_env_vars: None,
+                if_condition: None,
+                status_message: None,
+                once: false,
+                async_mode: false,
+                shell: None,
                 tags: None,
                 source: "manual".to_string(),
                 is_template: false,
@@ -178,6 +222,14 @@ mod tests {
                 command: Some("echo \"Running bash command\"".to_string()),
                 prompt: None,
                 timeout: None,
+                url: None,
+                headers: None,
+                allowed_env_vars: None,
+                if_condition: None,
+                status_message: None,
+                once: false,
+                async_mode: false,
+                shell: None,
                 tags: None,
                 source: "manual".to_string(),
                 is_template: false,
@@ -208,6 +260,14 @@ mod tests {
             command: None,
             prompt: Some("Welcome to the session!".to_string()),
             timeout: None,
+            url: None,
+            headers: None,
+            allowed_env_vars: None,
+            if_condition: None,
+            status_message: None,
+            once: false,
+            async_mode: false,
+            shell: None,
             tags: None,
             source: "manual".to_string(),
             is_template: false,
@@ -242,6 +302,14 @@ mod tests {
                 command: Some("echo a".to_string()),
                 prompt: None,
                 timeout: None,
+                url: None,
+                headers: None,
+                allowed_env_vars: None,
+                if_condition: None,
+                status_message: None,
+                once: false,
+                async_mode: false,
+                shell: None,
                 tags: None,
                 source: "manual".to_string(),
                 is_template: false,
@@ -258,6 +326,14 @@ mod tests {
                 command: Some("echo b".to_string()),
                 prompt: None,
                 timeout: None,
+                url: None,
+                headers: None,
+                allowed_env_vars: None,
+                if_condition: None,
+                status_message: None,
+                once: false,
+                async_mode: false,
+                shell: None,
                 tags: None,
                 source: "manual".to_string(),
                 is_template: false,
@@ -290,6 +366,14 @@ mod tests {
             command: Some("lint .".to_string()),
             prompt: None,
             timeout: Some(60),
+            url: None,
+            headers: None,
+            allowed_env_vars: None,
+            if_condition: None,
+            status_message: None,
+            once: false,
+            async_mode: false,
+            shell: None,
             tags: None,
             source: "manual".to_string(),
             is_template: false,
@@ -315,6 +399,14 @@ mod tests {
             command: Some("echo done".to_string()),
             prompt: None,
             timeout: None,
+            url: None,
+            headers: None,
+            allowed_env_vars: None,
+            if_condition: None,
+            status_message: None,
+            once: false,
+            async_mode: false,
+            shell: None,
             tags: None,
             source: "manual".to_string(),
             is_template: false,
@@ -343,6 +435,14 @@ mod tests {
             command: Some("echo test".to_string()),
             prompt: None,
             timeout: None,
+            url: None,
+            headers: None,
+            allowed_env_vars: None,
+            if_condition: None,
+            status_message: None,
+            once: false,
+            async_mode: false,
+            shell: None,
             tags: None,
             source: "manual".to_string(),
             is_template: false,
@@ -387,6 +487,14 @@ mod tests {
             command: Some("echo done".to_string()),
             prompt: None,
             timeout: None,
+            url: None,
+            headers: None,
+            allowed_env_vars: None,
+            if_condition: None,
+            status_message: None,
+            once: false,
+            async_mode: false,
+            shell: None,
             tags: None,
             source: "manual".to_string(),
             is_template: false,
@@ -439,6 +547,14 @@ mod tests {
             command: Some("echo test".to_string()),
             prompt: None,
             timeout: None,
+            url: None,
+            headers: None,
+            allowed_env_vars: None,
+            if_condition: None,
+            status_message: None,
+            once: false,
+            async_mode: false,
+            shell: None,
             tags: None,
             source: "manual".to_string(),
             is_template: false,
@@ -464,6 +580,14 @@ mod tests {
             command: None,
             prompt: None,
             timeout: None,
+            url: None,
+            headers: None,
+            allowed_env_vars: None,
+            if_condition: None,
+            status_message: None,
+            once: false,
+            async_mode: false,
+            shell: None,
             tags: None,
             source: "manual".to_string(),
             is_template: false,
@@ -503,5 +627,297 @@ mod tests {
         let path = dir.path().join("sub").join("deep").join("settings.json");
         write_settings_file(&path, &json!({"ok": true})).unwrap();
         assert!(path.exists());
+    }
+
+    // =========================================================================
+    // Tests for new hook event types
+    // =========================================================================
+
+    #[test]
+    fn test_generate_hooks_config_new_event_types() {
+        let hooks = vec![
+            Hook {
+                id: 1,
+                name: "failure-log".to_string(),
+                description: Some("Log tool failures".to_string()),
+                event_type: "PostToolUseFailure".to_string(),
+                matcher: Some("Bash".to_string()),
+                hook_type: "command".to_string(),
+                command: Some("echo failed".to_string()),
+                prompt: None,
+                timeout: Some(5),
+                url: None,
+                headers: None,
+                allowed_env_vars: None,
+                if_condition: None,
+                status_message: None,
+                once: false,
+                async_mode: false,
+                shell: None,
+                tags: None,
+                source: "manual".to_string(),
+                is_template: false,
+                created_at: "2024-01-01".to_string(),
+                updated_at: "2024-01-01".to_string(),
+            },
+            Hook {
+                id: 2,
+                name: "stop-failure-alert".to_string(),
+                description: None,
+                event_type: "StopFailure".to_string(),
+                matcher: Some("rate_limit".to_string()),
+                hook_type: "command".to_string(),
+                command: Some("echo rate limited".to_string()),
+                prompt: None,
+                timeout: None,
+                url: None,
+                headers: None,
+                allowed_env_vars: None,
+                if_condition: None,
+                status_message: None,
+                once: false,
+                async_mode: false,
+                shell: None,
+                tags: None,
+                source: "manual".to_string(),
+                is_template: false,
+                created_at: "2024-01-01".to_string(),
+                updated_at: "2024-01-01".to_string(),
+            },
+            Hook {
+                id: 3,
+                name: "config-watcher".to_string(),
+                description: None,
+                event_type: "ConfigChange".to_string(),
+                matcher: Some("user_settings".to_string()),
+                hook_type: "command".to_string(),
+                command: Some("echo config changed".to_string()),
+                prompt: None,
+                timeout: None,
+                url: None,
+                headers: None,
+                allowed_env_vars: None,
+                if_condition: None,
+                status_message: None,
+                once: false,
+                async_mode: false,
+                shell: None,
+                tags: None,
+                source: "manual".to_string(),
+                is_template: false,
+                created_at: "2024-01-01".to_string(),
+                updated_at: "2024-01-01".to_string(),
+            },
+        ];
+
+        let config = generate_hooks_config(&hooks);
+
+        assert!(config.get("PostToolUseFailure").is_some());
+        assert!(config.get("StopFailure").is_some());
+        assert!(config.get("ConfigChange").is_some());
+
+        let failure = config.get("PostToolUseFailure").unwrap().as_array().unwrap();
+        assert_eq!(failure.len(), 1);
+        assert_eq!(failure[0].get("matcher").unwrap(), "Bash");
+
+        let stop_fail = config.get("StopFailure").unwrap().as_array().unwrap();
+        assert_eq!(stop_fail[0].get("matcher").unwrap(), "rate_limit");
+    }
+
+    #[test]
+    fn test_generate_hooks_config_all_new_event_types() {
+        // Verify all 14 new event types serialize correctly
+        let new_event_types = vec![
+            "InstructionsLoaded",
+            "PostToolUseFailure",
+            "StopFailure",
+            "SubagentStart",
+            "TaskCompleted",
+            "TeammateIdle",
+            "PostCompact",
+            "ConfigChange",
+            "CwdChanged",
+            "FileChanged",
+            "WorktreeCreate",
+            "WorktreeRemove",
+            "Elicitation",
+            "ElicitationResult",
+        ];
+
+        let hooks: Vec<Hook> = new_event_types
+            .iter()
+            .enumerate()
+            .map(|(i, event_type)| Hook {
+                id: i as i64 + 1,
+                name: format!("hook-{}", event_type),
+                description: None,
+                event_type: event_type.to_string(),
+                matcher: None,
+                hook_type: "command".to_string(),
+                command: Some(format!("echo {}", event_type)),
+                prompt: None,
+                timeout: None,
+                url: None,
+                headers: None,
+                allowed_env_vars: None,
+                if_condition: None,
+                status_message: None,
+                once: false,
+                async_mode: false,
+                shell: None,
+                tags: None,
+                source: "manual".to_string(),
+                is_template: false,
+                created_at: "2024-01-01".to_string(),
+                updated_at: "2024-01-01".to_string(),
+            })
+            .collect();
+
+        let config = generate_hooks_config(&hooks);
+
+        for event_type in &new_event_types {
+            assert!(
+                config.get(*event_type).is_some(),
+                "Missing event type: {}",
+                event_type
+            );
+            let entries = config.get(*event_type).unwrap().as_array().unwrap();
+            assert_eq!(entries.len(), 1);
+            let hook_actions = entries[0].get("hooks").unwrap().as_array().unwrap();
+            assert_eq!(
+                hook_actions[0].get("command").unwrap(),
+                &format!("echo {}", event_type)
+            );
+        }
+    }
+
+    #[test]
+    fn test_write_project_hooks_new_event_types() {
+        let dir = tempfile::tempdir().unwrap();
+        let project_path = dir.path();
+
+        let hooks = vec![
+            Hook {
+                id: 1,
+                name: "file-watcher".to_string(),
+                description: None,
+                event_type: "FileChanged".to_string(),
+                matcher: Some("*.rs".to_string()),
+                hook_type: "command".to_string(),
+                command: Some("cargo check".to_string()),
+                prompt: None,
+                timeout: Some(120),
+                url: None,
+                headers: None,
+                allowed_env_vars: None,
+                if_condition: None,
+                status_message: None,
+                once: false,
+                async_mode: false,
+                shell: None,
+                tags: None,
+                source: "manual".to_string(),
+                is_template: false,
+                created_at: "2024-01-01".to_string(),
+                updated_at: "2024-01-01".to_string(),
+            },
+            Hook {
+                id: 2,
+                name: "worktree-setup".to_string(),
+                description: None,
+                event_type: "WorktreeCreate".to_string(),
+                matcher: None,
+                hook_type: "command".to_string(),
+                command: Some("npm install".to_string()),
+                prompt: None,
+                timeout: Some(300),
+                url: None,
+                headers: None,
+                allowed_env_vars: None,
+                if_condition: None,
+                status_message: None,
+                once: false,
+                async_mode: false,
+                shell: None,
+                tags: None,
+                source: "manual".to_string(),
+                is_template: false,
+                created_at: "2024-01-01".to_string(),
+                updated_at: "2024-01-01".to_string(),
+            },
+        ];
+
+        write_project_hooks(project_path, &hooks).unwrap();
+
+        let settings_path = project_path.join(".claude").join("settings.local.json");
+        let content = std::fs::read_to_string(&settings_path).unwrap();
+        let json: Value = serde_json::from_str(&content).unwrap();
+
+        assert!(json["hooks"].get("FileChanged").is_some());
+        assert!(json["hooks"].get("WorktreeCreate").is_some());
+
+        let file_changed = json["hooks"]["FileChanged"].as_array().unwrap();
+        assert_eq!(file_changed[0]["matcher"], "*.rs");
+
+        let worktree = json["hooks"]["WorktreeCreate"].as_array().unwrap();
+        assert!(worktree[0].get("matcher").is_none());
+    }
+
+    #[test]
+    fn test_hooks_to_settings_format_mixed_old_and_new_events() {
+        let hooks = vec![
+            Hook {
+                id: 1,
+                name: "old-event".to_string(),
+                description: None,
+                event_type: "PreToolUse".to_string(),
+                matcher: Some("Bash".to_string()),
+                hook_type: "command".to_string(),
+                command: Some("echo old".to_string()),
+                prompt: None,
+                timeout: None,
+                url: None,
+                headers: None,
+                allowed_env_vars: None,
+                if_condition: None,
+                status_message: None,
+                once: false,
+                async_mode: false,
+                shell: None,
+                tags: None,
+                source: "manual".to_string(),
+                is_template: false,
+                created_at: "2024-01-01".to_string(),
+                updated_at: "2024-01-01".to_string(),
+            },
+            Hook {
+                id: 2,
+                name: "new-event".to_string(),
+                description: None,
+                event_type: "SubagentStart".to_string(),
+                matcher: Some("code-reviewer".to_string()),
+                hook_type: "command".to_string(),
+                command: Some("echo new".to_string()),
+                prompt: None,
+                timeout: None,
+                url: None,
+                headers: None,
+                allowed_env_vars: None,
+                if_condition: None,
+                status_message: None,
+                once: false,
+                async_mode: false,
+                shell: None,
+                tags: None,
+                source: "manual".to_string(),
+                is_template: false,
+                created_at: "2024-01-01".to_string(),
+                updated_at: "2024-01-01".to_string(),
+            },
+        ];
+
+        let result = hooks_to_settings_format(&hooks);
+        assert!(result["hooks"].get("PreToolUse").is_some());
+        assert!(result["hooks"].get("SubagentStart").is_some());
     }
 }

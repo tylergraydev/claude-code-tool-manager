@@ -3,7 +3,7 @@
 	import { mcpLibrary } from '$lib/stores';
 	import McpCard from './McpCard.svelte';
 	import { SearchBar, LoadingSpinner, EmptyState } from '$lib/components/shared';
-	import { Plug, Globe, Server, Package } from 'lucide-svelte';
+	import { Plug, Globe, Server, Radio, Package } from 'lucide-svelte';
 	import { invoke } from '@tauri-apps/api/core';
 
 	type Props = {
@@ -27,11 +27,12 @@
 		}
 	}
 
-	const typeFilters: { value: 'all' | 'stdio' | 'sse' | 'http'; label: string; icon: typeof Package }[] = [
+	const typeFilters: { value: 'all' | 'stdio' | 'sse' | 'http' | 'ws'; label: string; icon: typeof Package }[] = [
 		{ value: 'all', label: 'All', icon: Package },
 		{ value: 'stdio', label: 'stdio', icon: Plug },
 		{ value: 'sse', label: 'SSE', icon: Globe },
-		{ value: 'http', label: 'HTTP', icon: Server }
+		{ value: 'http', label: 'HTTP', icon: Server },
+		{ value: 'ws', label: 'WS', icon: Radio }
 	];
 </script>
 

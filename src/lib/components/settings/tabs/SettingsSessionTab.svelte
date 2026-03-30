@@ -18,6 +18,11 @@
 		if (s.autoUpdatesChannel) count++;
 		if (s.teammateMode) count++;
 		if (s.plansDirectory) count++;
+		if (s.autoMemoryEnabled !== undefined) count++;
+		if (s.autoMemoryDirectory) count++;
+		if (s.claudeMdExcludes && s.claudeMdExcludes.length > 0) count++;
+		if (s.agent) count++;
+		if (s.disableAutoMode !== undefined) count++;
 		return count;
 	}
 </script>

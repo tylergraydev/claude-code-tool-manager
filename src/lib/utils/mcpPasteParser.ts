@@ -8,7 +8,7 @@
 
 export interface ParsedMcp {
 	name: string;
-	type: 'stdio' | 'sse' | 'http';
+	type: 'stdio' | 'sse' | 'http' | 'ws';
 	command?: string;
 	args?: string[];
 	url?: string;
@@ -217,12 +217,13 @@ function parseServerConfig(name: string, config: Record<string, unknown>): Parse
 /**
  * Detect server type from config
  */
-function detectServerType(config: Record<string, unknown>): 'stdio' | 'sse' | 'http' {
+function detectServerType(config: Record<string, unknown>): 'stdio' | 'sse' | 'http' | 'ws' {
+	if (config.type === 'ws') return 'ws';
 	if (config.type === 'sse') return 'sse';
 	if (config.type === 'http') return 'http';
 	if (config.url) {
-		// URL-based servers are typically SSE or HTTP
 		const url = String(config.url);
+		if (url.startsWith('ws://') || url.startsWith('wss://')) return 'ws';
 		if (url.includes('sse') || config.type === 'sse') return 'sse';
 		return 'http';
 	}

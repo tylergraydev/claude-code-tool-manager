@@ -749,6 +749,28 @@ describe('Hook Library Store', () => {
 
 			expect(hookLibrary.hooksByEventType).toEqual([]);
 		});
+
+		it('should correctly group new event types', async () => {
+			const mockHooks = [
+				{ id: 1, name: 'failure-log', eventType: 'PostToolUseFailure', hookType: 'command', source: 'user', isTemplate: false },
+				{ id: 2, name: 'stop-fail', eventType: 'StopFailure', hookType: 'command', source: 'user', isTemplate: false },
+				{ id: 3, name: 'config-watch', eventType: 'ConfigChange', hookType: 'command', source: 'user', isTemplate: false },
+				{ id: 4, name: 'task-done', eventType: 'TaskCompleted', hookType: 'command', source: 'user', isTemplate: false }
+			];
+
+			vi.mocked(invoke).mockResolvedValueOnce(mockHooks);
+
+			const { hookLibrary } = await import('$lib/stores/hookLibrary.svelte');
+			await hookLibrary.load();
+
+			const groups = hookLibrary.hooksByEventType;
+			expect(groups).toHaveLength(4);
+			const eventTypes = groups.map((g: any) => g.eventType);
+			expect(eventTypes).toContain('PostToolUseFailure');
+			expect(eventTypes).toContain('StopFailure');
+			expect(eventTypes).toContain('ConfigChange');
+			expect(eventTypes).toContain('TaskCompleted');
+		});
 	});
 
 	describe('setEventFilter', () => {
@@ -758,6 +780,23 @@ describe('Hook Library Store', () => {
 			expect(hookLibrary.eventFilter).toBe('Stop');
 			hookLibrary.setEventFilter('');
 			expect(hookLibrary.eventFilter).toBe('');
+		});
+
+		it('should filter by new event types', async () => {
+			const mockHooks = [
+				{ id: 1, name: 'hook-1', eventType: 'PostToolUseFailure', hookType: 'command', source: 'user', isTemplate: false },
+				{ id: 2, name: 'hook-2', eventType: 'StopFailure', hookType: 'command', source: 'user', isTemplate: false },
+				{ id: 3, name: 'hook-3', eventType: 'PostToolUseFailure', hookType: 'command', source: 'user', isTemplate: false }
+			];
+
+			vi.mocked(invoke).mockResolvedValueOnce(mockHooks);
+
+			const { hookLibrary } = await import('$lib/stores/hookLibrary.svelte');
+			await hookLibrary.load();
+
+			hookLibrary.setEventFilter('PostToolUseFailure');
+			expect(hookLibrary.filteredHooks).toHaveLength(2);
+			expect(hookLibrary.filteredHooks.every((h) => h.eventType === 'PostToolUseFailure')).toBe(true);
 		});
 	});
 });

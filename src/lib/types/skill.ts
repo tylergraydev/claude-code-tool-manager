@@ -10,6 +10,13 @@ export interface Skill {
 	source: string;
 	sourcePath?: string;
 	isFavorite: boolean;
+	context?: string;
+	agent?: string;
+	hooks?: string;
+	paths?: string[];
+	shell?: string;
+	once?: boolean;
+	effort?: string;
 	createdAt: string;
 	updatedAt: string;
 }
@@ -22,6 +29,13 @@ export interface CreateSkillRequest {
 	model?: string;
 	disableModelInvocation?: boolean;
 	tags?: string[];
+	context?: string;
+	agent?: string;
+	hooks?: string;
+	paths?: string[];
+	shell?: string;
+	once?: boolean;
+	effort?: string;
 }
 
 export interface ProjectSkill {

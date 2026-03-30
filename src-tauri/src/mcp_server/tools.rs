@@ -44,8 +44,8 @@ impl ToolManagerServer {
 
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct ListMcpsParams {
-    /// Filter by MCP type (stdio, sse, http)
-    #[schemars(description = "Filter by MCP type: stdio, sse, or http")]
+    /// Filter by MCP type (stdio, sse, http, ws)
+    #[schemars(description = "Filter by MCP type: stdio, sse, http, or ws")]
     pub filter_type: Option<String>,
     /// Search term for name or description
     #[schemars(description = "Search term to filter MCPs by name or description")]
@@ -64,8 +64,8 @@ pub struct CreateMcpParams {
     /// Name of the MCP
     #[schemars(description = "Unique name for the MCP")]
     pub name: String,
-    /// Type of MCP (stdio, sse, http)
-    #[schemars(description = "Type of MCP: stdio, sse, or http")]
+    /// Type of MCP (stdio, sse, http, ws)
+    #[schemars(description = "Type of MCP: stdio, sse, http, or ws")]
     #[serde(rename = "type")]
     pub mcp_type: String,
     /// Description of the MCP
@@ -187,6 +187,33 @@ pub struct CreateSubAgentParams {
     /// Tags
     #[schemars(description = "Tags for categorization")]
     pub tags: Option<Vec<String>>,
+    /// Disallowed tools
+    #[schemars(description = "List of tools the sub-agent cannot use")]
+    pub disallowed_tools: Option<Vec<String>>,
+    /// Max turns
+    #[schemars(description = "Maximum number of iterations")]
+    pub max_turns: Option<i32>,
+    /// Memory scope
+    #[schemars(description = "Persistent memory scope: user, project, or local")]
+    pub memory: Option<String>,
+    /// Background mode
+    #[schemars(description = "Always run in background")]
+    pub background: Option<bool>,
+    /// Effort level
+    #[schemars(description = "Effort level: low, medium, high, or max")]
+    pub effort: Option<String>,
+    /// Isolation mode
+    #[schemars(description = "Isolation mode: worktree")]
+    pub isolation: Option<String>,
+    /// Hooks (JSON)
+    #[schemars(description = "Scoped hooks as JSON object")]
+    pub hooks: Option<String>,
+    /// MCP servers (JSON)
+    #[schemars(description = "Scoped MCP servers as JSON object")]
+    pub mcp_servers: Option<String>,
+    /// Initial prompt
+    #[schemars(description = "Auto-submitted first prompt")]
+    pub initial_prompt: Option<String>,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -200,7 +227,7 @@ pub struct CreateHookParams {
     )]
     pub event_type: String,
     /// Hook type
-    #[schemars(description = "Hook type: 'command' or 'prompt'")]
+    #[schemars(description = "Hook type: 'command', 'prompt', 'http', or 'agent'")]
     pub hook_type: String,
     /// Description
     #[schemars(description = "Description of what the hook does")]
@@ -217,6 +244,30 @@ pub struct CreateHookParams {
     /// Timeout in ms
     #[schemars(description = "Timeout in milliseconds")]
     pub timeout: Option<i32>,
+    /// URL for http hooks
+    #[schemars(description = "URL to POST to (http hooks only)")]
+    pub url: Option<String>,
+    /// Headers for http hooks
+    #[schemars(description = "HTTP headers as JSON object (http hooks only)")]
+    pub headers: Option<serde_json::Value>,
+    /// Allowed env vars for http hooks
+    #[schemars(description = "Environment variables allowed in URL/header substitution")]
+    pub allowed_env_vars: Option<Vec<String>>,
+    /// If condition
+    #[schemars(description = "Permission rule syntax filter (e.g., 'Bash(rm *)')")]
+    pub if_condition: Option<String>,
+    /// Status message
+    #[schemars(description = "Custom spinner text while hook runs")]
+    pub status_message: Option<String>,
+    /// Run once per session
+    #[schemars(description = "Run only once per session")]
+    pub once: Option<bool>,
+    /// Run in background
+    #[schemars(description = "Run in background (command hooks)")]
+    pub async_mode: Option<bool>,
+    /// Shell type
+    #[schemars(description = "Shell: 'bash' (default) or 'powershell'")]
+    pub shell: Option<String>,
     /// Tags
     #[schemars(description = "Tags for categorization")]
     pub tags: Option<Vec<String>>,
@@ -525,6 +576,13 @@ impl ToolManagerServer {
             model: params.model,
             disable_model_invocation: params.disable_model_invocation,
             tags: params.tags,
+            context: None,
+            agent: None,
+            hooks: None,
+            paths: None,
+            shell: None,
+            once: None,
+            effort: None,
         };
 
         let db = self.get_db()?;
@@ -621,6 +679,15 @@ impl ToolManagerServer {
             permission_mode: params.permission_mode,
             skills: None,
             tags: params.tags,
+            disallowed_tools: params.disallowed_tools,
+            max_turns: params.max_turns,
+            memory: params.memory,
+            background: params.background,
+            effort: params.effort,
+            isolation: params.isolation,
+            hooks: params.hooks,
+            mcp_servers: params.mcp_servers,
+            initial_prompt: params.initial_prompt,
         };
 
         let db = self.get_db()?;
@@ -714,6 +781,14 @@ impl ToolManagerServer {
             command: params.command,
             prompt: params.prompt,
             timeout: params.timeout,
+            url: params.url,
+            headers: params.headers,
+            allowed_env_vars: params.allowed_env_vars,
+            if_condition: params.if_condition,
+            status_message: params.status_message,
+            once: params.once,
+            async_mode: params.async_mode,
+            shell: params.shell,
             tags: params.tags,
         };
 
@@ -1074,6 +1149,15 @@ mod tests {
                             .filter_map(|v| v.as_str().map(|s| s.to_string()))
                             .collect()
                     }),
+                    context: args_map.get("context").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                    agent: args_map.get("agent").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                    hooks: args_map.get("hooks").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                    paths: args_map.get("paths").and_then(|v| v.as_array()).map(|a| {
+                        a.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect()
+                    }),
+                    shell: args_map.get("shell").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                    once: args_map.get("once").and_then(|v| v.as_bool()),
+                    effort: args_map.get("effort").and_then(|v| v.as_str()).map(|s| s.to_string()),
                 };
                 let skill = db.create_skill(&request).map_err(|e| e.to_string())?;
                 let json = serde_json::to_string_pretty(&skill).map_err(|e| e.to_string())?;
@@ -1162,6 +1246,19 @@ mod tests {
                             .filter_map(|v| v.as_str().map(|s| s.to_string()))
                             .collect()
                     }),
+                    disallowed_tools: args_map.get("disallowed_tools").and_then(|v| v.as_array()).map(|a| {
+                        a.iter()
+                            .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                            .collect()
+                    }),
+                    max_turns: args_map.get("max_turns").and_then(|v| v.as_i64()).map(|v| v as i32),
+                    memory: args_map.get("memory").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                    background: args_map.get("background").and_then(|v| v.as_bool()),
+                    effort: args_map.get("effort").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                    isolation: args_map.get("isolation").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                    hooks: args_map.get("hooks").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                    mcp_servers: args_map.get("mcp_servers").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                    initial_prompt: args_map.get("initial_prompt").and_then(|v| v.as_str()).map(|s| s.to_string()),
                 };
                 let item = db.create_subagent(&request).map_err(|e| e.to_string())?;
                 let json = serde_json::to_string_pretty(&item).map_err(|e| e.to_string())?;
@@ -1251,6 +1348,16 @@ mod tests {
                         .get("timeout")
                         .and_then(|v| v.as_i64())
                         .map(|v| v as i32),
+                    url: args_map.get("url").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                    headers: args_map.get("headers").cloned(),
+                    allowed_env_vars: args_map.get("allowed_env_vars").and_then(|v| v.as_array()).map(|a| {
+                        a.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect()
+                    }),
+                    if_condition: args_map.get("if_condition").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                    status_message: args_map.get("status_message").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                    once: args_map.get("once").and_then(|v| v.as_bool()),
+                    async_mode: args_map.get("async_mode").and_then(|v| v.as_bool()),
+                    shell: args_map.get("shell").and_then(|v| v.as_str()).map(|s| s.to_string()),
                     tags: args_map.get("tags").and_then(|v| v.as_array()).map(|a| {
                         a.iter()
                             .filter_map(|v| v.as_str().map(|s| s.to_string()))

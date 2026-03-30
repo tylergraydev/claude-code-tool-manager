@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { Project, Mcp, Skill, SubAgent, Command, ProjectSkill, ProjectSubAgent, ProjectCommand } from '$lib/types';
 	import { mcpLibrary, projectsStore, notifications, skillLibrary, subagentLibrary, commandLibrary } from '$lib/stores';
-	import { X, Plus, Minus, FolderOpen, Plug, Globe, Server, Sparkles, Bot, ChevronDown, Terminal, Search } from 'lucide-svelte';
+	import { X, Plus, Minus, FolderOpen, Plug, Globe, Server, Radio, Sparkles, Bot, ChevronDown, Terminal, Search } from 'lucide-svelte';
 	import { invoke } from '@tauri-apps/api/core';
 
 	type Props = {
@@ -24,13 +24,15 @@
 	const typeIcons = {
 		stdio: Plug,
 		sse: Globe,
-		http: Server
+		http: Server,
+		ws: Radio
 	};
 
 	const typeColors = {
 		stdio: 'bg-purple-100 text-purple-600 dark:bg-purple-900/50 dark:text-purple-400',
 		sse: 'bg-green-100 text-green-600 dark:bg-green-900/50 dark:text-green-400',
-		http: 'bg-blue-100 text-blue-600 dark:bg-blue-900/50 dark:text-blue-400'
+		http: 'bg-blue-100 text-blue-600 dark:bg-blue-900/50 dark:text-blue-400',
+		ws: 'bg-orange-100 text-orange-600 dark:bg-orange-900/50 dark:text-orange-400'
 	};
 
 	// Get current project from store (updates after loadProjects)
