@@ -16,11 +16,11 @@ pub async fn get_usage_stats() -> Result<StatsCacheInfo, String> {
 mod tests {
     use super::*;
 
-    #[test]
-    fn test_get_usage_stats_returns_result() {
+    #[tokio::test]
+    async fn test_get_usage_stats_returns_result() {
         // The function reads from the filesystem; in CI it may not exist.
         // We just verify the function is callable and returns a Result.
-        let result = get_usage_stats();
+        let result = get_usage_stats().await;
         // Either Ok or Err is fine – we're testing that it doesn't panic.
         let _ = result;
     }

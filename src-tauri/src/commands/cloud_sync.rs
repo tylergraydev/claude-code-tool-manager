@@ -13,31 +13,35 @@ use tauri::State;
 #[tauri::command]
 pub async fn get_gh_cli_token() -> Result<String, String> {
     info!("[CloudSync] Getting token from gh CLI");
-    let output = std::process::Command::new("gh")
-        .args(["auth", "token"])
-        .output()
-        .map_err(|e| {
-            if e.kind() == std::io::ErrorKind::NotFound {
-                "gh CLI not installed. Install it from https://cli.github.com".to_string()
-            } else {
-                format!("Failed to run gh CLI: {}", e)
-            }
-        })?;
+    tokio::task::spawn_blocking(|| {
+        let output = std::process::Command::new("gh")
+            .args(["auth", "token"])
+            .output()
+            .map_err(|e| {
+                if e.kind() == std::io::ErrorKind::NotFound {
+                    "gh CLI not installed. Install it from https://cli.github.com".to_string()
+                } else {
+                    format!("Failed to run gh CLI: {}", e)
+                }
+            })?;
 
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(format!(
-            "gh CLI not authenticated. Run 'gh auth login' first. Error: {}",
-            stderr.trim()
-        ));
-    }
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(format!(
+                "gh CLI not authenticated. Run 'gh auth login' first. Error: {}",
+                stderr.trim()
+            ));
+        }
 
-    let token = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    if token.is_empty() {
-        return Err("gh CLI returned empty token".to_string());
-    }
+        let token = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        if token.is_empty() {
+            return Err("gh CLI returned empty token".to_string());
+        }
 
-    Ok(token)
+        Ok(token)
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 /// Check if gh CLI is installed

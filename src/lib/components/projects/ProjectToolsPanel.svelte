@@ -489,7 +489,7 @@
 			<button
 				onclick={() => bulkToggle(true)}
 				disabled={bulkLoading}
-				class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-green-100 text-green-700 hover:bg-green-200 dark:bg-green-900/40 dark:text-green-400 dark:hover:bg-green-900/60 transition-colors disabled:opacity-50"
+				class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-green-100 text-green-700 hover:bg-green-200 dark:bg-green-900/40 dark:text-green-400 dark:hover:bg-green-900/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 transition-colors disabled:opacity-50"
 			>
 				<Power class="w-3.5 h-3.5" />
 				Enable
@@ -497,7 +497,7 @@
 			<button
 				onclick={() => bulkToggle(false)}
 				disabled={bulkLoading}
-				class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600 transition-colors disabled:opacity-50"
+				class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 transition-colors disabled:opacity-50"
 			>
 				<PowerOff class="w-3.5 h-3.5" />
 				Disable
@@ -505,14 +505,14 @@
 			<button
 				onclick={bulkRemove}
 				disabled={bulkLoading}
-				class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-red-100 text-red-700 hover:bg-red-200 dark:bg-red-900/40 dark:text-red-400 dark:hover:bg-red-900/60 transition-colors disabled:opacity-50"
+				class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-red-100 text-red-700 hover:bg-red-200 dark:bg-red-900/40 dark:text-red-400 dark:hover:bg-red-900/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 transition-colors disabled:opacity-50"
 			>
 				<Trash2 class="w-3.5 h-3.5" />
 				Remove
 			</button>
 			<button
 				onclick={clearSelection}
-				class="ml-1 px-2 py-1.5 text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
+				class="ml-1 px-2 py-1.5 text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 rounded transition-colors"
 			>
 				Cancel
 			</button>
@@ -529,7 +529,7 @@
 				{#if project.assignedMcps.length > 1}
 					<button
 						onclick={() => toggleSelectAll(project.assignedMcps.map(a => a.id))}
-						class="p-0.5 text-gray-400 hover:text-primary-500 transition-colors"
+						class="p-0.5 text-gray-400 hover:text-primary-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-1 rounded transition-colors"
 						title={allSelected ? 'Deselect all' : 'Select all'}
 					>
 						{#if allSelected}
@@ -551,7 +551,7 @@
 							<div class="flex items-center gap-3">
 								<button
 									onclick={() => toggleSelection(assignment.id)}
-									class="p-0.5 text-gray-400 hover:text-primary-500 transition-colors flex-shrink-0"
+									class="p-0.5 text-gray-400 hover:text-primary-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-1 rounded transition-colors flex-shrink-0"
 								>
 									{#if selectedIds.has(assignment.id)}
 										<SquareCheck class="w-4 h-4 text-primary-500" />
@@ -658,7 +658,7 @@
 				{#if projectSkills.length > 1}
 					<button
 						onclick={() => toggleSelectAll(projectSkills.map(a => a.id))}
-						class="p-0.5 text-gray-400 hover:text-primary-500 transition-colors"
+						class="p-0.5 text-gray-400 hover:text-primary-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-1 rounded transition-colors"
 						title={allSelected ? 'Deselect all' : 'Select all'}
 					>
 						{#if allSelected}
@@ -680,7 +680,7 @@
 							<div class="flex items-center gap-3 min-w-0 flex-1">
 								<button
 									onclick={() => toggleSelection(assignment.id)}
-									class="p-0.5 text-gray-400 hover:text-primary-500 transition-colors flex-shrink-0"
+									class="p-0.5 text-gray-400 hover:text-primary-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-1 rounded transition-colors flex-shrink-0"
 								>
 									{#if selectedIds.has(assignment.id)}
 										<SquareCheck class="w-4 h-4 text-primary-500" />
@@ -791,7 +791,7 @@
 				{#if projectSubAgents.length > 1}
 					<button
 						onclick={() => toggleSelectAll(projectSubAgents.map(a => a.id))}
-						class="p-0.5 text-gray-400 hover:text-primary-500 transition-colors"
+						class="p-0.5 text-gray-400 hover:text-primary-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-1 rounded transition-colors"
 						title={allSelected ? 'Deselect all' : 'Select all'}
 					>
 						{#if allSelected}
@@ -813,7 +813,7 @@
 							<div class="flex items-center gap-3 min-w-0 flex-1">
 								<button
 									onclick={() => toggleSelection(assignment.id)}
-									class="p-0.5 text-gray-400 hover:text-primary-500 transition-colors flex-shrink-0"
+									class="p-0.5 text-gray-400 hover:text-primary-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-1 rounded transition-colors flex-shrink-0"
 								>
 									{#if selectedIds.has(assignment.id)}
 										<SquareCheck class="w-4 h-4 text-primary-500" />
@@ -924,7 +924,7 @@
 				{#if projectCommands.length > 1}
 					<button
 						onclick={() => toggleSelectAll(projectCommands.map(a => a.id))}
-						class="p-0.5 text-gray-400 hover:text-primary-500 transition-colors"
+						class="p-0.5 text-gray-400 hover:text-primary-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-1 rounded transition-colors"
 						title={allSelected ? 'Deselect all' : 'Select all'}
 					>
 						{#if allSelected}
@@ -946,7 +946,7 @@
 							<div class="flex items-center gap-3 min-w-0 flex-1">
 								<button
 									onclick={() => toggleSelection(assignment.id)}
-									class="p-0.5 text-gray-400 hover:text-primary-500 transition-colors flex-shrink-0"
+									class="p-0.5 text-gray-400 hover:text-primary-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-1 rounded transition-colors flex-shrink-0"
 								>
 									{#if selectedIds.has(assignment.id)}
 										<SquareCheck class="w-4 h-4 text-primary-500" />
@@ -1057,7 +1057,7 @@
 				{#if projectHooks.length > 1}
 					<button
 						onclick={() => toggleSelectAll(projectHooks.map(a => a.id))}
-						class="p-0.5 text-gray-400 hover:text-primary-500 transition-colors"
+						class="p-0.5 text-gray-400 hover:text-primary-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-1 rounded transition-colors"
 						title={allSelected ? 'Deselect all' : 'Select all'}
 					>
 						{#if allSelected}
@@ -1079,7 +1079,7 @@
 							<div class="flex items-center gap-3 min-w-0 flex-1">
 								<button
 									onclick={() => toggleSelection(assignment.id)}
-									class="p-0.5 text-gray-400 hover:text-primary-500 transition-colors flex-shrink-0"
+									class="p-0.5 text-gray-400 hover:text-primary-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-1 rounded transition-colors flex-shrink-0"
 								>
 									{#if selectedIds.has(assignment.id)}
 										<SquareCheck class="w-4 h-4 text-primary-500" />

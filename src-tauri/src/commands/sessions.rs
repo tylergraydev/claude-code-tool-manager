@@ -48,25 +48,26 @@ pub async fn get_session_detail(
 mod tests {
     use super::*;
 
-    #[test]
-    fn test_get_session_projects_returns_result() {
+    #[tokio::test]
+    async fn test_get_session_projects_returns_result() {
         // Filesystem-dependent; just verify no panic.
-        let _ = get_session_projects();
+        let _ = get_session_projects().await;
     }
 
-    #[test]
-    fn test_get_project_sessions_nonexistent_folder() {
-        let result = get_project_sessions("/nonexistent/path/abc123".to_string());
+    #[tokio::test]
+    async fn test_get_project_sessions_nonexistent_folder() {
+        let result = get_project_sessions("/nonexistent/path/abc123".to_string()).await;
         // Should return an error or empty result, not panic.
         let _ = result;
     }
 
-    #[test]
-    fn test_get_session_detail_nonexistent() {
+    #[tokio::test]
+    async fn test_get_session_detail_nonexistent() {
         let result = get_session_detail(
             "/nonexistent/path".to_string(),
             "fake-session-id".to_string(),
-        );
+        )
+        .await;
         // Should return an error, not panic.
         let _ = result;
     }

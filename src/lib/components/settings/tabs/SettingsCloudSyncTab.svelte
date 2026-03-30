@@ -85,6 +85,11 @@
 	}
 
 	async function handlePull() {
+		const confirmed = window.confirm(
+			'Pull will overwrite local config with cloud data. Existing files will be backed up with a .bak extension. Continue?'
+		);
+		if (!confirmed) return;
+
 		const result = await cloudSyncStore.pull();
 		if (result) {
 			if (result.pulled.length > 0) {

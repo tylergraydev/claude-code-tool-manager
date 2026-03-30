@@ -463,8 +463,8 @@ pub fn build_local_payload(db: &Database, config: &SyncConfig) -> Result<SyncPay
                 command: m.command.clone(),
                 args: m.args.clone(),
                 url: m.url.clone(),
-                headers: m.headers.clone(),
-                env: m.env.clone(),
+                headers: None, // Excluded from sync — may contain secrets
+                env: None,     // Excluded from sync — may contain API keys
                 icon: m.icon.clone(),
                 tags: m.tags.clone(),
             })
@@ -544,6 +544,11 @@ pub fn apply_pulled_payload(
             let path = memory_writer::resolve_memory_path(&MemoryScope::User, None)?;
             if let Some(parent) = path.parent() {
                 std::fs::create_dir_all(parent)?;
+            }
+            // Back up existing file before overwriting
+            if path.exists() {
+                let backup = path.with_extension("md.bak");
+                let _ = std::fs::copy(&path, &backup);
             }
             std::fs::write(&path, content)?;
             pulled.push("Global CLAUDE.md".to_string());
@@ -662,6 +667,11 @@ pub fn apply_pulled_payload(
                         Ok(claude_md_path) => {
                             if let Some(parent) = claude_md_path.parent() {
                                 let _ = std::fs::create_dir_all(parent);
+                            }
+                            // Back up existing file before overwriting
+                            if claude_md_path.exists() {
+                                let backup = claude_md_path.with_extension("md.bak");
+                                let _ = std::fs::copy(&claude_md_path, &backup);
                             }
                             if let Err(e) = std::fs::write(&claude_md_path, content) {
                                 conflicts.push(format!(
