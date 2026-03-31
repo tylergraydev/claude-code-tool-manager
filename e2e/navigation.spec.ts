@@ -82,29 +82,21 @@ test.describe('Navigation', () => {
 
 test.describe('Theme Toggle', () => {
 	test('should toggle dark mode', async ({ page }) => {
-		// Navigate to settings where theme toggle is typically located
-		await page.click('aside a[href="/settings"]');
-		await expect(page).toHaveURL('/settings');
+		// Theme toggle is in the header, visible on any page
+		const themeToggle = page.locator('[data-testid="theme-toggle"]');
+		await expect(themeToggle).toBeVisible();
 
-		// Look for a theme toggle (usually in settings or header)
-		const themeToggle = page.locator('[data-testid="theme-toggle"], button:has-text("Dark"), button:has-text("Light"), button:has-text("Theme")').first();
+		// Get initial state
+		const htmlClass = await page.locator('html').getAttribute('class');
+		const initiallyDark = htmlClass?.includes('dark') ?? false;
 
-		if (await themeToggle.isVisible()) {
-			// Get initial state
-			const htmlClass = await page.locator('html').getAttribute('class');
-			const initiallyDark = htmlClass?.includes('dark') ?? false;
+		// Click toggle and wait for the class to actually change
+		await themeToggle.click();
 
-			// Click toggle
-			await themeToggle.click();
-
-			// Wait for class change
-			await page.waitForTimeout(100);
-
-			// Check that class changed
-			const newHtmlClass = await page.locator('html').getAttribute('class');
-			const nowDark = newHtmlClass?.includes('dark') ?? false;
-
-			expect(nowDark).not.toBe(initiallyDark);
+		if (initiallyDark) {
+			await expect(page.locator('html')).not.toHaveClass(/dark/);
+		} else {
+			await expect(page.locator('html')).toHaveClass(/dark/);
 		}
 	});
 });

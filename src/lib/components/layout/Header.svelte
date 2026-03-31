@@ -81,6 +81,7 @@
 			class="btn btn-ghost"
 			aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
 			title={i18n.t('header.toggleTheme')}
+			data-testid="theme-toggle"
 		>
 			{#if isDark}
 				<Sun class="w-4 h-4" aria-hidden="true" />
