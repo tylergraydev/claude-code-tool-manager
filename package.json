@@ -1,6 +1,6 @@
 {
   "name": "claude-code-tool-manager",
-  "version": "3.7.1",
+  "version": "3.5.1",
   "private": true,
   "type": "module",
   "scripts": {
@@ -43,14 +43,14 @@
     "@playwright/test": "^1.58.0",
     "@sveltejs/adapter-static": "^3.0.6",
     "@sveltejs/kit": "^2.55.0",
-    "@sveltejs/vite-plugin-svelte": "^6.2.4",
-    "@tailwindcss/vite": "^4.2.1",
+    "@sveltejs/vite-plugin-svelte": "^7.0.0",
+    "@tailwindcss/vite": "^4.2.2",
     "@tauri-apps/cli": "^2",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/svelte": "^5.3.1",
     "@types/node": "^25.5.0",
-    "@vitest/coverage-v8": "^4.0.18",
-    "@vitest/ui": "^4.0.16",
+    "@vitest/coverage-v8": "^4.1.0",
+    "@vitest/ui": "^4.1.0",
     "autoprefixer": "^10.4.27",
     "happy-dom": "^20.8.4",
     "jest-dom": "^4.0.0",
@@ -60,7 +60,7 @@
     "svelte-check": "^4.4.4",
     "tailwindcss": "^4.2.0",
     "typescript": "^5.7.2",
-    "vite": "^7.3.1",
+    "vite": "^8.0.1",
     "vitest": "^4.1.0"
   }
 }
