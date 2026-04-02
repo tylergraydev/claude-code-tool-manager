@@ -38,7 +38,7 @@ dirs = "6"
 walkdir = "2"
 
 # SQLite
-rusqlite = { version = "0.38", features = ["bundled"] }
+rusqlite = { version = "0.39", features = ["bundled"] }
 
 # Docker
 bollard = "0.18"
