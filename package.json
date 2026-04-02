@@ -52,7 +52,7 @@
     "@vitest/coverage-v8": "^4.0.18",
     "@vitest/ui": "^4.0.16",
     "autoprefixer": "^10.4.27",
-    "happy-dom": "^20.8.3",
+    "happy-dom": "^20.8.4",
     "jest-dom": "^4.0.0",
     "jsdom": "^28.0.0",
     "postcss": "^8.5.8",
