@@ -657,7 +657,7 @@ dependencies = [
 
 [[package]]
 name = "claude-code-tool-manager"
-version = "3.6.0"
+version = "3.7.2"
 dependencies = [
  "anyhow",
  "axum",
