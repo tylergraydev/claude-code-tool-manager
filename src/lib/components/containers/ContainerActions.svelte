@@ -1,10 +1,10 @@
 <script lang="ts">
-	import { Play, Square, RotateCw, Trash2, Hammer } from 'lucide-svelte';
-	import type { DockerStatusType } from '$lib/types';
+	import { Play, Square, RotateCw, Trash2, Hammer, Loader2 } from 'lucide-svelte';
 
-	let { status, disabled = false, onBuild, onStart, onStop, onRestart, onRemove }: {
-		status: DockerStatusType;
+	let { status, disabled = false, loading = false, onBuild, onStart, onStop, onRestart, onRemove }: {
+		status: string;
 		disabled?: boolean;
+		loading?: boolean;
 		onBuild?: () => void;
 		onStart?: () => void;
 		onStop?: () => void;
@@ -16,7 +16,11 @@
 </script>
 
 <div class="flex items-center gap-1">
-	{#if status === 'not_created'}
+	{#if loading}
+		<div class="p-1.5" title="Operation in progress...">
+			<Loader2 class="w-4 h-4 animate-spin text-blue-500" aria-label="Loading" />
+		</div>
+	{:else if status === 'not_created'}
 		{#if onBuild}
 			<button onclick={() => onBuild?.()} {disabled}
 				class="{btnBase} text-gray-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20" title="Build">
@@ -50,7 +54,7 @@
 			</button>
 		{/if}
 	{/if}
-	{#if status !== 'not_created' && status !== 'running' && onRemove}
+	{#if !loading && status !== 'not_created' && status !== 'running' && onRemove}
 		<button onclick={() => onRemove?.()} {disabled}
 			class="{btnBase} text-gray-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20" title="Remove Docker container">
 			<Trash2 class="w-4 h-4" aria-hidden="true" />

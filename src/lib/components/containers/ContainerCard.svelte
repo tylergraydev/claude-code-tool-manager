@@ -5,10 +5,11 @@
 	import ContainerStatusBadge from './ContainerStatus.svelte';
 	import ContainerActions from './ContainerActions.svelte';
 
-	let { container, onEdit, onDelete }: {
+	let { container, onEdit, onDelete, onView }: {
 		container: Container;
 		onEdit: (container: Container) => void;
 		onDelete: (container: Container) => void;
+		onView?: (container: Container) => void;
 	} = $props();
 
 	const status = $derived(containerLibrary.getStatus(container.id));
@@ -20,46 +21,50 @@
 		custom: 'Custom'
 	};
 	let actionInProgress = $state(false);
+	let actionMessage = $state('');
 
-	async function withAction(fn: () => Promise<void>) {
+	async function withAction(fn: () => Promise<void>, message = '') {
 		if (actionInProgress) return;
 		actionInProgress = true;
-		try { await fn(); } finally { actionInProgress = false; }
+		actionMessage = message;
+		try { await fn(); } finally { actionInProgress = false; actionMessage = ''; }
 	}
 
 	async function handleBuild() {
 		await withAction(async () => {
 			await containerLibrary.buildImage(container.id);
 			notifications.success(`Image built for ${container.name}`);
-		});
+		}, 'Building image...');
 	}
 
 	async function handleStart() {
+		const isFirstStart = !container.dockerContainerId;
+		const msg = isFirstStart ? 'Pulling image & creating container...' : 'Starting...';
 		await withAction(async () => {
 			await containerLibrary.startContainer(container.id);
 			notifications.success(`${container.name} started`);
-		});
+		}, msg);
 	}
 
 	async function handleStop() {
 		await withAction(async () => {
 			await containerLibrary.stopContainer(container.id);
 			notifications.success(`${container.name} stopped`);
-		});
+		}, 'Stopping...');
 	}
 
 	async function handleRestart() {
 		await withAction(async () => {
 			await containerLibrary.restartContainer(container.id);
 			notifications.success(`${container.name} restarted`);
-		});
+		}, 'Restarting...');
 	}
 
 	async function handleRemove() {
 		await withAction(async () => {
 			await containerLibrary.removeContainer(container.id);
 			notifications.success(`Docker container removed for ${container.name}`);
-		});
+		}, 'Removing...');
 	}
 
 	async function handleToggleFavorite() {
@@ -73,7 +78,9 @@
 
 <div class="card group hover:shadow-md transition-all duration-200">
 	<div class="flex items-start justify-between">
-		<div class="flex items-center gap-3 min-w-0">
+		<!-- svelte-ignore a11y_click_events_have_key_events -->
+		<!-- svelte-ignore a11y_no_static_element_interactions -->
+		<div class="flex items-center gap-3 min-w-0 flex-1 cursor-pointer" onclick={() => onView?.(container)}>
 			<div class="w-10 h-10 rounded-xl bg-cyan-100 dark:bg-cyan-900/50 flex items-center justify-center text-lg shrink-0">
 				{container.icon || '📦'}
 			</div>
@@ -93,12 +100,16 @@
 						<span class="text-xs text-gray-400 dark:text-gray-500 truncate">{container.image}</span>
 					{/if}
 				</div>
+				{#if actionMessage}
+					<p class="text-xs text-blue-500 dark:text-blue-400 mt-1 animate-pulse">{actionMessage}</p>
+				{/if}
 			</div>
 		</div>
 		<div class="flex items-center gap-1 shrink-0 ml-2">
 			<ContainerActions
 				status={dockerStatus}
 				disabled={actionInProgress}
+				loading={actionInProgress}
 				onBuild={container.dockerfile ? handleBuild : undefined}
 				onStart={handleStart}
 				onStop={handleStop}

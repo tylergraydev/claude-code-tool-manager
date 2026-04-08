@@ -1104,6 +1104,29 @@ impl Database {
             )?;
         }
 
+        // Migration 24: Fix is_favorite column type in mcps table
+        // Some databases ended up with Text type in is_favorite column; cast to integer
+        {
+            let needs_fix: bool = self
+                .conn
+                .query_row(
+                    "SELECT typeof(is_favorite) = 'text' FROM mcps LIMIT 1",
+                    [],
+                    |row| row.get(0),
+                )
+                .unwrap_or(false);
+
+            if needs_fix {
+                self.conn.execute_batch(
+                    "UPDATE mcps SET is_favorite = CAST(is_favorite AS INTEGER) WHERE typeof(is_favorite) = 'text';
+                     UPDATE commands SET is_favorite = CAST(is_favorite AS INTEGER) WHERE typeof(is_favorite) = 'text';
+                     UPDATE skills SET is_favorite = CAST(is_favorite AS INTEGER) WHERE typeof(is_favorite) = 'text';
+                     UPDATE subagents SET is_favorite = CAST(is_favorite AS INTEGER) WHERE typeof(is_favorite) = 'text';
+                     UPDATE projects SET is_favorite = CAST(is_favorite AS INTEGER) WHERE typeof(is_favorite) = 'text';",
+                )?;
+            }
+        }
+
         Ok(())
     }
 

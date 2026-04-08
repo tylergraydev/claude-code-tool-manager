@@ -107,6 +107,7 @@
 	<ContainerList
 		onEdit={(container) => editingContainer = container}
 		onDelete={(container) => deletingContainer = container}
+		onView={(container) => viewingContainer = container}
 	/>
 </div>
 

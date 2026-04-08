@@ -509,6 +509,9 @@ pub fn run() {
             commands::containers::remove_container_from_project,
             commands::containers::get_project_containers,
             commands::containers::set_default_project_container,
+            commands::containers::start_container_shell,
+            commands::containers::send_shell_input,
+            commands::containers::resize_shell,
             // Cloud Sync Commands
             commands::cloud_sync::get_gh_cli_token,
             commands::cloud_sync::has_gh_cli,

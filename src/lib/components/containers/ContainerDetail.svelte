@@ -5,7 +5,7 @@
 	import ContainerActions from './ContainerActions.svelte';
 	import ContainerLogs from './ContainerLogs.svelte';
 	import ContainerStats from './ContainerStats.svelte';
-	import { X, Terminal } from 'lucide-svelte';
+	import { X, Terminal, Copy, Check } from 'lucide-svelte';
 
 	let { container, onClose }: {
 		container: Container;
@@ -74,6 +74,17 @@
 	async function handleRestart() { await withAction(async () => { await containerLibrary.restartContainer(container.id); notifications.success('Restarted'); }); }
 	async function handleRemove() { await withAction(async () => { await containerLibrary.removeContainer(container.id); notifications.success('Removed'); }); }
 	async function handleBuild() { await withAction(async () => { await containerLibrary.buildImage(container.id); notifications.success('Built'); }); }
+
+	let copiedCommand = $state<string | null>(null);
+	const containerName = $derived(`cctm-${container.name.toLowerCase().replace(/\s+/g, '-')}`);
+	const execCommand_shell = $derived(`docker exec -it ${containerName} bash`);
+	const execCommand_claude = $derived(`docker exec -it ${containerName} claude`);
+
+	async function copyToClipboard(text: string, label: string) {
+		await navigator.clipboard.writeText(text);
+		copiedCommand = label;
+		setTimeout(() => copiedCommand = null, 2000);
+	}
 </script>
 
 <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
@@ -148,6 +159,35 @@
 								{#each Object.entries(container.env) as [key, value]}
 									<div><span class="text-blue-600 dark:text-blue-400">{key}</span>=<span class="text-gray-600 dark:text-gray-400">{value}</span></div>
 								{/each}
+							</div>
+						</div>
+					{/if}
+					{#if dockerStatus === 'running'}
+						<div>
+							<p class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">Connect from terminal</p>
+							<div class="space-y-2">
+								<div class="flex items-center gap-2 bg-gray-950 rounded-lg px-3 py-2">
+									<code class="text-xs text-gray-300 flex-1 select-all truncate">{execCommand_shell}</code>
+									<button onclick={() => copyToClipboard(execCommand_shell, 'shell')}
+										class="p-1 rounded text-gray-500 hover:text-white transition-colors shrink-0" title="Copy to clipboard">
+										{#if copiedCommand === 'shell'}
+											<Check class="w-3.5 h-3.5 text-green-400" />
+										{:else}
+											<Copy class="w-3.5 h-3.5" />
+										{/if}
+									</button>
+								</div>
+								<div class="flex items-center gap-2 bg-gray-950 rounded-lg px-3 py-2">
+									<code class="text-xs text-gray-300 flex-1 select-all truncate">{execCommand_claude}</code>
+									<button onclick={() => copyToClipboard(execCommand_claude, 'claude')}
+										class="p-1 rounded text-gray-500 hover:text-white transition-colors shrink-0" title="Copy to clipboard">
+										{#if copiedCommand === 'claude'}
+											<Check class="w-3.5 h-3.5 text-green-400" />
+										{:else}
+											<Copy class="w-3.5 h-3.5" />
+										{/if}
+									</button>
+								</div>
 							</div>
 						</div>
 					{/if}

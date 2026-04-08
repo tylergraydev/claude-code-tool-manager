@@ -4,9 +4,10 @@
 	import ContainerCard from './ContainerCard.svelte';
 	import { Package } from 'lucide-svelte';
 
-	let { onEdit, onDelete }: {
+	let { onEdit, onDelete, onView }: {
 		onEdit: (container: Container) => void;
 		onDelete: (container: Container) => void;
+		onView?: (container: Container) => void;
 	} = $props();
 </script>
 
@@ -27,7 +28,7 @@
 {:else}
 	<div class="space-y-3">
 		{#each containerLibrary.filteredContainers as container (container.id)}
-			<ContainerCard {container} {onEdit} {onDelete} />
+			<ContainerCard {container} {onEdit} {onDelete} {onView} />
 		{/each}
 	</div>
 {/if}
