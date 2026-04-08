@@ -67,6 +67,14 @@
 		}, 'Removing...');
 	}
 
+	async function handleRecreate() {
+		await withAction(async () => {
+			await containerLibrary.removeContainer(container.id);
+			await containerLibrary.startContainer(container.id);
+			notifications.success(`${container.name} recreated with updated settings`);
+		}, 'Recreating container...');
+	}
+
 	async function handleToggleFavorite() {
 		try {
 			await containerLibrary.toggleFavorite(container.id);
@@ -115,6 +123,7 @@
 				onStop={handleStop}
 				onRestart={handleRestart}
 				onRemove={handleRemove}
+				onRecreate={container.dockerContainerId ? handleRecreate : undefined}
 			/>
 			<button onclick={handleToggleFavorite}
 				class="p-1.5 rounded-lg transition-colors {container.isFavorite ? 'text-rose-500 hover:text-rose-600' : 'text-gray-300 hover:text-rose-400 dark:text-gray-600 dark:hover:text-rose-400'}"

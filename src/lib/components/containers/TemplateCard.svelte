@@ -7,7 +7,9 @@
 	} = $props();
 </script>
 
-<div class="card hover:shadow-md transition-shadow duration-200">
+<!-- svelte-ignore a11y_click_events_have_key_events -->
+<!-- svelte-ignore a11y_no_static_element_interactions -->
+<div class="card hover:shadow-md transition-shadow duration-200 cursor-pointer" onclick={() => onUse(template)}>
 	<div class="flex items-start gap-3">
 		<span class="text-2xl">{template.icon}</span>
 		<div class="flex-1 min-w-0">
@@ -18,9 +20,5 @@
 				<span class="text-xs text-gray-400">{template.image}</span>
 			</div>
 		</div>
-		<button onclick={() => onUse(template)}
-			class="btn btn-secondary shrink-0">
-			Use Template
-		</button>
 	</div>
 </div>

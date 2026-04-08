@@ -23,12 +23,19 @@
 	</div>
 	{#if ports.length > 0}
 		<div class="space-y-2">
+			<div class="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+				<span class="flex-1">Host Port</span>
+				<span class="w-3"></span>
+				<span class="flex-1">Container Port</span>
+				<span class="w-[4.5rem]"></span>
+				<span class="w-8"></span>
+			</div>
 			{#each ports as port, i}
 				<div class="flex items-center gap-2">
-					<input type="number" bind:value={port.hostPort} placeholder="Host"
+					<input type="number" bind:value={port.hostPort} placeholder="e.g. 3000"
 						class="input flex-1 py-1.5" />
 					<span class="text-gray-400">:</span>
-					<input type="number" bind:value={port.containerPort} placeholder="Container"
+					<input type="number" bind:value={port.containerPort} placeholder="e.g. 3000"
 						class="input flex-1 py-1.5" />
 					<select bind:value={port.protocol}
 						class="input w-auto py-1.5">

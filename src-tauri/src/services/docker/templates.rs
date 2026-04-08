@@ -1,4 +1,4 @@
-use crate::db::models::{ContainerTemplate, PortMapping};
+use crate::db::models::{ContainerTemplate, PortMapping, VolumeMapping};
 
 pub fn get_builtin_templates() -> Vec<ContainerTemplate> {
     vec![
@@ -19,7 +19,11 @@ WORKDIR /workspace"#
             ),
             env: None,
             ports: None,
-            volumes: None,
+            volumes: Some(vec![VolumeMapping {
+                host_path: "claude-code-node-workspace".to_string(),
+                container_path: "/workspace".to_string(),
+                read_only: Some(false),
+            }]),
             features: None,
             post_create_command: Some("claude --version".to_string()),
             post_start_command: None,
@@ -43,7 +47,11 @@ WORKDIR /workspace"#
             ),
             env: None,
             ports: None,
-            volumes: None,
+            volumes: Some(vec![VolumeMapping {
+                host_path: "claude-code-python-workspace".to_string(),
+                container_path: "/workspace".to_string(),
+                read_only: Some(false),
+            }]),
             features: None,
             post_create_command: Some("claude --version && python --version".to_string()),
             post_start_command: None,
@@ -67,7 +75,11 @@ WORKDIR /workspace"#
             ),
             env: None,
             ports: None,
-            volumes: None,
+            volumes: Some(vec![VolumeMapping {
+                host_path: "rust-dev-workspace".to_string(),
+                container_path: "/workspace".to_string(),
+                read_only: Some(false),
+            }]),
             features: None,
             post_create_command: Some("rustc --version && cargo --version".to_string()),
             post_start_command: None,
@@ -92,7 +104,11 @@ WORKDIR /workspace"#
                 container_port: 8888,
                 protocol: Some("tcp".to_string()),
             }]),
-            volumes: None,
+            volumes: Some(vec![VolumeMapping {
+                host_path: "python-ml-workspace".to_string(),
+                container_path: "/workspace".to_string(),
+                read_only: Some(false),
+            }]),
             features: None,
             post_create_command: Some(
                 "python -c 'import torch; print(f\"PyTorch {torch.__version__}\")'".to_string(),
@@ -128,7 +144,11 @@ WORKDIR /workspace"#
                     protocol: Some("tcp".to_string()),
                 },
             ]),
-            volumes: None,
+            volumes: Some(vec![VolumeMapping {
+                host_path: "fullstack-workspace".to_string(),
+                container_path: "/workspace".to_string(),
+                read_only: Some(false),
+            }]),
             features: None,
             post_create_command: Some("node --version && python3 --version".to_string()),
             post_start_command: None,
@@ -153,7 +173,11 @@ WORKDIR /workspace"#
             ),
             env: None,
             ports: None,
-            volumes: None,
+            volumes: Some(vec![VolumeMapping {
+                host_path: "claude-code-base-workspace".to_string(),
+                container_path: "/workspace".to_string(),
+                read_only: Some(false),
+            }]),
             features: None,
             post_create_command: Some("claude --version".to_string()),
             post_start_command: None,

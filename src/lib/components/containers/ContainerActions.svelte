@@ -1,7 +1,7 @@
 <script lang="ts">
-	import { Play, Square, RotateCw, Trash2, Hammer, Loader2 } from 'lucide-svelte';
+	import { Play, Square, RotateCw, Trash2, Hammer, Loader2, RefreshCcw } from 'lucide-svelte';
 
-	let { status, disabled = false, loading = false, onBuild, onStart, onStop, onRestart, onRemove }: {
+	let { status, disabled = false, loading = false, onBuild, onStart, onStop, onRestart, onRemove, onRecreate }: {
 		status: string;
 		disabled?: boolean;
 		loading?: boolean;
@@ -10,6 +10,7 @@
 		onStop?: () => void;
 		onRestart?: () => void;
 		onRemove?: () => void;
+		onRecreate?: () => void;
 	} = $props();
 
 	const btnBase = "p-1.5 rounded-lg transition-colors disabled:opacity-50 disabled:pointer-events-none";
@@ -54,10 +55,18 @@
 			</button>
 		{/if}
 	{/if}
-	{#if !loading && status !== 'not_created' && status !== 'running' && onRemove}
-		<button onclick={() => onRemove?.()} {disabled}
-			class="{btnBase} text-gray-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20" title="Remove Docker container">
-			<Trash2 class="w-4 h-4" aria-hidden="true" />
-		</button>
+	{#if !loading && status !== 'not_created' && status !== 'running'}
+		{#if onRecreate}
+			<button onclick={() => onRecreate?.()} {disabled}
+				class="{btnBase} text-gray-500 hover:text-cyan-600 hover:bg-cyan-50 dark:hover:bg-cyan-900/20" title="Recreate container (applies port/volume changes)">
+				<RefreshCcw class="w-4 h-4" aria-hidden="true" />
+			</button>
+		{/if}
+		{#if onRemove}
+			<button onclick={() => onRemove?.()} {disabled}
+				class="{btnBase} text-gray-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20" title="Remove Docker container">
+				<Trash2 class="w-4 h-4" aria-hidden="true" />
+			</button>
+		{/if}
 	{/if}
 </div>

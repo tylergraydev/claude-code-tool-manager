@@ -74,6 +74,7 @@
 	async function handleRestart() { await withAction(async () => { await containerLibrary.restartContainer(container.id); notifications.success('Restarted'); }); }
 	async function handleRemove() { await withAction(async () => { await containerLibrary.removeContainer(container.id); notifications.success('Removed'); }); }
 	async function handleBuild() { await withAction(async () => { await containerLibrary.buildImage(container.id); notifications.success('Built'); }); }
+	async function handleRecreate() { await withAction(async () => { await containerLibrary.removeContainer(container.id); await containerLibrary.startContainer(container.id); notifications.success('Recreated'); }); }
 
 	let copiedCommand = $state<string | null>(null);
 	const containerName = $derived(`cctm-${container.name.toLowerCase().replace(/\s+/g, '-')}`);
@@ -108,7 +109,8 @@
 				<ContainerActions status={dockerStatus}
 					disabled={actionInProgress}
 					onBuild={container.dockerfile ? handleBuild : undefined}
-					onStart={handleStart} onStop={handleStop} onRestart={handleRestart} onRemove={handleRemove} />
+					onStart={handleStart} onStop={handleStop} onRestart={handleRestart} onRemove={handleRemove}
+					onRecreate={container.dockerContainerId ? handleRecreate : undefined} />
 				<button onclick={onClose} class="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:text-gray-300 dark:hover:bg-gray-700 transition-colors" aria-label="Close">
 					<X class="w-5 h-5" aria-hidden="true" />
 				</button>

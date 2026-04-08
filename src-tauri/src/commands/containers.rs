@@ -723,6 +723,18 @@ pub fn create_container_from_template(
         .find(|t| t.id == template_id)
         .ok_or_else(|| format!("Template '{}' not found", template_id))?;
 
+    // Generate volume names based on the user's container name
+    let volumes = template.volumes.as_ref().map(|vols| {
+        let name_slug = name.to_lowercase().replace(' ', "-");
+        vols.iter()
+            .map(|v| VolumeMapping {
+                host_path: format!("cctm-{}-workspace", name_slug),
+                container_path: v.container_path.clone(),
+                read_only: v.read_only,
+            })
+            .collect()
+    });
+
     let request = CreateContainerRequest {
         name,
         description: Some(template.description.clone()),
@@ -733,7 +745,7 @@ pub fn create_container_from_template(
         devcontainer_json: None,
         env: template.env.clone(),
         ports: template.ports.clone(),
-        volumes: template.volumes.clone(),
+        volumes,
         mounts: None,
         features: template.features.clone(),
         post_create_command: template.post_create_command.clone(),

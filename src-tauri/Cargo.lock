@@ -684,6 +684,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serial_test",
+ "tar",
  "tauri",
  "tauri-build",
  "tauri-plugin-dialog",
