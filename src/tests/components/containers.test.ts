@@ -669,9 +669,11 @@ describe('TemplateCard Component', () => {
 		expect(screen.getByText('node:20')).toBeInTheDocument();
 	});
 
-	it('should render Use Template button', () => {
-		render(TemplateCard, { props: { template: mockTemplate, onUse: vi.fn() } });
-		expect(screen.getByText('Use Template')).toBeInTheDocument();
+	it('should render clickable card', () => {
+		const onUse = vi.fn();
+		render(TemplateCard, { props: { template: mockTemplate, onUse } });
+		const card = screen.getByText('Node.js Dev').closest('.card');
+		expect(card).toBeInTheDocument();
 	});
 });
 

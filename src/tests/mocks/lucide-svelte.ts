@@ -93,6 +93,7 @@ export const Plus = StubIcon;
 export const Plug = StubIcon;
 export const Puzzle = StubIcon;
 export const Radio = StubIcon;
+export const RefreshCcw = StubIcon;
 export const RefreshCw = StubIcon;
 export const RotateCcw = StubIcon;
 export const RotateCw = StubIcon;
