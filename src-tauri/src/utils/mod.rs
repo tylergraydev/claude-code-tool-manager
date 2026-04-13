@@ -1,3 +1,4 @@
+pub mod backup;
 pub mod codex_paths;
 pub mod copilot_paths;
 pub mod cursor_paths;

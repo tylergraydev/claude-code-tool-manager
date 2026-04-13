@@ -157,6 +157,7 @@ pub fn write_memory_file(
         std::fs::create_dir_all(parent)?;
     }
 
+    crate::utils::backup::backup_file(&path)?;
     std::fs::write(&path, content)?;
 
     // Read back the file info to return updated metadata

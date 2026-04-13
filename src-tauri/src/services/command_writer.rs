@@ -52,6 +52,7 @@ pub fn write_command_file(base_path: &Path, command: &Command) -> Result<()> {
     std::fs::create_dir_all(&commands_dir)?;
 
     let file_path = commands_dir.join(format!("{}.md", command.name));
+    crate::utils::backup::backup_file(&file_path)?;
     let content = generate_command_markdown(command);
     std::fs::write(file_path, content)?;
 
@@ -146,6 +147,7 @@ pub fn write_command_file_opencode(base_path: &Path, command: &Command) -> Resul
     std::fs::create_dir_all(&command_dir)?;
 
     let file_path = command_dir.join(format!("{}.md", command.name));
+    crate::utils::backup::backup_file(&file_path)?;
     let content = generate_command_markdown_opencode(command);
     std::fs::write(file_path, content)?;
 

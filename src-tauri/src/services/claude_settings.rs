@@ -111,6 +111,7 @@ fn write_settings_file(path: &Path, settings: &Value) -> Result<()> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
     }
+    crate::utils::backup::backup_file(path)?;
     let content = serde_json::to_string_pretty(settings)?;
     std::fs::write(path, content)?;
     Ok(())

@@ -30,6 +30,7 @@ pub fn write_rule_file(base_path: &Path, rule: &Rule) -> Result<()> {
     std::fs::create_dir_all(&rules_dir)?;
 
     let file_path = rules_dir.join(format!("{}.md", rule.name));
+    crate::utils::backup::backup_file(&file_path)?;
     let content = generate_rule_markdown(rule);
     std::fs::write(file_path, content)?;
 

@@ -3,23 +3,7 @@ use anyhow::Result;
 use serde_json::{json, Map, Value};
 use std::path::Path;
 
-/// Create a backup of the config file before modifying it
-fn backup_config_file(path: &Path) -> Result<()> {
-    if !path.exists() {
-        return Ok(());
-    }
-
-    let backup_path = path.with_extension("json.bak");
-    std::fs::copy(path, &backup_path).map_err(|e| {
-        anyhow::anyhow!(
-            "Failed to create backup of {} before writing: {}",
-            path.display(),
-            e
-        )
-    })?;
-
-    Ok(())
-}
+use crate::utils::backup::backup_file as backup_config_file;
 
 type McpTuple = (
     String,         // name

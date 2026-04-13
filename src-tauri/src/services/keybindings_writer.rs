@@ -77,6 +77,7 @@ pub fn write_keybindings_to_path(path: &Path, kb: &KeybindingsFile) -> Result<()
             .collect(),
     };
 
+    crate::utils::backup::backup_file(path)?;
     let content = serde_json::to_string_pretty(&filtered)?;
     std::fs::write(path, content)?;
     Ok(())

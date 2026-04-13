@@ -108,6 +108,7 @@ pub fn write_agent_memory(
         std::fs::create_dir_all(parent)?;
     }
 
+    crate::utils::backup::backup_file(&path)?;
     std::fs::write(&path, content)?;
     read_agent_memory(agent_name, scope, project_path)
 }

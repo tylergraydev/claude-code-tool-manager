@@ -79,6 +79,7 @@ pub fn write_skill_file(base_path: &Path, skill: &Skill) -> Result<()> {
     std::fs::create_dir_all(&skill_dir)?;
 
     let file_path = skill_dir.join("SKILL.md");
+    crate::utils::backup::backup_file(&file_path)?;
     let content = generate_skill_markdown(skill);
     std::fs::write(file_path, content)?;
 
@@ -132,6 +133,7 @@ pub fn write_skill_file_opencode(base_path: &Path, skill: &Skill) -> Result<()> 
     std::fs::create_dir_all(&agent_dir)?;
 
     let file_path = agent_dir.join(format!("{}.md", skill.name));
+    crate::utils::backup::backup_file(&file_path)?;
     let content = generate_skill_markdown(skill);
     std::fs::write(file_path, content)?;
 
