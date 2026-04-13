@@ -111,12 +111,34 @@ pub fn generate_mcp_config(mcps: &[McpTuple]) -> Value {
 }
 
 pub fn write_project_config(project_path: &Path, mcps: &[McpTuple]) -> Result<()> {
-    // Write .mcp.json to project root (per official Claude Code spec)
     let config_path = project_path.join(".mcp.json");
-    let config = generate_mcp_config(mcps);
-    let content = serde_json::to_string_pretty(&config)?;
 
-    std::fs::write(config_path, content)?;
+    // Read existing .mcp.json or create new
+    let mut existing: Value = if config_path.exists() {
+        let content = std::fs::read_to_string(&config_path)?;
+        serde_json::from_str(&content).map_err(|e| {
+            anyhow::anyhow!(
+                "Failed to parse existing .mcp.json at {}: {}. \
+                 Refusing to overwrite to prevent data loss.",
+                config_path.display(),
+                e
+            )
+        })?
+    } else {
+        json!({})
+    };
+
+    // Merge DB-managed mcpServers into existing config
+    let mcp_config = generate_mcp_config(mcps);
+    if let Some(servers) = mcp_config.get("mcpServers") {
+        existing["mcpServers"] = servers.clone();
+    }
+
+    // Back up existing file before writing
+    backup_config_file(&config_path)?;
+
+    let content = serde_json::to_string_pretty(&existing)?;
+    std::fs::write(&config_path, content)?;
     Ok(())
 }
 
@@ -504,6 +526,106 @@ mod tests {
 
         assert_eq!(servers.len(), 1);
         assert!(servers.contains_key("remote-sse"));
+    }
+
+    #[test]
+    fn test_write_project_config_preserves_existing_keys() {
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join(".mcp.json");
+
+        // Pre-populate .mcp.json with extra top-level keys
+        let existing = serde_json::json!({
+            "mcpServers": {
+                "old-server": { "command": "old", "args": [] }
+            },
+            "customKey": "should-survive"
+        });
+        std::fs::write(
+            &config_path,
+            serde_json::to_string_pretty(&existing).unwrap(),
+        )
+        .unwrap();
+
+        // Sync with new MCPs
+        let mcps = vec![sample_stdio_mcp()];
+        write_project_config(temp_dir.path(), &mcps).unwrap();
+
+        let content = std::fs::read_to_string(&config_path).unwrap();
+        let parsed: Value = serde_json::from_str(&content).unwrap();
+
+        // mcpServers should be replaced with DB MCPs
+        let servers = parsed.get("mcpServers").unwrap().as_object().unwrap();
+        assert!(servers.contains_key("test-mcp"));
+        assert!(!servers.contains_key("old-server"));
+
+        // Other top-level keys should be preserved
+        assert_eq!(parsed.get("customKey").unwrap(), "should-survive");
+    }
+
+    #[test]
+    fn test_write_project_config_creates_backup() {
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join(".mcp.json");
+        let backup_path = temp_dir.path().join(".mcp.json.bak");
+
+        // Pre-populate .mcp.json
+        std::fs::write(&config_path, r#"{"mcpServers": {}}"#).unwrap();
+
+        let mcps = vec![sample_stdio_mcp()];
+        write_project_config(temp_dir.path(), &mcps).unwrap();
+
+        assert!(backup_path.exists());
+    }
+
+    #[test]
+    fn test_write_project_config_refuses_corrupt_json() {
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join(".mcp.json");
+
+        // Write invalid JSON
+        std::fs::write(&config_path, "not valid json {{{").unwrap();
+
+        let mcps = vec![sample_stdio_mcp()];
+        let result = write_project_config(temp_dir.path(), &mcps);
+
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Refusing to overwrite"));
+    }
+
+    #[test]
+    fn test_write_project_config_empty_mcps_preserves_existing_structure() {
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join(".mcp.json");
+
+        // Pre-populate with content
+        let existing = serde_json::json!({
+            "mcpServers": {
+                "external-server": { "command": "ext", "args": [] }
+            },
+            "someOtherConfig": true
+        });
+        std::fs::write(
+            &config_path,
+            serde_json::to_string_pretty(&existing).unwrap(),
+        )
+        .unwrap();
+
+        // Sync with empty MCPs (the original bug scenario)
+        let mcps: Vec<McpTuple> = vec![];
+        write_project_config(temp_dir.path(), &mcps).unwrap();
+
+        let content = std::fs::read_to_string(&config_path).unwrap();
+        let parsed: Value = serde_json::from_str(&content).unwrap();
+
+        // mcpServers should be empty (DB has none)
+        let servers = parsed.get("mcpServers").unwrap().as_object().unwrap();
+        assert_eq!(servers.len(), 0);
+
+        // But the file should still have valid structure and preserve other keys
+        assert_eq!(parsed.get("someOtherConfig").unwrap(), true);
     }
 
     // =========================================================================
