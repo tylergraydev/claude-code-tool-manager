@@ -16,8 +16,8 @@ use tauri::State;
 fn find_gh() -> std::path::PathBuf {
     for candidate in &[
         "/opt/homebrew/bin/gh", // Homebrew on Apple Silicon
-        "/usr/local/bin/gh",   // Homebrew on Intel / manual install
-        "/usr/bin/gh",         // System install
+        "/usr/local/bin/gh",    // Homebrew on Intel / manual install
+        "/usr/bin/gh",          // System install
     ] {
         if std::path::Path::new(candidate).exists() {
             return candidate.into();

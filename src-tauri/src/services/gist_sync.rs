@@ -558,7 +558,8 @@ pub fn apply_pulled_payload(
             }
             // Back up existing file before overwriting
             if path.exists() {
-                let backup = path.with_extension("md.bak");
+                let file_name = path.file_name().unwrap_or_default().to_string_lossy();
+                let backup = path.with_file_name(format!("{}.bak", file_name));
                 let _ = std::fs::copy(&path, &backup);
             }
             std::fs::write(&path, content)?;
@@ -681,7 +682,12 @@ pub fn apply_pulled_payload(
                             }
                             // Back up existing file before overwriting
                             if claude_md_path.exists() {
-                                let backup = claude_md_path.with_extension("md.bak");
+                                let file_name = claude_md_path
+                                    .file_name()
+                                    .unwrap_or_default()
+                                    .to_string_lossy();
+                                let backup =
+                                    claude_md_path.with_file_name(format!("{}.bak", file_name));
                                 let _ = std::fs::copy(&claude_md_path, &backup);
                             }
                             if let Err(e) = std::fs::write(&claude_md_path, content) {
