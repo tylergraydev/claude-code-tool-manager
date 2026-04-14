@@ -9,12 +9,29 @@ use tauri::State;
 
 // ─── Authentication ─────────────────────────────────────────────────────────
 
+/// Resolve the `gh` binary path.
+///
+/// macOS GUI apps inherit a minimal PATH that excludes Homebrew directories.
+/// This checks common install locations before falling back to bare `gh`.
+fn find_gh() -> std::path::PathBuf {
+    for candidate in &[
+        "/opt/homebrew/bin/gh", // Homebrew on Apple Silicon
+        "/usr/local/bin/gh",   // Homebrew on Intel / manual install
+        "/usr/bin/gh",         // System install
+    ] {
+        if std::path::Path::new(candidate).exists() {
+            return candidate.into();
+        }
+    }
+    "gh".into()
+}
+
 /// Get a GitHub token from the gh CLI
 #[tauri::command]
 pub async fn get_gh_cli_token() -> Result<String, String> {
     info!("[CloudSync] Getting token from gh CLI");
     tokio::task::spawn_blocking(|| {
-        let output = std::process::Command::new("gh")
+        let output = std::process::Command::new(find_gh())
             .args(["auth", "token"])
             .output()
             .map_err(|e| {
@@ -47,7 +64,7 @@ pub async fn get_gh_cli_token() -> Result<String, String> {
 /// Check if gh CLI is installed
 #[tauri::command]
 pub fn has_gh_cli() -> bool {
-    std::process::Command::new("gh")
+    std::process::Command::new(find_gh())
         .arg("--version")
         .output()
         .map(|o| o.status.success())
