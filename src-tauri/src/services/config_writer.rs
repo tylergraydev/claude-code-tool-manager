@@ -113,9 +113,12 @@ pub fn write_project_config(project_path: &Path, mcps: &[McpTuple]) -> Result<()
     };
 
     // Merge DB-managed mcpServers into existing config
+    // Skip overwrite when DB has no servers — preserves externally-managed .mcp.json
     let mcp_config = generate_mcp_config(mcps);
-    if let Some(servers) = mcp_config.get("mcpServers") {
-        existing["mcpServers"] = servers.clone();
+    if let Some(Value::Object(servers)) = mcp_config.get("mcpServers") {
+        if !servers.is_empty() {
+            existing["mcpServers"] = Value::Object(servers.clone());
+        }
     }
 
     // Back up existing file before writing
@@ -143,9 +146,12 @@ pub fn write_global_config(paths: &ClaudePathsInternal, mcps: &[McpTuple]) -> Re
     };
 
     // Build mcpServers object
+    // Skip overwrite when DB has no servers — preserves externally-managed config
     let mcp_config = generate_mcp_config(mcps);
-    if let Some(servers) = mcp_config.get("mcpServers") {
-        claude_json["mcpServers"] = servers.clone();
+    if let Some(Value::Object(servers)) = mcp_config.get("mcpServers") {
+        if !servers.is_empty() {
+            claude_json["mcpServers"] = Value::Object(servers.clone());
+        }
     }
 
     // Back up the existing file before modifying it
