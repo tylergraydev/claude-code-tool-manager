@@ -697,6 +697,7 @@ mod tests {
             commands_dir: dir.path().join("commands"),
             skills_dir: dir.path().join("skills"),
             agents_dir: dir.path().join("agents"),
+            rules_dir: dir.path().join("rules"),
         };
 
         let mcps = vec![sample_stdio_mcp()];
@@ -720,6 +721,7 @@ mod tests {
             commands_dir: dir.path().join("commands"),
             skills_dir: dir.path().join("skills"),
             agents_dir: dir.path().join("agents"),
+            rules_dir: dir.path().join("rules"),
         };
 
         // Write existing config
@@ -751,6 +753,7 @@ mod tests {
             commands_dir: dir.path().join("commands"),
             skills_dir: dir.path().join("skills"),
             agents_dir: dir.path().join("agents"),
+            rules_dir: dir.path().join("rules"),
         };
 
         std::fs::write(&paths.claude_json, "not valid json").unwrap();
@@ -780,6 +783,7 @@ mod tests {
             commands_dir: dir.path().join("commands"),
             skills_dir: dir.path().join("skills"),
             agents_dir: dir.path().join("agents"),
+            rules_dir: dir.path().join("rules"),
         };
 
         std::fs::write(&paths.claude_json, "{}").unwrap();
@@ -815,6 +819,7 @@ mod tests {
             commands_dir: dir.path().join("commands"),
             skills_dir: dir.path().join("skills"),
             agents_dir: dir.path().join("agents"),
+            rules_dir: dir.path().join("rules"),
         };
 
         std::fs::write(&paths.claude_json, "{}").unwrap();
@@ -854,6 +859,7 @@ mod tests {
             commands_dir: dir.path().join("commands"),
             skills_dir: dir.path().join("skills"),
             agents_dir: dir.path().join("agents"),
+            rules_dir: dir.path().join("rules"),
         };
 
         std::fs::write(&paths.claude_json, "{}").unwrap();
@@ -894,6 +900,7 @@ mod tests {
             commands_dir: dir.path().join("commands"),
             skills_dir: dir.path().join("skills"),
             agents_dir: dir.path().join("agents"),
+            rules_dir: dir.path().join("rules"),
         };
 
         std::fs::write(&paths.claude_json, "{}").unwrap();
@@ -933,6 +940,7 @@ mod tests {
             commands_dir: dir.path().join("commands"),
             skills_dir: dir.path().join("skills"),
             agents_dir: dir.path().join("agents"),
+            rules_dir: dir.path().join("rules"),
         };
 
         std::fs::write(&paths.claude_json, "{}").unwrap();
@@ -971,6 +979,7 @@ mod tests {
             commands_dir: dir.path().join("commands"),
             skills_dir: dir.path().join("skills"),
             agents_dir: dir.path().join("agents"),
+            rules_dir: dir.path().join("rules"),
         };
 
         // No file exists, should create new
@@ -1096,6 +1105,7 @@ mod tests {
             commands_dir: dir.path().join("commands"),
             skills_dir: dir.path().join("skills"),
             agents_dir: dir.path().join("agents"),
+            rules_dir: dir.path().join("rules"),
         };
 
         // Create existing project with an MCP
@@ -1150,6 +1160,7 @@ mod tests {
             commands_dir: dir.path().join("commands"),
             skills_dir: dir.path().join("skills"),
             agents_dir: dir.path().join("agents"),
+            rules_dir: dir.path().join("rules"),
         };
 
         std::fs::write(&paths.claude_json, r#"{"original": true}"#).unwrap();
@@ -1187,6 +1198,7 @@ mod tests {
             commands_dir: dir.path().join("commands"),
             skills_dir: dir.path().join("skills"),
             agents_dir: dir.path().join("agents"),
+            rules_dir: dir.path().join("rules"),
         };
 
         std::fs::write(&paths.claude_json, "{}").unwrap();
@@ -1255,6 +1267,7 @@ mod tests {
             commands_dir: dir.path().join("commands"),
             skills_dir: dir.path().join("skills"),
             agents_dir: dir.path().join("agents"),
+            rules_dir: dir.path().join("rules"),
         };
 
         std::fs::write(&paths.claude_json, r#"{"existing": true}"#).unwrap();
@@ -1340,6 +1353,7 @@ mod tests {
             commands_dir: dir.path().join("commands"),
             skills_dir: dir.path().join("skills"),
             agents_dir: dir.path().join("agents"),
+            rules_dir: dir.path().join("rules"),
         };
 
         std::fs::write(&paths.claude_json, "not valid json").unwrap();

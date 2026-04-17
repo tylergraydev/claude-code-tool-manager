@@ -13,6 +13,7 @@ pub struct ClaudePathsInternal {
     pub commands_dir: PathBuf, // ~/.claude/commands/ for command-type skills
     pub skills_dir: PathBuf,   // ~/.claude/skills/ for agent-type skills
     pub agents_dir: PathBuf,   // ~/.claude/agents/ for sub-agents
+    pub rules_dir: PathBuf,    // ~/.claude/rules/ for behavioral rules
 }
 
 pub fn get_claude_paths() -> Result<ClaudePathsInternal> {
@@ -30,6 +31,7 @@ pub fn get_claude_paths() -> Result<ClaudePathsInternal> {
         commands_dir: claude_dir.join("commands"),
         skills_dir: claude_dir.join("skills"),
         agents_dir: claude_dir.join("agents"),
+        rules_dir: claude_dir.join("rules"),
         home,
         claude_dir,
     })
@@ -66,6 +68,7 @@ mod tests {
         assert!(paths.commands_dir.ends_with("commands"));
         assert!(paths.skills_dir.ends_with("skills"));
         assert!(paths.agents_dir.ends_with("agents"));
+        assert!(paths.rules_dir.ends_with("rules"));
     }
 
     #[test]

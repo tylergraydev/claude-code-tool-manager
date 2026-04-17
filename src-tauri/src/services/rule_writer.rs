@@ -15,7 +15,16 @@ pub(crate) fn generate_rule_markdown(rule: &Rule) -> String {
 
     if let Some(ref paths) = rule.paths {
         if !paths.is_empty() {
-            frontmatter.push_str(&format!("paths: {}\n", paths.join(", ")));
+            frontmatter.push_str(&format!(
+                "paths: {}\n",
+                serde_json::to_string(paths).unwrap()
+            ));
+        }
+    }
+
+    if let Some(ref tags) = rule.tags {
+        if !tags.is_empty() {
+            frontmatter.push_str(&format!("tags: {}\n", serde_json::to_string(tags).unwrap()));
         }
     }
 
@@ -138,14 +147,22 @@ mod tests {
     }
 
     #[test]
-    fn test_generate_rule_markdown_full() {
+    fn test_generate_rule_markdown_emits_json_paths() {
         let rule = sample_rule();
         let md = generate_rule_markdown(&rule);
 
         assert!(md.starts_with("---\n"));
         assert!(md.contains("description: Enforce TypeScript strict mode\n"));
-        assert!(md.contains("paths: src/**/*.ts, tests/**/*.ts\n"));
+        assert!(md.contains(r#"paths: ["src/**/*.ts","tests/**/*.ts"]"#));
         assert!(md.contains("---\n\nAlways use strict TypeScript"));
+    }
+
+    #[test]
+    fn test_generate_rule_markdown_emits_json_tags() {
+        let rule = sample_rule();
+        let md = generate_rule_markdown(&rule);
+
+        assert!(md.contains(r#"tags: ["typescript","quality"]"#));
     }
 
     #[test]
@@ -156,6 +173,7 @@ mod tests {
         assert!(md.starts_with("---\n"));
         assert!(!md.contains("description:"));
         assert!(!md.contains("paths:"));
+        assert!(!md.contains("tags:"));
         assert!(md.contains("Be concise."));
     }
 

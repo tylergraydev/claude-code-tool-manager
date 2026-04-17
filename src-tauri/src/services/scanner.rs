@@ -19,6 +19,42 @@ use std::path::Path;
 use tauri::Manager;
 use walkdir::WalkDir;
 
+/// Source literal used for rows populated by the auto-scan path (as opposed
+/// to UI-created rows which carry `source = 'manual'`).
+pub(crate) const SOURCE_AUTO_DETECTED: &str = "auto-detected";
+
+/// Walk a directory for `*.md` files, invoking `process(&Path)` for each.
+/// Returns the count of files for which `process` returned `Ok(true)`.
+/// A missing directory is not an error (returns 0). Per-file errors are
+/// non-fatal and logged at warn level — scanning continues.
+pub(crate) fn walk_md_dir<F>(dir: &Path, mut process: F) -> Result<usize>
+where
+    F: FnMut(&Path) -> Result<bool>,
+{
+    let mut count = 0;
+    if !dir.exists() {
+        return Ok(0);
+    }
+    for entry in std::fs::read_dir(dir)? {
+        let entry = match entry {
+            Ok(e) => e,
+            Err(e) => {
+                log::warn!("scanner: failed to read dir entry in {:?}: {}", dir, e);
+                continue;
+            }
+        };
+        let path = entry.path();
+        if path.extension().map(|e| e == "md").unwrap_or(false) {
+            match process(&path) {
+                Ok(true) => count += 1,
+                Ok(false) => {}
+                Err(e) => log::warn!("scanner: failed to process {}: {}", path.display(), e),
+            }
+        }
+    }
+    Ok(count)
+}
+
 pub async fn run_startup_scan(app: &tauri::AppHandle) -> Result<()> {
     let db = app.state::<std::sync::Arc<std::sync::Mutex<Database>>>();
     let db = db.lock().map_err(|e| anyhow::anyhow!("{}", e))?;
@@ -53,6 +89,10 @@ pub async fn run_startup_scan(app: &tauri::AppHandle) -> Result<()> {
     // Scan global hooks from ~/.claude/settings.json
     let hook_count = scan_global_hooks(&db)?;
     log::info!("Found {} hooks from ~/.claude/settings.json", hook_count);
+
+    // Scan global rules from ~/.claude/rules/
+    let rule_count = scan_global_rules(&db)?;
+    log::info!("Found {} rules from ~/.claude/rules/", rule_count);
 
     // ============================================================================
     // OpenCode Scanning
@@ -245,6 +285,12 @@ pub fn scan_claude_json(db: &Database) -> Result<usize> {
         let project_agents_dir = Path::new(&path_to_check).join(".claude").join("agents");
         if project_agents_dir.exists() {
             scan_project_agents(db, project_id, &project_agents_dir)?;
+        }
+
+        // Scan project-level rules from .claude/rules/
+        let project_rules_dir = Path::new(&path_to_check).join(".claude").join("rules");
+        if project_rules_dir.exists() {
+            scan_project_rules(db, project_id, &project_rules_dir)?;
         }
 
         // Scan project-level hooks from .claude/settings.json and .claude/settings.local.json
@@ -466,28 +512,14 @@ pub fn scan_plugins(db: &Database) -> Result<usize> {
 /// Scan global commands from ~/.claude/commands/
 pub fn scan_global_commands(db: &Database) -> Result<usize> {
     let paths = get_claude_paths()?;
-    let mut count = 0;
-
-    if paths.commands_dir.exists() {
-        for entry in std::fs::read_dir(&paths.commands_dir)? {
-            let entry = entry?;
-            let path = entry.path();
-
-            // Only process .md files
-            if path.extension().map(|e| e == "md").unwrap_or(false) {
-                if let Some(command) = parse_skill_file(&path) {
-                    // Use get_or_create_command to insert into commands table
-                    let source_path = path.to_string_lossy().to_string();
-                    let (_, was_created) = get_or_create_command(db, &command, &source_path)?;
-                    if was_created {
-                        count += 1;
-                    }
-                }
-            }
-        }
-    }
-
-    Ok(count)
+    walk_md_dir(&paths.commands_dir, |path| {
+        let Some(command) = parse_skill_file(path) else {
+            return Ok(false);
+        };
+        let source_path = path.to_string_lossy().to_string();
+        let (_, was_created) = get_or_create_command(db, &command, &source_path)?;
+        Ok(was_created)
+    })
 }
 
 /// Scan global skills from ~/.claude/skills/ directories
@@ -525,77 +557,145 @@ pub fn scan_global_skills(db: &Database) -> Result<usize> {
 /// Scan global agents from ~/.claude/agents/
 pub fn scan_global_agents(db: &Database) -> Result<usize> {
     let paths = get_claude_paths()?;
-    let mut count = 0;
+    walk_md_dir(&paths.agents_dir, |path| {
+        let Some(agent) = parse_agent_file(path) else {
+            return Ok(false);
+        };
+        let source_path = path.to_string_lossy().to_string();
 
-    if paths.agents_dir.exists() {
-        for entry in std::fs::read_dir(&paths.agents_dir)? {
-            let entry = entry?;
-            let path = entry.path();
+        let existing_id: Option<i64> = db
+            .conn()
+            .query_row(
+                "SELECT id FROM subagents WHERE name = ?",
+                [&agent.name],
+                |row| row.get(0),
+            )
+            .ok();
 
-            // Only process .md files
-            if path.extension().map(|e| e == "md").unwrap_or(false) {
-                if let Some(agent) = parse_agent_file(&path) {
-                    let source_path = path.to_string_lossy().to_string();
-
-                    // Check if already exists
-                    let existing_id: Option<i64> = db
-                        .conn()
-                        .query_row(
-                            "SELECT id FROM subagents WHERE name = ?",
-                            [&agent.name],
-                            |row| row.get(0),
-                        )
-                        .ok();
-
-                    if let Some(id) = existing_id {
-                        // Update source_path if not already set
-                        db.conn().execute(
-                            "UPDATE subagents SET source_path = ? WHERE id = ? AND (source_path IS NULL OR source_path = '')",
-                            params![&source_path, id],
-                        )?;
-                    } else {
-                        let tools_json = if agent.tools.is_empty() {
-                            None
-                        } else {
-                            Some(serde_json::to_string(&agent.tools).unwrap())
-                        };
-                        let skills_json = if agent.skills.is_empty() {
-                            None
-                        } else {
-                            Some(serde_json::to_string(&agent.skills).unwrap())
-                        };
-                        let tags_json = if agent.tags.is_empty() {
-                            None
-                        } else {
-                            Some(serde_json::to_string(&agent.tags).unwrap())
-                        };
-
-                        let result = db.conn().execute(
-                            "INSERT INTO subagents (name, description, content, tools, model, permission_mode, skills, tags, source, source_path)
-                             VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'auto-detected', ?)",
-                            params![
-                                agent.name,
-                                agent.description,
-                                agent.content,
-                                tools_json,
-                                agent.model,
-                                agent.permission_mode,
-                                skills_json,
-                                tags_json,
-                                source_path
-                            ],
-                        );
-
-                        if result.is_ok() {
-                            count += 1;
-                        }
-                    }
-                }
-            }
+        if let Some(id) = existing_id {
+            db.conn().execute(
+                "UPDATE subagents SET source_path = ? WHERE id = ? AND (source_path IS NULL OR source_path = '')",
+                params![&source_path, id],
+            )?;
+            return Ok(false);
         }
+
+        let tools_json =
+            (!agent.tools.is_empty()).then(|| serde_json::to_string(&agent.tools).unwrap());
+        let skills_json =
+            (!agent.skills.is_empty()).then(|| serde_json::to_string(&agent.skills).unwrap());
+        let tags_json =
+            (!agent.tags.is_empty()).then(|| serde_json::to_string(&agent.tags).unwrap());
+
+        let inserted = db
+            .conn()
+            .execute(
+                "INSERT INTO subagents (name, description, content, tools, model, permission_mode, skills, tags, source, source_path)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                params![
+                    agent.name,
+                    agent.description,
+                    agent.content,
+                    tools_json,
+                    agent.model,
+                    agent.permission_mode,
+                    skills_json,
+                    tags_json,
+                    SOURCE_AUTO_DETECTED,
+                    source_path
+                ],
+            )
+            .is_ok();
+        Ok(inserted)
+    })
+}
+
+/// Scan global rules from ~/.claude/rules/
+pub fn scan_global_rules(db: &Database) -> Result<usize> {
+    let paths = get_claude_paths()?;
+    walk_md_dir(&paths.rules_dir, |path| {
+        upsert_rule_from_file(db, path, None)
+    })
+}
+
+/// Scan project-level rules from `{project}/.claude/rules/` and assign each
+/// rule to the given project.
+fn scan_project_rules(db: &Database, project_id: i64, rules_dir: &Path) -> Result<usize> {
+    walk_md_dir(rules_dir, |path| {
+        upsert_rule_from_file(db, path, Some(project_id))
+    })
+}
+
+/// Parse and upsert a rule file into the `rules` table. Returns `Ok(true)`
+/// when a new row was inserted, `Ok(false)` when an existing row was
+/// source-path-backfilled. For project-scope scans (`project_id: Some`) a
+/// `project_rules` assignment row is also inserted via `INSERT OR IGNORE`.
+fn upsert_rule_from_file(db: &Database, path: &Path, project_id: Option<i64>) -> Result<bool> {
+    let Some(parsed) = parse_rule_file(path) else {
+        return Ok(false);
+    };
+    let source_path = path.to_string_lossy().to_string();
+
+    let symlink_meta = std::fs::symlink_metadata(path).ok();
+    let is_symlink = symlink_meta
+        .as_ref()
+        .map(|m| m.file_type().is_symlink())
+        .unwrap_or(false);
+    let symlink_target = if is_symlink {
+        std::fs::read_link(path)
+            .ok()
+            .map(|p| p.to_string_lossy().to_string())
+    } else {
+        None
+    };
+
+    let existing_id: Option<i64> = db
+        .conn()
+        .query_row(
+            "SELECT id FROM rules WHERE name = ?",
+            [&parsed.name],
+            |row| row.get(0),
+        )
+        .ok();
+
+    let (rule_id, inserted) = if let Some(id) = existing_id {
+        db.conn().execute(
+            "UPDATE rules SET source_path = ? WHERE id = ? AND (source_path IS NULL OR source_path = '')",
+            params![&source_path, id],
+        )?;
+        (id, false)
+    } else {
+        let paths_json =
+            (!parsed.paths.is_empty()).then(|| serde_json::to_string(&parsed.paths).unwrap());
+        let tags_json =
+            (!parsed.tags.is_empty()).then(|| serde_json::to_string(&parsed.tags).unwrap());
+
+        db.conn().execute(
+            "INSERT INTO rules (name, description, content, paths, tags, source, source_path, is_symlink, symlink_target)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            params![
+                parsed.name,
+                parsed.description,
+                parsed.content,
+                paths_json,
+                tags_json,
+                SOURCE_AUTO_DETECTED,
+                source_path,
+                is_symlink as i32,
+                symlink_target,
+            ],
+        )?;
+        (db.conn().last_insert_rowid(), true)
+    };
+
+    if let Some(pid) = project_id {
+        db.conn().execute(
+            "INSERT OR IGNORE INTO project_rules (project_id, rule_id) VALUES (?, ?)",
+            params![pid, rule_id],
+        )?;
     }
 
-    Ok(count)
+    Ok(inserted)
 }
 
 /// Parsed skill data from markdown file
@@ -631,6 +731,57 @@ pub(crate) struct ParsedAgent {
     pub(crate) permission_mode: Option<String>,
     pub(crate) skills: Vec<String>,
     pub(crate) tags: Vec<String>,
+}
+
+/// Parsed rule data from a `.claude/rules/<name>.md` file.
+#[derive(Debug, PartialEq)]
+pub(crate) struct ParsedRule {
+    pub(crate) name: String,
+    pub(crate) description: Option<String>,
+    pub(crate) paths: Vec<String>,
+    pub(crate) tags: Vec<String>,
+    pub(crate) content: String,
+}
+
+/// Parse a rule markdown file. Returns `None` if the file cannot be read
+/// or the stem is not a valid UTF-8 name.
+pub(crate) fn parse_rule_file(path: &Path) -> Option<ParsedRule> {
+    let name = path.file_stem()?.to_string_lossy().to_string();
+    let content = std::fs::read_to_string(path).ok()?;
+    let (frontmatter, body) = parse_frontmatter(&content);
+    let description = frontmatter.get("description").cloned();
+    let paths = frontmatter
+        .get("paths")
+        .map(|v| parse_list_value(v))
+        .unwrap_or_default();
+    let tags = frontmatter
+        .get("tags")
+        .map(|v| parse_list_value(v))
+        .unwrap_or_default();
+    Some(ParsedRule {
+        name,
+        description,
+        paths,
+        tags,
+        content: body,
+    })
+}
+
+/// Parse a `paths:` or `tags:` frontmatter value. Accepts both the JSON
+/// array form (`["a","b"]`) emitted by the current writer and the legacy
+/// comma-separated form (`a, b`) written by earlier versions.
+pub(crate) fn parse_list_value(raw: &str) -> Vec<String> {
+    let trimmed = raw.trim();
+    if trimmed.starts_with('[') {
+        if let Ok(v) = serde_json::from_str::<Vec<String>>(trimmed) {
+            return v;
+        }
+    }
+    trimmed
+        .split(',')
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .collect()
 }
 
 /// Parse a skill markdown file
@@ -872,28 +1023,15 @@ pub(crate) fn parse_frontmatter(
 
 /// Scan project-level commands from .claude/commands/ and assign to project
 fn scan_project_commands(db: &Database, project_id: i64, commands_dir: &Path) -> Result<usize> {
-    let mut count = 0;
-
-    for entry in std::fs::read_dir(commands_dir)? {
-        let entry = entry?;
-        let path = entry.path();
-
-        // Only process .md files
-        if path.extension().map(|e| e == "md").unwrap_or(false) {
-            if let Some(command) = parse_skill_file(&path) {
-                // Get or create the command in the library
-                let source_path = path.to_string_lossy().to_string();
-                let (command_id, _) = get_or_create_command(db, &command, &source_path)?;
-
-                // Assign command to project if not already assigned
-                assign_command_to_project(db, project_id, command_id)?;
-
-                count += 1;
-            }
-        }
-    }
-
-    Ok(count)
+    walk_md_dir(commands_dir, |path| {
+        let Some(command) = parse_skill_file(path) else {
+            return Ok(false);
+        };
+        let source_path = path.to_string_lossy().to_string();
+        let (command_id, _) = get_or_create_command(db, &command, &source_path)?;
+        assign_command_to_project(db, project_id, command_id)?;
+        Ok(true)
+    })
 }
 
 /// Scan project-level skills from .claude/skills/ and assign to project
@@ -929,28 +1067,15 @@ fn scan_project_skills(db: &Database, project_id: i64, skills_dir: &Path) -> Res
 
 /// Scan project-level agents and assign to project
 fn scan_project_agents(db: &Database, project_id: i64, agents_dir: &Path) -> Result<usize> {
-    let mut count = 0;
-
-    for entry in std::fs::read_dir(agents_dir)? {
-        let entry = entry?;
-        let path = entry.path();
-
-        // Only process .md files
-        if path.extension().map(|e| e == "md").unwrap_or(false) {
-            if let Some(agent) = parse_agent_file(&path) {
-                // Get or create the agent in the library
-                let source_path = path.to_string_lossy().to_string();
-                let agent_id = get_or_create_agent(db, &agent, &source_path)?;
-
-                // Assign agent to project if not already assigned
-                assign_agent_to_project(db, project_id, agent_id)?;
-
-                count += 1;
-            }
-        }
-    }
-
-    Ok(count)
+    walk_md_dir(agents_dir, |path| {
+        let Some(agent) = parse_agent_file(path) else {
+            return Ok(false);
+        };
+        let source_path = path.to_string_lossy().to_string();
+        let agent_id = get_or_create_agent(db, &agent, &source_path)?;
+        assign_agent_to_project(db, project_id, agent_id)?;
+        Ok(true)
+    })
 }
 
 /// Get or create a skill in the database, returning (skill_id, was_created)
@@ -4013,5 +4138,325 @@ Body content."#,
             )
             .unwrap();
         assert_eq!(assigned, 1);
+    }
+
+    // =========================================================================
+    // walk_md_dir + rule scanner tests
+    // =========================================================================
+
+    #[test]
+    fn test_walk_md_dir_empty_when_missing() {
+        let temp_dir = TempDir::new().unwrap();
+        let missing = temp_dir.path().join("does-not-exist");
+        let mut called = 0;
+        let count = walk_md_dir(&missing, |_| {
+            called += 1;
+            Ok(true)
+        })
+        .unwrap();
+        assert_eq!(count, 0);
+        assert_eq!(called, 0);
+    }
+
+    #[test]
+    fn test_walk_md_dir_skips_non_md() {
+        let temp_dir = TempDir::new().unwrap();
+        fs::write(temp_dir.path().join("a.md"), "x").unwrap();
+        fs::write(temp_dir.path().join("b.txt"), "x").unwrap();
+        fs::write(temp_dir.path().join("c.json"), "x").unwrap();
+        fs::write(temp_dir.path().join("d.md"), "x").unwrap();
+
+        let mut seen = Vec::new();
+        let count = walk_md_dir(temp_dir.path(), |p| {
+            seen.push(p.file_name().unwrap().to_string_lossy().to_string());
+            Ok(true)
+        })
+        .unwrap();
+        assert_eq!(count, 2);
+        seen.sort();
+        assert_eq!(seen, vec!["a.md".to_string(), "d.md".to_string()]);
+    }
+
+    #[test]
+    fn test_walk_md_dir_continues_on_per_file_error() {
+        let temp_dir = TempDir::new().unwrap();
+        fs::write(temp_dir.path().join("good.md"), "x").unwrap();
+        fs::write(temp_dir.path().join("bad.md"), "x").unwrap();
+
+        let count = walk_md_dir(temp_dir.path(), |p| {
+            if p.file_name().unwrap() == "bad.md" {
+                Err(anyhow::anyhow!("simulated failure"))
+            } else {
+                Ok(true)
+            }
+        })
+        .unwrap();
+        assert_eq!(count, 1);
+    }
+
+    #[test]
+    fn test_parse_rule_file_full_frontmatter() {
+        let temp_dir = TempDir::new().unwrap();
+        let path = temp_dir.path().join("ts-strict.md");
+        fs::write(
+            &path,
+            r#"---
+description: Enforce TS strict mode
+paths: ["src/**/*.ts", "tests/**/*.ts"]
+tags: ["typescript", "quality"]
+---
+Body content here."#,
+        )
+        .unwrap();
+
+        let parsed = parse_rule_file(&path).unwrap();
+        assert_eq!(parsed.name, "ts-strict");
+        assert_eq!(
+            parsed.description.as_deref(),
+            Some("Enforce TS strict mode")
+        );
+        assert_eq!(
+            parsed.paths,
+            vec!["src/**/*.ts".to_string(), "tests/**/*.ts".to_string()]
+        );
+        assert_eq!(
+            parsed.tags,
+            vec!["typescript".to_string(), "quality".to_string()]
+        );
+        assert_eq!(parsed.content, "Body content here.");
+    }
+
+    #[test]
+    fn test_parse_rule_file_no_frontmatter() {
+        let temp_dir = TempDir::new().unwrap();
+        let path = temp_dir.path().join("plain.md");
+        fs::write(&path, "Just body, no frontmatter.").unwrap();
+
+        let parsed = parse_rule_file(&path).unwrap();
+        assert_eq!(parsed.name, "plain");
+        assert!(parsed.description.is_none());
+        assert!(parsed.paths.is_empty());
+        assert!(parsed.tags.is_empty());
+        assert_eq!(parsed.content, "Just body, no frontmatter.");
+    }
+
+    #[test]
+    fn test_parse_rule_file_invalid_markdown() {
+        let temp_dir = TempDir::new().unwrap();
+        let path = temp_dir.path().join("weird.md");
+        fs::write(&path, "--- not a real frontmatter block").unwrap();
+
+        let parsed = parse_rule_file(&path).unwrap();
+        assert_eq!(parsed.name, "weird");
+        assert!(parsed.description.is_none());
+        assert!(parsed.paths.is_empty());
+    }
+
+    #[test]
+    fn test_parse_list_value_json_form() {
+        assert_eq!(
+            parse_list_value(r#"["a", "b", "c"]"#),
+            vec!["a".to_string(), "b".to_string(), "c".to_string()]
+        );
+    }
+
+    #[test]
+    fn test_parse_list_value_comma_form() {
+        assert_eq!(
+            parse_list_value("a, b, c"),
+            vec!["a".to_string(), "b".to_string(), "c".to_string()]
+        );
+    }
+
+    #[test]
+    fn test_parse_list_value_empty() {
+        assert!(parse_list_value("").is_empty());
+        assert!(parse_list_value("   ").is_empty());
+        assert!(parse_list_value(", ,").is_empty());
+    }
+
+    fn scan_global_rules_in(db: &Database, rules_dir: &Path) -> Result<usize> {
+        walk_md_dir(rules_dir, |path| upsert_rule_from_file(db, path, None))
+    }
+
+    #[test]
+    fn test_scan_global_rules_empty_dir() {
+        let db = setup_test_db();
+        let temp_dir = TempDir::new().unwrap();
+        let count = scan_global_rules_in(&db, temp_dir.path()).unwrap();
+        assert_eq!(count, 0);
+    }
+
+    #[test]
+    fn test_scan_global_rules_inserts_new() {
+        let db = setup_test_db();
+        let temp_dir = TempDir::new().unwrap();
+        fs::write(
+            temp_dir.path().join("r1.md"),
+            r#"---
+description: Rule one
+paths: ["src/**/*.ts"]
+---
+R1 body"#,
+        )
+        .unwrap();
+        fs::write(temp_dir.path().join("r2.md"), "R2 body, no frontmatter").unwrap();
+
+        let count = scan_global_rules_in(&db, temp_dir.path()).unwrap();
+        assert_eq!(count, 2);
+
+        let row_count: i64 = db
+            .conn()
+            .query_row("SELECT COUNT(*) FROM rules", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(row_count, 2);
+
+        let (paths_json, source): (Option<String>, String) = db
+            .conn()
+            .query_row(
+                "SELECT paths, source FROM rules WHERE name = ?",
+                ["r1"],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(source, SOURCE_AUTO_DETECTED);
+        let parsed: Vec<String> = serde_json::from_str(&paths_json.unwrap()).unwrap();
+        assert_eq!(parsed, vec!["src/**/*.ts".to_string()]);
+    }
+
+    #[test]
+    fn test_scan_global_rules_idempotent_rescan() {
+        let db = setup_test_db();
+        let temp_dir = TempDir::new().unwrap();
+        fs::write(temp_dir.path().join("r.md"), "Body").unwrap();
+
+        assert_eq!(scan_global_rules_in(&db, temp_dir.path()).unwrap(), 1);
+        // Second call returns 0 (no new inserts), no duplicates.
+        assert_eq!(scan_global_rules_in(&db, temp_dir.path()).unwrap(), 0);
+        let row_count: i64 = db
+            .conn()
+            .query_row("SELECT COUNT(*) FROM rules", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(row_count, 1);
+    }
+
+    #[test]
+    fn test_scan_global_rules_backfills_source_path() {
+        let db = setup_test_db();
+        // Insert a UI-created rule with NULL source_path first.
+        db.conn()
+            .execute(
+                "INSERT INTO rules (name, content, source) VALUES (?, ?, 'manual')",
+                params!["pre-existing", "old body"],
+            )
+            .unwrap();
+
+        let temp_dir = TempDir::new().unwrap();
+        let file_path = temp_dir.path().join("pre-existing.md");
+        fs::write(&file_path, "new body").unwrap();
+
+        let count = scan_global_rules_in(&db, temp_dir.path()).unwrap();
+        // No new row — existing row was backfilled.
+        assert_eq!(count, 0);
+
+        let (source_path, source): (Option<String>, String) = db
+            .conn()
+            .query_row(
+                "SELECT source_path, source FROM rules WHERE name = ?",
+                ["pre-existing"],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(
+            source_path.as_deref(),
+            Some(file_path.to_string_lossy().as_ref())
+        );
+        // Source is NOT overwritten — manual stays manual.
+        assert_eq!(source, "manual");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_scan_global_rules_populates_symlink_fields() {
+        let db = setup_test_db();
+        let temp_dir = TempDir::new().unwrap();
+
+        let target = temp_dir.path().join("target.md");
+        fs::write(&target, "target body").unwrap();
+        let link = temp_dir.path().join("linked.md");
+        std::os::unix::fs::symlink(&target, &link).unwrap();
+
+        let count = scan_global_rules_in(&db, temp_dir.path()).unwrap();
+        assert_eq!(count, 2);
+
+        let (is_symlink, sym_target): (i32, Option<String>) = db
+            .conn()
+            .query_row(
+                "SELECT is_symlink, symlink_target FROM rules WHERE name = ?",
+                ["linked"],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(is_symlink, 1);
+        assert_eq!(
+            sym_target.as_deref(),
+            Some(target.to_string_lossy().as_ref())
+        );
+
+        let (is_symlink_t, _): (i32, Option<String>) = db
+            .conn()
+            .query_row(
+                "SELECT is_symlink, symlink_target FROM rules WHERE name = ?",
+                ["target"],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(is_symlink_t, 0);
+    }
+
+    #[test]
+    fn test_scan_project_rules_inserts_assignment() {
+        let db = setup_test_db();
+        let proj_id = get_or_create_project(&db, "proj", "/tmp/proj").unwrap();
+        let temp_dir = TempDir::new().unwrap();
+        fs::write(
+            temp_dir.path().join("r.md"),
+            r#"---
+description: Project rule
+---
+Body"#,
+        )
+        .unwrap();
+
+        let count = scan_project_rules(&db, proj_id, temp_dir.path()).unwrap();
+        assert_eq!(count, 1);
+
+        let rule_row_count: i64 = db
+            .conn()
+            .query_row("SELECT COUNT(*) FROM rules", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(rule_row_count, 1);
+
+        let assigned: i64 = db
+            .conn()
+            .query_row(
+                "SELECT COUNT(*) FROM project_rules WHERE project_id = ?",
+                [proj_id],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(assigned, 1);
+
+        // Rescanning does not duplicate the assignment.
+        scan_project_rules(&db, proj_id, temp_dir.path()).unwrap();
+        let assigned2: i64 = db
+            .conn()
+            .query_row(
+                "SELECT COUNT(*) FROM project_rules WHERE project_id = ?",
+                [proj_id],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(assigned2, 1);
     }
 }
