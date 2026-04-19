@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.8.4] - 2026-04-19
+
+### Fixed
+- **Gist Scope Verification**: Verify GitHub token has `gist` scope on cloud sync connect — surfaces a clear error naming the remediation command (`gh auth refresh -h github.com -s gist`) instead of a generic 403 at first push (#201)
+
 ## [3.8.3] - 2026-04-14
 
 ### Fixed
