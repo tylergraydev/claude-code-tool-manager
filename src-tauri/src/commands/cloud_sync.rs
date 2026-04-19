@@ -89,6 +89,13 @@ pub async fn connect_cloud_sync(
         .await
         .map_err(|e| format!("Failed to validate token: {}", e))?;
 
+    // Verify the token has `gist` scope before we try to use it, so the user
+    // gets a clear remediation message instead of a 403 at first push.
+    service
+        .verify_gist_scope(&token)
+        .await
+        .map_err(|e| e.to_string())?;
+
     // Find or create sync gist
     let (gist_id, gist_url) = service
         .find_or_create_gist(&token)
