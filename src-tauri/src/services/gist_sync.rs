@@ -219,6 +219,46 @@ impl GistSyncService {
         Ok(user.login)
     }
 
+    /// Verify the token carries the `gist` OAuth scope. Classic tokens (what
+    /// `gh auth token` returns) advertise granted scopes in the
+    /// `X-OAuth-Scopes` response header. Fine-grained PATs don't set this
+    /// header — in that case we can't verify upfront and fall through.
+    ///
+    /// Returns a user-facing error with the exact remediation command when
+    /// the scope is confirmed absent.
+    pub async fn verify_gist_scope(&self, token: &str) -> Result<()> {
+        let url = format!("{}/user", self.api_base);
+        let response = self
+            .client
+            .get(&url)
+            .headers(self.auth_headers(token))
+            .send()
+            .await?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let text = response.text().await.unwrap_or_default();
+            return Err(anyhow!("GitHub API error {}: {}", status, text));
+        }
+
+        let Some(scopes_header) = response.headers().get("x-oauth-scopes") else {
+            // Fine-grained PAT or similar — can't verify, defer to API-level
+            // errors on the actual gist call.
+            return Ok(());
+        };
+
+        let scopes_str = scopes_header.to_str().unwrap_or("");
+        let has_gist = scopes_str.split(',').map(|s| s.trim()).any(|s| s == "gist");
+
+        if has_gist {
+            Ok(())
+        } else {
+            Err(anyhow!(
+                "GitHub token is missing the 'gist' scope. Run: gh auth refresh -h github.com -s gist"
+            ))
+        }
+    }
+
     /// Find existing sync gist or create a new one
     pub async fn find_or_create_gist(&self, token: &str) -> Result<(String, String)> {
         // Search user's gists for our sync gist (paginated — GitHub caps at 100 per page)
@@ -781,6 +821,83 @@ mod tests {
 
         let service = GistSyncService::with_base_url(mock_server.uri());
         let result = service.get_authenticated_user("bad-token").await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("401"));
+    }
+
+    #[tokio::test]
+    async fn test_verify_gist_scope_present() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("GET"))
+            .and(path("/user"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .insert_header("X-OAuth-Scopes", "repo, gist, read:org")
+                    .set_body_json(serde_json::json!({ "login": "testuser" })),
+            )
+            .mount(&mock_server)
+            .await;
+
+        let service = GistSyncService::with_base_url(mock_server.uri());
+        let result = service.verify_gist_scope("test-token").await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_verify_gist_scope_missing() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("GET"))
+            .and(path("/user"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .insert_header("X-OAuth-Scopes", "repo, read:org")
+                    .set_body_json(serde_json::json!({ "login": "testuser" })),
+            )
+            .mount(&mock_server)
+            .await;
+
+        let service = GistSyncService::with_base_url(mock_server.uri());
+        let err = service.verify_gist_scope("test-token").await.unwrap_err();
+        let msg = err.to_string();
+        assert!(msg.contains("'gist' scope"), "got: {}", msg);
+        assert!(msg.contains("gh auth refresh"), "got: {}", msg);
+    }
+
+    #[tokio::test]
+    async fn test_verify_gist_scope_header_absent() {
+        // Fine-grained PATs don't emit X-OAuth-Scopes — we should not block.
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("GET"))
+            .and(path("/user"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(serde_json::json!({ "login": "testuser" })),
+            )
+            .mount(&mock_server)
+            .await;
+
+        let service = GistSyncService::with_base_url(mock_server.uri());
+        let result = service.verify_gist_scope("test-token").await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_verify_gist_scope_unauthorized() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("GET"))
+            .and(path("/user"))
+            .respond_with(ResponseTemplate::new(401).set_body_json(serde_json::json!({
+                "message": "Bad credentials"
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let service = GistSyncService::with_base_url(mock_server.uri());
+        let result = service.verify_gist_scope("bad-token").await;
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("401"));
     }
