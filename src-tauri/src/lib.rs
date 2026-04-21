@@ -221,6 +221,8 @@ pub fn run() {
             commands::projects::toggle_project_mcp,
             commands::projects::toggle_project_favorite,
             commands::projects::sync_project_config,
+            commands::projects::open_folder,
+            commands::projects::update_project_editor_type,
             // Global Settings Commands
             commands::config::get_global_mcps,
             commands::config::add_global_mcp,

@@ -211,6 +211,11 @@ pub fn write_codex_config(path: &Path, mcps: &[McpTuple]) -> Result<()> {
         )
     })?;
 
+    // Skip overwrite when DB has no MCPs — preserves externally-managed configs
+    if mcps.is_empty() {
+        return Ok(());
+    }
+
     // Create or get mcp_servers table
     if doc.get("mcp_servers").is_none() {
         doc["mcp_servers"] = Item::Table(Table::new());

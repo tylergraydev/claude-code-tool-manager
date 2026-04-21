@@ -204,6 +204,11 @@ pub fn write_copilot_config(path: &Path, mcps: &[McpTuple]) -> Result<()> {
         CopilotMcpConfig::default()
     };
 
+    // Skip overwrite when DB has no MCPs — preserves externally-managed configs
+    if mcps.is_empty() {
+        return Ok(());
+    }
+
     // Back up the existing file before modifying it
     backup_config_file(path)?;
 

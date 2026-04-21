@@ -388,6 +388,54 @@ fn assign_mcp_to_project(
     Ok(())
 }
 
+/// Import MCPs from a project's .mcp.json into the database.
+/// Called when a project is added so externally-configured servers show up in the UI.
+pub fn import_mcps_from_project_mcp_json(
+    db: &Database,
+    project_id: i64,
+    project_path: &str,
+) -> Result<usize> {
+    let path = std::path::PathBuf::from(project_path);
+    let mcp_file = path.join(".mcp.json");
+
+    if !mcp_file.exists() {
+        return Ok(0);
+    }
+
+    let mcps = match config_parser::parse_mcp_file(&mcp_file) {
+        Ok(m) => m,
+        Err(e) => {
+            log::warn!("Failed to parse .mcp.json at {}: {}", mcp_file.display(), e);
+            return Ok(0);
+        }
+    };
+
+    let mut count = 0;
+    for mcp in &mcps {
+        let mcp_id = get_or_create_mcp(
+            db,
+            &mcp.name,
+            &mcp.mcp_type,
+            mcp.command.as_deref(),
+            mcp.args.as_ref(),
+            mcp.url.as_deref(),
+            mcp.headers.as_ref(),
+            mcp.env.as_ref(),
+            project_path,
+        )?;
+
+        assign_mcp_to_project(db, project_id, mcp_id, true)?;
+        count += 1;
+    }
+
+    log::info!(
+        "Imported {} MCPs from .mcp.json for project {}",
+        count,
+        project_path
+    );
+    Ok(count)
+}
+
 /// Scan plugins/marketplaces directory for MCPs
 pub fn scan_plugins(db: &Database) -> Result<usize> {
     let paths = get_claude_paths()?;

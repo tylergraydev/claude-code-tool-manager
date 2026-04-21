@@ -305,8 +305,13 @@ pub fn write_project_to_claude_json(
         }
     }
 
-    project["mcpServers"] = Value::Object(mcp_servers);
-    project["disabledMcpServers"] = json!(disabled_mcps);
+    // Only update mcpServers if DB has servers — preserves externally-managed configs
+    if !mcp_servers.is_empty() {
+        project["mcpServers"] = Value::Object(mcp_servers);
+    }
+    if !disabled_mcps.is_empty() {
+        project["disabledMcpServers"] = json!(disabled_mcps);
+    }
 
     // Back up the existing file before modifying it
     backup_config_file(&paths.claude_json)?;
@@ -610,11 +615,12 @@ mod tests {
         let content = std::fs::read_to_string(&config_path).unwrap();
         let parsed: Value = serde_json::from_str(&content).unwrap();
 
-        // mcpServers should be empty (DB has none)
+        // mcpServers should be preserved (DB has none, so we don't overwrite)
         let servers = parsed.get("mcpServers").unwrap().as_object().unwrap();
-        assert_eq!(servers.len(), 0);
+        assert_eq!(servers.len(), 1);
+        assert!(servers.contains_key("external-server"));
 
-        // But the file should still have valid structure and preserve other keys
+        // Other keys should also be preserved
         assert_eq!(parsed.get("someOtherConfig").unwrap(), true);
     }
 

@@ -119,6 +119,7 @@ pub fn add_project(
     db: State<'_, Arc<Mutex<Database>>>,
     project: CreateProjectRequest,
 ) -> Result<Project, String> {
+    use crate::services::scanner;
     use crate::utils::paths::get_claude_paths;
 
     info!(
@@ -127,9 +128,9 @@ pub fn add_project(
     );
     let db = db.lock().map_err(|e| e.to_string())?;
 
-    // Check if .claude/.mcp.json exists
+    // Check if .mcp.json exists (project root is the standard location)
     let project_path = PathBuf::from(&project.path);
-    let mcp_file = project_path.join(".claude").join(".mcp.json");
+    let mcp_file = project_path.join(".mcp.json");
     let settings_file = project_path.join(".claude").join("settings.local.json");
 
     let has_mcp_file = mcp_file.exists();
@@ -150,11 +151,26 @@ pub fn add_project(
 
     let id = db.conn().last_insert_rowid();
 
+    // Import MCPs from existing .mcp.json so they show up in the UI
+    let imported_mcps = if has_mcp_file {
+        scanner::import_mcps_from_project_mcp_json(&db, id, &project.path)
+            .map_err(|e| e.to_string())?
+    } else {
+        0
+    };
+    info!(
+        "[Projects] Imported {} MCPs from .mcp.json for project id={}",
+        imported_mcps, id
+    );
+
     // Register project in claude.json (even with no MCPs)
     if let Ok(paths) = get_claude_paths() {
         let empty_mcps: Vec<config_writer::McpWithEnabledTuple> = vec![];
         let _ = config_writer::write_project_to_claude_json(&paths, &project.path, &empty_mcps);
     }
+
+    // Fetch assigned MCPs to return in the response
+    let assigned_mcps = get_project_assigned_mcps(&db, id);
 
     Ok(Project {
         id,
@@ -167,7 +183,7 @@ pub fn add_project(
         is_favorite: false,
         created_at: chrono::Utc::now().to_rfc3339(),
         updated_at: chrono::Utc::now().to_rfc3339(),
-        assigned_mcps: vec![],
+        assigned_mcps,
     })
 }
 
@@ -603,6 +619,48 @@ pub fn toggle_project_favorite(
     toggle_project_favorite_in_db(&db, id, favorite)
 }
 
+#[tauri::command]
+pub fn open_folder(path: String) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("explorer")
+            .arg(&path)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg(&path)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+    #[cfg(target_os = "linux")]
+    {
+        std::process::Command::new("xdg-open")
+            .arg(&path)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn update_project_editor_type(
+    db: State<'_, Arc<Mutex<Database>>>,
+    project_id: i64,
+    editor_type: String,
+) -> Result<(), String> {
+    let db = db.lock().map_err(|e| e.to_string())?;
+    db.conn()
+        .execute(
+            "UPDATE projects SET editor_type = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+            params![editor_type, project_id],
+        )
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
 /// Toggle project favorite status in the database
 pub(crate) fn toggle_project_favorite_in_db(
     db: &Database,
@@ -616,6 +674,39 @@ pub(crate) fn toggle_project_favorite_in_db(
         )
         .map_err(|e| e.to_string())?;
     Ok(())
+}
+
+/// Get assigned MCPs for a project from the database
+fn get_project_assigned_mcps(db: &Database, project_id: i64) -> Vec<ProjectMcp> {
+    let result: Result<Vec<ProjectMcp>, rusqlite::Error> = (|| {
+        let mut stmt = db.conn().prepare(
+            "SELECT pm.id, pm.mcp_id, pm.is_enabled, pm.env_overrides, pm.display_order,
+                    m.id, m.name, m.description, m.type, m.command, m.args, m.url, m.headers, m.env,
+                    m.icon, m.tags, m.source, m.source_path, m.is_enabled_global, m.is_favorite, m.created_at, m.updated_at
+             FROM project_mcps pm
+             JOIN mcps m ON pm.mcp_id = m.id
+             WHERE pm.project_id = ?
+             ORDER BY pm.display_order",
+        )?;
+
+        let mcps = stmt
+            .query_map([project_id], |row| {
+                Ok(ProjectMcp {
+                    id: row.get(0)?,
+                    mcp_id: row.get(1)?,
+                    is_enabled: row.get::<_, i32>(2)? != 0,
+                    env_overrides: parse_json_map(row.get(3)?),
+                    display_order: row.get(4)?,
+                    mcp: row_to_mcp(row, 5)?,
+                })
+            })?
+            .filter_map(|r| r.ok())
+            .collect();
+
+        Ok(mcps)
+    })();
+
+    result.unwrap_or_default()
 }
 
 /// Assign an MCP to a project in the database

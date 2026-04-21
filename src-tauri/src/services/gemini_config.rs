@@ -206,6 +206,11 @@ pub fn write_gemini_config(path: &Path, mcps: &[McpTuple]) -> Result<()> {
         GeminiSettingsConfig::default()
     };
 
+    // Skip overwrite when DB has no MCPs — preserves externally-managed configs
+    if mcps.is_empty() {
+        return Ok(());
+    }
+
     // Back up the existing file before modifying it
     backup_settings_file(path)?;
 

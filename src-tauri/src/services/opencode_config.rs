@@ -248,9 +248,12 @@ pub fn write_opencode_global_config(config_path: &Path, mcps: &[McpTuple]) -> Re
     };
 
     // Build MCP object
+    // Skip overwrite when DB has no MCPs — preserves externally-managed configs
     let mcp_config = generate_opencode_mcp_config(mcps);
-    if let Some(mcp) = mcp_config.get("mcp") {
-        config["mcp"] = mcp.clone();
+    if let Some(Value::Object(mcp)) = mcp_config.get("mcp") {
+        if !mcp.is_empty() {
+            config["mcp"] = Value::Object(mcp.clone());
+        }
     }
 
     // Back up the existing file before modifying it
@@ -284,9 +287,12 @@ pub fn write_opencode_project_config(project_path: &Path, mcps: &[McpTuple]) -> 
     };
 
     // Build MCP object
+    // Skip overwrite when DB has no MCPs — preserves externally-managed configs
     let mcp_config = generate_opencode_mcp_config(mcps);
-    if let Some(mcp) = mcp_config.get("mcp") {
-        config["mcp"] = mcp.clone();
+    if let Some(Value::Object(mcp)) = mcp_config.get("mcp") {
+        if !mcp.is_empty() {
+            config["mcp"] = Value::Object(mcp.clone());
+        }
     }
 
     // Back up the existing file before modifying it
