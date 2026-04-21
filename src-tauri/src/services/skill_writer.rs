@@ -68,6 +68,12 @@ pub(crate) fn generate_skill_markdown(skill: &Skill) -> String {
         }
     }
 
+    if let Some(ref tags) = skill.tags {
+        if !tags.is_empty() {
+            frontmatter.push_str(&format!("tags: {}\n", serde_json::to_string(tags).unwrap()));
+        }
+    }
+
     frontmatter.push_str("---\n\n");
     format!("{}{}", frontmatter, skill.content)
 }
@@ -269,6 +275,31 @@ mod tests {
         let md = generate_skill_markdown(&skill);
 
         assert!(md.contains("name: minimal\n"));
+    }
+
+    #[test]
+    fn test_generate_skill_markdown_emits_tags_as_json_array() {
+        // Mirrors the rule_writer fix: `tags` is read from the DB via
+        // `serde_json::from_str`, so if a scanner ever ingests a skill
+        // frontmatter the value must be valid JSON, not comma-joined.
+        // Also pins against silent-drop: previously `skill.tags` was not
+        // written to frontmatter at all.
+        let mut skill = sample_minimal_skill();
+        skill.tags = Some(vec!["refactor".to_string(), "typescript".to_string()]);
+
+        let md = generate_skill_markdown(&skill);
+
+        assert!(md.contains("tags: [\"refactor\",\"typescript\"]\n"));
+    }
+
+    #[test]
+    fn test_generate_skill_markdown_omits_empty_tags() {
+        let mut skill = sample_minimal_skill();
+        skill.tags = Some(vec![]);
+
+        let md = generate_skill_markdown(&skill);
+
+        assert!(!md.contains("tags:"));
     }
 
     // =========================================================================
