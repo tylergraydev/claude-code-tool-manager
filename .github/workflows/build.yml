@@ -112,8 +112,8 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
 
-      # Skip updater bundle on PRs: fork/Dependabot PRs can't read secrets, so passing the key would decode to "" and tauri-action would fail.
-      - name: Build Tauri app (PR — skip updater signing)
+      # Disable updater artifacts on PR builds: fork/Dependabot PRs can't read secrets, and tauri refuses to build when pubkey is set in config but no private key is available.
+      - name: Build Tauri app (PR — updater disabled)
         if: github.event_name == 'pull_request'
         uses: tauri-apps/tauri-action@v0
         env:
@@ -121,10 +121,8 @@ jobs:
         with:
           args: >-
             --target ${{ matrix.target }}
-            ${{ (matrix.platform == 'ubuntu-22.04' && '--bundles deb,rpm,appimage')
-             || (matrix.platform == 'windows-latest' && '--bundles nsis,msi')
-             || (matrix.target == 'x86_64-apple-darwin' && '--bundles app')
-             || '--bundles app,dmg' }}
+            --config {"bundle":{"createUpdaterArtifacts":false}}
+            ${{ matrix.target == 'x86_64-apple-darwin' && '--bundles app' || '' }}
 
       - name: Build Tauri app (push to main — signed)
         if: github.event_name == 'push'
