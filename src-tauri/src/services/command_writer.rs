@@ -41,6 +41,12 @@ pub(crate) fn generate_command_markdown(command: &Command) -> String {
         }
     }
 
+    if let Some(ref tags) = command.tags {
+        if !tags.is_empty() {
+            frontmatter.push_str(&format!("tags: {}\n", serde_json::to_string(tags).unwrap()));
+        }
+    }
+
     frontmatter.push_str("---\n\n");
     format!("{}{}", frontmatter, command.content)
 }
@@ -265,6 +271,31 @@ mod tests {
         assert!(!md.contains("argument-hint:"));
         assert!(!md.contains("model:"));
         assert!(md.contains("Minimal content."));
+    }
+
+    #[test]
+    fn test_generate_command_markdown_emits_tags_as_json_array() {
+        // Mirrors the rule_writer fix: `tags` is read from the DB via
+        // `serde_json::from_str`, so if a scanner ever ingests a command
+        // frontmatter the value must be valid JSON, not comma-joined.
+        // Also pins against silent-drop: previously `command.tags` was not
+        // written to frontmatter at all.
+        let mut command = sample_minimal_command();
+        command.tags = Some(vec!["triage".to_string(), "prs".to_string()]);
+
+        let md = generate_command_markdown(&command);
+
+        assert!(md.contains("tags: [\"triage\",\"prs\"]\n"));
+    }
+
+    #[test]
+    fn test_generate_command_markdown_omits_empty_tags() {
+        let mut command = sample_minimal_command();
+        command.tags = Some(vec![]);
+
+        let md = generate_command_markdown(&command);
+
+        assert!(!md.contains("tags:"));
     }
 
     // =========================================================================
