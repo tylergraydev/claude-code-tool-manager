@@ -1,5 +1,5 @@
 use crate::db::Database;
-use crate::services::mcp_registry::{EnvPlaceholder, RegistryClient, RegistryMcpEntry};
+use crate::services::mcp_registry::{RegistryClient, RegistryMcpEntry};
 use rusqlite::params;
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
@@ -166,6 +166,7 @@ pub fn get_registry_mcp_by_id(db: &Database, id: i64) -> Result<RegistryMcpEntry
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::services::mcp_registry::EnvPlaceholder;
     use std::collections::HashMap;
 
     // =========================================================================

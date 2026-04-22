@@ -4,7 +4,7 @@
 
 use crate::db::Database;
 use crate::mcp_server::server::{
-    generate_self_mcp_entry, McpServerConfig, McpServerStatus, DEFAULT_MCP_SERVER_PORT,
+    generate_self_mcp_entry, McpServerConfig, McpServerStatus,
 };
 use crate::mcp_server::McpServerState;
 use log::info;
@@ -148,6 +148,7 @@ pub fn is_self_mcp_in_library(db: State<'_, Arc<Mutex<Database>>>) -> Result<boo
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::mcp_server::server::DEFAULT_MCP_SERVER_PORT;
 
     #[test]
     fn test_mcp_server_config_serde() {
