@@ -366,7 +366,7 @@ pub(crate) fn seed_permission_templates_impl(db: &Database) -> Result<(), String
         ),
     ];
 
-    let count = templates.len();
+    let _count = templates.len();
     for (name, desc, category, rule, tool_name, tag) in templates {
         let tags_json = serde_json::to_string(&vec![tag]).unwrap();
         db.conn()

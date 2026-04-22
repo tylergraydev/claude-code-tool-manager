@@ -707,7 +707,7 @@ impl DockerClientManager {
             });
 
             // Spawn task to listen for input events
-            let app_clone2 = app_handle.clone();
+            let _app_clone2 = app_handle.clone();
             let session_id_clone2 = session_id.clone();
             tokio::spawn(async move {
                 let (tx, mut rx) = tokio::sync::mpsc::channel::<String>(256);

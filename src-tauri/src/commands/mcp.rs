@@ -708,7 +708,7 @@ mod tests {
         let db = Database::in_memory().unwrap();
         let req = sample_stdio_mcp();
         let created = create_mcp_in_db(&db, &req).unwrap();
-        let original_updated = created.updated_at.clone();
+        let _original_updated = created.updated_at.clone();
 
         // Small delay to ensure timestamp changes
         std::thread::sleep(std::time::Duration::from_millis(10));

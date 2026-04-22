@@ -1205,7 +1205,7 @@ mod tests {
         let db = Database::in_memory().unwrap();
         let skill = create_skill_in_db(&db, &sample_skill()).unwrap();
 
-        let file = create_skill_file_in_db(
+        let _file = create_skill_file_in_db(
             &db,
             &CreateSkillFileRequest {
                 skill_id: skill.id,

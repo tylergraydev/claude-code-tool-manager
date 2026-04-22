@@ -14,7 +14,7 @@ pub fn get_all_docker_hosts(
 #[tauri::command]
 pub fn create_docker_host(
     db: State<'_, Arc<Mutex<Database>>>,
-    request: CreateDockerHostRequest,
+    _request: CreateDockerHostRequest,
 ) -> Result<DockerHost, String> {
     let _db = db.lock().map_err(|e| e.to_string())?;
     Err("Docker host feature not yet implemented".to_string())
@@ -23,20 +23,20 @@ pub fn create_docker_host(
 #[tauri::command]
 pub fn update_docker_host(
     db: State<'_, Arc<Mutex<Database>>>,
-    id: i64,
-    request: CreateDockerHostRequest,
+    _id: i64,
+    _request: CreateDockerHostRequest,
 ) -> Result<DockerHost, String> {
     let _db = db.lock().map_err(|e| e.to_string())?;
     Err("Docker host feature not yet implemented".to_string())
 }
 
 #[tauri::command]
-pub fn delete_docker_host(db: State<'_, Arc<Mutex<Database>>>, id: i64) -> Result<(), String> {
+pub fn delete_docker_host(db: State<'_, Arc<Mutex<Database>>>, _id: i64) -> Result<(), String> {
     let _db = db.lock().map_err(|e| e.to_string())?;
     Err("Docker host feature not yet implemented".to_string())
 }
 
 #[tauri::command]
-pub fn test_docker_host(id: i64) -> Result<bool, String> {
+pub fn test_docker_host(_id: i64) -> Result<bool, String> {
     Err("Docker host feature not yet implemented".to_string())
 }

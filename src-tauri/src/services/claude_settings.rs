@@ -2380,7 +2380,7 @@ mod tests {
         };
 
         // Write directly to file (bypassing scope resolution)
-        let mut file_settings = read_settings_file(&path).unwrap();
+        let _file_settings = read_settings_file(&path).unwrap();
 
         // Test sandbox serialization with null network
         let sandbox_value = serde_json::to_value(&settings.sandbox.as_ref().unwrap()).unwrap();
