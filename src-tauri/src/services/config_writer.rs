@@ -451,7 +451,7 @@ mod tests {
             None,
             None, // no env
         );
-        let config = generate_mcp_config(&vec![mcp]);
+        let config = generate_mcp_config(&[mcp]);
         assert_json_snapshot!(config);
     }
 
@@ -466,7 +466,7 @@ mod tests {
             None,
             None,
         );
-        let config = generate_mcp_config(&vec![mcp]);
+        let config = generate_mcp_config(&[mcp]);
         let servers = config.get("mcpServers").unwrap().as_object().unwrap();
         assert_eq!(servers.len(), 0);
     }
