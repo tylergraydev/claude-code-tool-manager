@@ -406,7 +406,11 @@ impl RegistryServer {
 
 fn extract_short_name(full_name: &str) -> String {
     // "io.github.user/my-mcp-server" -> "my-mcp-server"
-    full_name.split('/').last().unwrap_or(full_name).to_string()
+    full_name
+        .split('/')
+        .next_back()
+        .unwrap_or(full_name)
+        .to_string()
 }
 
 fn package_to_mcp_entry(server: &RegistryServer, package: &Package) -> Result<RegistryMcpEntry> {

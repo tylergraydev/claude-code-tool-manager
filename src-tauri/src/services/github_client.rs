@@ -235,7 +235,7 @@ impl GitHubClient {
         match (&file_content.content, &file_content.encoding) {
             (Some(content), Some(encoding)) if encoding == "base64" => {
                 // Remove newlines from base64 content
-                let clean_content = content.replace('\n', "").replace('\r', "");
+                let clean_content = content.replace(['\n', '\r'], "");
                 let decoded = STANDARD.decode(&clean_content)?;
                 Ok(String::from_utf8(decoded)?)
             }

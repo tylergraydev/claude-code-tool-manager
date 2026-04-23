@@ -329,13 +329,11 @@ pub fn get_global_commands(
     db: State<'_, Arc<Mutex<Database>>>,
 ) -> Result<Vec<GlobalCommand>, String> {
     let db = db.lock().map_err(|e| e.to_string())?;
-    let query = format!(
-        "SELECT gc.id, gc.command_id, gc.is_enabled,
+    let query = "SELECT gc.id, gc.command_id, gc.is_enabled,
                 c.id, c.name, c.description, c.content, c.allowed_tools, c.argument_hint, c.model, c.tags, c.source, c.source_path, c.is_favorite, c.created_at, c.updated_at
          FROM global_commands gc
          JOIN commands c ON gc.command_id = c.id
-         ORDER BY c.name"
-    );
+         ORDER BY c.name".to_string();
     let mut stmt = db.conn().prepare(&query).map_err(|e| e.to_string())?;
 
     let commands = stmt
@@ -644,13 +642,11 @@ pub fn toggle_project_command(
         .map_err(|e| e.to_string())?;
 
     // Get the command and project path
-    let query = format!(
-        "SELECT c.id, c.name, c.description, c.content, c.allowed_tools, c.argument_hint, c.model, c.tags, c.source, c.source_path, c.is_favorite, c.created_at, c.updated_at, p.path
+    let query = "SELECT c.id, c.name, c.description, c.content, c.allowed_tools, c.argument_hint, c.model, c.tags, c.source, c.source_path, c.is_favorite, c.created_at, c.updated_at, p.path
          FROM project_commands pc
          JOIN commands c ON pc.command_id = c.id
          JOIN projects p ON pc.project_id = p.id
-         WHERE pc.id = ?"
-    );
+         WHERE pc.id = ?".to_string();
     let mut stmt = db_guard.conn().prepare(&query).map_err(|e| e.to_string())?;
 
     let (command, project_path): (Command, String) = stmt
@@ -706,14 +702,12 @@ pub fn get_project_commands(
     project_id: i64,
 ) -> Result<Vec<ProjectCommand>, String> {
     let db = db.lock().map_err(|e| e.to_string())?;
-    let query = format!(
-        "SELECT pc.id, pc.command_id, pc.is_enabled,
+    let query = "SELECT pc.id, pc.command_id, pc.is_enabled,
                 c.id, c.name, c.description, c.content, c.allowed_tools, c.argument_hint, c.model, c.tags, c.source, c.source_path, c.is_favorite, c.created_at, c.updated_at
          FROM project_commands pc
          JOIN commands c ON pc.command_id = c.id
          WHERE pc.project_id = ?
-         ORDER BY c.name"
-    );
+         ORDER BY c.name".to_string();
     let mut stmt = db.conn().prepare(&query).map_err(|e| e.to_string())?;
 
     let commands = stmt

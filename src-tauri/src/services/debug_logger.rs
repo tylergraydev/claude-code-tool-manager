@@ -261,9 +261,8 @@ mod tests {
     fn test_is_debug_enabled_initially_false() {
         // Note: This may fail if another test enabled debug mode
         // The global state makes this tricky
-        let enabled = is_debug_enabled();
-        // Just verify it returns a bool - the actual value depends on test order
-        assert!(enabled == true || enabled == false);
+        // Value depends on test order; just verify the function doesn't panic.
+        let _ = is_debug_enabled();
     }
 
     #[test]

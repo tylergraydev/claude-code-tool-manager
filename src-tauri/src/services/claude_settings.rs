@@ -500,7 +500,7 @@ pub fn write_claude_settings(
         set_or_remove_string_in(&mut attribution, "pr", &settings.attribution_pr);
 
         // If attribution object is now empty, remove it
-        if attribution.as_object().map_or(true, |o| o.is_empty()) {
+        if attribution.as_object().is_none_or(|o| o.is_empty()) {
             if let Some(obj) = file_settings.as_object_mut() {
                 obj.remove("attribution");
             }
@@ -521,7 +521,7 @@ pub fn write_claude_settings(
             // Check if the serialized sandbox object has any non-null values
             if sandbox_value
                 .as_object()
-                .map_or(true, |o| o.values().all(|v| v.is_null()))
+                .is_none_or(|o| o.values().all(|v| v.is_null()))
             {
                 if let Some(obj) = file_settings.as_object_mut() {
                     obj.remove("sandbox");
@@ -633,7 +633,7 @@ pub fn write_claude_settings(
             &settings.file_suggestion_command,
         );
 
-        if file_suggestion.as_object().map_or(true, |o| o.is_empty()) {
+        if file_suggestion.as_object().is_none_or(|o| o.is_empty()) {
             if let Some(obj) = file_settings.as_object_mut() {
                 obj.remove("fileSuggestion");
             }
@@ -2383,7 +2383,7 @@ mod tests {
         let _file_settings = read_settings_file(&path).unwrap();
 
         // Test sandbox serialization with null network
-        let sandbox_value = serde_json::to_value(&settings.sandbox.as_ref().unwrap()).unwrap();
+        let sandbox_value = serde_json::to_value(settings.sandbox.as_ref().unwrap()).unwrap();
         assert!(sandbox_value.get("enabled").is_some());
 
         // Verify the sandbox has an enabled field

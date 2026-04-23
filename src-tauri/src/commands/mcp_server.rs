@@ -3,9 +3,7 @@
 //! These commands allow the frontend to start/stop and configure the MCP server.
 
 use crate::db::Database;
-use crate::mcp_server::server::{
-    generate_self_mcp_entry, McpServerConfig, McpServerStatus,
-};
+use crate::mcp_server::server::{generate_self_mcp_entry, McpServerConfig, McpServerStatus};
 use crate::mcp_server::McpServerState;
 use log::info;
 use serde_json::Value;

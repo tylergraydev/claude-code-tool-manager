@@ -41,10 +41,10 @@ const JUNK_DIRS: &[&str] = &[
 /// Check if a file path should be skipped
 pub fn should_skip_file(path: &str) -> bool {
     let path_lower = path.to_lowercase();
-    let file_name = path_lower.split('/').last().unwrap_or(&path_lower);
+    let file_name = path_lower.split('/').next_back().unwrap_or(&path_lower);
 
     // Check if it's a junk file
-    if JUNK_FILES.iter().any(|junk| file_name == *junk) {
+    if JUNK_FILES.contains(&file_name) {
         return true;
     }
 
@@ -240,7 +240,7 @@ pub fn parse_readme_for_skills(content: &str) -> Vec<ParsedItem> {
         // Extract name from URL path (e.g., /commands/commit.md -> commit)
         let name = url
             .split('/')
-            .last()
+            .next_back()
             .unwrap_or("")
             .trim_end_matches(".md")
             .to_string();
@@ -359,7 +359,7 @@ pub fn parse_readme_for_skills(content: &str) -> Vec<ParsedItem> {
 /// Parse a markdown skill/command file
 /// Extracts frontmatter and content
 pub fn parse_skill_file(content: &str, file_path: &str) -> Option<ParsedItem> {
-    let file_name = file_path.split('/').last().unwrap_or(file_path);
+    let file_name = file_path.split('/').next_back().unwrap_or(file_path);
     let name = file_name.trim_end_matches(".md");
 
     // Parse YAML frontmatter if present
@@ -390,7 +390,7 @@ pub fn parse_skill_file(content: &str, file_path: &str) -> Option<ParsedItem> {
 
 /// Parse a markdown subagent file
 pub fn parse_subagent_file(content: &str, file_path: &str) -> Option<ParsedItem> {
-    let file_name = file_path.split('/').last().unwrap_or(file_path);
+    let file_name = file_path.split('/').next_back().unwrap_or(file_path);
     let name = file_name.trim_end_matches(".md");
 
     let (frontmatter, body) = parse_frontmatter(content);

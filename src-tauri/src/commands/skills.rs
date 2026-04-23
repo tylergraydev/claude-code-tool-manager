@@ -280,13 +280,11 @@ pub(crate) fn delete_skill_with_cleanup(db: &Database, id: i64) -> Result<(), St
 #[tauri::command]
 pub fn get_global_skills(db: State<'_, Arc<Mutex<Database>>>) -> Result<Vec<GlobalSkill>, String> {
     let db = db.lock().map_err(|e| e.to_string())?;
-    let query = format!(
-        "SELECT gs.id, gs.skill_id, gs.is_enabled,
+    let query = "SELECT gs.id, gs.skill_id, gs.is_enabled,
                 s.id, s.name, s.description, s.content, s.allowed_tools, s.model, s.disable_model_invocation, s.tags, s.source, s.source_path, s.is_favorite, s.created_at, s.updated_at
          FROM global_skills gs
          JOIN skills s ON gs.skill_id = s.id
-         ORDER BY s.name"
-    );
+         ORDER BY s.name".to_string();
     let mut stmt = db.conn().prepare(&query).map_err(|e| e.to_string())?;
 
     let skills = stmt
@@ -400,12 +398,10 @@ pub fn toggle_global_skill(
         .map_err(|e| e.to_string())?;
 
     // Get the skill details
-    let query = format!(
-        "SELECT s.id, s.name, s.description, s.content, s.allowed_tools, s.model, s.disable_model_invocation, s.tags, s.source, s.source_path, s.is_favorite, s.created_at, s.updated_at
+    let query = "SELECT s.id, s.name, s.description, s.content, s.allowed_tools, s.model, s.disable_model_invocation, s.tags, s.source, s.source_path, s.is_favorite, s.created_at, s.updated_at
          FROM global_skills gs
          JOIN skills s ON gs.skill_id = s.id
-         WHERE gs.id = ?"
-    );
+         WHERE gs.id = ?".to_string();
     let mut stmt = db_guard.conn().prepare(&query).map_err(|e| e.to_string())?;
 
     let skill: Skill = stmt
@@ -571,13 +567,11 @@ pub fn toggle_project_skill(
         .map_err(|e| e.to_string())?;
 
     // Get project path and skill details
-    let query = format!(
-        "SELECT p.path, s.id, s.name, s.description, s.content, s.allowed_tools, s.model, s.disable_model_invocation, s.tags, s.source, s.source_path, s.is_favorite, s.created_at, s.updated_at
+    let query = "SELECT p.path, s.id, s.name, s.description, s.content, s.allowed_tools, s.model, s.disable_model_invocation, s.tags, s.source, s.source_path, s.is_favorite, s.created_at, s.updated_at
          FROM project_skills ps
          JOIN projects p ON ps.project_id = p.id
          JOIN skills s ON ps.skill_id = s.id
-         WHERE ps.id = ?"
-    );
+         WHERE ps.id = ?".to_string();
     let mut stmt = db_guard.conn().prepare(&query).map_err(|e| e.to_string())?;
 
     let (project_path, skill): (String, Skill) = stmt
@@ -631,14 +625,12 @@ pub fn get_project_skills(
     project_id: i64,
 ) -> Result<Vec<ProjectSkill>, String> {
     let db = db.lock().map_err(|e| e.to_string())?;
-    let query = format!(
-        "SELECT ps.id, ps.skill_id, ps.is_enabled,
+    let query = "SELECT ps.id, ps.skill_id, ps.is_enabled,
                 s.id, s.name, s.description, s.content, s.allowed_tools, s.model, s.disable_model_invocation, s.tags, s.source, s.source_path, s.is_favorite, s.created_at, s.updated_at
          FROM project_skills ps
          JOIN skills s ON ps.skill_id = s.id
          WHERE ps.project_id = ?
-         ORDER BY s.name"
-    );
+         ORDER BY s.name".to_string();
     let mut stmt = db.conn().prepare(&query).map_err(|e| e.to_string())?;
 
     let skills = stmt

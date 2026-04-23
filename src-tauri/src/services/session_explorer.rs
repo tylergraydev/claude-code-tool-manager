@@ -516,19 +516,17 @@ fn parse_session_summary(path: &Path, session_id: &str) -> Result<SessionSummary
 
     // Aggregate deduplicated assistant data
     assistant_count += assistant_request_ids.len() as u64;
-    for (_req_id, usage) in &assistant_request_ids {
-        if let Some(u) = usage {
-            input_tokens += u.input_tokens.unwrap_or(0);
-            output_tokens += u.output_tokens.unwrap_or(0);
-            cache_read_tokens += u.cache_read_input_tokens.unwrap_or(0);
-            cache_creation_tokens += u.cache_creation_input_tokens.unwrap_or(0);
-        }
+    for u in assistant_request_ids.values().flatten() {
+        input_tokens += u.input_tokens.unwrap_or(0);
+        output_tokens += u.output_tokens.unwrap_or(0);
+        cache_read_tokens += u.cache_read_input_tokens.unwrap_or(0);
+        cache_creation_tokens += u.cache_creation_input_tokens.unwrap_or(0);
     }
 
     // Merge tool counts from deduplicated assistant lines
     // For tool calls, we want the total unique tool calls across all streaming lines
     // per requestId. Since tool_use blocks accumulate, take the final count per requestId.
-    for (_req_id, counts) in &seen_tool_calls {
+    for counts in seen_tool_calls.values() {
         for (tool, count) in counts {
             *tool_counts.entry(tool.clone()).or_insert(0) += count;
         }
@@ -652,7 +650,7 @@ pub fn parse_session_detail(path: &Path, session_id: &str) -> Result<SessionDeta
 
                 let tool_calls = msg
                     .and_then(|m| m.content.as_ref())
-                    .map(|c| extract_tool_calls(c))
+                    .map(extract_tool_calls)
                     .unwrap_or_default();
 
                 let usage = msg.and_then(|m| {
@@ -929,9 +927,11 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let session_file = dir.path().join("test-session.jsonl");
 
-        let lines = [r#"{"type":"user","uuid":"u1","sessionId":"test-session","timestamp":"2026-01-15T10:00:00.000Z","version":"2.1.39","gitBranch":"main","cwd":"/code/test","message":{"role":"user","content":"Fix the bug"}}"#,
+        let lines = [
+            r#"{"type":"user","uuid":"u1","sessionId":"test-session","timestamp":"2026-01-15T10:00:00.000Z","version":"2.1.39","gitBranch":"main","cwd":"/code/test","message":{"role":"user","content":"Fix the bug"}}"#,
             r#"{"type":"assistant","uuid":"a1","sessionId":"test-session","timestamp":"2026-01-15T10:00:05.000Z","requestId":"req_001","message":{"role":"assistant","model":"claude-opus-4-6","content":[{"type":"text","text":"I'll fix that for you."},{"type":"tool_use","name":"Read","id":"t1"}],"usage":{"input_tokens":100,"output_tokens":50,"cache_read_input_tokens":10,"cache_creation_input_tokens":5}}}"#,
-            r#"{"type":"assistant","uuid":"a2","sessionId":"test-session","timestamp":"2026-01-15T10:00:10.000Z","requestId":"req_001","message":{"role":"assistant","model":"claude-opus-4-6","content":[{"type":"text","text":"I'll fix that for you. Done!"},{"type":"tool_use","name":"Read","id":"t1"},{"type":"tool_use","name":"Edit","id":"t2"}],"usage":{"input_tokens":100,"output_tokens":80,"cache_read_input_tokens":10,"cache_creation_input_tokens":5}}}"#];
+            r#"{"type":"assistant","uuid":"a2","sessionId":"test-session","timestamp":"2026-01-15T10:00:10.000Z","requestId":"req_001","message":{"role":"assistant","model":"claude-opus-4-6","content":[{"type":"text","text":"I'll fix that for you. Done!"},{"type":"tool_use","name":"Read","id":"t1"},{"type":"tool_use","name":"Edit","id":"t2"}],"usage":{"input_tokens":100,"output_tokens":80,"cache_read_input_tokens":10,"cache_creation_input_tokens":5}}}"#,
+        ];
 
         std::fs::write(&session_file, lines.join("\n")).unwrap();
 
@@ -952,10 +952,12 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let session_file = dir.path().join("detail-session.jsonl");
 
-        let lines = [r#"{"type":"user","uuid":"u1","timestamp":"2026-01-15T10:00:00.000Z","message":{"role":"user","content":"Hello"}}"#,
+        let lines = [
+            r#"{"type":"user","uuid":"u1","timestamp":"2026-01-15T10:00:00.000Z","message":{"role":"user","content":"Hello"}}"#,
             r#"{"type":"assistant","uuid":"a1","timestamp":"2026-01-15T10:00:02.000Z","requestId":"req_001","message":{"role":"assistant","model":"claude-opus-4-6","content":[{"type":"text","text":"Hi"}],"usage":{"input_tokens":10,"output_tokens":5}}}"#,
             r#"{"type":"assistant","uuid":"a2","timestamp":"2026-01-15T10:00:04.000Z","requestId":"req_001","message":{"role":"assistant","model":"claude-opus-4-6","content":[{"type":"text","text":"Hi there!"}],"usage":{"input_tokens":10,"output_tokens":15}}}"#,
-            r#"{"type":"user","uuid":"u2","timestamp":"2026-01-15T10:00:10.000Z","message":{"role":"user","content":"Thanks"}}"#];
+            r#"{"type":"user","uuid":"u2","timestamp":"2026-01-15T10:00:10.000Z","message":{"role":"user","content":"Thanks"}}"#,
+        ];
 
         std::fs::write(&session_file, lines.join("\n")).unwrap();
 
@@ -1077,11 +1079,13 @@ mod tests {
     fn test_parse_session_summary_skips_file_history_snapshot() {
         let dir = tempfile::tempdir().unwrap();
         let session_file = dir.path().join("test.jsonl");
-        let lines = [r#"{"type":"file-history-snapshot","data":{}}"#,
+        let lines = [
+            r#"{"type":"file-history-snapshot","data":{}}"#,
             r#"{"type":"progress","data":{}}"#,
             r#"{"type":"bash_progress","data":{}}"#,
             r#"{"type":"summary","data":{}}"#,
-            r#"{"type":"user","uuid":"u1","timestamp":"2026-01-15T10:00:00.000Z","message":{"role":"user","content":"test"}}"#];
+            r#"{"type":"user","uuid":"u1","timestamp":"2026-01-15T10:00:00.000Z","message":{"role":"user","content":"test"}}"#,
+        ];
         std::fs::write(&session_file, lines.join("\n")).unwrap();
 
         let summary = parse_session_summary(&session_file, "test").unwrap();
@@ -1092,8 +1096,10 @@ mod tests {
     fn test_parse_session_summary_skips_invalid_json_lines() {
         let dir = tempfile::tempdir().unwrap();
         let session_file = dir.path().join("test.jsonl");
-        let lines = ["not valid json",
-            r#"{"type":"user","uuid":"u1","timestamp":"2026-01-15T10:00:00.000Z","message":{"role":"user","content":"ok"}}"#];
+        let lines = [
+            "not valid json",
+            r#"{"type":"user","uuid":"u1","timestamp":"2026-01-15T10:00:00.000Z","message":{"role":"user","content":"ok"}}"#,
+        ];
         std::fs::write(&session_file, lines.join("\n")).unwrap();
 
         let summary = parse_session_summary(&session_file, "test").unwrap();
@@ -1104,7 +1110,9 @@ mod tests {
     fn test_parse_session_summary_tool_result_tracked() {
         let dir = tempfile::tempdir().unwrap();
         let session_file = dir.path().join("test.jsonl");
-        let lines = [r#"{"type":"tool_result","uuid":"t1","timestamp":"2026-01-15T10:00:00.000Z","message":{"role":"tool","content":"result"}}"#];
+        let lines = [
+            r#"{"type":"tool_result","uuid":"t1","timestamp":"2026-01-15T10:00:00.000Z","message":{"role":"tool","content":"result"}}"#,
+        ];
         std::fs::write(&session_file, lines.join("\n")).unwrap();
 
         let summary = parse_session_summary(&session_file, "test").unwrap();
@@ -1119,7 +1127,9 @@ mod tests {
     fn test_parse_session_summary_assistant_without_request_id() {
         let dir = tempfile::tempdir().unwrap();
         let session_file = dir.path().join("test.jsonl");
-        let lines = [r#"{"type":"assistant","uuid":"a1","timestamp":"2026-01-15T10:00:00.000Z","message":{"role":"assistant","model":"claude-opus-4-6","content":[{"type":"text","text":"hi"}],"usage":{"input_tokens":50,"output_tokens":25}}}"#];
+        let lines = [
+            r#"{"type":"assistant","uuid":"a1","timestamp":"2026-01-15T10:00:00.000Z","message":{"role":"assistant","model":"claude-opus-4-6","content":[{"type":"text","text":"hi"}],"usage":{"input_tokens":50,"output_tokens":25}}}"#,
+        ];
         std::fs::write(&session_file, lines.join("\n")).unwrap();
 
         let summary = parse_session_summary(&session_file, "test").unwrap();
@@ -1132,7 +1142,9 @@ mod tests {
     fn test_parse_session_summary_assistant_tool_calls_no_request_id() {
         let dir = tempfile::tempdir().unwrap();
         let session_file = dir.path().join("test.jsonl");
-        let lines = [r#"{"type":"assistant","uuid":"a1","timestamp":"2026-01-15T10:00:00.000Z","message":{"role":"assistant","content":[{"type":"tool_use","name":"Bash","id":"t1"}]}}"#];
+        let lines = [
+            r#"{"type":"assistant","uuid":"a1","timestamp":"2026-01-15T10:00:00.000Z","message":{"role":"assistant","content":[{"type":"tool_use","name":"Bash","id":"t1"}]}}"#,
+        ];
         std::fs::write(&session_file, lines.join("\n")).unwrap();
 
         let summary = parse_session_summary(&session_file, "test").unwrap();
@@ -1143,8 +1155,10 @@ mod tests {
     fn test_parse_session_detail_tool_result_included() {
         let dir = tempfile::tempdir().unwrap();
         let session_file = dir.path().join("test.jsonl");
-        let lines = [r#"{"type":"user","uuid":"u1","timestamp":"2026-01-15T10:00:00.000Z","message":{"role":"user","content":"hi"}}"#,
-            r#"{"type":"tool_result","uuid":"t1","timestamp":"2026-01-15T10:00:01.000Z","message":{"role":"tool","content":"result data"}}"#];
+        let lines = [
+            r#"{"type":"user","uuid":"u1","timestamp":"2026-01-15T10:00:00.000Z","message":{"role":"user","content":"hi"}}"#,
+            r#"{"type":"tool_result","uuid":"t1","timestamp":"2026-01-15T10:00:01.000Z","message":{"role":"tool","content":"result data"}}"#,
+        ];
         std::fs::write(&session_file, lines.join("\n")).unwrap();
 
         let detail = parse_session_detail(&session_file, "test").unwrap();
@@ -1169,7 +1183,9 @@ mod tests {
     fn test_parse_session_detail_assistant_without_request_id() {
         let dir = tempfile::tempdir().unwrap();
         let session_file = dir.path().join("test.jsonl");
-        let lines = [r#"{"type":"assistant","uuid":"a1","timestamp":"2026-01-15T10:00:00.000Z","message":{"role":"assistant","model":"claude-opus-4-6","content":[{"type":"text","text":"hello"}],"usage":{"input_tokens":10,"output_tokens":5}}}"#];
+        let lines = [
+            r#"{"type":"assistant","uuid":"a1","timestamp":"2026-01-15T10:00:00.000Z","message":{"role":"assistant","model":"claude-opus-4-6","content":[{"type":"text","text":"hello"}],"usage":{"input_tokens":10,"output_tokens":5}}}"#,
+        ];
         std::fs::write(&session_file, lines.join("\n")).unwrap();
 
         let detail = parse_session_detail(&session_file, "test").unwrap();
@@ -1182,8 +1198,10 @@ mod tests {
     fn test_parse_session_detail_unknown_type_skipped() {
         let dir = tempfile::tempdir().unwrap();
         let session_file = dir.path().join("test.jsonl");
-        let lines = [r#"{"type":"unknown_type","uuid":"x1","timestamp":"2026-01-15T10:00:00.000Z"}"#,
-            r#"{"type":"user","uuid":"u1","timestamp":"2026-01-15T10:00:01.000Z","message":{"role":"user","content":"hi"}}"#];
+        let lines = [
+            r#"{"type":"unknown_type","uuid":"x1","timestamp":"2026-01-15T10:00:00.000Z"}"#,
+            r#"{"type":"user","uuid":"u1","timestamp":"2026-01-15T10:00:01.000Z","message":{"role":"user","content":"hi"}}"#,
+        ];
         std::fs::write(&session_file, lines.join("\n")).unwrap();
 
         let detail = parse_session_detail(&session_file, "test").unwrap();
@@ -1242,8 +1260,10 @@ mod tests {
     fn test_session_summary_duration_calculation() {
         let dir = tempfile::tempdir().unwrap();
         let session_file = dir.path().join("test.jsonl");
-        let lines = [r#"{"type":"user","uuid":"u1","timestamp":"2026-01-15T10:00:00.000Z","message":{"role":"user","content":"start"}}"#,
-            r#"{"type":"user","uuid":"u2","timestamp":"2026-01-15T10:05:00.000Z","message":{"role":"user","content":"end"}}"#];
+        let lines = [
+            r#"{"type":"user","uuid":"u1","timestamp":"2026-01-15T10:00:00.000Z","message":{"role":"user","content":"start"}}"#,
+            r#"{"type":"user","uuid":"u2","timestamp":"2026-01-15T10:05:00.000Z","message":{"role":"user","content":"end"}}"#,
+        ];
         std::fs::write(&session_file, lines.join("\n")).unwrap();
 
         let summary = parse_session_summary(&session_file, "test").unwrap();
@@ -1254,7 +1274,9 @@ mod tests {
     fn test_session_summary_invalid_timestamps() {
         let dir = tempfile::tempdir().unwrap();
         let session_file = dir.path().join("test.jsonl");
-        let lines = [r#"{"type":"user","uuid":"u1","timestamp":"not-a-date","message":{"role":"user","content":"hi"}}"#];
+        let lines = [
+            r#"{"type":"user","uuid":"u1","timestamp":"not-a-date","message":{"role":"user","content":"hi"}}"#,
+        ];
         std::fs::write(&session_file, lines.join("\n")).unwrap();
 
         let summary = parse_session_summary(&session_file, "test").unwrap();
@@ -1272,9 +1294,11 @@ mod tests {
     fn test_parse_session_summary_earliest_latest_tracking() {
         let dir = tempfile::tempdir().unwrap();
         let session_file = dir.path().join("test.jsonl");
-        let lines = [r#"{"type":"user","uuid":"u1","timestamp":"2026-01-15T12:00:00.000Z","message":{"role":"user","content":"mid"}}"#,
+        let lines = [
+            r#"{"type":"user","uuid":"u1","timestamp":"2026-01-15T12:00:00.000Z","message":{"role":"user","content":"mid"}}"#,
             r#"{"type":"user","uuid":"u2","timestamp":"2026-01-15T10:00:00.000Z","message":{"role":"user","content":"early"}}"#,
-            r#"{"type":"user","uuid":"u3","timestamp":"2026-01-15T14:00:00.000Z","message":{"role":"user","content":"late"}}"#];
+            r#"{"type":"user","uuid":"u3","timestamp":"2026-01-15T14:00:00.000Z","message":{"role":"user","content":"late"}}"#,
+        ];
         std::fs::write(&session_file, lines.join("\n")).unwrap();
 
         let summary = parse_session_summary(&session_file, "test").unwrap();
@@ -1296,10 +1320,12 @@ mod tests {
     fn test_parse_session_summary_multiple_request_ids() {
         let dir = tempfile::tempdir().unwrap();
         let session_file = dir.path().join("test.jsonl");
-        let lines = [r#"{"type":"user","uuid":"u1","timestamp":"2026-01-15T10:00:00.000Z","message":{"role":"user","content":"q1"}}"#,
+        let lines = [
+            r#"{"type":"user","uuid":"u1","timestamp":"2026-01-15T10:00:00.000Z","message":{"role":"user","content":"q1"}}"#,
             r#"{"type":"assistant","uuid":"a1","timestamp":"2026-01-15T10:00:01.000Z","requestId":"req_001","message":{"role":"assistant","model":"claude-opus-4-6","content":[{"type":"text","text":"answer 1"}],"usage":{"input_tokens":100,"output_tokens":50}}}"#,
             r#"{"type":"user","uuid":"u2","timestamp":"2026-01-15T10:01:00.000Z","message":{"role":"user","content":"q2"}}"#,
-            r#"{"type":"assistant","uuid":"a2","timestamp":"2026-01-15T10:01:01.000Z","requestId":"req_002","message":{"role":"assistant","model":"claude-opus-4-6","content":[{"type":"text","text":"answer 2"}],"usage":{"input_tokens":200,"output_tokens":100}}}"#];
+            r#"{"type":"assistant","uuid":"a2","timestamp":"2026-01-15T10:01:01.000Z","requestId":"req_002","message":{"role":"assistant","model":"claude-opus-4-6","content":[{"type":"text","text":"answer 2"}],"usage":{"input_tokens":200,"output_tokens":100}}}"#,
+        ];
         std::fs::write(&session_file, lines.join("\n")).unwrap();
 
         let summary = parse_session_summary(&session_file, "test").unwrap();
@@ -1313,7 +1339,9 @@ mod tests {
     fn test_parse_session_summary_no_usage_in_assistant() {
         let dir = tempfile::tempdir().unwrap();
         let session_file = dir.path().join("test.jsonl");
-        let lines = [r#"{"type":"assistant","uuid":"a1","timestamp":"2026-01-15T10:00:00.000Z","requestId":"req_001","message":{"role":"assistant","model":"claude-opus-4-6","content":[{"type":"text","text":"hi"}]}}"#];
+        let lines = [
+            r#"{"type":"assistant","uuid":"a1","timestamp":"2026-01-15T10:00:00.000Z","requestId":"req_001","message":{"role":"assistant","model":"claude-opus-4-6","content":[{"type":"text","text":"hi"}]}}"#,
+        ];
         std::fs::write(&session_file, lines.join("\n")).unwrap();
 
         let summary = parse_session_summary(&session_file, "test").unwrap();
@@ -1326,7 +1354,9 @@ mod tests {
     fn test_parse_session_summary_user_message_content_array() {
         let dir = tempfile::tempdir().unwrap();
         let session_file = dir.path().join("test.jsonl");
-        let lines = [r#"{"type":"user","uuid":"u1","timestamp":"2026-01-15T10:00:00.000Z","message":{"role":"user","content":[{"type":"text","text":"Hello from array content"}]}}"#];
+        let lines = [
+            r#"{"type":"user","uuid":"u1","timestamp":"2026-01-15T10:00:00.000Z","message":{"role":"user","content":[{"type":"text","text":"Hello from array content"}]}}"#,
+        ];
         std::fs::write(&session_file, lines.join("\n")).unwrap();
 
         let summary = parse_session_summary(&session_file, "test").unwrap();
@@ -1340,8 +1370,10 @@ mod tests {
     fn test_parse_session_summary_first_user_message_empty_content() {
         let dir = tempfile::tempdir().unwrap();
         let session_file = dir.path().join("test.jsonl");
-        let lines = [r#"{"type":"user","uuid":"u1","timestamp":"2026-01-15T10:00:00.000Z","message":{"role":"user","content":""}}"#,
-            r#"{"type":"user","uuid":"u2","timestamp":"2026-01-15T10:00:01.000Z","message":{"role":"user","content":"Second message"}}"#];
+        let lines = [
+            r#"{"type":"user","uuid":"u1","timestamp":"2026-01-15T10:00:00.000Z","message":{"role":"user","content":""}}"#,
+            r#"{"type":"user","uuid":"u2","timestamp":"2026-01-15T10:00:01.000Z","message":{"role":"user","content":"Second message"}}"#,
+        ];
         std::fs::write(&session_file, lines.join("\n")).unwrap();
 
         let summary = parse_session_summary(&session_file, "test").unwrap();
@@ -1356,7 +1388,9 @@ mod tests {
     fn test_parse_session_summary_cwd_and_version() {
         let dir = tempfile::tempdir().unwrap();
         let session_file = dir.path().join("test.jsonl");
-        let lines = [r#"{"type":"user","uuid":"u1","timestamp":"2026-01-15T10:00:00.000Z","version":"2.3.0","cwd":"/home/user/project","message":{"role":"user","content":"hi"}}"#];
+        let lines = [
+            r#"{"type":"user","uuid":"u1","timestamp":"2026-01-15T10:00:00.000Z","version":"2.3.0","cwd":"/home/user/project","message":{"role":"user","content":"hi"}}"#,
+        ];
         std::fs::write(&session_file, lines.join("\n")).unwrap();
 
         let summary = parse_session_summary(&session_file, "test").unwrap();
@@ -1372,8 +1406,10 @@ mod tests {
     fn test_parse_session_detail_streaming_updates_tool_calls() {
         let dir = tempfile::tempdir().unwrap();
         let session_file = dir.path().join("test.jsonl");
-        let lines = [r#"{"type":"assistant","uuid":"a1","timestamp":"2026-01-15T10:00:00.000Z","requestId":"req_001","message":{"role":"assistant","model":"claude-opus-4-6","content":[{"type":"text","text":"step1"}]}}"#,
-            r#"{"type":"assistant","uuid":"a2","timestamp":"2026-01-15T10:00:01.000Z","requestId":"req_001","message":{"role":"assistant","model":"claude-opus-4-6","content":[{"type":"text","text":"step1 done"},{"type":"tool_use","name":"Read","id":"t1"}],"usage":{"input_tokens":100,"output_tokens":50}}}"#];
+        let lines = [
+            r#"{"type":"assistant","uuid":"a1","timestamp":"2026-01-15T10:00:00.000Z","requestId":"req_001","message":{"role":"assistant","model":"claude-opus-4-6","content":[{"type":"text","text":"step1"}]}}"#,
+            r#"{"type":"assistant","uuid":"a2","timestamp":"2026-01-15T10:00:01.000Z","requestId":"req_001","message":{"role":"assistant","model":"claude-opus-4-6","content":[{"type":"text","text":"step1 done"},{"type":"tool_use","name":"Read","id":"t1"}],"usage":{"input_tokens":100,"output_tokens":50}}}"#,
+        ];
         std::fs::write(&session_file, lines.join("\n")).unwrap();
 
         let detail = parse_session_detail(&session_file, "test").unwrap();
@@ -1388,10 +1424,12 @@ mod tests {
     fn test_parse_session_detail_preserves_order() {
         let dir = tempfile::tempdir().unwrap();
         let session_file = dir.path().join("test.jsonl");
-        let lines = [r#"{"type":"user","uuid":"u1","timestamp":"2026-01-15T10:00:00.000Z","message":{"role":"user","content":"first"}}"#,
+        let lines = [
+            r#"{"type":"user","uuid":"u1","timestamp":"2026-01-15T10:00:00.000Z","message":{"role":"user","content":"first"}}"#,
             r#"{"type":"assistant","uuid":"a1","timestamp":"2026-01-15T10:00:01.000Z","requestId":"req_001","message":{"role":"assistant","content":[{"type":"text","text":"response"}]}}"#,
             r#"{"type":"tool_result","uuid":"t1","timestamp":"2026-01-15T10:00:02.000Z","message":{"role":"tool","content":"result"}}"#,
-            r#"{"type":"user","uuid":"u2","timestamp":"2026-01-15T10:00:03.000Z","message":{"role":"user","content":"followup"}}"#];
+            r#"{"type":"user","uuid":"u2","timestamp":"2026-01-15T10:00:03.000Z","message":{"role":"user","content":"followup"}}"#,
+        ];
         std::fs::write(&session_file, lines.join("\n")).unwrap();
 
         let detail = parse_session_detail(&session_file, "test").unwrap();
@@ -1505,11 +1543,13 @@ mod tests {
     fn test_parse_session_detail_skips_progress_types() {
         let dir = tempfile::tempdir().unwrap();
         let session_file = dir.path().join("test.jsonl");
-        let lines = [r#"{"type":"file-history-snapshot","data":{}}"#,
+        let lines = [
+            r#"{"type":"file-history-snapshot","data":{}}"#,
             r#"{"type":"progress","data":{}}"#,
             r#"{"type":"bash_progress","data":{}}"#,
             r#"{"type":"summary","data":{}}"#,
-            r#"{"type":"user","uuid":"u1","timestamp":"2026-01-15T10:00:00.000Z","message":{"role":"user","content":"hello"}}"#];
+            r#"{"type":"user","uuid":"u1","timestamp":"2026-01-15T10:00:00.000Z","message":{"role":"user","content":"hello"}}"#,
+        ];
         std::fs::write(&session_file, lines.join("\n")).unwrap();
 
         let detail = parse_session_detail(&session_file, "test").unwrap();
@@ -1521,9 +1561,11 @@ mod tests {
     fn test_parse_session_detail_invalid_json_lines_skipped() {
         let dir = tempfile::tempdir().unwrap();
         let session_file = dir.path().join("test.jsonl");
-        let lines = ["not json",
+        let lines = [
+            "not json",
             "",
-            r#"{"type":"user","uuid":"u1","timestamp":"2026-01-15T10:00:00.000Z","message":{"role":"user","content":"ok"}}"#];
+            r#"{"type":"user","uuid":"u1","timestamp":"2026-01-15T10:00:00.000Z","message":{"role":"user","content":"ok"}}"#,
+        ];
         std::fs::write(&session_file, lines.join("\n")).unwrap();
 
         let detail = parse_session_detail(&session_file, "test").unwrap();
@@ -1538,8 +1580,10 @@ mod tests {
     fn test_parse_session_summary_merges_tool_counts() {
         let dir = tempfile::tempdir().unwrap();
         let session_file = dir.path().join("test.jsonl");
-        let lines = [r#"{"type":"assistant","uuid":"a1","timestamp":"2026-01-15T10:00:00.000Z","requestId":"req_001","message":{"role":"assistant","content":[{"type":"tool_use","name":"Read","id":"t1"},{"type":"tool_use","name":"Read","id":"t2"}]}}"#,
-            r#"{"type":"assistant","uuid":"a2","timestamp":"2026-01-15T10:01:00.000Z","requestId":"req_002","message":{"role":"assistant","content":[{"type":"tool_use","name":"Read","id":"t3"},{"type":"tool_use","name":"Edit","id":"t4"}]}}"#];
+        let lines = [
+            r#"{"type":"assistant","uuid":"a1","timestamp":"2026-01-15T10:00:00.000Z","requestId":"req_001","message":{"role":"assistant","content":[{"type":"tool_use","name":"Read","id":"t1"},{"type":"tool_use","name":"Read","id":"t2"}]}}"#,
+            r#"{"type":"assistant","uuid":"a2","timestamp":"2026-01-15T10:01:00.000Z","requestId":"req_002","message":{"role":"assistant","content":[{"type":"tool_use","name":"Read","id":"t3"},{"type":"tool_use","name":"Edit","id":"t4"}]}}"#,
+        ];
         std::fs::write(&session_file, lines.join("\n")).unwrap();
 
         let summary = parse_session_summary(&session_file, "test").unwrap();
@@ -1755,13 +1799,17 @@ mod tests {
         std::fs::create_dir(&proj).unwrap();
 
         // Session 1: uses Read and Write
-        let lines1 = [r#"{"type":"user","uuid":"u1","timestamp":"2026-01-15T10:00:00.000Z","message":{"role":"user","content":"q1"}}"#,
-            r#"{"type":"assistant","uuid":"a1","timestamp":"2026-01-15T10:00:01.000Z","requestId":"req_001","message":{"role":"assistant","model":"claude-opus-4-6","content":[{"type":"tool_use","name":"Read","id":"t1"},{"type":"tool_use","name":"Write","id":"t2"}],"usage":{"input_tokens":100,"output_tokens":50}}}"#];
+        let lines1 = [
+            r#"{"type":"user","uuid":"u1","timestamp":"2026-01-15T10:00:00.000Z","message":{"role":"user","content":"q1"}}"#,
+            r#"{"type":"assistant","uuid":"a1","timestamp":"2026-01-15T10:00:01.000Z","requestId":"req_001","message":{"role":"assistant","model":"claude-opus-4-6","content":[{"type":"tool_use","name":"Read","id":"t1"},{"type":"tool_use","name":"Write","id":"t2"}],"usage":{"input_tokens":100,"output_tokens":50}}}"#,
+        ];
         std::fs::write(proj.join("s1.jsonl"), lines1.join("\n")).unwrap();
 
         // Session 2: uses Read and Bash
-        let lines2 = [r#"{"type":"user","uuid":"u1","timestamp":"2026-01-20T10:00:00.000Z","message":{"role":"user","content":"q2"}}"#,
-            r#"{"type":"assistant","uuid":"a1","timestamp":"2026-01-20T10:00:01.000Z","requestId":"req_002","message":{"role":"assistant","model":"claude-sonnet-4-20250514","content":[{"type":"tool_use","name":"Read","id":"t3"},{"type":"tool_use","name":"Bash","id":"t4"}],"usage":{"input_tokens":200,"output_tokens":100}}}"#];
+        let lines2 = [
+            r#"{"type":"user","uuid":"u1","timestamp":"2026-01-20T10:00:00.000Z","message":{"role":"user","content":"q2"}}"#,
+            r#"{"type":"assistant","uuid":"a1","timestamp":"2026-01-20T10:00:01.000Z","requestId":"req_002","message":{"role":"assistant","model":"claude-sonnet-4-20250514","content":[{"type":"tool_use","name":"Read","id":"t3"},{"type":"tool_use","name":"Bash","id":"t4"}],"usage":{"input_tokens":200,"output_tokens":100}}}"#,
+        ];
         std::fs::write(proj.join("s2.jsonl"), lines2.join("\n")).unwrap();
 
         let result = list_projects_from_dir(dir.path()).unwrap();
@@ -1867,7 +1915,7 @@ mod tests {
         let result = list_sessions_from_dir(dir.path(), "test").unwrap();
         // Both files are .jsonl so both get attempted, but bad one should still parse
         // (it just has 0 messages). The function won't error on empty sessions.
-        assert!(result.sessions.len() >= 1);
+        assert!(!result.sessions.is_empty());
     }
 
     // =========================================================================

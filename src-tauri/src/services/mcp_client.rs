@@ -278,21 +278,17 @@ impl StdioMcpClient {
         let init_result = self.send_request("initialize", Some(init_params))?;
 
         // Parse server info and capabilities
-        self.server_info = if let Some(info) = init_result.get("serverInfo") {
-            Some(McpServerInfo {
-                name: info
-                    .get("name")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("unknown")
-                    .to_string(),
-                version: info
-                    .get("version")
-                    .and_then(|v| v.as_str())
-                    .map(|s| s.to_string()),
-            })
-        } else {
-            None
-        };
+        self.server_info = init_result.get("serverInfo").map(|info| McpServerInfo {
+            name: info
+                .get("name")
+                .and_then(|v| v.as_str())
+                .unwrap_or("unknown")
+                .to_string(),
+            version: info
+                .get("version")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string()),
+        });
 
         let capabilities = init_result.get("capabilities");
         self.resources_supported = capabilities.and_then(|c| c.get("resources")).is_some();
@@ -1274,21 +1270,17 @@ impl StreamableHttpMcpClient {
             .ok_or_else(|| anyhow!("Empty initialize result"))?;
 
         // Parse server info
-        self.server_info = if let Some(info) = init_result.get("serverInfo") {
-            Some(McpServerInfo {
-                name: info
-                    .get("name")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("unknown")
-                    .to_string(),
-                version: info
-                    .get("version")
-                    .and_then(|v| v.as_str())
-                    .map(|s| s.to_string()),
-            })
-        } else {
-            None
-        };
+        self.server_info = init_result.get("serverInfo").map(|info| McpServerInfo {
+            name: info
+                .get("name")
+                .and_then(|v| v.as_str())
+                .unwrap_or("unknown")
+                .to_string(),
+            version: info
+                .get("version")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string()),
+        });
 
         let capabilities = init_result.get("capabilities");
         self.resources_supported = capabilities.and_then(|c| c.get("resources")).is_some();
@@ -3698,9 +3690,9 @@ data: "result":{}}
         let json = serde_json::to_string(&original).unwrap();
         let parsed: ToolCallResult = serde_json::from_str(&json).unwrap();
 
-        assert_eq!(parsed.success, true);
+        assert!(parsed.success);
         assert_eq!(parsed.content.len(), 2);
-        assert_eq!(parsed.is_error, false);
+        assert!(!parsed.is_error);
         assert!(parsed.error.is_none());
         assert_eq!(parsed.execution_time_ms, 123);
     }
@@ -4738,21 +4730,17 @@ data: "result":{}}
             }
         });
 
-        let server_info = if let Some(info) = init_result.get("serverInfo") {
-            Some(McpServerInfo {
-                name: info
-                    .get("name")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("unknown")
-                    .to_string(),
-                version: info
-                    .get("version")
-                    .and_then(|v| v.as_str())
-                    .map(|s| s.to_string()),
-            })
-        } else {
-            None
-        };
+        let server_info = init_result.get("serverInfo").map(|info| McpServerInfo {
+            name: info
+                .get("name")
+                .and_then(|v| v.as_str())
+                .unwrap_or("unknown")
+                .to_string(),
+            version: info
+                .get("version")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string()),
+        });
         assert!(server_info.is_some());
         let si = server_info.unwrap();
         assert_eq!(si.name, "my-mcp-server");
@@ -4771,21 +4759,17 @@ data: "result":{}}
             "capabilities": {}
         });
 
-        let server_info = if let Some(info) = init_result.get("serverInfo") {
-            Some(McpServerInfo {
-                name: info
-                    .get("name")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("unknown")
-                    .to_string(),
-                version: info
-                    .get("version")
-                    .and_then(|v| v.as_str())
-                    .map(|s| s.to_string()),
-            })
-        } else {
-            None
-        };
+        let server_info = init_result.get("serverInfo").map(|info| McpServerInfo {
+            name: info
+                .get("name")
+                .and_then(|v| v.as_str())
+                .unwrap_or("unknown")
+                .to_string(),
+            version: info
+                .get("version")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string()),
+        });
         assert!(server_info.is_none());
     }
 

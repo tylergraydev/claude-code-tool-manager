@@ -1054,7 +1054,7 @@ mod tests {
         };
         let json = serde_json::to_string(&config).unwrap();
         let deserialized: SyncConfig = serde_json::from_str(&json).unwrap();
-        assert_eq!(deserialized.sync_skills, true);
+        assert!(deserialized.sync_skills);
         assert_eq!(deserialized.sync_project_claude_mds.len(), 2);
     }
 

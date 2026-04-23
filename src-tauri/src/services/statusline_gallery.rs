@@ -32,7 +32,7 @@ pub async fn fetch_gallery_from_url(
 /// Get the gallery URL from app_settings, falling back to default
 pub fn get_gallery_url(db: &Database) -> String {
     db.get_setting("statusline_gallery_url")
-        .unwrap_or_else(|| get_default_gallery_url())
+        .unwrap_or_else(get_default_gallery_url)
 }
 
 /// Set the gallery URL in app_settings
