@@ -3,6 +3,7 @@ pub mod analytics;
 pub mod claude_json;
 pub mod claude_settings;
 pub mod cloud_sync;
+#[allow(clippy::module_inception)]
 pub mod commands;
 pub mod config;
 pub mod containers;

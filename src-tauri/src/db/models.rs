@@ -714,10 +714,12 @@ impl SegmentsPayload {
         }
     }
 
+    #[cfg_attr(not(test), allow(dead_code))]
     pub fn is_powerline(&self) -> bool {
         self.theme == "powerline" || self.theme == "powerline_round"
     }
 
+    #[cfg_attr(not(test), allow(dead_code))]
     pub fn is_powerline_round(&self) -> bool {
         self.theme == "powerline_round"
     }

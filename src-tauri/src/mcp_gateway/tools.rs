@@ -70,6 +70,9 @@ impl GatewayServer {
     }
 }
 
+// rmcp's ServerHandler trait uses `impl Future` return shape; async fn in traits
+// isn't usable here without widening the trait bound.
+#[allow(clippy::manual_async_fn)]
 impl ServerHandler for GatewayServer {
     fn get_info(&self) -> ServerInfo {
         ServerInfo::new(ServerCapabilities::builder().enable_tools().build()).with_instructions(

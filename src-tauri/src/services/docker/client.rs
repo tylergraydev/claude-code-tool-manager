@@ -50,6 +50,7 @@ impl DockerClientManager {
     }
 
     /// Connect to Docker based on host parameters (for testing connections)
+    #[allow(dead_code)]
     fn connect_with_params(
         host_type: &str,
         connection_uri: Option<&str>,
@@ -76,6 +77,7 @@ impl DockerClientManager {
     }
 
     /// Ping a Docker host by connection parameters
+    #[allow(dead_code)]
     pub async fn ping_host(
         &self,
         host_type: &str,

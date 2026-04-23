@@ -25,6 +25,7 @@ mod tests {
     #[test]
     fn test_scanner_module_compiles() {
         // Compilation test: ensures imports and function signatures are valid.
-        assert!(true);
+        // No runtime behavior to check — the fact that this file compiles is
+        // the assertion.
     }
 }

@@ -36,6 +36,7 @@ pub struct DevcontainerConfig {
     pub container_env: Option<HashMap<String, String>>,
 }
 
+#[allow(dead_code)]
 impl DevcontainerConfig {
     pub fn parse(json_str: &str) -> Result<Self, String> {
         // Strip JSON comments (// and /* */) before parsing

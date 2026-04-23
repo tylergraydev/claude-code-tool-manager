@@ -1,6 +1,8 @@
 use anyhow::Result;
 use directories::BaseDirs;
-use std::path::{Path, PathBuf};
+#[cfg(test)]
+use std::path::Path;
+use std::path::PathBuf;
 
 /// OpenCode configuration paths
 /// OpenCode stores its config in ~/.config/opencode/ on all platforms

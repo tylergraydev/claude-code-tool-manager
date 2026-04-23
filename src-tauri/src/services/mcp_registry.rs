@@ -540,13 +540,13 @@ fn remote_to_mcp_entry(server: &RegistryServer, remote: &Remote) -> RegistryMcpE
     // Convert Vec<RemoteHeader> to HashMap<String, String>
     let headers = remote.headers.as_ref().map(|hdrs| {
         hdrs.iter()
-            .filter_map(|h| {
+            .map(|h| {
                 // Use the value if present, otherwise use a placeholder
                 let value = h
                     .value
                     .clone()
                     .unwrap_or_else(|| format!("${{{}}}", h.name));
-                Some((h.name.clone(), value))
+                (h.name.clone(), value)
             })
             .collect::<HashMap<String, String>>()
     });

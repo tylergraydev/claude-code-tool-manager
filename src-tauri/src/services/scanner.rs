@@ -339,6 +339,7 @@ fn get_or_create_project(db: &Database, name: &str, path: &str) -> Result<i64> {
 }
 
 /// Get or create an MCP in the library
+#[allow(clippy::too_many_arguments)]
 fn get_or_create_mcp(
     db: &Database,
     name: &str,
@@ -1043,11 +1044,11 @@ pub(crate) fn parse_frontmatter(
 ) -> (std::collections::HashMap<String, String>, String) {
     let mut frontmatter = std::collections::HashMap::new();
 
-    if content.starts_with("---") {
+    if let Some(after_prefix) = content.strip_prefix("---") {
         // Find the closing ---
-        if let Some(end_pos) = content[3..].find("\n---") {
-            let fm_content = &content[3..end_pos + 3];
-            let body = content[end_pos + 7..].trim_start().to_string();
+        if let Some(end_pos) = after_prefix.find("\n---") {
+            let fm_content = &after_prefix[..end_pos];
+            let body = after_prefix[end_pos + 4..].trim_start().to_string();
 
             // Parse simple key: value pairs
             for line in fm_content.lines() {
@@ -2270,7 +2271,7 @@ Body"#;
 
         assert_eq!(fm.get("name"), Some(&"test".to_string()));
         assert_eq!(fm.get("another"), Some(&"value".to_string()));
-        assert!(fm.get("empty_key").is_none());
+        assert!(!fm.contains_key("empty_key"));
         assert_eq!(body, "Body");
     }
 
@@ -3442,6 +3443,7 @@ Skill body."#,
     // =========================================================================
 
     #[test]
+    #[allow(non_snake_case)] // Test name mirrors the camelCase field under test.
     fn test_parse_skill_file_with_allowedTools_camelCase() {
         let temp_dir = TempDir::new().unwrap();
         let skill_path = temp_dir.path().join("camel.md");

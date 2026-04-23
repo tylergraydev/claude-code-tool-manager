@@ -178,7 +178,7 @@ fn get_debug_flag_path(app_data_dir: &Path) -> PathBuf {
 }
 
 /// Persist debug mode setting to disk
-pub fn persist_debug_enabled(app_data_dir: &PathBuf, enabled: bool) -> Result<()> {
+pub fn persist_debug_enabled(app_data_dir: &Path, enabled: bool) -> Result<()> {
     let flag_path = get_debug_flag_path(app_data_dir);
     if enabled {
         // Create the flag file
@@ -193,12 +193,12 @@ pub fn persist_debug_enabled(app_data_dir: &PathBuf, enabled: bool) -> Result<()
 }
 
 /// Check if debug mode was persisted (for startup)
-pub fn is_debug_persisted(app_data_dir: &PathBuf) -> bool {
+pub fn is_debug_persisted(app_data_dir: &Path) -> bool {
     get_debug_flag_path(app_data_dir).exists()
 }
 
 /// Initialize debug mode from persisted state (call early in startup)
-pub fn init_from_persisted(app_data_dir: &PathBuf) -> Result<Option<PathBuf>> {
+pub fn init_from_persisted(app_data_dir: &Path) -> Result<Option<PathBuf>> {
     if is_debug_persisted(app_data_dir) {
         let log_path = enable_debug_logging(app_data_dir)?;
         write_log("INFO", "debug", "Debug mode restored from persisted state")?;
