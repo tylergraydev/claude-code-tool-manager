@@ -92,8 +92,7 @@ jobs:
 
       - name: Run Clippy
         working-directory: src-tauri
-        run: cargo clippy --all-features -- -D warnings
-        continue-on-error: true  # Don't fail the build on clippy warnings initially
+        run: cargo clippy --lib --tests --all-features -- -D warnings
 
   fmt:
     name: Format
