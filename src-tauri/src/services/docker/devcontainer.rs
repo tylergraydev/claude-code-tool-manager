@@ -149,11 +149,9 @@ fn strip_json_comments(input: &str) -> String {
                     chars.next(); // consume *
                     loop {
                         match chars.next() {
-                            Some('*') => {
-                                if chars.peek() == Some(&'/') {
-                                    chars.next();
-                                    break;
-                                }
+                            Some('*') if chars.peek() == Some(&'/') => {
+                                chars.next();
+                                break;
                             }
                             Some('\n') => result.push('\n'),
                             None => break,

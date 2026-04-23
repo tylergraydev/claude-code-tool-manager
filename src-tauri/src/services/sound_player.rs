@@ -119,7 +119,7 @@ pub fn list_system_sounds() -> Result<Vec<SystemSound>, String> {
         }
     }
 
-    sounds.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+    sounds.sort_by_key(|a| a.name.to_lowercase());
     info!("[SoundPlayer] Found {} system sounds", sounds.len());
     Ok(sounds)
 }
@@ -165,7 +165,7 @@ pub fn list_custom_sounds() -> Result<Vec<CustomSound>, String> {
         }
     }
 
-    sounds.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+    sounds.sort_by_key(|a| a.name.to_lowercase());
     info!("[SoundPlayer] Found {} custom sounds", sounds.len());
     Ok(sounds)
 }
@@ -645,6 +645,7 @@ mod tests {
         // On macOS this should be Some
         #[cfg(target_os = "macos")]
         assert!(path.is_some());
+        let _ = path;
     }
 
     // =========================================================================
