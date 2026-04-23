@@ -2,7 +2,7 @@ use anyhow::Result;
 use chrono::Local;
 use std::fs::{self, File, OpenOptions};
 use std::io::Write;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 
@@ -22,7 +22,7 @@ pub fn get_log_file_path() -> Option<PathBuf> {
 }
 
 /// Enable debug logging, creating a new log file
-pub fn enable_debug_logging(app_data_dir: &PathBuf) -> Result<PathBuf> {
+pub fn enable_debug_logging(app_data_dir: &Path) -> Result<PathBuf> {
     // Create logs directory
     let logs_dir = app_data_dir.join("logs");
     fs::create_dir_all(&logs_dir)?;
@@ -168,12 +168,12 @@ pub fn write_log_with_context(
 }
 
 /// Get the logs directory path
-pub fn get_logs_dir(app_data_dir: &PathBuf) -> PathBuf {
+pub fn get_logs_dir(app_data_dir: &Path) -> PathBuf {
     app_data_dir.join("logs")
 }
 
 /// Get the path to the debug persistence flag file
-fn get_debug_flag_path(app_data_dir: &PathBuf) -> PathBuf {
+fn get_debug_flag_path(app_data_dir: &Path) -> PathBuf {
     app_data_dir.join("debug_enabled")
 }
 

@@ -1,6 +1,6 @@
 use anyhow::Result;
 use directories::BaseDirs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 pub struct ClaudePathsInternal {
     #[allow(dead_code)]
@@ -43,12 +43,12 @@ pub fn normalize_path(path: &str) -> String {
 }
 
 #[allow(dead_code)]
-pub fn project_mcp_file(project_path: &PathBuf) -> PathBuf {
+pub fn project_mcp_file(project_path: &Path) -> PathBuf {
     project_path.join(".claude").join(".mcp.json")
 }
 
 #[allow(dead_code)]
-pub fn project_settings_file(project_path: &PathBuf) -> PathBuf {
+pub fn project_settings_file(project_path: &Path) -> PathBuf {
     project_path.join(".claude").join("settings.local.json")
 }
 

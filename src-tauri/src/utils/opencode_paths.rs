@@ -1,6 +1,6 @@
 use anyhow::Result;
 use directories::BaseDirs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 /// OpenCode configuration paths
 /// OpenCode stores its config in ~/.config/opencode/ on all platforms
@@ -50,31 +50,31 @@ pub fn is_opencode_installed() -> bool {
 
 /// Get project-level OpenCode directory
 #[cfg(test)]
-pub fn project_opencode_dir(project_path: &PathBuf) -> PathBuf {
+pub fn project_opencode_dir(project_path: &Path) -> PathBuf {
     project_path.join(".opencode")
 }
 
 /// Get project-level OpenCode config file
 #[cfg(test)]
-pub fn project_opencode_config(project_path: &PathBuf) -> PathBuf {
+pub fn project_opencode_config(project_path: &Path) -> PathBuf {
     project_path.join("opencode.json")
 }
 
 /// Get project-level OpenCode command directory
 #[cfg(test)]
-pub fn project_opencode_command_dir(project_path: &PathBuf) -> PathBuf {
+pub fn project_opencode_command_dir(project_path: &Path) -> PathBuf {
     project_path.join(".opencode").join("command")
 }
 
 /// Get project-level OpenCode agent directory
 #[cfg(test)]
-pub fn project_opencode_agent_dir(project_path: &PathBuf) -> PathBuf {
+pub fn project_opencode_agent_dir(project_path: &Path) -> PathBuf {
     project_path.join(".opencode").join("agent")
 }
 
 /// Get project-level OpenCode plugin directory
 #[cfg(test)]
-pub fn project_opencode_plugin_dir(project_path: &PathBuf) -> PathBuf {
+pub fn project_opencode_plugin_dir(project_path: &Path) -> PathBuf {
     project_path.join(".opencode").join("plugin")
 }
 
