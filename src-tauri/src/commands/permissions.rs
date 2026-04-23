@@ -227,6 +227,7 @@ pub fn get_permission_templates(
 }
 
 /// Seed default permission templates (no Tauri State dependency)
+#[allow(clippy::type_complexity)]
 pub(crate) fn seed_permission_templates_impl(db: &Database) -> Result<(), String> {
     // Check if templates already exist
     let count: i64 = db

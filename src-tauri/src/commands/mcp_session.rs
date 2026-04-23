@@ -25,6 +25,7 @@ pub struct McpSessionData {
 }
 
 /// Extract MCP session data from the database (no Tauri State dependency)
+#[allow(clippy::type_complexity)]
 pub(crate) fn get_mcp_session_data_from_db(
     db: &Database,
     mcp_id: i64,

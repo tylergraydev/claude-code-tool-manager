@@ -235,6 +235,7 @@ pub(crate) fn delete_mcp_impl(db: &Database, id: i64) -> Result<(), String> {
 }
 
 /// Duplicate an MCP in the database
+#[allow(clippy::type_complexity)]
 pub(crate) fn duplicate_mcp_impl(db: &Database, id: i64) -> Result<Mcp, String> {
     // Get original
     let mut stmt = db

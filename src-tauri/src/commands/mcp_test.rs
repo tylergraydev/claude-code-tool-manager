@@ -10,6 +10,7 @@ use std::sync::{Arc, Mutex};
 use tauri::State;
 
 /// Extract MCP test data including source field from the database (no Tauri State dependency)
+#[allow(clippy::type_complexity)]
 pub fn get_mcp_test_data_with_source_from_db(
     db: &Database,
     mcp_id: i64,
@@ -164,6 +165,7 @@ pub fn test_mcp_config(
 
 /// Extract MCP data from database for testing
 #[cfg_attr(not(test), allow(dead_code))]
+#[allow(clippy::type_complexity)]
 pub fn get_mcp_test_data_from_db(
     db: &Database,
     mcp_id: i64,

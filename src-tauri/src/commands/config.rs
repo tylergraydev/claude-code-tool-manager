@@ -70,6 +70,7 @@ pub fn sync_global_config(db: State<'_, Arc<Mutex<Database>>>) -> Result<(), Str
 }
 
 /// Sync global config from database to disk (reusable helper without Tauri State)
+#[allow(clippy::type_complexity)]
 pub(crate) fn sync_global_config_from_db(db: &Database) -> Result<(), String> {
     use crate::commands::settings::get_enabled_editors_from_db;
     use crate::services::{

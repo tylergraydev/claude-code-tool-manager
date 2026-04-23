@@ -246,6 +246,7 @@ pub fn toggle_project_mcp(
 }
 
 #[tauri::command]
+#[allow(clippy::type_complexity)]
 pub fn sync_project_config(
     db: State<'_, Arc<Mutex<Database>>>,
     project_id: i64,
