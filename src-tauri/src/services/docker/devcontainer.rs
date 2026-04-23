@@ -4,6 +4,7 @@ use std::collections::HashMap;
 /// Represents a devcontainer.json configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[allow(dead_code)]
 pub struct DevcontainerConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
@@ -104,6 +105,7 @@ impl DevcontainerConfig {
     }
 }
 
+#[cfg_attr(not(test), allow(dead_code))]
 fn strip_json_comments(input: &str) -> String {
     let mut result = String::with_capacity(input.len());
     let mut chars = input.chars().peekable();

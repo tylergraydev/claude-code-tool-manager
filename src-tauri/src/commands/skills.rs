@@ -776,6 +776,7 @@ pub(crate) fn create_skill_in_db(
 }
 
 /// Create a skill without validation (useful for testing edge cases or imports)
+#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) fn create_skill_in_db_unvalidated(
     db: &Database,
     skill: &CreateSkillRequest,
@@ -887,6 +888,7 @@ pub(crate) fn delete_skill_from_db(db: &Database, id: i64) -> Result<(), String>
 }
 
 /// Create a skill file directly in the database
+#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) fn create_skill_file_in_db(
     db: &Database,
     file: &CreateSkillFileRequest,
@@ -914,6 +916,7 @@ pub(crate) fn create_skill_file_in_db(
 }
 
 /// Get skill files directly from the database
+#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) fn get_skill_files_from_db(
     db: &Database,
     skill_id: i64,
@@ -936,6 +939,7 @@ pub(crate) fn get_skill_files_from_db(
 }
 
 /// Delete a skill file directly from the database
+#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) fn delete_skill_file_from_db(db: &Database, id: i64) -> Result<(), String> {
     db.conn()
         .execute("DELETE FROM skill_files WHERE id = ?", [id])

@@ -6,6 +6,7 @@ use std::path::Path;
 
 /// GitHub Copilot CLI MCP server configuration (STDIO transport)
 #[derive(Debug, Clone, Deserialize, Serialize)]
+#[allow(dead_code)]
 pub struct CopilotMcpStdio {
     pub command: String,
     #[serde(default)]
@@ -16,6 +17,7 @@ pub struct CopilotMcpStdio {
 
 /// HTTP request initialization options
 #[derive(Debug, Clone, Deserialize, Serialize)]
+#[allow(dead_code)]
 pub struct CopilotRequestInit {
     #[serde(default)]
     pub headers: Option<HashMap<String, String>>,
@@ -23,6 +25,7 @@ pub struct CopilotRequestInit {
 
 /// GitHub Copilot CLI MCP server configuration (HTTP/SSE transport)
 #[derive(Debug, Clone, Deserialize, Serialize)]
+#[allow(dead_code)]
 pub struct CopilotMcpHttp {
     pub url: String,
     #[serde(default, rename = "type")]
@@ -33,6 +36,8 @@ pub struct CopilotMcpHttp {
 
 /// Copilot MCP config (either STDIO or HTTP)
 #[derive(Debug, Clone)]
+// Reserved for typed parse path; current impl uses ParsedCopilotMcp.
+#[allow(dead_code)]
 pub enum CopilotMcp {
     Stdio(CopilotMcpStdio),
     Http(CopilotMcpHttp),
@@ -287,6 +292,7 @@ pub fn write_copilot_config(path: &Path, mcps: &[McpTuple]) -> Result<()> {
 }
 
 /// Add a single MCP to Copilot config
+#[cfg_attr(not(test), allow(dead_code))]
 pub fn add_mcp_to_copilot_config(path: &Path, mcp: &McpTuple) -> Result<()> {
     // Read existing MCPs
     let existing_mcps = if path.exists() {
@@ -324,6 +330,7 @@ pub fn add_mcp_to_copilot_config(path: &Path, mcp: &McpTuple) -> Result<()> {
 }
 
 /// Remove an MCP from Copilot config
+#[cfg_attr(not(test), allow(dead_code))]
 pub fn remove_mcp_from_copilot_config(path: &Path, name: &str) -> Result<()> {
     if !path.exists() {
         return Ok(());

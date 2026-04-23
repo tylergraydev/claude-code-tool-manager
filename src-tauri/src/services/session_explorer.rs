@@ -105,6 +105,7 @@ struct RawRecord {
     record_type: Option<String>,
     uuid: Option<String>,
     #[serde(default)]
+    #[allow(dead_code)]
     session_id: Option<String>,
     #[serde(default)]
     timestamp: Option<String>,
@@ -124,6 +125,7 @@ struct RawRecord {
 #[serde(rename_all = "camelCase")]
 struct RawMessage {
     #[serde(default)]
+    #[allow(dead_code)]
     role: Option<String>,
     #[serde(default)]
     model: Option<String>,

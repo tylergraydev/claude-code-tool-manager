@@ -163,6 +163,7 @@ pub fn test_mcp_config(
 // ============================================================================
 
 /// Extract MCP data from database for testing
+#[cfg_attr(not(test), allow(dead_code))]
 pub fn get_mcp_test_data_from_db(
     db: &Database,
     mcp_id: i64,
@@ -217,6 +218,7 @@ pub fn get_mcp_test_data_from_db(
 }
 
 /// Validate MCP config before testing
+#[cfg_attr(not(test), allow(dead_code))]
 pub fn validate_mcp_config(
     mcp_type: &str,
     command: Option<&str>,

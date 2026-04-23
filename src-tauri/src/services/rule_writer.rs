@@ -87,6 +87,7 @@ pub fn delete_project_rule(project_path: &Path, rule: &Rule) -> Result<()> {
 
 /// Create a symlink from one rule to another location
 #[cfg(unix)]
+#[cfg_attr(not(test), allow(dead_code))]
 pub fn create_rule_symlink(source_path: &Path, target_path: &Path) -> Result<()> {
     if let Some(parent) = target_path.parent() {
         std::fs::create_dir_all(parent)?;

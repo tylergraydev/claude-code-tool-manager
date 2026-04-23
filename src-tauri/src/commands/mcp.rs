@@ -319,18 +319,22 @@ pub(crate) fn generate_duplicate_name(name: &str) -> String {
 }
 
 // Convenience aliases (promoted from #[cfg(test)] for cross-module reuse)
+#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) fn create_mcp_in_db(db: &Database, mcp: &CreateMcpRequest) -> Result<Mcp, String> {
     create_mcp_impl(db, mcp)
 }
 
+#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) fn get_mcp_by_id(db: &Database, id: i64) -> Result<Mcp, String> {
     get_mcp_impl(db, id)
 }
 
+#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) fn get_all_mcps_from_db(db: &Database) -> Result<Vec<Mcp>, String> {
     get_all_mcps_impl(db)
 }
 
+#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) fn update_mcp_in_db(
     db: &Database,
     id: i64,
@@ -339,10 +343,12 @@ pub(crate) fn update_mcp_in_db(
     update_mcp_impl(db, id, mcp)
 }
 
+#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) fn delete_mcp_from_db(db: &Database, id: i64) -> Result<(), String> {
     delete_mcp_impl(db, id)
 }
 
+#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) fn toggle_global_mcp_in_db(db: &Database, id: i64, enabled: bool) -> Result<(), String> {
     toggle_global_mcp_impl(db, id, enabled)
 }

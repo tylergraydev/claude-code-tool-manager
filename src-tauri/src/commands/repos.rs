@@ -505,23 +505,28 @@ pub(crate) fn remove_repo_impl(db: &Database, id: i64) -> Result<(), String> {
 }
 
 // Convenience aliases (promoted from #[cfg(test)] for cross-module reuse)
+#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) fn add_repo_in_db(db: &Database, request: &CreateRepoRequest) -> Result<Repo, String> {
     add_repo_impl(db, request)
 }
 
+#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) fn get_repo_by_id(db: &Database, id: i64) -> Result<Repo, String> {
     get_repo_impl(db, id)
 }
 
+#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) fn toggle_repo_in_db(db: &Database, id: i64, enabled: bool) -> Result<(), String> {
     toggle_repo_impl(db, id, enabled)
 }
 
+#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) fn remove_repo_in_db(db: &Database, id: i64) -> Result<(), String> {
     remove_repo_impl(db, id)
 }
 
 /// Add a repo item directly in the database
+#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) fn add_repo_item_in_db(
     db: &Database,
     repo_id: i64,
@@ -543,6 +548,7 @@ pub(crate) fn add_repo_item_in_db(
 }
 
 /// Get a repo item by ID directly from the database
+#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) fn get_repo_item_by_id(db: &Database, id: i64) -> Result<RepoItem, String> {
     db.conn()
         .query_row(
@@ -573,6 +579,7 @@ pub(crate) fn get_repo_item_by_id(db: &Database, id: i64) -> Result<RepoItem, St
 }
 
 /// Mark a repo item as imported directly in the database
+#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) fn mark_item_imported_in_db(
     db: &Database,
     item_id: i64,

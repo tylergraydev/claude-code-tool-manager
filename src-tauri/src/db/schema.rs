@@ -13,12 +13,6 @@ impl Database {
         Ok(Self { conn })
     }
 
-    /// Create a Database from an existing connection (for testing with in-memory databases)
-    #[cfg(test)]
-    pub fn from_connection(conn: Connection) -> Self {
-        Self { conn }
-    }
-
     /// Create an in-memory database for testing
     #[cfg(test)]
     pub fn in_memory() -> Result<Self> {

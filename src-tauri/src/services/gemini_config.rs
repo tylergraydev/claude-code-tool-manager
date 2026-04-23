@@ -6,6 +6,7 @@ use std::path::Path;
 
 /// Gemini CLI MCP server configuration (STDIO transport)
 #[derive(Debug, Clone, Deserialize, Serialize)]
+#[allow(dead_code)]
 pub struct GeminiMcpStdio {
     pub command: String,
     #[serde(default)]
@@ -22,6 +23,7 @@ pub struct GeminiMcpStdio {
 
 /// Gemini CLI MCP server configuration (HTTP/SSE transport)
 #[derive(Debug, Clone, Deserialize, Serialize)]
+#[allow(dead_code)]
 pub struct GeminiMcpHttp {
     #[serde(default)]
     pub url: Option<String>, // SSE endpoint
@@ -37,6 +39,8 @@ pub struct GeminiMcpHttp {
 
 /// Gemini MCP config (either STDIO or HTTP)
 #[derive(Debug, Clone)]
+// Reserved for typed parse path; current impl uses ParsedGeminiMcp.
+#[allow(dead_code)]
 pub enum GeminiMcp {
     Stdio(GeminiMcpStdio),
     Http(GeminiMcpHttp),
@@ -305,6 +309,7 @@ pub fn write_gemini_config(path: &Path, mcps: &[McpTuple]) -> Result<()> {
 }
 
 /// Add a single MCP to Gemini config
+#[cfg_attr(not(test), allow(dead_code))]
 pub fn add_mcp_to_gemini_config(path: &Path, mcp: &McpTuple) -> Result<()> {
     // Read existing MCPs
     let existing_mcps = if path.exists() {
@@ -342,6 +347,7 @@ pub fn add_mcp_to_gemini_config(path: &Path, mcp: &McpTuple) -> Result<()> {
 }
 
 /// Remove an MCP from Gemini config
+#[cfg_attr(not(test), allow(dead_code))]
 pub fn remove_mcp_from_gemini_config(path: &Path, name: &str) -> Result<()> {
     if !path.exists() {
         return Ok(());

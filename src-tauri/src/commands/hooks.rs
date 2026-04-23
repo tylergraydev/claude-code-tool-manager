@@ -910,6 +910,7 @@ pub fn duplicate_hook(
 // ============================================================================
 
 /// Create a hook in the database (no file sync)
+#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) fn create_hook_in_db(db: &Database, hook: &CreateHookRequest) -> Result<Hook, String> {
     let tags_json = hook
         .tags
@@ -939,6 +940,7 @@ pub(crate) fn create_hook_in_db(db: &Database, hook: &CreateHookRequest) -> Resu
 }
 
 /// Get a hook by ID from the database
+#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) fn get_hook_by_id(db: &Database, id: i64) -> Result<Hook, String> {
     let mut stmt = db
         .conn()
@@ -971,6 +973,7 @@ pub(crate) fn get_all_hooks_from_db(db: &Database) -> Result<Vec<Hook>, String> 
 }
 
 /// Update a hook in the database (no file sync)
+#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) fn update_hook_in_db(
     db: &Database,
     id: i64,
@@ -1020,6 +1023,7 @@ pub(crate) fn update_hook_in_db(
 }
 
 /// Delete a hook from the database (no file sync)
+#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) fn delete_hook_from_db(db: &Database, id: i64) -> Result<(), String> {
     db.conn()
         .execute("DELETE FROM hooks WHERE id = ?", [id])
@@ -1028,6 +1032,7 @@ pub(crate) fn delete_hook_from_db(db: &Database, id: i64) -> Result<(), String> 
 }
 
 /// Add a hook to global hooks in the database (no file sync)
+#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) fn add_global_hook_in_db(db: &Database, hook_id: i64) -> Result<(), String> {
     db.conn()
         .execute(
@@ -1039,6 +1044,7 @@ pub(crate) fn add_global_hook_in_db(db: &Database, hook_id: i64) -> Result<(), S
 }
 
 /// Get all global hooks from the database
+#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) fn get_global_hooks_from_db(db: &Database) -> Result<Vec<GlobalHook>, String> {
     let mut stmt = db
         .conn()
@@ -1068,6 +1074,7 @@ pub(crate) fn get_global_hooks_from_db(db: &Database) -> Result<Vec<GlobalHook>,
 }
 
 /// Toggle a global hook in the database (no file sync)
+#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) fn toggle_global_hook_in_db(
     db: &Database,
     id: i64,
@@ -1083,6 +1090,7 @@ pub(crate) fn toggle_global_hook_in_db(
 }
 
 /// Remove a global hook from the database (no file sync)
+#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) fn remove_global_hook_from_db(db: &Database, hook_id: i64) -> Result<(), String> {
     db.conn()
         .execute("DELETE FROM global_hooks WHERE hook_id = ?", [hook_id])

@@ -91,6 +91,7 @@ pub fn write_statusline_script(script_content: &str) -> Result<std::path::PathBu
 }
 
 /// Generate a Python 3 script from status line segments
+#[cfg_attr(not(test), allow(dead_code))]
 pub fn generate_script_from_segments(segments: &[StatusLineSegment]) -> String {
     generate_script_from_segments_with_theme(segments, "default")
 }
@@ -1397,6 +1398,7 @@ fn color_name_to_rgb(color: &str) -> (u8, u8, u8) {
 }
 
 /// Get ANSI 24-bit true color foreground escape code for a color name
+#[cfg_attr(not(test), allow(dead_code))]
 fn get_ansi_color_code(color: &str) -> String {
     let (r, g, b) = color_name_to_rgb(color);
     format!("\\033[38;2;{};{};{}m", r, g, b)

@@ -498,6 +498,7 @@ pub fn sync_project_config(
 // ============================================================================
 
 /// Create a project in the database
+#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) fn create_project_in_db(
     db: &Database,
     project: &CreateProjectRequest,
@@ -515,6 +516,7 @@ pub(crate) fn create_project_in_db(
 }
 
 /// Get a project by ID from the database
+#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) fn get_project_by_id(db: &Database, id: i64) -> Result<Project, String> {
     db.conn()
         .query_row(
@@ -541,6 +543,7 @@ pub(crate) fn get_project_by_id(db: &Database, id: i64) -> Result<Project, Strin
 }
 
 /// Get a project by path from the database
+#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) fn get_project_by_path(db: &Database, path: &str) -> Result<Project, String> {
     db.conn()
         .query_row(
@@ -567,6 +570,7 @@ pub(crate) fn get_project_by_path(db: &Database, path: &str) -> Result<Project, 
 }
 
 /// Get all projects from the database
+#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) fn get_all_projects_from_db(db: &Database) -> Result<Vec<Project>, String> {
     let mut stmt = db
         .conn()
@@ -765,6 +769,7 @@ pub(crate) fn toggle_project_mcp_in_db(
 }
 
 /// Get project MCP assignments from the database
+#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) fn get_project_mcps_from_db(
     db: &Database,
     project_id: i64,

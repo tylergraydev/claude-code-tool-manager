@@ -21,6 +21,7 @@ use crate::db::Database;
 #[derive(Clone)]
 pub struct ToolManagerServer {
     pub db: Arc<Mutex<Database>>,
+    #[allow(dead_code)]
     tool_router: ToolRouter<ToolManagerServer>,
 }
 

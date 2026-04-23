@@ -6,6 +6,7 @@ use std::path::Path;
 
 /// Cursor IDE MCP server configuration (STDIO transport)
 #[derive(Debug, Clone, Deserialize, Serialize)]
+#[allow(dead_code)]
 pub struct CursorMcpStdio {
     pub command: String,
     #[serde(default)]
@@ -18,6 +19,7 @@ pub struct CursorMcpStdio {
 
 /// Cursor IDE MCP server configuration (HTTP/SSE transport)
 #[derive(Debug, Clone, Deserialize, Serialize)]
+#[allow(dead_code)]
 pub struct CursorMcpHttp {
     pub url: String,
     #[serde(default)]
@@ -26,6 +28,8 @@ pub struct CursorMcpHttp {
 
 /// Cursor MCP config (either STDIO or HTTP)
 #[derive(Debug, Clone)]
+// Reserved for typed parse path; current impl uses ParsedCursorMcp.
+#[allow(dead_code)]
 pub enum CursorMcp {
     Stdio(CursorMcpStdio),
     Http(CursorMcpHttp),
@@ -266,6 +270,7 @@ pub fn write_cursor_config(path: &Path, mcps: &[McpTuple]) -> Result<()> {
 }
 
 /// Add a single MCP to Cursor config
+#[cfg_attr(not(test), allow(dead_code))]
 pub fn add_mcp_to_cursor_config(path: &Path, mcp: &McpTuple) -> Result<()> {
     // Read existing MCPs
     let existing_mcps = if path.exists() {
@@ -303,6 +308,7 @@ pub fn add_mcp_to_cursor_config(path: &Path, mcp: &McpTuple) -> Result<()> {
 }
 
 /// Remove an MCP from Cursor config
+#[cfg_attr(not(test), allow(dead_code))]
 pub fn remove_mcp_from_cursor_config(path: &Path, name: &str) -> Result<()> {
     if !path.exists() {
         return Ok(());

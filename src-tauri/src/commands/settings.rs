@@ -352,6 +352,7 @@ pub fn toggle_editor_in_db(db: &Database, editor_id: &str, enabled: bool) -> Res
 }
 
 /// Check if a specific editor is enabled
+#[cfg_attr(not(test), allow(dead_code))]
 pub fn is_editor_enabled(db: &Database, editor_id: &str) -> bool {
     get_enabled_editors_from_db(db).contains(&editor_id.to_string())
 }

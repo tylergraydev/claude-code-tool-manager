@@ -6,6 +6,7 @@ use toml_edit::{value, Array, DocumentMut, InlineTable, Item, Table};
 
 /// Codex MCP server configuration (STDIO transport)
 #[derive(Debug, Clone, Deserialize, Serialize)]
+#[allow(dead_code)]
 pub struct CodexMcpStdio {
     #[serde(default)]
     pub enabled: Option<bool>,
@@ -28,6 +29,7 @@ pub struct CodexMcpStdio {
 
 /// Codex MCP server configuration (HTTP transport)
 #[derive(Debug, Clone, Deserialize, Serialize)]
+#[allow(dead_code)]
 pub struct CodexMcpHttp {
     #[serde(default)]
     pub enabled: Option<bool>,
@@ -42,6 +44,8 @@ pub struct CodexMcpHttp {
 
 /// Codex MCP config (either STDIO or HTTP)
 #[derive(Debug, Clone)]
+// Reserved for typed parse path; current impl uses ParsedCodexMcp.
+#[allow(dead_code)]
 pub enum CodexMcp {
     Stdio(CodexMcpStdio),
     Http(CodexMcpHttp),
@@ -315,6 +319,7 @@ pub fn write_codex_config(path: &Path, mcps: &[McpTuple]) -> Result<()> {
 }
 
 /// Add a single MCP to Codex config
+#[cfg_attr(not(test), allow(dead_code))]
 pub fn add_mcp_to_codex_config(path: &Path, mcp: &McpTuple) -> Result<()> {
     // Read existing MCPs
     let existing_mcps = if path.exists() {
@@ -352,6 +357,7 @@ pub fn add_mcp_to_codex_config(path: &Path, mcp: &McpTuple) -> Result<()> {
 }
 
 /// Remove an MCP from Codex config
+#[cfg_attr(not(test), allow(dead_code))]
 pub fn remove_mcp_from_codex_config(path: &Path, name: &str) -> Result<()> {
     if !path.exists() {
         return Ok(());
