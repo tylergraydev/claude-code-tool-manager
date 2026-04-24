@@ -41,7 +41,7 @@ walkdir = "2"
 rusqlite = { version = "0.39", features = ["bundled"] }
 
 # Docker
-bollard = "0.18"
+bollard = "0.20"
 once_cell = "1"
 bytes = "1"
 
