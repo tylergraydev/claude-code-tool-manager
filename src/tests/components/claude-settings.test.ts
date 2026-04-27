@@ -125,12 +125,21 @@ describe('AttributionEditor Component', () => {
 	});
 });
 
-describe('Extended Context Types', () => {
-	it('should include extended context models in CLAUDE_MODELS', async () => {
+describe('Model aliases (CLAUDE_MODELS)', () => {
+	it('should expose the core Anthropic aliases', async () => {
 		const { CLAUDE_MODELS } = await import('$lib/types');
 		const values = CLAUDE_MODELS.map(m => m.value);
-		expect(values).toContain('claude-sonnet-4-5-20250929');
-		expect(values).toContain('claude-opus-4-6');
+		expect(values).toContain('opus');
+		expect(values).toContain('sonnet');
+		expect(values).toContain('haiku');
+	});
+
+	it('should mark Opus and Sonnet as 1M-capable, Haiku as not', async () => {
+		const { CLAUDE_MODELS } = await import('$lib/types');
+		const byValue = Object.fromEntries(CLAUDE_MODELS.map(m => [m.value, m]));
+		expect(byValue.opus.supports1m).toBe(true);
+		expect(byValue.sonnet.supports1m).toBe(true);
+		expect(byValue.haiku.supports1m).toBe(false);
 	});
 
 	it('should include extended context shortcuts in AVAILABLE_MODEL_SHORTCUTS', async () => {
