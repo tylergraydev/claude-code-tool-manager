@@ -15,7 +15,22 @@
 
 	let { settings, onsave }: Props = $props();
 
-	let model = $state(settings.model ?? '');
+	// Parse a saved model value into (base, has1m) so the UI can split the [1m] suffix
+	// from the underlying ID. The suffix is documented as a Claude Code extension that
+	// is stripped before the request reaches the provider.
+	function splitModelValue(raw: string | undefined): { base: string; has1m: boolean } {
+		if (!raw) return { base: '', has1m: false };
+		if (raw.endsWith('[1m]')) return { base: raw.slice(0, -'[1m]'.length), has1m: true };
+		return { base: raw, has1m: false };
+	}
+
+	const initial = splitModelValue(settings.model);
+	const knownValues = CLAUDE_MODELS.map((m) => m.value) as readonly string[];
+	const initialIsKnown = !initial.base || knownValues.includes(initial.base);
+
+	let modelChoice = $state<string>(initialIsKnown ? initial.base : '__custom__');
+	let customModel = $state<string>(initialIsKnown ? '' : initial.base);
+	let use1mContext = $state<boolean>(initial.has1m);
 	let availableModels = $state<string[]>([...settings.availableModels]);
 	let outputStyle = $state(settings.outputStyle ?? '');
 	let language = $state(settings.language ?? '');
@@ -23,17 +38,47 @@
 
 	// Reset local state when settings prop changes
 	$effect(() => {
-		model = settings.model ?? '';
+		const next = splitModelValue(settings.model);
+		const known = !next.base || knownValues.includes(next.base);
+		modelChoice = known ? next.base : '__custom__';
+		customModel = known ? '' : next.base;
+		use1mContext = next.has1m;
 		availableModels = [...settings.availableModels];
 		outputStyle = settings.outputStyle ?? '';
 		language = settings.language ?? '';
 		alwaysThinkingEnabled = settings.alwaysThinkingEnabled;
 	});
 
+	// Resolve the effective model string from the dropdown + custom field + 1m toggle.
+	// Returns undefined when nothing is selected so the setting is omitted entirely.
+	function resolveModelValue(): string | undefined {
+		const base = modelChoice === '__custom__' ? customModel.trim() : modelChoice;
+		if (!base) return undefined;
+		if (!use1mContext) return base;
+		// Don't double-append [1m] if the user typed it themselves
+		return base.endsWith('[1m]') ? base : `${base}[1m]`;
+	}
+
+	// 1M context only applies to models that support it. Built-in entries declare this
+	// via supports1m; custom IDs are assumed eligible (we can't verify) and the user
+	// keeps responsibility for typing a valid ID.
+	function selectionSupports1m(): boolean {
+		if (modelChoice === '__custom__') return customModel.trim().length > 0;
+		const entry = CLAUDE_MODELS.find((m) => m.value === modelChoice);
+		return entry?.supports1m ?? false;
+	}
+
+	// Auto-clear the 1M flag if the user picks a model that doesn't support it
+	$effect(() => {
+		if (!selectionSupports1m() && use1mContext) {
+			use1mContext = false;
+		}
+	});
+
 	function handleSave() {
 		onsave({
 			...settings,
-			model: model || undefined,
+			model: resolveModelValue(),
 			availableModels,
 			outputStyle: outputStyle || undefined,
 			language: language || undefined,
@@ -74,14 +119,61 @@
 			</label>
 			<select
 				id="model-select"
-				bind:value={model}
+				bind:value={modelChoice}
 				class="input text-sm w-full"
 			>
 				<option value="">Not set (use default)</option>
 				{#each CLAUDE_MODELS as m}
 					<option value={m.value}>{m.label} — {m.description}</option>
 				{/each}
+				<option value="__custom__">Other (custom model ID)…</option>
 			</select>
+			{#if modelChoice === '__custom__'}
+				<input
+					type="text"
+					bind:value={customModel}
+					placeholder="e.g. claude-opus-4-7 or arn:aws:bedrock:…"
+					class="input text-sm w-full mt-2"
+					aria-label="Custom model ID"
+				/>
+				<p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+					Enter any model ID, alias, or provider-specific identifier. Append <code>[1m]</code>
+					yourself if not using the toggle below.
+				</p>
+			{/if}
+			<p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+				Aliases like <code>opus</code>, <code>sonnet</code>, <code>haiku</code> auto-resolve
+				to the latest version. See
+				<a
+					href="https://code.claude.com/docs/en/model-config#available-models"
+					target="_blank"
+					rel="noopener"
+					class="underline hover:text-primary-600">model configuration docs</a>.
+			</p>
+		</div>
+
+		<!-- 1M Context Window -->
+		<div>
+			<label class="flex items-center gap-2 cursor-pointer">
+				<input
+					type="checkbox"
+					bind:checked={use1mContext}
+					disabled={!selectionSupports1m()}
+					class="rounded border-gray-300 dark:border-gray-600"
+				/>
+				<span class="text-sm font-medium text-gray-700 dark:text-gray-300">
+					Use 1M token context window
+				</span>
+			</label>
+			<p class="text-xs text-gray-500 dark:text-gray-400 mt-1 ml-6">
+				Appends the <code>[1m]</code> suffix to the model ID. Supported on Opus and Sonnet
+				(not Haiku). Standard pricing — no premium beyond 200K tokens.
+				<a
+					href="https://code.claude.com/docs/en/model-config#extended-context"
+					target="_blank"
+					rel="noopener"
+					class="underline hover:text-primary-600">Docs</a>.
+			</p>
 		</div>
 
 		<!-- Available Models -->

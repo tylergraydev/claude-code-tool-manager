@@ -118,21 +118,39 @@ export interface AllClaudeSettings {
 	local?: ClaudeSettings;
 }
 
+// Model aliases auto-resolve to the latest version Claude Code supports.
+// See https://code.claude.com/docs/en/model-config#available-models
+// The [1m] suffix is documented at https://code.claude.com/docs/en/model-config#extended-context
 export const CLAUDE_MODELS = [
 	{
-		value: 'claude-sonnet-4-5-20250929',
-		label: 'Claude Sonnet 4.5',
-		description: 'Best balance of speed and intelligence'
+		value: 'opus',
+		label: 'Opus (latest)',
+		description: 'Most capable model for complex reasoning',
+		supports1m: true
 	},
 	{
-		value: 'claude-opus-4-6',
-		label: 'Claude Opus 4.6',
-		description: 'Most capable model for complex tasks'
+		value: 'sonnet',
+		label: 'Sonnet (latest)',
+		description: 'Balanced speed and intelligence for daily coding',
+		supports1m: true
 	},
 	{
-		value: 'claude-haiku-4-5-20251001',
-		label: 'Claude Haiku 4.5',
-		description: 'Fastest model for simple tasks'
+		value: 'haiku',
+		label: 'Haiku (latest)',
+		description: 'Fastest model for simple tasks',
+		supports1m: false
+	},
+	{
+		value: 'opusplan',
+		label: 'Opus + Plan (opusplan)',
+		description: 'Opus during plan mode, Sonnet for execution',
+		supports1m: true
+	},
+	{
+		value: 'best',
+		label: 'Best available',
+		description: 'Most capable model available (currently equivalent to Opus)',
+		supports1m: true
 	}
 ] as const;
 
