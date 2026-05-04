@@ -9,6 +9,12 @@ export interface SandboxNetworkSettings {
 	socksProxyPort?: number;
 }
 
+export interface SandboxFilesystemSettings {
+	allowRead?: string[];
+	denyRead?: string[];
+	allowUnixSockets?: string[];
+}
+
 export interface SandboxSettings {
 	enabled?: boolean;
 	autoAllowBashIfSandboxed?: boolean;
@@ -100,6 +106,13 @@ export interface ClaudeSettings {
 	enableAllProjectMcpServers?: boolean;
 	enabledMcpjsonServers?: string[];
 	disabledMcpjsonServers?: string[];
+	// Auto Mode
+	disableAutoMode?: boolean;
+	autoModeEnvironment?: string;
+	autoModeAllow?: string;
+	autoModeSoftDeny?: string;
+	// Model Overrides — map Anthropic model IDs to provider-specific IDs (Bedrock/Vertex/Foundry)
+	modelOverrides?: Record<string, string>;
 	// Managed-only keys (from managed-settings.json, read-only)
 	allowManagedHooksOnly?: boolean;
 	allowManagedPermissionRulesOnly?: boolean;

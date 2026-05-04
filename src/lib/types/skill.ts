@@ -1,3 +1,8 @@
+// Discriminator used by the markdown parser to distinguish slash-command markdown
+// (`.claude/commands/`) from agent-skill markdown (`.claude/skills/`). The two
+// formats share frontmatter but route to different stores.
+export type SkillType = 'skill' | 'command';
+
 export interface Skill {
 	id: number;
 	name: string;
@@ -22,6 +27,7 @@ export interface CreateSkillRequest {
 	model?: string;
 	disableModelInvocation?: boolean;
 	tags?: string[];
+	skillType?: SkillType;
 }
 
 export interface ProjectSkill {

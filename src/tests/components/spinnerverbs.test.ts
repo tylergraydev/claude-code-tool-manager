@@ -36,7 +36,14 @@ describe('SpinnerVerbForm Component', () => {
 		const { default: SpinnerVerbForm } = await import('$lib/components/spinnerverbs/SpinnerVerbForm.svelte');
 		render(SpinnerVerbForm, {
 			props: {
-				initialValues: { id: 1, verb: 'Pondering', isEnabled: true, sortOrder: 0 },
+				initialValues: {
+					id: 1,
+					verb: 'Pondering',
+					isEnabled: true,
+					displayOrder: 0,
+					createdAt: '2025-01-01T00:00:00Z',
+					updatedAt: '2025-01-01T00:00:00Z'
+				},
 				onSubmit: vi.fn(),
 				onCancel: vi.fn()
 			}

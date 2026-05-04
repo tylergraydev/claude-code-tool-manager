@@ -2,7 +2,7 @@
 	import type { Snippet, Component } from 'svelte';
 
 	type Props = {
-		variant?: 'default' | 'success' | 'warning' | 'error' | 'system' | 'auto';
+		variant?: 'default' | 'success' | 'warning' | 'error' | 'system' | 'auto' | 'info';
 		title?: string;
 		icon?: Component<any>;
 		children?: Snippet;
@@ -16,7 +16,8 @@
 		warning: 'bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300',
 		error: 'bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300',
 		system: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300',
-		auto: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/50 dark:text-cyan-300'
+		auto: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/50 dark:text-cyan-300',
+		info: 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300'
 	};
 </script>
 
