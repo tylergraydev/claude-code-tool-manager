@@ -1,5 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { invoke } from '@tauri-apps/api/core';
+import type { KeybindingContext } from '$lib/types';
+
+// The vi.mock below extends the real KEYBINDING_CONTEXTS / KEYBINDING_ACTIONS
+// universe with an "Input" context + a "newline" action so the conflict-detection
+// tests have something cross-context to exercise. TypeScript only sees the real
+// $lib/types (mocks are runtime-only), so 'Input' needs an explicit cast where
+// it's passed to store methods typed as KeybindingContext.
+const Input = 'Input' as unknown as KeybindingContext;
 
 vi.mock('$lib/types', () => {
 	const contexts = [
@@ -89,8 +97,8 @@ describe('Keybindings Library Store', () => {
 
 		it('should create new context block if needed', async () => {
 			const { keybindingsLibrary } = await import('$lib/stores/keybindingsLibrary.svelte');
-			keybindingsLibrary.setBinding('Input', 'Ctrl+A', 'newline');
-			const block = keybindingsLibrary.overrides.find((b) => b.context === 'Input');
+			keybindingsLibrary.setBinding(Input, 'Ctrl+A', 'newline');
+			const block = keybindingsLibrary.overrides.find((b) => b.context === Input);
 			expect(block?.bindings['Ctrl+A']).toBe('newline');
 		});
 	});
@@ -134,7 +142,7 @@ describe('Keybindings Library Store', () => {
 		it('should clear all overrides', async () => {
 			const { keybindingsLibrary } = await import('$lib/stores/keybindingsLibrary.svelte');
 			keybindingsLibrary.setBinding('Global', 'Ctrl+K', 'cancel');
-			keybindingsLibrary.setBinding('Input', 'Ctrl+A', 'newline');
+			keybindingsLibrary.setBinding(Input, 'Ctrl+A', 'newline');
 			keybindingsLibrary.resetAll();
 			expect(keybindingsLibrary.overrides).toEqual([]);
 		});
@@ -145,7 +153,7 @@ describe('Keybindings Library Store', () => {
 			const { keybindingsLibrary } = await import('$lib/stores/keybindingsLibrary.svelte');
 			keybindingsLibrary.setBinding('Global', 'Ctrl+K', 'cancel');
 			keybindingsLibrary.setBinding('Global', 'Ctrl+S', 'submit');
-			keybindingsLibrary.setBinding('Input', 'Ctrl+A', 'newline');
+			keybindingsLibrary.setBinding(Input, 'Ctrl+A', 'newline');
 			expect(keybindingsLibrary.overrideCount).toBe(3);
 		});
 	});
@@ -191,7 +199,7 @@ describe('Keybindings Library Store', () => {
 
 		it('should check Global context for non-global contexts', async () => {
 			const { keybindingsLibrary } = await import('$lib/stores/keybindingsLibrary.svelte');
-			const conflicts = keybindingsLibrary.detectConflicts('Input', 'Enter');
+			const conflicts = keybindingsLibrary.detectConflicts(Input, 'Enter');
 			// Should find conflict with Global's 'submit' action on Enter
 			const globalConflict = conflicts.find((c) => c.context === 'Global');
 			expect(globalConflict).toBeDefined();
@@ -201,7 +209,7 @@ describe('Keybindings Library Store', () => {
 			const { keybindingsLibrary } = await import('$lib/stores/keybindingsLibrary.svelte');
 			const conflicts = keybindingsLibrary.detectConflicts('Global', 'Shift+Enter');
 			// Shift+Enter is default for 'newline' in Input context
-			const inputConflict = conflicts.find((c) => c.context === 'Input');
+			const inputConflict = conflicts.find((c) => c.context === Input);
 			expect(inputConflict).toBeDefined();
 		});
 	});
@@ -302,7 +310,7 @@ describe('Keybindings Library Store', () => {
 			keybindingsLibrary.searchQuery = 'newline';
 			const filtered = keybindingsLibrary.filteredByContext;
 			expect(filtered.has('Global')).toBe(false);
-			expect(filtered.has('Input')).toBe(true);
+			expect(filtered.has(Input)).toBe(true);
 		});
 	});
 });
