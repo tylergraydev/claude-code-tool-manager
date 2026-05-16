@@ -51,7 +51,7 @@
     "autoprefixer": "^10.4.27",
     "happy-dom": "^20.8.4",
     "jest-dom": "^4.0.0",
-    "jsdom": "^28.0.0",
+    "jsdom": "^29.1.1",
     "postcss": "^8.5.8",
     "svelte": "^5.55.5",
     "svelte-check": "^4.4.4",
