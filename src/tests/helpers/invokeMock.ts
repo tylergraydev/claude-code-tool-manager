@@ -1,5 +1,6 @@
 import { vi } from 'vitest';
 import { invoke } from '@tauri-apps/api/core';
+import type { InvokeArgs } from '@tauri-apps/api/core';
 
 /**
  * Set up command-routing mock for Tauri invoke.
@@ -33,7 +34,7 @@ export function mockInvokeResponses(responses: Record<string, unknown>): void {
 export function mockInvokeHandler(
 	handler: (cmd: string, args?: Record<string, unknown>) => unknown
 ): void {
-	vi.mocked(invoke).mockImplementation(async (cmd: string, args?: Record<string, unknown>) => {
-		return handler(cmd, args);
+	vi.mocked(invoke).mockImplementation(async (cmd: string, args?: InvokeArgs) => {
+		return handler(cmd, args as Record<string, unknown> | undefined);
 	});
 }
