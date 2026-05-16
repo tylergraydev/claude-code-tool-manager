@@ -1,7 +1,8 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { cloudSyncStore, projectsStore, notifications } from '$lib/stores';
-	import { Cloud, Github, Check, AlertCircle, Upload, Download, ExternalLink, LogOut, Loader2, FolderSync, RefreshCw } from 'lucide-svelte';
+	import { Cloud, Check, AlertCircle, Upload, Download, ExternalLink, LogOut, Loader2, FolderSync, RefreshCw } from 'lucide-svelte';
+	import GithubIcon from '$lib/components/shared/GithubIcon.svelte';
 	import type { SyncConfig, ProjectMapping } from '$lib/types';
 
 	let isInitialized = $state(false);
@@ -117,7 +118,7 @@
 	<!-- Authentication Card -->
 	<div class="card">
 		<h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-2 flex items-center gap-2">
-			<Github class="w-5 h-5" />
+			<GithubIcon class="w-5 h-5" />
 			GitHub Connection
 		</h3>
 		<p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
@@ -184,7 +185,7 @@
 						<Loader2 class="w-4 h-4 animate-spin" />
 						Connecting...
 					{:else}
-						<Github class="w-4 h-4" />
+						<GithubIcon class="w-4 h-4" />
 						Connect with GitHub CLI
 					{/if}
 				</button>

@@ -1,8 +1,14 @@
 <script lang="ts">
-	import type { Snippet, Component } from 'svelte';
+	import type { Snippet } from 'svelte';
+
+	// See ActionMenuItem.svelte for why `icon` is intentionally loose:
+	// lucide-svelte 1.x icons use the legacy SvelteComponentTyped shape,
+	// which doesn't satisfy Svelte 5's `Component<Props>` type but renders fine.
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	type IconLike = any;
 
 	type Props = {
-		icon?: Component<any>;
+		icon?: IconLike;
 		title: string;
 		description?: string;
 		children?: Snippet;

@@ -12,7 +12,6 @@
 		ExternalLink,
 		Trash2,
 		Download,
-		Github,
 		X,
 		Eye,
 		RotateCcw,
@@ -22,6 +21,7 @@
 		Loader2,
 		ArrowUpDown
 	} from 'lucide-svelte';
+	import GithubIcon from '$lib/components/shared/GithubIcon.svelte';
 	import { i18n } from '$lib/i18n';
 	import type { Repo, RepoItem, CreateRepoRequest, ItemType, RegistryMcpEntry } from '$lib/types';
 
@@ -299,7 +299,7 @@
 				? 'border-primary-500 text-primary-600 dark:text-primary-400'
 				: 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'}"
 		>
-			<Github class="w-4 h-4" />
+			<GithubIcon class="w-4 h-4" />
 			Repos ({repoLibrary.repos.length})
 		</button>
 	</div>
@@ -459,7 +459,7 @@
 								<div
 									class="w-10 h-10 rounded-lg bg-gray-100 dark:bg-gray-700 flex items-center justify-center"
 								>
-									<Github class="w-5 h-5 text-gray-600 dark:text-gray-400" />
+									<GithubIcon class="w-5 h-5 text-gray-600 dark:text-gray-400" />
 								</div>
 								<div>
 									<div class="flex items-center gap-2">

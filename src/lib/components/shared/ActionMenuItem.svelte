@@ -1,8 +1,14 @@
 <script lang="ts">
-	import type { Component } from 'svelte';
+	// `icon` is intentionally typed loosely. lucide-svelte 1.x still exports
+	// icons as the legacy `SvelteComponentTyped` class shape, which doesn't
+	// satisfy Svelte 5's `Component<Props>` type — but renders fine at runtime.
+	// Accepting both shapes via the broad type avoids forcing a wrapper around
+	// every icon library import.
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	type IconLike = any;
 
 	type Props = {
-		icon?: Component<any>;
+		icon?: IconLike;
 		label: string;
 		variant?: 'default' | 'danger';
 		onclick?: () => void;
