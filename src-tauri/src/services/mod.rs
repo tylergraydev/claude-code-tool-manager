@@ -34,3 +34,4 @@ pub mod stats_cache;
 pub mod statusline_gallery;
 pub mod statusline_writer;
 pub mod subagent_writer;
+pub mod wsl_config;

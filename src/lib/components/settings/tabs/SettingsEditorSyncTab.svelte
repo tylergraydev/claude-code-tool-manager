@@ -410,8 +410,18 @@
 			case 'copilot': return 'Copilot CLI';
 			case 'cursor': return 'Cursor';
 			case 'gemini': return 'Gemini CLI';
-			default: return editorId;
+			default:
+				if (editorId.startsWith('wsl_')) {
+					// Find the editor in our list for proper display name
+					const editor = editors.find(e => e.id === editorId);
+					return editor?.name ?? `Claude Code (WSL)`;
+				}
+				return editorId;
 		}
+	}
+
+	function isWslEditor(editorId: string): boolean {
+		return editorId.startsWith('wsl_');
 	}
 </script>
 
@@ -432,7 +442,7 @@
 				>
 					<div class="flex items-center gap-3">
 						<div class="w-10 h-10 rounded-lg flex items-center justify-center {editor.isEnabled
-							? editor.id === 'claude_code' ? 'bg-orange-500 text-white' : editor.id === 'codex' ? 'bg-lime-600 text-white' : editor.id === 'opencode' ? 'bg-emerald-500 text-white' : editor.id === 'copilot' ? 'bg-purple-500 text-white' : editor.id === 'cursor' ? 'bg-cyan-500 text-white' : editor.id === 'gemini' ? 'bg-sky-500 text-white' : 'bg-primary-500 text-white'
+							? editor.id === 'claude_code' ? 'bg-orange-500 text-white' : editor.id === 'codex' ? 'bg-lime-600 text-white' : editor.id === 'opencode' ? 'bg-emerald-500 text-white' : editor.id === 'copilot' ? 'bg-purple-500 text-white' : editor.id === 'cursor' ? 'bg-cyan-500 text-white' : editor.id === 'gemini' ? 'bg-sky-500 text-white' : isWslEditor(editor.id) ? 'bg-amber-600 text-white' : 'bg-primary-500 text-white'
 							: 'bg-gray-100 dark:bg-gray-800 text-gray-500'}">
 							{#if editor.id === 'claude_code'}
 								<span class="text-lg font-bold">C</span>
@@ -446,6 +456,8 @@
 								<span class="text-lg font-bold">U</span>
 							{:else if editor.id === 'gemini'}
 								<span class="text-lg font-bold">M</span>
+							{:else if isWslEditor(editor.id)}
+								<span class="text-lg font-bold">W</span>
 							{:else}
 								<span class="text-lg font-bold">{editor.name.charAt(0)}</span>
 							{/if}
