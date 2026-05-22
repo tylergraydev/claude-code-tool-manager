@@ -39,7 +39,7 @@
   "devDependencies": {
     "@playwright/test": "^1.58.0",
     "@sveltejs/adapter-static": "^3.0.6",
-    "@sveltejs/kit": "^2.55.0",
+    "@sveltejs/kit": "^2.60.1",
     "@sveltejs/vite-plugin-svelte": "^7.0.0",
     "@tailwindcss/vite": "^4.2.4",
     "@tauri-apps/cli": "^2.11.1",
