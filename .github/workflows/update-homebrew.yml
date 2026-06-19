@@ -59,7 +59,7 @@ jobs:
           echo "x64 SHA256: $SHA_INTEL"
 
       - name: Checkout homebrew tap
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           repository: tylergraydev/homebrew-cctm
           token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
