@@ -84,7 +84,7 @@ jobs:
           echo "APPLE_API_KEY_PATH=$API_KEY_PATH" >> $GITHUB_ENV
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: 20
           cache: npm
